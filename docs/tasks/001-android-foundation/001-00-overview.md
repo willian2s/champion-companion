@@ -44,7 +44,7 @@ Manter ordem, dependências e checklist da Fundação Android Nativa.
 - [x] `001-06` Telas placeholder criadas
 - [x] `001-07` Erros e logs configurados
 - [x] `001-08` Variantes configuradas
-- [ ] `001-10` Governança criada
+- [x] `001-10` Governança criada
 - [ ] `001-11` CI configurada
 - [ ] `001-09` Fundação validada
 
