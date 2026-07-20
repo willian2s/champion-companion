@@ -143,13 +143,13 @@ docs/protocol/sample-packets/README.md
 - [x] `000-05` Handshake e BPM manual documentados
 - [x] `000-06` Historico D1 documentado
 - [x] `000-07` Treinos D3/D4 documentados
-- [ ] `000-08` Atividades e esteira documentadas
-- [ ] `000-09` Exercicios pelo celular e background documentados
-- [ ] `000-10` Banco atual documentado
-- [ ] `000-11` Health Connect documentado
-- [ ] `000-12` Source map criado
-- [ ] `000-13` Checklist de paridade criado
-- [ ] `000-14` Lacunas consolidadas
+- [x] `000-08` Atividades e esteira documentadas
+- [x] `000-09` Exercicios pelo celular e background documentados
+- [x] `000-10` Banco atual documentado
+- [x] `000-11` Health Connect documentado
+- [x] `000-12` Source map criado
+- [x] `000-13` Checklist de paridade criado
+- [x] `000-14` Lacunas consolidadas
 - [ ] `000-15` Fase 0 validada
 
 ## Status Inicial
@@ -164,13 +164,13 @@ docs/protocol/sample-packets/README.md
 | `000-05` | Concluida |
 | `000-06` | Concluida |
 | `000-07` | Concluida |
-| `000-08` | Pendente |
-| `000-09` | Pendente |
-| `000-10` | Pendente |
-| `000-11` | Pendente |
-| `000-12` | Pendente |
-| `000-13` | Pendente |
-| `000-14` | Pendente |
+| `000-08` | Concluida |
+| `000-09` | Concluida |
+| `000-10` | Concluida |
+| `000-11` | Concluida |
+| `000-12` | Concluida |
+| `000-13` | Concluida |
+| `000-14` | Concluida |
 | `000-15` | Pendente |
 
 ## Criterios Para Concluir A Fase 0

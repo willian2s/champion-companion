@@ -244,12 +244,136 @@ Padroes observados:
 - Evidencia: `watch-workout-review-card.tsx`, `watch-workout-repository.ts`, `watch-workout-sync-rules.ts`.
 - Comportamento: usuario revisa tipo, pode sincronizar manualmente com Health Connect, e esteira exige calibracao quando aplicavel.
 
+### Atividades Importadas: Estados, Revisao E Descarte
+
+Fontes: `src/models/watch-workout.ts`, `src/lib/repositories/watch-workout-repository.ts`, `src/components/exercises/watch-workout-review-card.tsx`, `src/app/(tabs)/exercises/[id].tsx` e `src/lib/repositories/exercise-session-repository.ts`.
+
+Salvo indicacao contraria, itens desta secao sao `Confirmado pelo codigo`. Fluxos em dispositivo nao foram executados.
+
+| Dimensao | Estados | Transicao ou efeito |
+| --- | --- | --- |
+| Revisao | `pending_review`, `reviewed` | Importacao D3/D4 nova inicia em `pending_review`. Usuario escolhe tipo e salva revisao; status passa a `reviewed`. |
+| Validacao de parser | `valid`, `partial`, `invalid` | `partial` e `invalid` bloqueiam sync manual. Import `invalid` nao cria sessao vinculada. |
+| Sync Health Connect | `not_synced`, `pending`, `synced`, `failed`, `skipped` | Importacao inicia `not_synced`; tentativa manual marca `pending`; sucesso marca `synced`; falha marca `failed` e persiste erro. Resultado bloqueado retorna `skipped` sem iniciar escrita. |
+| Calibracao de esteira | Pendente ou confirmada, derivada | Pendente quando sessao revisada e tipo `treadmill`, mas `metricSource` nao e `treadmill_calibration`. Confirmacao troca origem para `treadmill_calibration`. |
+
+Fluxo confirmado:
+
+1. D3/D4 persiste importacao com chave unica `(device_id, crc, source)`, `review_status = pending_review` e `health_connect_sync_status = not_synced`.
+2. Importacao valida cria `exercise_sessions` vinculada; tipo inicial e sugestao, nao confirmacao do usuario. Reimportacao atualiza dados e amostras; se revisada, preserva tipo escolhido.
+3. Lista de pendencias consulta somente `review_status = pending_review`.
+4. Revisao permite `running`, `walking`, `treadmill` ou `free`. Salvar atualiza tipo, modo de registro, origem de distancia e `review_status = reviewed`, em transacao exclusiva.
+5. Se tipo revisado for `treadmill`, calibracao permanece pendente ate gravar tempo e distancia. Sem calibracao, sync manual fica bloqueado.
+6. Usuario pode excluir registro pelo detalhe. Transacao remove amostras do import, importacao, pontos GPS, amostras de BPM e sessao. Isto e descarte persistido; nao ha estado separado `discarded`.
+
+Sugestao automatica confirmada: `free_workout` do protocolo vira `free`; demais casos usam passos totais, `>= 1000` sugere `running`, abaixo disto ou sem total sugere `free`. Heuristica e revisavel; nao classifica automaticamente como esteira.
+
+Edicoes confirmadas para treino importado: tipo na revisao; para esteira revisada, tempo e distancia. Nao foi encontrada edicao generica de distancia para corrida, caminhada ou treino livre importado nesta analise.
+
+### Sincronizacao Manual De Treinos Importados
+
+Fonte: `src/lib/health-connect/watch-workout-sync.ts`, `watch-workout-sync-rules.ts`, `exercise-sync-records.ts` e `watch-workout-review-card.tsx`.
+
+Nao existe enfileiramento automatico no `upsertWatchWorkout`. Acao manual usa `clientRecordId` `motionlog:watch-workout:<importId>` e exige:
+
+- revisao concluida;
+- validacao `valid`;
+- status diferente de `synced` e `pending`;
+- sessao vinculada existente;
+- esteira calibrada, quando tipo `treadmill`.
+
+Depois dos bloqueios, processo marca import como `pending`, le amostras BPM da sessao e escreve Health Connect. Sucesso grava `synced`, data e ID do registro; erro ou resultado nao sincronizado grava `failed` e mensagem, permitindo nova tentativa manual.
+
+Registros produzidos dependem do tipo: `running` e `walking` enviam sessao, distancia, calorias e BPM; `treadmill` envia sessao, distancia calibrada, calorias e BPM; `free` envia sessao, calorias e BPM sem distancia. Treinos importados nao criam registro `Steps` separado. Nenhuma rota e enviada.
+
+### Calibracao De Esteira Importada
+
+Fontes: `src/app/(tabs)/exercises/imported-treadmill-calibration.tsx`, `src/lib/exercises/exercise-session-utils.ts`, `src/lib/repositories/watch-workout-repository.ts` e `src/lib/health-connect/watch-workout-sync.ts`.
+
+Criacao manual confirmada: tela de inicio oferece `treadmill`; pode iniciar sem Champion conectado e nao inicia GPS. Ao finalizar, app guarda rascunho somente em memoria e abre `treadmill-calibration`; sessao somente e criada depois de calibracao valida com `metric_source = treadmill_calibration`. Descartar esta calibracao limpa rascunho e sessao manual em memoria, sem persistir atividade. Fluxo detalhado de exercicios iniciados pelo celular permanece para `000-09`.
+
+Treino D3/D4 revisado como `treadmill` abre tela propria de calibracao. Tela preenche tempo e distancia registrados pelo relogio apenas como sugestoes. Usuario informa painel da esteira; tempo aceita segundos inteiros, `MM:SS` ou `HH:MM:SS`, maior que zero e ate 24 h. Distancia aceita km numericos, ponto ou virgula, maior que zero e ate 200 km. Cancelar volta ao detalhe sem alterar registro.
+
+Confirmacao recalcula e persiste, em transacao exclusiva:
+
+| Valor | Regra confirmada |
+| --- | --- |
+| Inicio | Preservado da sessao importada. |
+| Fim | `startedAt + durationSeconds` calibrados. |
+| Distancia final | `distanciaKm informada * 1000`. Substitui distancia importada no import e sessao. |
+| Velocidade media e maxima | `distanceMeters / durationSeconds`; maxima recebe mesma velocidade media por falta de valor maximo confiavel. |
+| Ritmo medio | `durationSeconds / distanciaKm`. |
+| Calorias estimadas | Formula de corrida/esteira pelo peso do perfil e distancia; sem peso valido, permanece `null`. |
+| Origem | `metric_source = treadmill_calibration`; sem GPS, rota ou mapa. |
+| Sync | Mantem estados de revisao e sync; somente desbloqueia nova acao manual. |
+
+Valor enviado ao Health Connect apos calibracao e distancia final da sessao em metros, condicionada a permissao e valor valido. Sessao, calorias estimadas e BPM seguem mesmas condicoes de sync manual; rota nao e enviada.
+
+Fator de calibracao separado nao foi encontrado em codigo, schema nem tela analisados. Codigo substitui valores do relogio pelos valores informados e nao persiste formula `distancia_usuario / distancia_estimada`. Este requisito permanece lacuna para `000-14`; nao deve ser assumido no novo app sem decisao posterior.
+
 ### Exercicios Iniciados Pelo Celular
 
-- Estado: Funcional.
-- Evidencia: `start.tsx`, `active.tsx`, `manual-session-store.ts`, `exercise-session-repository.ts`.
-- Tipos: caminhada, corrida, treino livre e esteira.
-- Comportamento: sessoes rodam em foreground; caminhada/corrida usam GPS para metricas; esteira pode iniciar sem relogio conectado.
+Fontes: `src/app/(tabs)/exercises/start.tsx`, `active.tsx`, `treadmill-calibration.tsx`, `src/lib/exercises/manual-session-store.ts`, `treadmill-workout-store.ts`, `gps-metrics-accumulator.ts`, `workout-heart-rate-samples.ts`, `workout-policy.ts`, `src/lib/location/location-foreground.ts`, `src/lib/repositories/exercise-session-repository.ts` e `exercise-session-persistence.ts`.
+
+Salvo indicacao contraria, itens desta secao sao `Confirmado pelo codigo`. Fluxos em dispositivo nao foram executados.
+
+#### Inicio E Sessao Ativa
+
+Tela de inicio oferece `free`, `walking`, `running` e `treadmill`. Inicio cria `ManualExerciseSession` somente em memoria com ID, tipo, inicio, passos iniciais, estado BLE, dispositivo, amostras BPM e linha do tempo BPM. Sessao e aberta em `active.tsx`.
+
+| Tipo | Relogio | GPS | Persistencia ao iniciar | Finalizacao |
+| --- | --- | --- | --- | --- |
+| Caminhada | Obrigatorio pelo fluxo da tela | Foreground, para metricas | Nenhuma | Cria `exercise_sessions` |
+| Corrida | Obrigatorio pelo fluxo da tela | Foreground, para metricas | Nenhuma | Cria `exercise_sessions` |
+| Treino livre | Obrigatorio pelo fluxo da tela | Nao usado | Nenhuma | Cria `exercise_sessions` |
+| Esteira | Opcional | Nao usado | Nenhuma | Cria rascunho em memoria; persiste somente apos calibracao |
+
+Com relogio conectado, inicio garante notifications core e handshake A1 quando necessario, abre sessao de frequencia cardiaca com duracao de quatro horas e inicia leitura. Erro neste inicio limpa sessao em memoria. Esteira pode iniciar sem Champion conectado; demais tipos sao bloqueados pela tela enquanto nao houver dispositivo conectado.
+
+Tela ativa mostra duracao desde `startedAt`, delta de passos quando contadores inicial/final existem, estado de conexao, BPM atual/ultimo e qualidade recente da leitura. Watchdog tenta restaurar sessao/leitura BPM se conexao estiver `subscribed`, handshake concluido e intervalo de 12 segundos transcorrer; erros desse restart nao encerram sessao.
+
+#### Pausa, Retomada, Descarte E Recuperacao
+
+- `Nao confirmado no codigo`: acao, estado ou marcador persistido de pausa/retomada para exercicio manual. `active.tsx` nao expoe controles de pausa ou retomada.
+- `Confirmado pelo codigo`: nao ha persistencia da sessao ativa. `manual-session-store.ts` e `treadmill-workout-store.ts` usam variaveis de modulo em memoria; recarregamento do processo perde estado ativo e rascunho de esteira. Navegacao durante processo vivo pode reencontrar a sessao pelo mesmo store, mas recuperacao apos encerramento do app/processo nao foi encontrada.
+- `Confirmado pelo codigo`: nao ha acao de descarte na tela ativa para caminhada, corrida ou treino livre. A sessao so vira registro ao finalizar com sucesso.
+- `Confirmado pelo codigo`: descarte na calibracao de esteira limpa sessao e rascunho em memoria, sem criar atividade persistida.
+
+Estas ausencias sao lacunas para `000-14`; nao representam requisito decidido para Champion Companion.
+
+#### GPS, Metricas E Privacidade
+
+Somente caminhada e corrida chamam `Location.watchPositionAsync` em foreground. Runtime pede permissao foreground, usa precisao maxima, intervalo de dois segundos e tres metros. Pontos alimentam acumulador em memoria; pontos sem coordenadas validas, precisao acima de 30 m, intervalo abaixo de um segundo, segmento abaixo de dois metros ou velocidade acima do limite do tipo sao rejeitados. Limites de velocidade: caminhada `3,5 m/s`; corrida `8,5 m/s`.
+
+Distancia, velocidade atual/media/maxima e ritmo medio sao derivados dos pontos aceitos. A linha do tempo BPM pode receber metricas derivadas do GPS correspondentes ao instante da amostra. Ao finalizar, runtime de GPS e acumulador sao interrompidos e limpos.
+
+**Regra obrigatoria para Champion Companion:** coordenadas de caminhada/corrida existem somente em memoria durante sessao. Nao persistir latitude, longitude, pontos GPS, polyline, rota, mapa, GPX, TCX ou FIT. Nao enviar `ExerciseRoute` ao Health Connect.
+
+MotionLog atual ainda possui schema e leitura de rota legada. Fluxo manual atual chama persistencia com `routeSaved: false`, `routeSynced: false` e nao fornece `gpsPoints`; politica de persistencia devolve zero pontos para caminhada/corrida. Isto confirma ausencia de nova rota no fluxo manual, nao elimina dados legados existentes.
+
+#### BPM Durante Exercicio
+
+Com Champion conectado, BPM vem de estado D0 do cliente. Amostra valida deve ser positiva e ter timestamp estritamente maior que ultima amostra. Sessao mantem valor arredondado e timestamp em memoria. Na finalizacao, calcula media, minimo e maximo de valores positivos; persiste amostras BPM na sessao. Para caminhada/corrida com distancia GPS valida, amostras tambem recebem distancia, ritmo e velocidade derivados; demais tipos recebem somente BPM e tempo decorrido quando disponivel.
+
+Sem relogio, esteira ainda inicia, mas nao ha fonte alternativa de BPM neste fluxo. Falha de leitura/restart BPM nao encerra automaticamente treino.
+
+#### Finalizacao E Persistencia
+
+Finalizar tenta encerrar sessao/leitura cardiaca, calcula fim, duracao, passos finais/delta, BPM, metricas GPS e estimativas. Caminhada/corrida usam distancia GPS valida; sem distancia valida, codigo usa estimativa por passos para campo de distancia, mas so calcula calorias desses tipos quando GPS valido. Treino livre usa estimativa por passos para distancia/calorias. `free` nao envia distancia pela politica Health Connect; `walking`, `running` e `treadmill` podem enviar distancia, sempre sem rota.
+
+Para caminhada, corrida e treino livre, `createExerciseSession` persiste sessao e amostras BPM somente apos finalizacao bem-sucedida. Erro deixa sessao em memoria para nova tentativa enquanto processo estiver vivo. Para esteira, finalizacao nao cria sessao: cria rascunho em memoria e abre calibracao. Confirmar dados do painel cria sessao com `metric_source = treadmill_calibration`; descartar nao persiste nada.
+
+#### Background E Notificacoes Atuais
+
+Fontes: `src/lib/background-ble/index.ts`, `android/app/src/main/java/com/motionlog/app/MotionLogBackgroundBleService.kt`, `MotionLogBackgroundBleModule.kt`, `MotionLogBackgroundBleStateStore.kt`, `AndroidManifest.xml` e tela de integracao.
+
+`Confirmado pelo codigo`: background atual e referencia funcional do MotionLog, separado de sessao manual. Sessao manual declara explicitamente execucao em foreground e nao coleta GPS em background. Nenhum vinculo foi encontrado entre `manual-session-store`/`active.tsx` e `MotionLogBackgroundBleService`.
+
+Servico nativo e Foreground Service `connectedDevice`, iniciado/parado por modulo `MotionLogBackgroundBle`. Mantem notificacao baixa e permanente `MotionLog ativo`, com status/passos e acoes `Parar` e `Sincronizar agora`. Tenta localizar Champion, conectar GATT, assinar FEA1/F008, executar handshake A1, receber passos e buscar historico D1 em ciclos de cinco a 120 minutos; reconexao usa atraso de cinco segundos enquanto monitoramento estiver habilitado. Eventos enviados ao JavaScript persistem passos, pontos D1 e tentam sync pendente de BPM ao Health Connect.
+
+JS tambem registra task oportunista de sync Health Connect com minimo de 15 minutos e fallback no abrir app. Disponibilidade depende das restricoes do dispositivo; erros e estado ficam no repositorio de monitoramento. Acao nativa `Sincronizar agora` somente emite `sync_now_requested`; encaminhamento para sincronizacao efetiva depende de listener JavaScript ativo e nao foi validado em dispositivo.
+
+Para Champion Companion, isto e **referencia do baseline**, nao especificacao de implementacao: roadmap define futuro Foreground Services e WorkManager, mas proibe BLE permanente, sincronizacao agressiva, BPM continuo, D1 ao abrir e retry infinito. `000-14` deve reconciliar comportamento de continuidade de exercicio, notificacao e limites de background antes de implementacao Android.
 
 ### GPS E Privacidade
 
@@ -313,15 +437,46 @@ Observacao: nenhuma dependencia Expo ou componente React Native foi copiado para
 | 31. Consolidacao diaria | Coberto | `daily-summary-repository.ts` |
 | 32. Estimativa de distancia | Coberto | `local-estimation.ts` |
 | 33. Estimativa de calorias | Coberto | `local-estimation.ts` |
+| 50. Estados das atividades | Coberto | Secao "Atividades Importadas: Estados, Revisao E Descarte" |
+| 51. Atividades pendentes | Coberto | `getPendingReviewWorkouts`, `review_status = pending_review` |
+| 52. Sugestao automatica de tipo | Coberto como heuristica revisavel | `mapSuggestedToLocalType` |
+| 53. Edicao do tipo | Coberto | `markWorkoutAsReviewed`, `WatchWorkoutReviewCard` |
+| 54. Edicao de distancia | Coberto somente para esteira revisada | Secao "Calibracao De Esteira Importada" |
+| 55. Revisao | Coberto | `markWorkoutAsReviewed` |
+| 56. Descarte | Coberto como exclusao persistida | `deleteExerciseSessionById` |
+| 57. Sincronizacao manual | Coberto | `syncWatchWorkoutToHealthConnectManually` |
+| 58. Criacao da atividade de esteira | Coberto | Inicio manual guarda rascunho ate calibracao; import revisado como `treadmill` preserva sessao vinculada e exige calibracao |
+| 59. Estimativa de distancia | Coberto como distancia importada, usada apenas como sugestao | `watch-workout-parser.ts`, tela de calibracao |
+| 60. Calibracao | Coberto | `applyTreadmillCalibrationToImportedWorkout` |
+| 61. Distancia informada pelo usuario | Coberto | Campo em km; conversao para metros |
+| 62. Fator de calibracao | Nao confirmado | Nenhum fator separado encontrado; lacuna para `000-14` |
+| 63. Recalculo de metricas | Coberto | Distancia, ritmo, velocidade, fim e calorias |
+| 64. Valor enviado ao Health Connect | Coberto | Distancia calibrada da sessao, em metros |
+| 65. Caminhada | Coberto | Secao "Exercicios Iniciados Pelo Celular" |
+| 66. Corrida | Coberto | Secao "Exercicios Iniciados Pelo Celular" |
+| 67. Treino livre | Coberto | Secao "Exercicios Iniciados Pelo Celular" |
+| 68. Esteira | Coberto | Secao "Exercicios Iniciados Pelo Celular" |
+| 69. Sessao ativa | Coberto em memoria/foreground | `manual-session-store.ts`, `active.tsx` |
+| 70. Pausa | Nao confirmado | Nenhum controle ou estado encontrado para sessao manual |
+| 71. Retomada | Nao confirmado | Nenhum controle ou estado encontrado para sessao manual |
+| 72. Recuperacao apos encerramento | Nao confirmada; ausente no fluxo analisado | Stores de sessao/rascunho somente em memoria |
+| 73. GPS | Coberto para metricas em foreground, sem rota nova | `location-foreground.ts`, `gps-metrics-accumulator.ts` |
+| 74. BPM durante exercicio | Coberto com Champion conectado | `active.tsx`, `manual-session-store.ts` |
+| 75. Persistencia da sessao | Coberto somente ao finalizar/calibrar | `exercise-session-repository.ts`, `treadmill-calibration.tsx` |
+| 76. Finalizacao | Coberto | `active.tsx`, `treadmill-calibration.tsx` |
 | 100. Backup e restauracao atuais | Nao confirmado | Docs 013 existem; codigo atual nao encontrado em `src` |
 
 ## Lacunas Para Consolidacao Futura
 
 - Backup/restauracao Firebase nao confirmado no codigo atual.
-- Service nativo `MotionLogBackgroundBle` precisa ser analisado em task de background.
+- Pausa e retomada de exercicio iniciado pelo celular nao foram encontradas. Decidir em `000-14` se paridade exige criar ambos e como tempo, BPM, GPS e persistencia devem se comportar.
+- Recuperacao de sessao manual/rascunho de esteira apos morte do processo nao existe no fluxo analisado. Definir em `000-14` requisito de recuperacao e descarte seguro.
+- Background do MotionLog usa Foreground Service conectado ao dispositivo, reconexao recorrente e ciclos D1. Champion Companion deve tratar isto somente como referencia e reconciliar com limites do roadmap antes de implementar.
+- Notificacao e continuidade de exercicio iniciado pelo celular em background nao foram implementadas no MotionLog. Definir em `000-14` sem assumir paridade com monitoramento BLE geral.
 - Detalhes de parsers BLE, offsets, endianess e CRC ficam fora desta task.
 - Mapeamento completo de Health Connect fica para `000-11`.
 - Banco detalhado e regras por tabela ficam para `000-10`.
+- Fator de calibracao separado para esteira nao existe no codigo analisado. Decidir em `000-14` se novo app deve apenas substituir pela distancia informada, calcular fator persistido ou adotar outra regra; nao inferir uma das opcoes.
 - `WRITE_EXERCISE_ROUTE` existe no MotionLog atual, mas Champion Companion nao deve usar `ExerciseRoute`.
 - Coordenadas e rota legada aparecem no schema do MotionLog; novo app deve evitar latitude, longitude, rotas, polylines e coordenadas brutas.
 
