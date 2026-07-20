@@ -9,9 +9,10 @@ val keystoreProperties = Properties().apply {
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.android.legacy.kapt)
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room3)
 }
 
 android {
@@ -89,7 +90,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.room3.runtime)
+    ksp(libs.hilt.compiler)
+    ksp(libs.androidx.room3.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -99,6 +103,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
-kapt {
-    correctErrorTypes = true
+room3 {
+    schemaDirectory("$projectDir/schemas")
 }

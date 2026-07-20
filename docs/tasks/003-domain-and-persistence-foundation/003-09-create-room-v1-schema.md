@@ -10,7 +10,7 @@ Pendente.
 
 ## Objetivo
 
-Criar entidades Room V1, converters e relações físicas separadas dos modelos de domínio.
+Criar entidades Room 3 V1, converters e relações físicas separadas dos modelos de domínio.
 
 ## Pode modificar
 
@@ -19,7 +19,7 @@ Criar entidades Room V1, converters e relações físicas separadas dos modelos 
 
 ## Passos
 
-1. Criar database V1 Champion Companion e entities para device, perfil, peso, resumo diário, BPM, atividade, importação, intervalo, amostra BPM, calibração, sessão, operação de sync e payload diagnóstico.
+1. Criar database V1 Champion Companion com `androidx.room3`, `SQLiteDriver` e APIs de coroutines; não usar `SupportSQLite`, `Cursor` ou executor. Criar entities para device, perfil, peso, resumo diário, BPM, atividade, importação, intervalo, amostra BPM, calibração, sessão, operação de sync e payload diagnóstico.
 2. Persistir datas/horas em forma canônica; converters explícitos para enums/value objects. Nunca armazenar texto formatado de UI.
 3. Declarar PKs UUIDv7, `NOT NULL`, FKs e índices conforme relações da spec.
 4. Declarar unicidades: device por identificador permitido; daily por device+source+local date; D1 por chave resolvida; D3/D4 por device+source+CRC; calibração por atividade+revisão; saída por payload+tipo+ordinal; sync por agregado+tipo de record.
@@ -28,6 +28,6 @@ Criar entidades Room V1, converters e relações físicas separadas dos modelos 
 
 ## Aceite
 
-- Modelo Room não reutiliza classes de domínio.
+- Modelo Room 3 não reutiliza classes de domínio.
 - Banco inicia em V1, vazio, sem migration/import/acesso MotionLog.
 - Nenhuma coluna/modelo armazena rota ou coordenadas.
