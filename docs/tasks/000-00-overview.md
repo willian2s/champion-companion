@@ -150,9 +150,9 @@ docs/protocol/sample-packets/README.md
 - [x] `000-12` Source map criado
 - [x] `000-13` Checklist de paridade criado
 - [x] `000-14` Lacunas consolidadas
-- [ ] `000-15` Fase 0 validada
+- [x] `000-15` Fase 0 validada
 
-## Status Inicial
+## Status Da Fase 0
 
 | Task | Status |
 | --- | --- |
@@ -171,7 +171,17 @@ docs/protocol/sample-packets/README.md
 | `000-12` | Concluida |
 | `000-13` | Concluida |
 | `000-14` | Concluida |
-| `000-15` | Pendente |
+| `000-15` | Concluida |
+
+## Registro Da Validacao Final
+
+- Artefatos esperados: presentes em `docs/baseline/` e `docs/protocol/`, incluindo estrutura de fixtures progressivas.
+- Rastreabilidade: matriz em `docs/specs/000-phase-zero-baseline-handoff.md` atribui task responsavel a todos os requisitos originais; cobertura detalhada tambem consta em `docs/baseline/feature-inventory.md`.
+- Parsers: contratos e limites documentados para A1, D0/F002, D1 e D3/D4. D8/A8 permanecem explicitamente parciais; lacunas e validacao com dispositivo fisico estao centralizadas em `docs/baseline/gaps-and-open-questions.md`.
+- Baseline MotionLog: branch `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`, sem alteracoes no `git status --short` durante esta validacao.
+- Documentos autoritativos: roadmap, ADR e requisitos originais sem alteracoes locais.
+- Implementacao Android: ausente; repositorio nao contem fontes Kotlin/Java, Gradle ou `AndroidManifest.xml`.
+- Esta validacao nao criou commit nem push. Status Git deve ser conferido novamente antes de qualquer proxima alteracao.
 
 ## Criterios Para Concluir A Fase 0
 
