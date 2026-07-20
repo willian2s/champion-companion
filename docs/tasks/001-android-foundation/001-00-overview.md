@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Em andamento. `001-01` e `001-02` concluídas em 2026-07-20.
 
 ## Objetivo
 
@@ -36,8 +36,8 @@ Manter ordem, dependências e checklist da Fundação Android Nativa.
 
 ## Checklist
 
-- [ ] `001-01` Projeto auditado
-- [ ] `001-02` Build configurado
+- [x] `001-01` Projeto auditado
+- [x] `001-02` Build configurado
 - [ ] `001-03` Hilt configurado
 - [ ] `001-04` Pacotes criados
 - [ ] `001-05` Navegação configurada
