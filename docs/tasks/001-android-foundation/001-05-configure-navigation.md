@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-20.
 
 ## Dependência
 
@@ -10,7 +10,7 @@ Pendente.
 
 ## Objetivo
 
-Criar Navigation Compose para Home, Saúde, Calendário, Exercícios, Dispositivo, Perfil e Configurações.
+Criar Navigation 3, Compose-first, para Home, Saúde, Calendário, Exercícios, Dispositivo, Perfil e Configurações.
 
 ## Pode modificar
 
@@ -22,7 +22,7 @@ Criar Navigation Compose para Home, Saúde, Calendário, Exercícios, Dispositiv
 ## Passos
 
 1. Definir rotas únicas e estáveis.
-2. Criar `NavHost` e navegação de nível superior.
+2. Criar `NavDisplay` e navegação de nível superior.
 3. Exibir quatro destinos principais em barra inferior.
 4. Expor Dispositivo, Perfil e Configurações em menu adicional.
 5. Garantir retorno ao destino anterior e evitar pilha duplicada.

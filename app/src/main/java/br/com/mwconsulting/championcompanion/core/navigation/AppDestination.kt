@@ -6,23 +6,40 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed class AppDestination {
     @Serializable
-    data object Home : AppDestination()
+    data object Home : AppDestination() {
+        override val route = "home"
+    }
 
     @Serializable
-    data object Health : AppDestination()
+    data object Health : AppDestination() {
+        override val route = "health"
+    }
 
     @Serializable
-    data object Calendar : AppDestination()
+    data object Calendar : AppDestination() {
+        override val route = "calendar"
+    }
 
     @Serializable
-    data object Exercises : AppDestination()
+    data object Exercises : AppDestination() {
+        override val route = "exercises"
+    }
 
     @Serializable
-    data object Device : AppDestination()
+    data object Device : AppDestination() {
+        override val route = "device"
+    }
 
     @Serializable
-    data object Profile : AppDestination()
+    data object Profile : AppDestination() {
+        override val route = "profile"
+    }
 
     @Serializable
-    data object Settings : AppDestination()
+    data object Settings : AppDestination() {
+        override val route = "settings"
+    }
+
+    /** Stable, parameter-free route identifier. */
+    abstract val route: String
 }
