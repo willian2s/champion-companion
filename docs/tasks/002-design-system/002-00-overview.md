@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `002-01` a `002-07` concluídas em 2026-07-20.
+Concluída em 2026-07-20. `002-01` a `002-09` concluídas.
 
 ## Objetivo
 
@@ -45,8 +45,8 @@ Controlar entrega da Fase 02: identidade Material 3 própria, componentes reutil
 - [x] `002-05` Cards, métricas e gráfico criados.
 - [x] `002-06` Feedback e banners criados.
 - [x] `002-07` Shell usa design system, sem cores locais.
-- [ ] `002-08` Launcher, splash e ícone monocromático criados.
-- [ ] `002-09` Validação final concluída.
+- [x] `002-08` Launcher, splash e ícone monocromático criados.
+- [x] `002-09` Validação final concluída.
 
 ## Aceite da fase
 
