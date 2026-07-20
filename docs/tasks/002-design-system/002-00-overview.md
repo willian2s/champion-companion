@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `002-01`, `002-02`, `002-03` e `002-04` concluídas em 2026-07-20.
+Em andamento. `002-01`, `002-02`, `002-03`, `002-04` e `002-05` concluídas em 2026-07-20.
 
 ## Objetivo
 
@@ -42,7 +42,7 @@ Controlar entrega da Fase 02: identidade Material 3 própria, componentes reutil
 - [x] `002-02` Tema, paletas, tipografia, spacing, shapes e elevação definidos.
 - [x] `002-03` Estados visuais e tokens semânticos definidos.
 - [x] `002-04` Componentes de ação, conexão e status criados.
-- [ ] `002-05` Cards, métricas e gráfico criados.
+- [x] `002-05` Cards, métricas e gráfico criados.
 - [ ] `002-06` Feedback e banners criados.
 - [ ] `002-07` Shell usa design system, sem cores locais.
 - [ ] `002-08` Launcher, splash e ícone monocromático criados.
