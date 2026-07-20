@@ -42,7 +42,7 @@ Entregar domínio puro, Room V1 e DataStore para Champion Companion. Banco novo,
 ## Checklist
 
 - [x] `003-01` Build, dependências e limites de persistência preparados.
-- [ ] `003-02` Primitivos de domínio, tempo, IDs, proveniência e invariantes comuns criados.
+- [x] `003-02` Primitivos de domínio, tempo, IDs, proveniência e invariantes comuns criados.
 - [ ] `003-03` Dispositivo, perfil, peso e resumo diário modelados.
 - [ ] `003-04` BPM e sync individual futura modelados.
 - [ ] `003-05` Atividades D3/D4, importação e revisão modeladas.

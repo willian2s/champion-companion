@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-20.
 
 ## Dependência
 
@@ -31,3 +31,10 @@ Criar linguagem comum de domínio pura: IDs UUIDv7, origem, validade, tempo, pro
 - Domínio compila sem imports proibidos.
 - Tempo canônico, valores ausentes e proveniência ficam explícitos.
 - Nenhum identificador depende de autoincremento.
+
+## Implementação
+
+- `core.model` contém IDs distintos para todos os agregados, gerador UUIDv7 monotônico e parser que aceita somente UUIDv7 RFC 9562.
+- Tempo canônico/local e horário observado do relógio são tipos separados. Horário sem timezone inicia sem resolução; gaps e overlaps DST permanecem explícitos.
+- Origem, validade, proveniência, ausência e versão de parser são tipos de domínio puros. Validações retornam somente códigos seguros, sem mensagens internas ou stack traces.
+- Testes JVM determinísticos cobrem UUIDv7, ausência, validação, timezone e DST.
