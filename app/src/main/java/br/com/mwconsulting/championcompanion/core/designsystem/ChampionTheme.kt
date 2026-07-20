@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
@@ -27,10 +28,18 @@ fun ChampionCompanionTheme(
         dynamicColorScheme = dynamicColorScheme,
     )
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = ChampionTypography,
-        shapes = ChampionShapes,
-        content = content,
-    )
+    CompositionLocalProvider(
+        LocalChampionStatusColors provides if (darkTheme) {
+            DarkChampionStatusColors
+        } else {
+            LightChampionStatusColors
+        },
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = ChampionTypography,
+            shapes = ChampionShapes,
+            content = content,
+        )
+    }
 }

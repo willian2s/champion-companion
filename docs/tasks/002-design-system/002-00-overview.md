@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `002-01` e `002-02` concluídas em 2026-07-20.
+Em andamento. `002-01`, `002-02` e `002-03` concluídas em 2026-07-20.
 
 ## Objetivo
 
@@ -40,7 +40,7 @@ Controlar entrega da Fase 02: identidade Material 3 própria, componentes reutil
 
 - [x] `002-01` Fundação visual auditada; exclusão MotionLog registrada.
 - [x] `002-02` Tema, paletas, tipografia, spacing, shapes e elevação definidos.
-- [ ] `002-03` Estados visuais e tokens semânticos definidos.
+- [x] `002-03` Estados visuais e tokens semânticos definidos.
 - [ ] `002-04` Componentes de ação, conexão e status criados.
 - [ ] `002-05` Cards, métricas e gráfico criados.
 - [ ] `002-06` Feedback e banners criados.
