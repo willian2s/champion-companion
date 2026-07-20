@@ -2,8 +2,11 @@ import java.io.FileInputStream
 import java.util.Properties
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = Properties().apply {
-    load(FileInputStream(keystorePropertiesFile))
+val keystoreProperties = Properties()
+val hasReleaseKeystore = keystorePropertiesFile.isFile
+
+if (hasReleaseKeystore) {
+    FileInputStream(keystorePropertiesFile).use(keystoreProperties::load)
 }
 
 plugins {
@@ -34,13 +37,15 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = rootProject.file(
-                keystoreProperties["storeFile"] as String
-            )
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(
+                    keystoreProperties["storeFile"] as String
+                )
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
         }
     }
 
@@ -55,7 +60,7 @@ android {
             }
 
             isDebuggable = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
 
             // Ative quando a fase de otimização estiver preparada.
             isMinifyEnabled = false
