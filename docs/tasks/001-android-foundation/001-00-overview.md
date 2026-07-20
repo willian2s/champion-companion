@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `001-01` a `001-08`, `001-10` e `001-11` concluídas em 2026-07-20.
+Concluída em 2026-07-20. Todas tasks da Fundação Android Nativa validadas.
 
 ## Objetivo
 
@@ -46,7 +46,7 @@ Manter ordem, dependências e checklist da Fundação Android Nativa.
 - [x] `001-08` Variantes configuradas
 - [x] `001-10` Governança criada
 - [x] `001-11` CI configurada
-- [ ] `001-09` Fundação validada
+- [x] `001-09` Fundação validada
 
 ## Aceite
 
