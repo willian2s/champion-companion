@@ -141,8 +141,8 @@ docs/protocol/sample-packets/README.md
 - [x] `000-03` Aplicacao inventariada
 - [x] `000-04` Transporte BLE documentado
 - [x] `000-05` Handshake e BPM manual documentados
-- [ ] `000-06` Historico D1 documentado
-- [ ] `000-07` Treinos D3/D4 documentados
+- [x] `000-06` Historico D1 documentado
+- [x] `000-07` Treinos D3/D4 documentados
 - [ ] `000-08` Atividades e esteira documentadas
 - [ ] `000-09` Exercicios pelo celular e background documentados
 - [ ] `000-10` Banco atual documentado
@@ -162,8 +162,8 @@ docs/protocol/sample-packets/README.md
 | `000-03` | Concluida |
 | `000-04` | Concluida |
 | `000-05` | Concluida |
-| `000-06` | Pendente |
-| `000-07` | Pendente |
+| `000-06` | Concluida |
+| `000-07` | Concluida |
 | `000-08` | Pendente |
 | `000-09` | Pendente |
 | `000-10` | Pendente |
