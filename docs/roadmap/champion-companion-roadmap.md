@@ -12,20 +12,20 @@ feat/015-watch-workouts-d3-d4
 
 Essa branch representa o estado funcional atualmente utilizado e será considerada a fonte de verdade para:
 
-* comportamento das telas;
-* regras de negócio;
-* estrutura dos dados;
-* conexão BLE;
-* handshake com o relógio;
-* leitura de passos;
-* medição de frequência cardíaca;
-* histórico automático de BPM;
-* importação de treinos por D3 e D4;
-* exercícios iniciados pelo celular;
-* calibração de atividades de esteira;
-* sincronização com o Health Connect;
-* deduplicação;
-* revisão das atividades.
+- comportamento das telas;
+- regras de negócio;
+- estrutura dos dados;
+- conexão BLE;
+- handshake com o relógio;
+- leitura de passos;
+- medição de frequência cardíaca;
+- histórico automático de BPM;
+- importação de treinos por D3 e D4;
+- exercícios iniciados pelo celular;
+- calibração de atividades de esteira;
+- sincronização com o Health Connect;
+- deduplicação;
+- revisão das atividades.
 
 O objetivo inicial não é adicionar novas funcionalidades, mas atingir paridade funcional com o aplicativo atual utilizando diretamente as APIs nativas do Android.
 
@@ -49,12 +49,12 @@ feat/015-watch-workouts-d3-d4
 
 Responsabilidades durante a implementação:
 
-* continuar sendo o aplicativo utilizado diariamente;
-* servir como referência funcional;
-* fornecer os parsers e regras já validados;
-* permitir comparações com a versão nativa;
-* permanecer estável durante a implementação;
-* receber somente correções importantes.
+- continuar sendo o aplicativo utilizado diariamente;
+- servir como referência funcional;
+- fornecer os parsers e regras já validados;
+- permitir comparações com a versão nativa;
+- permanecer estável durante a implementação;
+- receber somente correções importantes.
 
 O MotionLog mobile não deverá receber novas funcionalidades significativas após o início do Champion Companion, salvo quando forem necessárias para corrigir problemas do aplicativo em uso.
 
@@ -82,17 +82,17 @@ Champion Companion
 
 Responsabilidades:
 
-* implementação Android nativa;
-* persistência local;
-* comunicação BLE com o Champion C001;
-* interpretação do protocolo;
-* importação de dados do relógio;
-* revisão de atividades;
-* calibração de esteira;
-* integração com o Health Connect;
-* exercícios iniciados pelo celular;
-* diagnóstico da comunicação;
-* manutenção futura do aplicativo.
+- implementação Android nativa;
+- persistência local;
+- comunicação BLE com o Champion C001;
+- interpretação do protocolo;
+- importação de dados do relógio;
+- revisão de atividades;
+- calibração de esteira;
+- integração com o Health Connect;
+- exercícios iniciados pelo celular;
+- diagnóstico da comunicação;
+- manutenção futura do aplicativo.
 
 ---
 
@@ -116,25 +116,25 @@ Aplicativos terceiros
 
 O aplicativo também permitirá:
 
-* visualizar dados do relógio;
-* analisar passos;
-* analisar frequência cardíaca;
-* consultar atividades;
-* revisar dados antes da sincronização;
-* corrigir tipos de exercício;
-* calibrar atividades de esteira;
-* executar medições manuais;
-* registrar exercícios pelo celular;
-* diagnosticar problemas do protocolo.
+- visualizar dados do relógio;
+- analisar passos;
+- analisar frequência cardíaca;
+- consultar atividades;
+- revisar dados antes da sincronização;
+- corrigir tipos de exercício;
+- calibrar atividades de esteira;
+- executar medições manuais;
+- registrar exercícios pelo celular;
+- diagnosticar problemas do protocolo.
 
 O Champion Companion não precisa ser o histórico definitivo de todos os dados de saúde. Seu banco funcionará principalmente como:
 
-* armazenamento operacional;
-* cache local;
-* histórico recente;
-* fonte de revisão;
-* mecanismo de deduplicação;
-* fila para o Health Connect.
+- armazenamento operacional;
+- cache local;
+- histórico recente;
+- fonte de revisão;
+- mecanismo de deduplicação;
+- fila para o Health Connect.
 
 ---
 
@@ -150,12 +150,12 @@ Não existe compromisso inicial de suporte a outros relógios.
 
 Mesmo sendo específico para um único dispositivo, o código deverá separar:
 
-* transporte BLE;
-* fila GATT;
-* comandos do protocolo;
-* parsing dos pacotes;
-* regras de domínio;
-* interface.
+- transporte BLE;
+- fila GATT;
+- comandos do protocolo;
+- parsing dos pacotes;
+- regras de domínio;
+- interface.
 
 Essa separação deverá facilitar a manutenção caso ocorram mudanças de firmware ou variações do dispositivo.
 
@@ -169,11 +169,11 @@ O aplicativo será implementado diretamente com as APIs Android.
 
 Não haverá:
 
-* React Native;
-* Expo;
-* bridge JavaScript;
-* dependência de wrappers BLE;
-* dependência de wrappers do Health Connect.
+- React Native;
+- Expo;
+- bridge JavaScript;
+- dependência de wrappers BLE;
+- dependência de wrappers do Health Connect.
 
 ---
 
@@ -193,11 +193,11 @@ O aplicativo não deverá iniciar consultas BLE ou sincronizações automaticame
 
 As ações deverão ser iniciadas pelo usuário, especialmente:
 
-* sincronização de passos;
-* sincronização de BPM;
-* importação D1;
-* importação D3/D4;
-* envio de atividades ao Health Connect.
+- sincronização de passos;
+- sincronização de BPM;
+- importação D1;
+- importação D3/D4;
+- envio de atividades ao Health Connect.
 
 ---
 
@@ -205,10 +205,10 @@ As ações deverão ser iniciadas pelo usuário, especialmente:
 
 Quando o usuário solicitar a sincronização de frequência cardíaca:
 
-* todos os registros válidos encontrados deverão ser importados;
-* todos os registros válidos ainda não sincronizados deverão ser enviados ao Health Connect;
-* não haverá seleção manual registro por registro;
-* falhas parciais deverão permanecer pendentes.
+- todos os registros válidos encontrados deverão ser importados;
+- todos os registros válidos ainda não sincronizados deverão ser enviados ao Health Connect;
+- não haverá seleção manual registro por registro;
+- falhas parciais deverão permanecer pendentes.
 
 ---
 
@@ -218,14 +218,14 @@ Toda atividade importada pelo relógio deverá ser criada inicialmente como pend
 
 O usuário deverá poder:
 
-* revisar os dados;
-* alterar o tipo;
-* alterar título e observações;
-* calibrar atividades de esteira;
-* corrigir distância quando permitido;
-* confirmar a atividade;
-* sincronizar;
-* descartar atividades inválidas.
+- revisar os dados;
+- alterar o tipo;
+- alterar título e observações;
+- calibrar atividades de esteira;
+- corrigir distância quando permitido;
+- confirmar a atividade;
+- sincronizar;
+- descartar atividades inválidas.
 
 ---
 
@@ -233,23 +233,23 @@ O usuário deverá poder:
 
 O Champion Companion poderá utilizar GPS para calcular:
 
-* distância;
-* velocidade;
-* ritmo;
-* deslocamento.
+- distância;
+- velocidade;
+- ritmo;
+- deslocamento.
 
 As coordenadas deverão existir apenas em memória durante a sessão.
 
 O aplicativo não deverá:
 
-* persistir latitude;
-* persistir longitude;
-* armazenar polylines;
-* exibir mapas;
-* gerar GPX;
-* gerar TCX;
-* gerar FIT;
-* enviar `ExerciseRoute` ao Health Connect.
+- persistir latitude;
+- persistir longitude;
+- armazenar polylines;
+- exibir mapas;
+- gerar GPX;
+- gerar TCX;
+- gerar FIT;
+- enviar `ExerciseRoute` ao Health Connect.
 
 ---
 
@@ -259,12 +259,12 @@ Todas as operações GATT deverão passar por uma fila serial.
 
 Não deverão existir:
 
-* escritas simultâneas;
-* leituras simultâneas;
-* comandos concorrentes;
-* operations sem timeout;
-* reconexões infinitas;
-* acesso direto ao GATT pelas telas.
+- escritas simultâneas;
+- leituras simultâneas;
+- comandos concorrentes;
+- operations sem timeout;
+- reconexões infinitas;
+- acesso direto ao GATT pelas telas.
 
 ---
 
@@ -282,17 +282,17 @@ A perda do histórico local anterior é aceitável porque os dados relevantes j�
 
 A primeira versão deverá priorizar:
 
-* BLE;
-* passos;
-* BPM;
-* D1;
-* D3;
-* D4;
-* revisão;
-* calibração;
-* Health Connect;
-* exercícios;
-* estabilidade.
+- BLE;
+- passos;
+- BPM;
+- D1;
+- D3;
+- D4;
+- revisão;
+- calibração;
+- Health Connect;
+- exercícios;
+- estabilidade.
 
 Novas ideias deverão permanecer em backlog até a conclusão da paridade funcional.
 
@@ -416,12 +416,12 @@ Repository
 
 As telas não deverão acessar diretamente:
 
-* DAOs;
-* `BluetoothGatt`;
-* `HealthConnectClient`;
-* APIs de localização;
-* arquivos;
-* DataStore.
+- DAOs;
+- `BluetoothGatt`;
+- `HealthConnectClient`;
+- APIs de localização;
+- arquivos;
+- DataStore.
 
 ---
 
@@ -644,59 +644,59 @@ Transformar em fixture de teste
 
 ### Referência funcional
 
-* atualizar a branch local;
-* registrar o commit funcional;
-* confirmar a instalação;
-* confirmar os fluxos principais;
-* gerar um APK da baseline;
-* registrar screenshots;
-* documentar os fluxos usados diariamente.
+- atualizar a branch local;
+- registrar o commit funcional;
+- confirmar a instalação;
+- confirmar os fluxos principais;
+- gerar um APK da baseline;
+- registrar screenshots;
+- documentar os fluxos usados diariamente.
 
 ### Inventário funcional
 
 Documentar:
 
-* telas;
-* navegação;
-* estados vazios;
-* estados de erro;
-* estados de loading;
-* ações manuais;
-* ações automáticas;
-* permissões;
-* comportamento em segundo plano.
+- telas;
+- navegação;
+- estados vazios;
+- estados de erro;
+- estados de loading;
+- ações manuais;
+- ações automáticas;
+- permissões;
+- comportamento em segundo plano.
 
 ### Inventário BLE
 
 Documentar pelo código atual:
 
-* UUIDs;
-* services;
-* characteristics;
-* fila;
-* handshake;
-* timeouts;
-* retries;
-* D0;
-* D1;
-* D3;
-* D4;
-* D8;
-* A1;
-* A8;
-* F002;
-* FEA1.
+- UUIDs;
+- services;
+- characteristics;
+- fila;
+- handshake;
+- timeouts;
+- retries;
+- D0;
+- D1;
+- D3;
+- D4;
+- D8;
+- A1;
+- A8;
+- F002;
+- FEA1.
 
 ### Banco atual
 
 Documentar apenas como referência conceitual:
 
-* tabelas;
-* entidades;
-* relacionamentos;
-* regras de deduplicação;
-* dados importantes;
-* dados desnecessários.
+- tabelas;
+- entidades;
+- relacionamentos;
+- regras de deduplicação;
+- dados importantes;
+- dados desnecessários.
 
 Não será necessário criar compatibilidade com o schema antigo.
 
@@ -704,12 +704,12 @@ Não será necessário criar compatibilidade com o schema antigo.
 
 Documentar:
 
-* registros utilizados;
-* campos enviados;
-* unidades;
-* IDs;
-* regras de atualização;
-* permissões.
+- registros utilizados;
+- campos enviados;
+- unidades;
+- IDs;
+- regras de atualização;
+- permissões.
 
 ## Capturas progressivas
 
@@ -721,10 +721,10 @@ docs/protocol/sample-packets/
 
 As capturas serão usadas para:
 
-* validar parsers;
-* reproduzir erros;
-* criar testes;
-* comparar resultados.
+- validar parsers;
+- reproduzir erros;
+- criar testes;
+- comparar resultados.
 
 ## Entregáveis
 
@@ -743,12 +743,12 @@ docs/protocol/d3-d4-workouts.md
 
 ## Critérios de aceite
 
-* commit funcional registrado;
-* APK funcional disponível;
-* principais fluxos documentados;
-* comandos BLE catalogados;
-* projeto nativo pode começar sem todas as amostras;
-* fixtures serão adicionadas progressivamente.
+- commit funcional registrado;
+- APK funcional disponível;
+- principais fluxos documentados;
+- comandos BLE catalogados;
+- projeto nativo pode começar sem todas as amostras;
+- fixtures serão adicionadas progressivamente.
 
 ---
 
@@ -760,45 +760,45 @@ Criar a fundação Android.
 
 ## Tarefas
 
-* criar repositório;
-* criar projeto;
-* configurar Kotlin;
-* configurar Compose;
-* configurar Material 3;
-* configurar Navigation;
-* configurar Hilt;
-* configurar Coroutines;
-* configurar StateFlow;
-* configurar Kotlinx Serialization;
-* configurar logging;
-* configurar tratamento de erros;
-* configurar lint;
-* configurar debug e release;
-* configurar versionamento;
-* configurar CI;
-* criar README;
-* criar `AGENTS.md`;
-* definir convenções de commit.
+- criar repositório;
+- criar projeto;
+- configurar Kotlin;
+- configurar Compose;
+- configurar Material 3;
+- configurar Navigation;
+- configurar Hilt;
+- configurar Coroutines;
+- configurar StateFlow;
+- configurar Kotlinx Serialization;
+- configurar logging;
+- configurar tratamento de erros;
+- configurar lint;
+- configurar debug e release;
+- configurar versionamento;
+- configurar CI;
+- criar README;
+- criar `AGENTS.md`;
+- definir convenções de commit.
 
 ## Telas iniciais
 
-* Home;
-* Saúde;
-* Calendário;
-* Exercícios;
-* Dispositivo;
-* Perfil;
-* Configurações.
+- Home;
+- Saúde;
+- Calendário;
+- Exercícios;
+- Dispositivo;
+- Perfil;
+- Configurações.
 
 ## Critérios de aceite
 
-* projeto compila;
-* instala no Galaxy S22;
-* navegação funciona;
-* telas abrem;
-* tema básico está configurado;
-* builds são gerados;
-* erros são registrados.
+- projeto compila;
+- instala no Galaxy S22;
+- navegação funciona;
+- telas abrem;
+- tema básico está configurado;
+- builds são gerados;
+- erros são registrados.
 
 ---
 
@@ -810,24 +810,24 @@ Criar uma fundação visual consistente.
 
 ## Tarefas
 
-* definir cores;
-* definir tipografia;
-* definir espaçamentos;
-* definir raios;
-* definir elevação;
-* definir cards;
-* definir botões;
-* definir barras de progresso;
-* definir gráficos;
-* definir chips;
-* definir estados;
-* definir indicadores BLE;
-* definir indicadores do Health Connect;
-* criar dark mode;
-* avaliar light mode;
-* criar ícone;
-* criar splash;
-* criar ícones de notificação.
+- definir cores;
+- definir tipografia;
+- definir espaçamentos;
+- definir raios;
+- definir elevação;
+- definir cards;
+- definir botões;
+- definir barras de progresso;
+- definir gráficos;
+- definir chips;
+- definir estados;
+- definir indicadores BLE;
+- definir indicadores do Health Connect;
+- criar dark mode;
+- avaliar light mode;
+- criar ícone;
+- criar splash;
+- criar ícones de notificação.
 
 ## Componentes
 
@@ -849,11 +849,11 @@ CalibrationBanner
 
 ## Critérios de aceite
 
-* componentes são compartilhados;
-* cores não são duplicadas nas features;
-* estados não dependem apenas de cor;
-* componentes possuem previews;
-* componentes são acessíveis.
+- componentes são compartilhados;
+- cores não são duplicadas nas features;
+- estados não dependem apenas de cor;
+- componentes possuem previews;
+- componentes são acessíveis.
 
 ---
 
@@ -885,73 +885,73 @@ Configurações simples deverão usar DataStore.
 
 Uma atividade deverá armazenar:
 
-* ID;
-* ID estável;
-* origem;
-* tipo sugerido;
-* tipo confirmado;
-* status;
-* data;
-* horário;
-* duração;
-* passos;
-* distância estimada;
-* distância original;
-* distância calibrada;
-* fator de calibração;
-* data da calibração;
-* calorias;
-* BPM médio;
-* BPM mínimo;
-* BPM máximo;
-* observações;
-* versão do parser;
-* status do Health Connect;
-* data da importação;
-* data da sincronização.
+- ID;
+- ID estável;
+- origem;
+- tipo sugerido;
+- tipo confirmado;
+- status;
+- data;
+- horário;
+- duração;
+- passos;
+- distância estimada;
+- distância original;
+- distância calibrada;
+- fator de calibração;
+- data da calibração;
+- calorias;
+- BPM médio;
+- BPM mínimo;
+- BPM máximo;
+- observações;
+- versão do parser;
+- status do Health Connect;
+- data da importação;
+- data da sincronização.
 
 ## Amostras de BPM
 
 Cada amostra deverá armazenar:
 
-* atividade ou medição;
-* timestamp;
-* BPM;
-* índice ou intervalo;
-* origem.
+- atividade ou medição;
+- timestamp;
+- BPM;
+- índice ou intervalo;
+- origem.
 
 ## Tarefas
 
-* configurar Room;
-* criar entities;
-* criar relations;
-* criar DAOs;
-* criar converters;
-* criar índices;
-* criar repositories;
-* criar migrations próprias;
-* configurar DataStore;
-* criar dados debug;
-* criar política de limpeza;
-* criar deduplicação;
-* criar transações.
+- configurar Room;
+- criar entities;
+- criar relations;
+- criar DAOs;
+- criar converters;
+- criar índices;
+- criar repositories;
+- criar migrations próprias;
+- configurar DataStore;
+- criar dados debug;
+- criar política de limpeza;
+- criar deduplicação;
+- criar transações.
 
 ## Dados proibidos
 
-* latitude;
-* longitude;
-* rota;
-* polyline;
-* coordenadas brutas.
+- latitude;
+- longitude;
+- rota;
+- polyline;
+- coordenadas brutas.
 
 ## Critérios de aceite
 
-* banco criado;
-* dados persistem;
-* transações são atômicas;
-* consultas usam índices;
-* telas não acessam Room;
-* migrations próprias possuem testes.
+- banco criado;
+- dados persistem;
+- transações são atômicas;
+- consultas usam índices;
+- telas não acessam Room;
+- migrations próprias possuem testes.
 
 ---
 
@@ -978,64 +978,64 @@ ChampionProtocolLogger
 
 ## Scan
 
-* solicitar permissões;
-* verificar Bluetooth;
-* iniciar scan;
-* filtrar Champion C001;
-* parar ao encontrar;
-* tratar timeout;
-* impedir scans simultâneos.
+- solicitar permissões;
+- verificar Bluetooth;
+- iniciar scan;
+- filtrar Champion C001;
+- parar ao encontrar;
+- tratar timeout;
+- impedir scans simultâneos.
 
 ## Conexão
 
-* conectar;
-* descobrir services;
-* localizar characteristics;
-* configurar MTU quando necessário;
-* habilitar notifications;
-* habilitar indications;
-* detectar desconexão;
-* fechar GATT.
+- conectar;
+- descobrir services;
+- localizar characteristics;
+- configurar MTU quando necessário;
+- habilitar notifications;
+- habilitar indications;
+- detectar desconexão;
+- fechar GATT.
 
 ## Fila GATT
 
 Operações:
 
-* read;
-* write;
-* descriptor write;
-* notifications;
-* MTU;
-* comandos.
+- read;
+- write;
+- descriptor write;
+- notifications;
+- MTU;
+- comandos.
 
 Cada operação terá:
 
-* ID;
-* timeout;
-* resultado;
-* erro;
-* retry limitado.
+- ID;
+- timeout;
+- resultado;
+- erro;
+- retry limitado.
 
 ## Logging
 
 Registrar em debug:
 
-* timestamp;
-* direção;
-* characteristic;
-* payload hexadecimal;
-* comando;
-* estado;
-* duração;
-* erro.
+- timestamp;
+- direção;
+- characteristic;
+- payload hexadecimal;
+- comando;
+- estado;
+- duração;
+- erro.
 
 ## Critérios de aceite
 
-* nenhuma operação concorrente;
-* conexão encerra corretamente;
-* timeout libera fila;
-* cliente reutilizável;
-* pacotes registrados no debug.
+- nenhuma operação concorrente;
+- conexão encerra corretamente;
+- timeout libera fila;
+- cliente reutilizável;
+- pacotes registrados no debug.
 
 ---
 
@@ -1065,17 +1065,17 @@ BPM D0/F002
 
 ## Tarefas
 
-* implementar A1;
-* validar respostas;
-* ler passos;
-* iniciar BPM;
-* receber F002;
-* identificar valor final;
-* parar BPM;
-* tratar desconexão;
-* repetir testes;
-* criar tela técnica;
-* exportar logs.
+- implementar A1;
+- validar respostas;
+- ler passos;
+- iniciar BPM;
+- receber F002;
+- identificar valor final;
+- parar BPM;
+- tratar desconexão;
+- repetir testes;
+- criar tela técnica;
+- exportar logs.
 
 ## Critérios de aceite
 
@@ -1104,28 +1104,28 @@ Transformar a prova de conceito em uma feature utilizável.
 
 ## Tarefas
 
-* listar dispositivos;
-* salvar Champion C001;
-* exibir nome;
-* exibir endereço;
-* exibir conexão;
-* exibir última conexão;
-* exibir última sincronização;
-* conectar;
-* desconectar;
-* esquecer;
-* tentar novamente;
-* exibir erros;
-* abrir diagnóstico;
-* exportar logs.
+- listar dispositivos;
+- salvar Champion C001;
+- exibir nome;
+- exibir endereço;
+- exibir conexão;
+- exibir última conexão;
+- exibir última sincronização;
+- conectar;
+- desconectar;
+- esquecer;
+- tentar novamente;
+- exibir erros;
+- abrir diagnóstico;
+- exportar logs.
 
 ## Critérios de aceite
 
-* dispositivo lembrado;
-* conexão não é agressiva;
-* usuário controla conexão;
-* falhas não bloqueiam;
-* UI reflete estado real.
+- dispositivo lembrado;
+- conexão não é agressiva;
+- usuário controla conexão;
+- falhas não bloqueiam;
+- UI reflete estado real.
 
 ---
 
@@ -1137,38 +1137,38 @@ Criar a primeira experiência diária.
 
 ## Tarefas
 
-* importar passos;
-* salvar resumo;
-* estimar distância;
-* estimar calorias;
-* mostrar origem;
-* mostrar última atualização;
-* criar sincronização manual;
-* tratar mudança de dia;
-* consolidar leituras;
-* impedir redução acidental;
-* atualizar manualmente.
+- importar passos;
+- salvar resumo;
+- estimar distância;
+- estimar calorias;
+- mostrar origem;
+- mostrar última atualização;
+- criar sincronização manual;
+- tratar mudança de dia;
+- consolidar leituras;
+- impedir redução acidental;
+- atualizar manualmente.
 
 ## Home
 
 Exibir:
 
-* passos;
-* meta;
-* distância estimada;
-* calorias estimadas;
-* último BPM;
-* último treino;
-* atividades pendentes;
-* estado do relógio;
-* última sincronização.
+- passos;
+- meta;
+- distância estimada;
+- calorias estimadas;
+- último BPM;
+- último treino;
+- atividades pendentes;
+- estado do relógio;
+- última sincronização.
 
 ## Critérios de aceite
 
-* dados persistem;
-* Home usa banco;
-* não duplica;
-* estimativas são identificadas.
+- dados persistem;
+- Home usa banco;
+- não duplica;
+- estimativas são identificadas.
 
 ---
 
@@ -1180,28 +1180,28 @@ Portar a medição manual.
 
 ## Tarefas
 
-* criar fluxo;
-* conectar;
-* iniciar D0;
-* interpretar F002;
-* mostrar BPM em tempo real;
-* exibir estado;
-* cancelar;
-* finalizar;
-* usar valor final;
-* calcular média quando necessário;
-* salvar;
-* tratar erro;
-* tratar desconexão;
-* impedir simultaneidade.
+- criar fluxo;
+- conectar;
+- iniciar D0;
+- interpretar F002;
+- mostrar BPM em tempo real;
+- exibir estado;
+- cancelar;
+- finalizar;
+- usar valor final;
+- calcular média quando necessário;
+- salvar;
+- tratar erro;
+- tratar desconexão;
+- impedir simultaneidade.
 
 ## Critérios de aceite
 
-* medição funciona;
-* resultado persiste;
-* cancelada não conclui;
-* stream é encerrado;
-* não existem duas medições.
+- medição funciona;
+- resultado persiste;
+- cancelada não conclui;
+- stream é encerrado;
+- não existem duas medições.
 
 ---
 
@@ -1231,30 +1231,30 @@ Health Connect
 
 ## Tarefas
 
-* portar D1;
-* portar parser;
-* interpretar timestamps;
-* tratar timezone;
-* validar BPM;
-* ignorar inválidos;
-* deduplicar;
-* importar por período;
-* registrar última consulta;
-* mostrar progresso;
-* permitir cancelamento;
-* tratar timeout;
-* permitir retry;
-* manter falhas pendentes.
+- portar D1;
+- portar parser;
+- interpretar timestamps;
+- tratar timezone;
+- validar BPM;
+- ignorar inválidos;
+- deduplicar;
+- importar por período;
+- registrar última consulta;
+- mostrar progresso;
+- permitir cancelamento;
+- tratar timeout;
+- permitir retry;
+- manter falhas pendentes.
 
 ## Registros válidos
 
 Deverão possuir:
 
-* timestamp interpretável;
-* timestamp dentro do período;
-* BPM dentro dos limites aceitos;
-* estrutura reconhecida;
-* ausência de duplicata local.
+- timestamp interpretável;
+- timestamp dentro do período;
+- BPM dentro dos limites aceitos;
+- estrutura reconhecida;
+- ausência de duplicata local.
 
 ## Health Connect
 
@@ -1262,33 +1262,33 @@ Todos os registros válidos ainda não sincronizados deverão ser enviados.
 
 Não haverá:
 
-* seleção individual;
-* envio somente de médias;
-* descarte de amostras válidas.
+- seleção individual;
+- envio somente de médias;
+- descarte de amostras válidas.
 
 Os registros deverão ser enviados em lotes adequados.
 
 ## Falhas
 
-* concluídos permanecem sincronizados;
-* falhas permanecem pendentes;
-* retry não repete D1 desnecessariamente;
-* registros sincronizados não duplicam.
+- concluídos permanecem sincronizados;
+- falhas permanecem pendentes;
+- retry não repete D1 desnecessariamente;
+- registros sincronizados não duplicam.
 
 ## Interface
 
-* histórico diário;
-* semanal;
-* mensal;
-* média;
-* mínimo;
-* máximo;
-* gráfico;
-* última sincronização;
-* quantidade importada;
-* quantidade enviada;
-* quantidade com erro;
-* botão “Sincronizar BPM”.
+- histórico diário;
+- semanal;
+- mensal;
+- média;
+- mínimo;
+- máximo;
+- gráfico;
+- última sincronização;
+- quantidade importada;
+- quantidade enviada;
+- quantidade com erro;
+- botão “Sincronizar BPM”.
 
 ## Regra
 
@@ -1296,12 +1296,12 @@ D1 não será consultado ao abrir o app.
 
 ## Critérios de aceite
 
-* não duplica;
-* timestamps preservados;
-* inválidos registrados em log;
-* todos os válidos são enviados;
-* falhas retomáveis;
-* sem seleção individual.
+- não duplica;
+- timestamps preservados;
+- inválidos registrados em log;
+- todos os válidos são enviados;
+- falhas retomáveis;
+- sem seleção individual.
 
 ---
 
@@ -1331,45 +1331,45 @@ Atividade pendente
 
 ## D3
 
-* portar parser;
-* interpretar blocos;
-* interpretar CRCs;
-* tratar little-endian;
-* identificar válidos;
-* identificar vazios;
-* detectar inconsistências.
+- portar parser;
+- interpretar blocos;
+- interpretar CRCs;
+- tratar little-endian;
+- identificar válidos;
+- identificar vazios;
+- detectar inconsistências.
 
 ## D4
 
-* solicitar sequencialmente;
-* controlar ordem;
-* timeout;
-* retry;
-* detectar duplicatas;
-* detectar ausência;
-* remontar payload;
-* validar tamanho;
-* validar CRC quando possível;
-* permitir retomada.
+- solicitar sequencialmente;
+- controlar ordem;
+- timeout;
+- retry;
+- detectar duplicatas;
+- detectar ausência;
+- remontar payload;
+- validar tamanho;
+- validar CRC quando possível;
+- permitir retomada.
 
 ## Parser
 
 Extrair quando disponível:
 
-* data;
-* hora;
-* duração;
-* passos;
-* distância;
-* distância por intervalo;
-* calorias;
-* BPM por intervalo;
-* BPM médio;
-* BPM mínimo;
-* BPM máximo;
-* tipo;
-* amostras;
-* agregados.
+- data;
+- hora;
+- duração;
+- passos;
+- distância;
+- distância por intervalo;
+- calorias;
+- BPM por intervalo;
+- BPM médio;
+- BPM mínimo;
+- BPM máximo;
+- tipo;
+- amostras;
+- agregados.
 
 ## Calorias
 
@@ -1381,9 +1381,9 @@ calories = caloriesRaw / 1000
 
 ## Distância
 
-* preservar total;
-* armazenar intervalos;
-* não substituir agregado sem validação.
+- preservar total;
+- armazenar intervalos;
+- não substituir agregado sem validação.
 
 ## Sugestão de tipo
 
@@ -1398,21 +1398,21 @@ A sugestão será editável.
 
 Usar:
 
-* origem;
-* horário;
-* duração;
-* CRC;
-* bloco;
-* contador;
-* hash.
+- origem;
+- horário;
+- duração;
+- CRC;
+- bloco;
+- contador;
+- hash.
 
 ## Pacotes brutos
 
 Armazenamento temporário para:
 
-* diagnóstico;
-* correção;
-* auditoria.
+- diagnóstico;
+- correção;
+- auditoria.
 
 Deverá haver limpeza automática.
 
@@ -1422,13 +1422,13 @@ Permanecem como diagnóstico ou fallback.
 
 ## Critérios de aceite
 
-* treino real importado;
-* treino longo importado;
-* blocos remontados;
-* sem duplicação;
-* dados preservados;
-* atividade pendente;
-* sem envio automático.
+- treino real importado;
+- treino longo importado;
+- blocos remontados;
+- sem duplicação;
+- dados preservados;
+- atividade pendente;
+- sem envio automático.
 
 ## Gate B
 
@@ -1444,54 +1444,54 @@ Permitir revisão completa antes da sincronização.
 
 ## Home
 
-* banner de pendências;
-* quantidade;
-* acesso direto;
-* destaque de calibração.
+- banner de pendências;
+- quantidade;
+- acesso direto;
+- destaque de calibração.
 
 ## Lista
 
 Filtros:
 
-* todas;
-* aguardando calibração;
-* pendentes;
-* prontas;
-* sincronizadas;
-* com erro;
-* descartadas.
+- todas;
+- aguardando calibração;
+- pendentes;
+- prontas;
+- sincronizadas;
+- com erro;
+- descartadas.
 
 ## Detalhes
 
 Exibir:
 
-* tipo;
-* tipo sugerido;
-* origem;
-* data;
-* duração;
-* distância;
-* ritmo;
-* velocidade;
-* passos;
-* calorias;
-* BPM médio;
-* BPM mínimo;
-* BPM máximo;
-* gráfico;
-* intervalos;
-* calibração;
-* Health Connect.
+- tipo;
+- tipo sugerido;
+- origem;
+- data;
+- duração;
+- distância;
+- ritmo;
+- velocidade;
+- passos;
+- calorias;
+- BPM médio;
+- BPM mínimo;
+- BPM máximo;
+- gráfico;
+- intervalos;
+- calibração;
+- Health Connect.
 
 ## Edição
 
 Permitir:
 
-* tipo;
-* título;
-* observações;
-* distância;
-* classificação.
+- tipo;
+- título;
+- observações;
+- distância;
+- classificação.
 
 ## Calibração de esteira
 
@@ -1506,21 +1506,21 @@ Distância da esteira: 5,00 km
 
 Recalcular:
 
-* distância final;
-* ritmo médio;
-* velocidade média;
-* métricas derivadas;
-* fator de calibração.
+- distância final;
+- ritmo médio;
+- velocidade média;
+- métricas derivadas;
+- fator de calibração.
 
 ## Dados de calibração
 
 Armazenar:
 
-* distância estimada;
-* distância informada;
-* fator;
-* data da calibração;
-* indicador de ajuste manual.
+- distância estimada;
+- distância informada;
+- fator;
+- data da calibração;
+- indicador de ajuste manual.
 
 ## Fluxo
 
@@ -1538,24 +1538,24 @@ READY_TO_SYNC
 
 ## Ações
 
-* calibrar;
-* editar;
-* salvar;
-* marcar revisada;
-* sincronizar;
-* tentar novamente;
-* descartar;
-* diagnosticar.
+- calibrar;
+- editar;
+- salvar;
+- marcar revisada;
+- sincronizar;
+- tentar novamente;
+- descartar;
+- diagnosticar.
 
 ## Critérios de aceite
 
-* pendências visíveis;
-* tipo editável;
-* esteira calibrável;
-* ritmo recalculado;
-* Health Connect recebe calibrado;
-* sem envio antes da confirmação;
-* falhas não apagam dados.
+- pendências visíveis;
+- tipo editável;
+- esteira calibrável;
+- ritmo recalculado;
+- Health Connect recebe calibrado;
+- sem envio antes da confirmação;
+- falhas não apagam dados.
 
 ---
 
@@ -1567,41 +1567,41 @@ Implementar integração direta.
 
 ## Tipos
 
-* passos;
-* BPM;
-* sessão;
-* distância;
-* calorias;
-* peso;
-* altura.
+- passos;
+- BPM;
+- sessão;
+- distância;
+- calorias;
+- peso;
+- altura.
 
 ## Não enviar
 
-* rota;
-* latitude;
-* longitude;
-* polyline;
-* GPX;
-* TCX;
-* FIT.
+- rota;
+- latitude;
+- longitude;
+- polyline;
+- GPX;
+- TCX;
+- FIT.
 
 ## Tarefas
 
-* detectar disponibilidade;
-* solicitar permissões;
-* mostrar permissões faltantes;
-* criar repository;
-* criar mapeadores;
-* criar IDs estáveis;
-* criar versões;
-* insert;
-* update;
-* delete quando necessário;
-* fila;
-* retry;
-* erros;
-* reenvio;
-* data de sincronização.
+- detectar disponibilidade;
+- solicitar permissões;
+- mostrar permissões faltantes;
+- criar repository;
+- criar mapeadores;
+- criar IDs estáveis;
+- criar versões;
+- insert;
+- update;
+- delete quando necessário;
+- fila;
+- retry;
+- erros;
+- reenvio;
+- data de sincronização.
 
 ## IDs
 
@@ -1622,15 +1622,15 @@ Não enviar apenas média quando houver amostras.
 
 Enviar:
 
-* início;
-* fim;
-* tipo confirmado;
-* título;
-* notas;
-* distância final;
-* calorias;
-* passos;
-* BPM.
+- início;
+- fim;
+- tipo confirmado;
+- título;
+- notas;
+- distância final;
+- calorias;
+- passos;
+- BPM.
 
 ## Esteira
 
@@ -1638,12 +1638,12 @@ Usar a distância calibrada.
 
 ## Critérios de aceite
 
-* atividade revisada é enviada;
-* reenvio não duplica;
-* atualização funciona;
-* erros aparecem;
-* nenhuma rota;
-* sincronização controlada.
+- atividade revisada é enviada;
+- reenvio não duplica;
+- atualização funciona;
+- erros aparecem;
+- nenhuma rota;
+- sincronização controlada.
 
 ## Gate C
 
@@ -1669,59 +1669,59 @@ Portar os exercícios do aplicativo.
 
 ## Tipos
 
-* caminhada;
-* corrida;
-* treino livre;
-* esteira.
+- caminhada;
+- corrida;
+- treino livre;
+- esteira.
 
 ## Comum
 
-* iniciar;
-* persistir sessão;
-* controlar duração;
-* pausar;
-* retomar;
-* finalizar;
-* descartar;
-* recuperar;
-* coletar BPM;
-* salvar amostras;
-* criar atividade pendente.
+- iniciar;
+- persistir sessão;
+- controlar duração;
+- pausar;
+- retomar;
+- finalizar;
+- descartar;
+- recuperar;
+- coletar BPM;
+- salvar amostras;
+- criar atividade pendente.
 
 ## Caminhada e corrida
 
-* solicitar localização;
-* foreground service;
-* receber localizações;
-* filtrar pontos;
-* calcular distância em memória;
-* calcular velocidade;
-* calcular ritmo;
-* descartar coordenadas;
-* salvar agregados.
+- solicitar localização;
+- foreground service;
+- receber localizações;
+- filtrar pontos;
+- calcular distância em memória;
+- calcular velocidade;
+- calcular ritmo;
+- descartar coordenadas;
+- salvar agregados.
 
 ## Treino livre
 
-* funcionar sem GPS;
-* registrar duração;
-* BPM;
-* calorias estimadas;
-* edição posterior.
+- funcionar sem GPS;
+- registrar duração;
+- BPM;
+- calorias estimadas;
+- edição posterior.
 
 ## Esteira
 
-* funcionar sem GPS;
-* registrar duração;
-* registrar passos;
-* registrar BPM;
-* estimar distância quando possível;
-* deixar claro que é estimativa;
-* finalizar sem distância real;
-* criar `PENDING_CALIBRATION`;
-* permitir informar distância da esteira;
-* recalcular ritmo;
-* recalcular velocidade;
-* enviar valor calibrado.
+- funcionar sem GPS;
+- registrar duração;
+- registrar passos;
+- registrar BPM;
+- estimar distância quando possível;
+- deixar claro que é estimativa;
+- finalizar sem distância real;
+- criar `PENDING_CALIBRATION`;
+- permitir informar distância da esteira;
+- recalcular ritmo;
+- recalcular velocidade;
+- enviar valor calibrado.
 
 ## Fluxo de esteira
 
@@ -1743,13 +1743,13 @@ Health Connect
 
 ## Critérios de aceite
 
-* caminhada e corrida calculam distância;
-* coordenadas não persistem;
-* treino livre sem localização;
-* esteira sem GPS;
-* esteira calibrável;
-* sessão recuperável;
-* atividade revisável.
+- caminhada e corrida calculam distância;
+- coordenadas não persistem;
+- treino livre sem localização;
+- esteira sem GPS;
+- esteira calibrável;
+- sessão recuperável;
+- atividade revisável.
 
 ---
 
@@ -1763,47 +1763,47 @@ Usar os mecanismos Android corretos.
 
 Usar em:
 
-* exercício ativo;
-* GPS;
-* BPM durante exercício;
-* importação longa;
-* D3/D4 quando necessário.
+- exercício ativo;
+- GPS;
+- BPM durante exercício;
+- importação longa;
+- D3/D4 quando necessário.
 
 Notificação:
 
-* operação;
-* duração;
-* conexão;
-* abrir app;
-* finalizar ou cancelar.
+- operação;
+- duração;
+- conexão;
+- abrir app;
+- finalizar ou cancelar.
 
 ## WorkManager
 
 Usar em:
 
-* reprocessamento;
-* reenvio autorizado;
-* limpeza;
-* backup;
-* restauração;
-* tarefas adiáveis.
+- reprocessamento;
+- reenvio autorizado;
+- limpeza;
+- backup;
+- restauração;
+- tarefas adiáveis.
 
 ## Não implementar
 
-* BLE permanente;
-* sincronização agressiva;
-* BPM contínuo;
-* D1 ao abrir;
-* importação silenciosa;
-* retry infinito.
+- BLE permanente;
+- sincronização agressiva;
+- BPM contínuo;
+- D1 ao abrir;
+- importação silenciosa;
+- retry infinito.
 
 ## Critérios de aceite
 
-* exercício continua com tela apagada;
-* notificação visível;
-* tarefas adiáveis funcionam;
-* sem loops;
-* sessão reconstruível.
+- exercício continua com tela apagada;
+- notificação visível;
+- tarefas adiáveis funcionam;
+- sem loops;
+- sessão reconstruível.
 
 ---
 
@@ -1815,25 +1815,25 @@ Centralizar dados por dia.
 
 ## Tarefas
 
-* calendário mensal;
-* dias com passos;
-* dias com BPM;
-* dias com exercícios;
-* resumo diário;
-* meta de passos;
-* exercícios;
-* BPM;
-* peso;
-* sincronizações;
-* navegação;
-* estados vazios.
+- calendário mensal;
+- dias com passos;
+- dias com BPM;
+- dias com exercícios;
+- resumo diário;
+- meta de passos;
+- exercícios;
+- BPM;
+- peso;
+- sincronizações;
+- navegação;
+- estados vazios.
 
 ## Critérios de aceite
 
-* calendário consistente;
-* detalhe não consulta BLE;
-* funciona offline;
-* pendências destacadas.
+- calendário consistente;
+- detalhe não consulta BLE;
+- funciona offline;
+- pendências destacadas.
 
 ---
 
@@ -1845,34 +1845,34 @@ Manter dados usados nas estimativas.
 
 ## Dados
 
-* nome;
-* nascimento;
-* sexo quando necessário;
-* altura;
-* peso;
-* meta de peso;
-* meta de passos;
-* passada;
-* unidades;
-* zonas de BPM.
+- nome;
+- nascimento;
+- sexo quando necessário;
+- altura;
+- peso;
+- meta de peso;
+- meta de passos;
+- passada;
+- unidades;
+- zonas de BPM.
 
 ## Tarefas
 
-* formulário;
-* validação;
-* persistência;
-* histórico de peso;
-* recalcular estimativas;
-* sincronização manual;
-* identificar estimativas;
-* personalizar passada.
+- formulário;
+- validação;
+- persistência;
+- histórico de peso;
+- recalcular estimativas;
+- sincronização manual;
+- identificar estimativas;
+- personalizar passada.
 
 ## Critérios de aceite
 
-* cálculos atualizados;
-* histórico preservado;
-* dados sincronizáveis;
-* estimativas identificadas.
+- cálculos atualizados;
+- histórico preservado;
+- dados sincronizáveis;
+- estimativas identificadas.
 
 ---
 
@@ -1884,55 +1884,55 @@ Proteger apenas os dados do Champion Companion.
 
 ## Escopo
 
-* perfil;
-* dispositivos;
-* resumos;
-* BPM;
-* peso;
-* exercícios;
-* amostras;
-* intervalos;
-* calibrações;
-* estados de sincronização;
-* configurações.
+- perfil;
+- dispositivos;
+- resumos;
+- BPM;
+- peso;
+- exercícios;
+- amostras;
+- intervalos;
+- calibrações;
+- estados de sincronização;
+- configurações.
 
 ## Formato
 
-* versão do app;
-* versão do schema;
-* data;
-* ID;
-* checksum;
-* dados serializados.
+- versão do app;
+- versão do schema;
+- data;
+- ID;
+- checksum;
+- dados serializados.
 
 ## Tarefas
 
-* exportação local;
-* importação local;
-* checksum;
-* validação de versão;
-* preview;
-* backup pré-restauração;
-* impedir sobrescrita;
-* conflito;
-* nuvem opt-in;
-* excluir logs sensíveis.
+- exportação local;
+- importação local;
+- checksum;
+- validação de versão;
+- preview;
+- backup pré-restauração;
+- impedir sobrescrita;
+- conflito;
+- nuvem opt-in;
+- excluir logs sensíveis.
 
 ## Limites
 
 Não precisa ser compatível com:
 
-* MotionLog;
-* exportações antigas;
-* banco antigo.
+- MotionLog;
+- exportações antigas;
+- banco antigo.
 
 ## Critérios de aceite
 
-* cria backup;
-* restaura;
-* rejeita incompatíveis;
-* cria segurança;
-* valida registros.
+- cria backup;
+- restaura;
+- rejeita incompatíveis;
+- cria segurança;
+- valida registros.
 
 ---
 
@@ -1946,73 +1946,73 @@ Adotar o Champion Companion como aplicativo independente.
 
 Usar novo:
 
-* nome;
-* projeto;
-* application ID;
-* banco;
-* ciclo de dados.
+- nome;
+- projeto;
+- application ID;
+- banco;
+- ciclo de dados.
 
 ## Sem transferência
 
 Não importar:
 
-* passos antigos;
-* BPM antigo;
-* peso antigo;
-* exercícios antigos;
-* atividades;
-* configurações;
-* IDs do Health Connect;
-* banco SQLite;
-* backups do MotionLog.
+- passos antigos;
+- BPM antigo;
+- peso antigo;
+- exercícios antigos;
+- atividades;
+- configurações;
+- IDs do Health Connect;
+- banco SQLite;
+- backups do MotionLog.
 
 ## Primeira execução
 
-* criar banco vazio;
-* solicitar permissões;
-* selecionar Champion C001;
-* registrar início de uso;
-* começar novos dados;
-* não procurar MotionLog;
-* não importar arquivos antigos.
+- criar banco vazio;
+- solicitar permissões;
+- selecionar Champion C001;
+- registrar início de uso;
+- começar novos dados;
+- não procurar MotionLog;
+- não importar arquivos antigos.
 
 ## Histórico ainda no relógio
 
 Dados disponíveis no Champion C001 poderão ser importados por:
 
-* D1;
-* D3;
-* D4.
+- D1;
+- D3;
+- D4.
 
 Seguirão:
 
-* validação;
-* deduplicação interna;
-* revisão;
-* sincronização.
+- validação;
+- deduplicação interna;
+- revisão;
+- sincronização.
 
 Não haverá deduplicação cruzada com o MotionLog.
 
 ## Tarefas
 
-* definir application ID;
-* permitir instalação paralela;
-* criar onboarding;
-* criar banco limpo;
-* remover dependência de schema antigo;
-* documentar ausência de migração;
-* validar uso paralelo;
-* permitir remoção futura do MotionLog.
+- definir application ID;
+- permitir instalação paralela;
+- criar onboarding;
+- criar banco limpo;
+- remover dependência de schema antigo;
+- documentar ausência de migração;
+- validar uso paralelo;
+- permitir remoção futura do MotionLog.
 
 ## Critérios de aceite
 
-* instala ao lado;
-* banco vazio;
-* não acessa MotionLog;
-* sem transferência;
-* novos dados sincronizam;
-* histórico antigo não é requisito;
-* MotionLog pode ser removido.
+- instala ao lado;
+- banco vazio;
+- não acessa MotionLog;
+- sem transferência;
+- novos dados sincronizam;
+- histórico antigo não é requisito;
+- MotionLog pode ser removido.
 
 ---
 
@@ -2024,27 +2024,27 @@ Facilitar investigação.
 
 ## Tarefas
 
-* tela de diagnóstico;
-* versão do app;
-* versão do parser;
-* dispositivo;
-* estado BLE;
-* último erro;
-* última sincronização;
-* fila GATT;
-* copiar relatório;
-* exportar logs;
-* exportar D3/D4;
-* mascarar dados;
-* retenção;
-* reduzir logs em produção.
+- tela de diagnóstico;
+- versão do app;
+- versão do parser;
+- dispositivo;
+- estado BLE;
+- último erro;
+- última sincronização;
+- fila GATT;
+- copiar relatório;
+- exportar logs;
+- exportar D3/D4;
+- mascarar dados;
+- retenção;
+- reduzir logs em produção.
 
 ## Critérios de aceite
 
-* BLE investigável;
-* exportação controlada;
-* limpeza;
-* proteção de dados.
+- BLE investigável;
+- exportação controlada;
+- limpeza;
+- proteção de dados.
 
 ---
 
@@ -2056,27 +2056,27 @@ Proteger dados de saúde.
 
 ## Tarefas
 
-* revisar permissões;
-* solicitar somente necessárias;
-* explicar permissões;
-* não armazenar localização;
-* não enviar para servidores;
-* proteger backups;
-* evitar dados pessoais em logs;
-* usar armazenamento privado;
-* documentar retenção;
-* apagar todos os dados;
-* desconectar Health Connect;
-* política de privacidade;
-* inventário de dados.
+- revisar permissões;
+- solicitar somente necessárias;
+- explicar permissões;
+- não armazenar localização;
+- não enviar para servidores;
+- proteger backups;
+- evitar dados pessoais em logs;
+- usar armazenamento privado;
+- documentar retenção;
+- apagar todos os dados;
+- desconectar Health Connect;
+- política de privacidade;
+- inventário de dados.
 
 ## Critérios de aceite
 
-* conjunto mínimo;
-* negar Health Connect mantém histórico;
-* negar localização afeta apenas GPS;
-* usuário apaga dados;
-* nenhuma rota.
+- conjunto mínimo;
+- negar Health Connect mantém histórico;
+- negar localização afeta apenas GPS;
+- usuário apaga dados;
+- nenhuma rota.
 
 ---
 
@@ -2088,52 +2088,52 @@ Criar segurança para substituir o app atual.
 
 ## Testes unitários
 
-* D1;
-* D3;
-* D4;
-* little-endian;
-* calorias;
-* distância;
-* BPM;
-* deduplicação;
-* sugestão de tipo;
-* calibração;
-* Health Connect;
-* estados;
-* pace;
-* distância;
-* retries.
+- D1;
+- D3;
+- D4;
+- little-endian;
+- calorias;
+- distância;
+- BPM;
+- deduplicação;
+- sugestão de tipo;
+- calibração;
+- Health Connect;
+- estados;
+- pace;
+- distância;
+- retries.
 
 ## Banco
 
-* inserção;
-* atualização;
-* relações;
-* transações;
-* migrations próprias;
-* deduplicação;
-* limpeza;
-* calibração.
+- inserção;
+- atualização;
+- relações;
+- transações;
+- migrations próprias;
+- deduplicação;
+- limpeza;
+- calibração.
 
 ## Interface
 
-* Home;
-* pendências;
-* calibração;
-* revisão;
-* erros;
-* permissões;
-* estados vazios;
-* sincronização.
+- Home;
+- pendências;
+- calibração;
+- revisão;
+- erros;
+- permissões;
+- estados vazios;
+- sincronização.
 
 ## Instrumentados
 
-* Health Connect;
-* foreground service;
-* recuperação;
-* localização;
-* notificações;
-* backup.
+- Health Connect;
+- foreground service;
+- recuperação;
+- localização;
+- notificações;
+- backup.
 
 ## BLE falso
 
@@ -2146,22 +2146,22 @@ RecordedChampionPacketSource
 
 Simular:
 
-* timeout;
-* desconexão;
-* duplicata;
-* bloco ausente;
-* ordem incorreta;
-* payload inválido;
-* CRC inválido;
-* sessão completa.
+- timeout;
+- desconexão;
+- duplicata;
+- bloco ausente;
+- ordem incorreta;
+- payload inválido;
+- CRC inválido;
+- sessão completa.
 
 ## Critérios de aceite
 
-* parsers com fixtures reais;
-* migrations próprias testadas;
-* fluxos críticos cobertos;
-* BLE reproduzível;
-* sem bug crítico conhecido.
+- parsers com fixtures reais;
+- migrations próprias testadas;
+- fluxos críticos cobertos;
+- BLE reproduzível;
+- sem bug crítico conhecido.
 
 ---
 
@@ -2181,54 +2181,54 @@ Samsung Galaxy S22
 
 Quando possível:
 
-* outro Samsung;
-* Motorola ou Xiaomi;
-* Android anterior.
+- outro Samsung;
+- Motorola ou Xiaomi;
+- Android anterior.
 
 ## BLE
 
-* scan;
-* conexão;
-* handshake;
-* passos;
-* BPM;
-* D1;
-* D3;
-* D4;
-* reconexão;
-* Bluetooth desligado;
-* fora de alcance;
-* tela apagada;
-* segundo plano;
-* interrupção.
+- scan;
+- conexão;
+- handshake;
+- passos;
+- BPM;
+- D1;
+- D3;
+- D4;
+- reconexão;
+- Bluetooth desligado;
+- fora de alcance;
+- tela apagada;
+- segundo plano;
+- interrupção.
 
 ## Exercícios
 
-* caminhada;
-* corrida;
-* esteira;
-* treino livre;
-* pausa;
-* retomada;
-* processo encerrado;
-* reinício.
+- caminhada;
+- corrida;
+- esteira;
+- treino livre;
+- pausa;
+- retomada;
+- processo encerrado;
+- reinício.
 
 ## Health Connect
 
-* aceitar;
-* negar;
-* revogar;
-* enviar;
-* atualizar;
-* retry;
-* deduplicação.
+- aceitar;
+- negar;
+- revogar;
+- enviar;
+- atualizar;
+- retry;
+- deduplicação.
 
 ## Critérios de aceite
 
-* fluxo no S22;
-* sem falhas graves em outro fabricante;
-* sessões não perdidas;
-* bateria documentada.
+- fluxo no S22;
+- sem falhas graves em outro fabricante;
+- sessões não perdidas;
+- bateria documentada.
 
 ---
 
@@ -2240,56 +2240,56 @@ Comparar com a baseline.
 
 ## Dispositivo
 
-* scan;
-* conexão;
-* handshake;
-* desconexão;
-* passos;
-* BPM;
-* D1;
-* D3/D4.
+- scan;
+- conexão;
+- handshake;
+- desconexão;
+- passos;
+- BPM;
+- D1;
+- D3/D4.
 
 ## Saúde
 
-* histórico;
-* métricas;
-* gráficos;
-* peso;
-* perfil.
+- histórico;
+- métricas;
+- gráficos;
+- peso;
+- perfil.
 
 ## Exercícios
 
-* caminhada;
-* corrida;
-* treino livre;
-* esteira;
-* calibração;
-* revisão;
-* histórico.
+- caminhada;
+- corrida;
+- treino livre;
+- esteira;
+- calibração;
+- revisão;
+- histórico.
 
 ## Health Connect
 
-* passos;
-* BPM completo;
-* exercícios;
-* peso;
-* altura;
-* sincronização;
-* erros.
+- passos;
+- BPM completo;
+- exercícios;
+- peso;
+- altura;
+- sincronização;
+- erros.
 
 ## Dados
 
-* banco próprio;
-* backup;
-* restauração;
-* deduplicação.
+- banco próprio;
+- backup;
+- restauração;
+- deduplicação.
 
 ## Critérios de aceite
 
-* equivalência das funcionalidades essenciais;
-* diferenças documentadas;
-* sem regressão crítica;
-* nenhum fluxo essencial ausente.
+- equivalência das funcionalidades essenciais;
+- diferenças documentadas;
+- sem regressão crítica;
+- nenhum fluxo essencial ausente.
 
 ## Gate D
 
@@ -2309,35 +2309,35 @@ Usar os dois aplicativos durante a validação.
 
 ## Estratégia
 
-* manter MotionLog;
-* instalar Champion Companion;
-* usar em sessões reais;
-* comparar;
-* validar D1;
-* validar D3/D4;
-* validar Health Connect;
-* registrar divergências.
+- manter MotionLog;
+- instalar Champion Companion;
+- usar em sessões reais;
+- comparar;
+- validar D1;
+- validar D3/D4;
+- validar Health Connect;
+- registrar divergências.
 
 ## Comparações
 
-* passos;
-* BPM;
-* amostras;
-* duração;
-* distância;
-* calorias;
-* horários;
-* atividades;
-* duplicações;
-* estabilidade;
-* calibração.
+- passos;
+- BPM;
+- amostras;
+- duração;
+- distância;
+- calorias;
+- horários;
+- atividades;
+- duplicações;
+- estabilidade;
+- calibração.
 
 ## Critérios de aceite
 
-* sem perda;
-* sem problema crítico;
-* dados equivalentes ou melhores;
-* Champion Companion assume uso diário.
+- sem perda;
+- sem problema crítico;
+- dados equivalentes ou melhores;
+- Champion Companion assume uso diário.
 
 ---
 
@@ -2349,25 +2349,25 @@ Tornar o Champion Companion o app principal do Champion C001.
 
 ## Tarefas
 
-* definir package final;
-* definir assinatura;
-* gerar release;
-* criar changelog;
-* documentação;
-* política de privacidade;
-* instruções de adoção;
-* plano de rollback;
-* congelar MotionLog mobile;
-* manter APK estável anterior.
+- definir package final;
+- definir assinatura;
+- gerar release;
+- criar changelog;
+- documentação;
+- política de privacidade;
+- instruções de adoção;
+- plano de rollback;
+- congelar MotionLog mobile;
+- manter APK estável anterior.
 
 ## Critérios de aceite
 
-* release assinado;
-* banco próprio validado;
-* backup funcionando;
-* documentação disponível;
-* sem bloqueadores;
-* uso diário estável.
+- release assinado;
+- banco próprio validado;
+- backup funcionando;
+- documentação disponível;
+- sem bloqueadores;
+- uso diário estável.
 
 ---
 
@@ -2511,40 +2511,40 @@ Fase 25 — Lançamento
 
 ## Crítica
 
-* baseline;
-* BLE;
-* handshake;
-* passos;
-* BPM;
-* D1;
-* D3;
-* D4;
-* revisão;
-* calibração;
-* Health Connect;
-* deduplicação.
+- baseline;
+- BLE;
+- handshake;
+- passos;
+- BPM;
+- D1;
+- D3;
+- D4;
+- revisão;
+- calibração;
+- Health Connect;
+- deduplicação.
 
 ## Alta
 
-* exercícios;
-* foreground service;
-* recuperação;
-* calendário;
-* perfil;
-* backup.
+- exercícios;
+- foreground service;
+- recuperação;
+- calendário;
+- perfil;
+- backup.
 
 ## Média
 
-* visual;
-* diagnóstico;
-* gráficos;
-* personalização.
+- visual;
+- diagnóstico;
+- gráficos;
+- personalização.
 
 ## Baixa
 
-* novas métricas;
-* automações;
-* outros relógios.
+- novas métricas;
+- automações;
+- outros relógios.
 
 ---
 
@@ -2554,11 +2554,11 @@ Fase 25 — Lançamento
 
 Mitigação:
 
-* documentação;
-* logs;
-* fixtures progressivas;
-* comparação;
-* validação isolada.
+- documentação;
+- logs;
+- fixtures progressivas;
+- comparação;
+- validação isolada.
 
 ---
 
@@ -2566,11 +2566,11 @@ Mitigação:
 
 Mitigação:
 
-* fila;
-* timeout;
-* retry limitado;
-* múltiplos aparelhos;
-* logs.
+- fila;
+- timeout;
+- retry limitado;
+- múltiplos aparelhos;
+- logs.
 
 ---
 
@@ -2580,12 +2580,12 @@ O Champion Companion poderá encontrar no relógio registros já enviados anteri
 
 Mitigação:
 
-* mostrar período;
-* registrar início de uso;
-* deduplicação interna;
-* importação manual;
-* revisão D3/D4;
-* evitar histórico involuntário.
+- mostrar período;
+- registrar início de uso;
+- deduplicação interna;
+- importação manual;
+- revisão D3/D4;
+- evitar histórico involuntário.
 
 ---
 
@@ -2593,10 +2593,10 @@ Mitigação:
 
 Mitigação:
 
-* IDs estáveis;
-* versões;
-* status local;
-* testes de reenvio.
+- IDs estáveis;
+- versões;
+- status local;
+- testes de reenvio.
 
 ---
 
@@ -2604,12 +2604,12 @@ Mitigação:
 
 Mitigação:
 
-* conexão sob demanda;
-* encerrar scan;
-* encerrar GATT;
-* localização limitada;
-* sem BPM contínuo;
-* WorkManager.
+- conexão sob demanda;
+- encerrar scan;
+- encerrar GATT;
+- localização limitada;
+- sem BPM contínuo;
+- WorkManager.
 
 ---
 
@@ -2617,10 +2617,10 @@ Mitigação:
 
 Mitigação:
 
-* baseline;
-* checklist;
-* backlog;
-* gates.
+- baseline;
+- checklist;
+- backlog;
+- gates.
 
 ---
 
@@ -2628,37 +2628,37 @@ Mitigação:
 
 Mitigação:
 
-* registrar versão;
-* versionar parsers;
-* fixtures diversas;
-* guardar payload inválido temporariamente;
-* não assumir tamanhos fixos.
+- registrar versão;
+- versionar parsers;
+- fixtures diversas;
+- guardar payload inválido temporariamente;
+- não assumir tamanhos fixos.
 
 ---
 
 # 15. Fora do escopo
 
-* iOS;
-* web;
-* outros relógios;
-* BLE permanente;
-* BPM contínuo;
-* sincronização automática ao abrir;
-* envio automático de atividades;
-* rotas;
-* mapas;
-* GPX;
-* TCX;
-* FIT;
-* Strava direto;
-* Suunto direto;
-* Intervals.icu direto;
-* conta obrigatória;
-* servidor obrigatório;
-* migração do MotionLog;
-* compatibilidade com banco antigo;
-* novas métricas não validadas;
-* muitos módulos Gradle.
+- iOS;
+- web;
+- outros relógios;
+- BLE permanente;
+- BPM contínuo;
+- sincronização automática ao abrir;
+- envio automático de atividades;
+- rotas;
+- mapas;
+- GPX;
+- TCX;
+- FIT;
+- Strava direto;
+- Suunto direto;
+- Intervals.icu direto;
+- conta obrigatória;
+- servidor obrigatório;
+- migração do MotionLog;
+- compatibilidade com banco antigo;
+- novas métricas não validadas;
+- muitos módulos Gradle.
 
 ---
 
@@ -2666,27 +2666,27 @@ Mitigação:
 
 O projeto estará concluído quando:
 
-* desenvolvido em Kotlin;
-* conectar ao Champion C001;
-* handshake previsível;
-* importar passos;
-* medir BPM;
-* importar D1;
-* sincronizar todos os BPM válidos;
-* importar D3/D4;
-* deduplicar internamente;
-* criar atividades pendentes;
-* permitir corrigir tipo;
-* permitir calibrar esteira;
-* recalcular distância, ritmo e velocidade;
-* sincronizar atividades;
-* funcionar com exercícios pelo celular;
-* sobreviver ao segundo plano;
-* não armazenar rota;
-* possuir backup próprio;
-* iniciar com banco vazio;
-* não depender do MotionLog;
-* atingir paridade;
-* funcionar como fonte confiável para aplicativos terceiros.
+- desenvolvido em Kotlin;
+- conectar ao Champion C001;
+- handshake previsível;
+- importar passos;
+- medir BPM;
+- importar D1;
+- sincronizar todos os BPM válidos;
+- importar D3/D4;
+- deduplicar internamente;
+- criar atividades pendentes;
+- permitir corrigir tipo;
+- permitir calibrar esteira;
+- recalcular distância, ritmo e velocidade;
+- sincronizar atividades;
+- funcionar com exercícios pelo celular;
+- sobreviver ao segundo plano;
+- não armazenar rota;
+- possuir backup próprio;
+- iniciar com banco vazio;
+- não depender do MotionLog;
+- atingir paridade;
+- funcionar como fonte confiável para aplicativos terceiros.
 
 O MotionLog poderá ser desinstalado depois da validação final, sem necessidade de transferência dos dados locais.
