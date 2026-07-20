@@ -135,12 +135,12 @@ docs/protocol/sample-packets/README.md
 
 ## Checklist
 
-- [ ] `000-00` Overview operacional criado e atualizado
-- [ ] `000-01` Baseline verificada
-- [ ] `000-02` Scaffolding documental criado
-- [ ] `000-03` Aplicacao inventariada
-- [ ] `000-04` Transporte BLE documentado
-- [ ] `000-05` Handshake e BPM manual documentados
+- [x] `000-00` Overview operacional criado e atualizado
+- [x] `000-01` Baseline verificada
+- [x] `000-02` Scaffolding documental criado
+- [x] `000-03` Aplicacao inventariada
+- [x] `000-04` Transporte BLE documentado
+- [x] `000-05` Handshake e BPM manual documentados
 - [ ] `000-06` Historico D1 documentado
 - [ ] `000-07` Treinos D3/D4 documentados
 - [ ] `000-08` Atividades e esteira documentadas
@@ -156,12 +156,12 @@ docs/protocol/sample-packets/README.md
 
 | Task | Status |
 | --- | --- |
-| `000-00` | Criada |
-| `000-01` | Pendente |
-| `000-02` | Pendente |
-| `000-03` | Pendente |
-| `000-04` | Pendente |
-| `000-05` | Pendente |
+| `000-00` | Atualizada |
+| `000-01` | Concluida |
+| `000-02` | Concluida |
+| `000-03` | Concluida |
+| `000-04` | Concluida |
+| `000-05` | Concluida |
 | `000-06` | Pendente |
 | `000-07` | Pendente |
 | `000-08` | Pendente |
