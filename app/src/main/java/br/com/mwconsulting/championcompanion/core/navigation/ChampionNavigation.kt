@@ -5,9 +5,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -19,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import br.com.mwconsulting.championcompanion.feature.calendar.CalendarScreen
@@ -32,20 +40,25 @@ import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 private data class NavigationItem(
     val destination: AppDestination,
     val label: String,
-    val shortLabel: String,
+    val icon: ImageVector,
+)
+
+private data class AdditionalNavigationItem(
+    val destination: AppDestination,
+    val label: String,
 )
 
 private val primaryItems = listOf(
-    NavigationItem(AppDestination.Home, "Início", "I"),
-    NavigationItem(AppDestination.Health, "Saúde", "S"),
-    NavigationItem(AppDestination.Calendar, "Calendário", "C"),
-    NavigationItem(AppDestination.Exercises, "Exercícios", "E"),
+    NavigationItem(AppDestination.Home, "Início", Icons.Filled.Home),
+    NavigationItem(AppDestination.Health, "Saúde", Icons.Filled.Favorite),
+    NavigationItem(AppDestination.Calendar, "Calendário", Icons.Filled.CalendarMonth),
+    NavigationItem(AppDestination.Exercises, "Exercícios", Icons.Filled.FitnessCenter),
 )
 
 private val additionalItems = listOf(
-    NavigationItem(AppDestination.Device, "Dispositivo", "D"),
-    NavigationItem(AppDestination.Profile, "Perfil", "P"),
-    NavigationItem(AppDestination.Settings, "Configurações", "G"),
+    AdditionalNavigationItem(AppDestination.Device, "Dispositivo"),
+    AdditionalNavigationItem(AppDestination.Profile, "Perfil"),
+    AdditionalNavigationItem(AppDestination.Settings, "Configurações"),
 )
 
 @Composable
@@ -63,7 +76,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                     NavigationBarItem(
                         selected = currentDestination == item.destination,
                         onClick = { backStack.navigateToTopLevel(item.destination) },
-                        icon = { Text(item.shortLabel) },
+                        icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
                     )
                 }
@@ -72,7 +85,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                         modifier = Modifier.fillMaxWidth(),
                         selected = additionalItems.any { currentDestination == it.destination },
                         onClick = { additionalMenuExpanded = true },
-                        icon = { Text("+") },
+                        icon = { Icon(imageVector = Icons.Filled.Menu, contentDescription = "Mais") },
                         label = { Text("Mais") },
                     )
                     DropdownMenu(
