@@ -4,8 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionCompanionTheme
 import br.com.mwconsulting.championcompanion.core.navigation.ChampionNavigation
-import br.com.mwconsulting.championcompanion.ui.theme.ChampionCompanionTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
