@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-20.
 
 ## Dependência
 
@@ -31,8 +31,30 @@ Criar `core.designsystem` com tema Material 3, paletas próprias, escalas e test
 
 - Preferência de tema, fonte externa, componentes de feature e recursos launcher/splash.
 
+## Implementação
+
+- Criado `core.designsystem` com `LightColorScheme` e `DarkColorScheme` completos em `ChampionColorScheme.kt`. Paletas próprias derivam de `#006782`; superfícies escuras usam `#101416` e variações, nunca preto puro como padrão.
+- Criado `ChampionCompanionTheme(darkTheme, useDynamicColors, content)` em `ChampionTheme.kt`. Em API 31+ e com `useDynamicColors = true`, usa Material You; em API anterior, preferência desativada ou esquema dinâmico indisponível, seleciona esquema próprio.
+- Seleção isolada em `selectChampionColorScheme`, sem `Context`, para teste JVM de claro, escuro, dinâmico e fallback.
+- Criados tokens públicos em `ChampionTokens.kt`: `ChampionSpacing` (`4/8/12/16/24/32/40/48.dp`), `ChampionShapes` (`8/12/16/24.dp`), `ChampionTypography` com `FontFamily.Default`, `ChampionElevation`, `LocalChampionSpacing` e `LocalChampionElevation`.
+- Criados previews base claro, escuro e fonte ampliada em `ThemePreviews.kt`.
+- Tema legado em `ui/theme` permanece temporariamente para `002-07` migrar shell e remover imports antigos sem mudar navegação nesta task.
+
+## Testes
+
+- `ChampionThemeTest` cobre seleção claro/escuro/dinâmico/fallback, contraste mínimo `4.5:1` dos pares de texto e escala exata de spacing.
+
+## Validação
+
+```text
+./gradlew testDebugUnitTest
+./gradlew lint testDebugUnitTest assembleDebug assembleRelease
+```
+
+Resultado: `BUILD SUCCESSFUL`. A validação completa executou 110 tarefas, com lint, testes JVM e APKs debug/release concluídos.
+
 ## Aceite
 
-- Contrato público do tema e fundações existe em `core.designsystem`.
-- Esquemas próprios completos funcionam com e sem Material You.
-- Escalas exatas centralizadas; contraste e seleção cobertos por testes.
+- [x] Contrato público do tema e fundações existe em `core.designsystem`.
+- [x] Esquemas próprios completos funcionam com e sem Material You.
+- [x] Escalas exatas centralizadas; contraste e seleção cobertos por testes.
