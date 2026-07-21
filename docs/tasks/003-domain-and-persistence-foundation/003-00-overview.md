@@ -50,8 +50,8 @@ Entregar domínio puro, Room V1 e DataStore para Champion Companion. Banco novo,
 - [x] `003-07` Sessões iniciadas pelo app e recuperação modeladas.
 - [x] `003-08` Diagnóstico, validade de parser, retenção e reprocessamento modelados.
 - [x] `003-09` Schema Room V1, entidades, converters, FKs e índices criados.
-- [ ] `003-10` DAOs e consultas requeridas criados.
-- [ ] `003-11` DataStore, Hilt e contratos de repository criados.
+- [x] `003-10` DAOs e consultas requeridas criados.
+- [x] `003-11` DataStore, Hilt e contratos de repository criados.
 - [ ] `003-12` Mapeadores, repositories e transações implementados.
 - [ ] `003-13` Testes JVM de domínio, IDs, mapeadores e regras criados.
 - [ ] `003-14` Testes Room e guarda automatizada de privacidade criados.

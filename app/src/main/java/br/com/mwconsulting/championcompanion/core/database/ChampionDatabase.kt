@@ -401,6 +401,17 @@ class ChampionDatabaseConverters {
 @ColumnTypeConverters(ChampionDatabaseConverters::class)
 abstract class ChampionDatabase : RoomDatabase() {
     abstract fun schemaDao(): SchemaDao
+    abstract fun deviceDao(): DeviceDao
+    abstract fun userProfileDao(): UserProfileDao
+    abstract fun dailySummaryDao(): DailySummaryDao
+    abstract fun heartRateDao(): HeartRateDao
+    abstract fun workoutActivityDao(): WorkoutActivityDao
+    abstract fun watchWorkoutImportDao(): WatchWorkoutImportDao
+    abstract fun workoutDetailDao(): WorkoutDetailDao
+    abstract fun treadmillCalibrationDao(): TreadmillCalibrationDao
+    abstract fun appWorkoutSessionDao(): AppWorkoutSessionDao
+    abstract fun healthSyncOperationDao(): HealthSyncOperationDao
+    abstract fun diagnosticPayloadDao(): DiagnosticPayloadDao
 }
 
 @Dao
