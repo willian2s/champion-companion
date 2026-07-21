@@ -2,19 +2,19 @@
 
 ## Objetivo
 
-Validar, em fases futuras, paridade funcional segura entre Champion Companion e baseline MotionLog. Este documento nao declara paridade atingida nem executa testes.
+Validar, em fases futuras, paridade funcional segura entre Champion Companion e baseline MotionLog. Este documento nao declara paridade atingida nem exige criacao ou execucao de testes.
 
 ## Baseline E Uso
 
 - Baseline: MotionLog `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`.
 - Status de todos itens: pendente de implementacao e validacao futura.
 - Evidencia `Confirmado pelo codigo` descreve baseline. Nao confirma comportamento do Champion Companion nem validacao no dispositivo.
-- Itens `Ainda nao confirmado` exigem decisao ou teste fisico antes de aceitacao; nao devem ser inferidos como requisito implementado.
+- Itens `Ainda nao confirmado` exigem decisao ou validacao fisica antes de aceitacao; nao devem ser inferidos como requisito implementado.
 - Validacao deve registrar versao Champion Companion, firmware/dispositivo, dados de entrada, resultado esperado, resultado obtido e evidencia.
 
 ## Criterio Global De Aceite
 
-- [ ] Cada item aplicavel abaixo tem implementacao, teste reproduzivel e evidencia registrada.
+- [ ] Cada item aplicavel abaixo tem implementacao, validacao reproduzivel e evidencia registrada.
 - [ ] Fluxos com Champion C001 sao validados em dispositivo fisico quando protocolo ou comportamento BLE participa.
 - [ ] Dados persistidos, enviados ao Health Connect e exibidos ao usuario conferem com regra declarada; falhas permanecem rastreaveis.
 - [ ] Nenhuma validacao introduz latitude, longitude, coordenadas brutas, polyline, rota, mapa, GPX, TCX, FIT ou `ExerciseRoute`.
@@ -101,7 +101,7 @@ Fontes: `health-connect-mapping.md`, `feature-inventory.md`, `database-reference
 
 - [ ] Permissoes e disponibilidade bloqueiam escrita de modo explicavel; permissoes opcionais nao invalidam registros independentes.
 - [ ] `Steps`, `HeartRate`, `ExerciseSession`, `Distance`, `TotalCaloriesBurned`, `Weight` e `Height` usam campos, unidades e tempos documentados quando aplicaveis.
-- [ ] IDs estaveis proprios, versoes e estrategia de update/retry sao decididos e testados; prefixos `motionlog:` nao sao contrato do novo app.
+- [ ] IDs estaveis proprios, versoes e estrategia de update/retry sao decididos e validados; prefixos `motionlog:` nao sao contrato do novo app.
 - [ ] Fila local registra pendente, sucesso, falha e dados invalidos por entidade/record; escrita parcial nao mascara records restantes.
 - [ ] D3/D4 somente enviam apos revisao manual; `free` nao envia distancia; esteira usa distancia calibrada.
 - [ ] Nenhum fluxo grava ou envia `ExerciseRoute`, coordenadas, rotas ou polylines.
@@ -119,7 +119,7 @@ Fontes: `database-reference.md`, `feature-inventory.md`, `000-phase-zero-baselin
 
 ## Evidencia E Pendencias
 
-- [ ] Fixtures progressivas sao adicionadas por fluxo e cenario conforme implementacao e teste fisico; ausencia atual nao prova nem bloqueia paridade.
+- [ ] Fixtures progressivas sao adicionadas por fluxo e cenario conforme implementacao e validacao fisica; ausencia atual nao prova nem bloqueia paridade.
 - [ ] Cada divergencia MotionLog/Champion Companion possui decisao ou lacuna registrada em `docs/baseline/gaps-and-open-questions.md` antes de ser aceita.
 - [ ] Validacao final confirma que este checklist continua sem marcar paridade por inferencia ou apenas por leitura de codigo.
 

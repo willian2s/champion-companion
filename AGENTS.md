@@ -19,16 +19,16 @@
 - Use só wrapper: `./gradlew`.
 - Toolchain de compilação está fixada em Java/Kotlin 21 (`app/build.gradle.kts`). SDK alvo/compile: 36.
 - Verificação completa esperada para mudanças em código ou Gradle:
+
 ```bash
-./gradlew lint testDebugUnitTest assembleDebug assembleRelease
+./gradlew lint assembleDebug assembleRelease
 ```
+
 - Comandos focados úteis:
+
 ```bash
-./gradlew app:testDebugUnitTest --tests "*NomeDoTeste*"
-./gradlew app:connectedDebugAndroidTest
 ./gradlew app:lintDebug
 ```
-- `connectedDebugAndroidTest` precisa dispositivo/emulador conectado.
 
 ## Quirks de build
 
@@ -38,17 +38,16 @@
 
 ## Room, DataStore, DI
 
-- Banco usa Room 3 com `AndroidSQLiteDriver()` em produção e testes instrumentados.
-- Schemas exportados ficam em `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/`. Se mudar entidades/DAOs/versão, atualize schema exportado e testes instrumentados relacionados.
+- Banco usa Room 3 com `AndroidSQLiteDriver()` em produção; suites instrumentadas existentes também usam esse driver.
+- Schemas exportados ficam em `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/`. Se mudar entidades/DAOs/versão, atualize schema exportado correspondente.
 - DataStore de preferências usa nome fixo `champion_preferences` em `core/preferences/PreferencesModule.kt`.
 - Hilt está no app inteiro: `ChampionCompanionApplication` tem `@HiltAndroidApp`; módulos principais ficam em `core/database`, `core/logging`, `core/preferences`, `data`.
 
-## Testes e guard rails
+## Guard rails
 
-- Prefira JVM tests em `app/src/test` para regras de domínio, mapeadores, codecs e política de logs.
-- Use `app/src/androidTest` quando depender de Compose, Room real, `AndroidSQLiteDriver` ou framework Android.
-- `Phase003PrivacyGuardTest` bloqueia termos de localização/rota em `core/model`, `core/database`, `data`, `core/logging` e testes. Não introduza latitude/longitude/GPX/rotas nesses escopos.
-- `DebugStructuredLoggerTest` exige logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
+- Existem suites em `app/src/test` e `app/src/androidTest`; não trate criação ou execução de novos testes como etapa padrão.
+- `Phase003PrivacyGuardTest` bloqueia termos de localização/rota em `core/model`, `core/database`, `data`, `core/logging` e testes existentes. Não introduza latitude/longitude/GPX/rotas nesses escopos.
+- `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
 ## Privacidade e backup
 

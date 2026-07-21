@@ -637,7 +637,7 @@ Comparar com o MotionLog
         ↓
 Registrar pacotes necessários
         ↓
-Transformar em fixture de teste
+Transformar em fixture de referencia
 ```
 
 ## Tarefas
@@ -723,7 +723,7 @@ As capturas serão usadas para:
 
 - validar parsers;
 - reproduzir erros;
-- criar testes;
+- criar fixtures e roteiros de validacao;
 - comparar resultados.
 
 ## Entregáveis
@@ -951,7 +951,7 @@ Cada amostra deverá armazenar:
 - transações são atômicas;
 - consultas usam índices;
 - telas não acessam Room;
-- migrations próprias possuem testes.
+- migrations próprias possuem validacao reproduzivel.
 
 ---
 
@@ -1073,7 +1073,7 @@ BPM D0/F002
 - identificar valor final;
 - parar BPM;
 - tratar desconexão;
-- repetir testes;
+- repetir ciclos de validacao;
 - criar tela técnica;
 - exportar logs.
 
@@ -2126,7 +2126,7 @@ Criar segurança para substituir o app atual.
 - estados vazios;
 - sincronização.
 
-## Instrumentados
+## Validacao Android Dependente De Framework
 
 - Health Connect;
 - foreground service;
@@ -2158,7 +2158,7 @@ Simular:
 ## Critérios de aceite
 
 - parsers com fixtures reais;
-- migrations próprias testadas;
+- migrations próprias validadas;
 - fluxos críticos cobertos;
 - BLE reproduzível;
 - sem bug crítico conhecido.
@@ -2596,7 +2596,7 @@ Mitigação:
 - IDs estáveis;
 - versões;
 - status local;
-- testes de reenvio.
+- validacao de reenvio.
 
 ---
 

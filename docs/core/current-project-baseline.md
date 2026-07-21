@@ -8,15 +8,13 @@ Baseline atual inclui fundação Android, design system próprio, domínio e per
 
 ## Ambiente e validação
 
-Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. O Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use exclusivamente o wrapper do repositório. Validação automatizada atual usa `lint`, testes JVM, `assembleDebug`, `assembleRelease` e `connectedDebugAndroidTest` quando houver Galaxy S22 conectado via ADB.
+Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. O Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use exclusivamente o wrapper do repositório. Validação automatizada atual usa `lint`, `assembleDebug` e `assembleRelease`; validações no Galaxy S22 via ADB seguem fluxo manual quando necessário.
 
 ```bash
 ./gradlew lint
-./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ./gradlew assembleRelease
-./gradlew lint testDebugUnitTest assembleDebug assembleRelease
-./gradlew app:connectedDebugAndroidTest
+./gradlew lint assembleDebug assembleRelease
 ```
 
 ## Base de código

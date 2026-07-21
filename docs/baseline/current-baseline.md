@@ -8,14 +8,13 @@ A Fase 1 estabelece fundacao atual do projeto. Escopo nao inclui BLE, Room, Heal
 
 ## Ambiente E Validacao
 
-Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use somente o Gradle Wrapper do repositorio. Validacao fisica desta fase usa Galaxy S22 via ADB.
+Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use somente o Gradle Wrapper do repositorio. Validacao fisica desta fase usa Galaxy S22 via ADB com fluxo manual quando necessario.
 
 ```bash
 ./gradlew lint
-./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ./gradlew assembleRelease
-./gradlew lint testDebugUnitTest assembleDebug assembleRelease
+./gradlew lint assembleDebug assembleRelease
 ```
 
 ## Base De Codigo

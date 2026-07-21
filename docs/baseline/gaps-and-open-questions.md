@@ -12,7 +12,7 @@ Classificacao:
 - `Media`: afeta previsibilidade operacional, recuperacao ou experiencia.
 - `Baixa`: diagnostico ou detalhe sem fluxo funcional confirmado.
 - `Sim`: requer Champion C001 fisico.
-- `Nao`: decisao, teste local/instrumentado ou revisao de contrato basta inicialmente.
+- `Nao`: decisao, validacao local/manual ou revisao de contrato basta inicialmente.
 
 ## Resumo De Dependencias
 
@@ -30,7 +30,7 @@ Classificacao:
 | G-10 | Health Connect: Steps, perfil e tempo | Media | Implementacao Health Connect | Sim |
 | G-11 | Banco: identidade, exclusao e retencao | Alta | Modelagem banco proprio | Nao |
 | G-12 | Backup, restauracao e limpeza | Alta | Definicao produto/dados | Nao |
-| G-13 | Privacidade de GPS/rota | Alta | Modelagem, testes e revisao | Nao |
+| G-13 | Privacidade de GPS/rota | Alta | Modelagem, validacao e revisao | Nao |
 | G-14 | Background e notificacoes | Alta | Implementacao background | Sim |
 | G-15 | Paridade de telas e estados | Media | Implementacao UI/validacao | Nao inicialmente |
 | G-16 | Arquitetura/nomenclatura Android | Media | Inicio implementacao Android | Nao |
@@ -87,7 +87,7 @@ Classificacao:
 - Motivo da duvida: requisitos listam pausa, retomada e recuperacao, enquanto comportamento baseline analisado nao os confirma.
 - Fase: implementacao exercicios e definicao de continuidade.
 - Dispositivo fisico: Nao inicialmente.
-- Validacao sugerida: reconciliar requisito autoritativo com contrato de sessao; definir estados, persistencia, encerramento, descarte e notificacao. Cobrir morte de processo, navegacao, permissao GPS/BLE perdida e finalizacao parcial com testes instrumentados.
+- Validacao sugerida: reconciliar requisito autoritativo com contrato de sessao; definir estados, persistencia, encerramento, descarte e notificacao. Cobrir morte de processo, navegacao, permissao GPS/BLE perdida e finalizacao parcial com validacao manual e observacao no dispositivo.
 
 ## G-07 — Calibracao E Fator De Esteira
 
@@ -150,7 +150,7 @@ Classificacao:
 - Motivo da duvida: nao ha duvida sobre proibicao; lacuna e prevenir reintroducao em modelo, log, backup, diagnostico e Health Connect.
 - Fase: modelagem banco, exercicios, Health Connect, backup e revisao final.
 - Dispositivo fisico: Nao.
-- Validacao sugerida: teste de schema, payload, export/backup, logs e rede; usar GPS somente em memoria para metricas e procurar campos proibidos antes de cada release.
+- Validacao sugerida: validacao de schema, payload, export/backup, logs e rede; usar GPS somente em memoria para metricas e procurar campos proibidos antes de cada release.
 
 ## G-14 — Background, Scheduler E Notificacoes
 
