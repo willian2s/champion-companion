@@ -241,7 +241,7 @@ internal fun DiagnosticPayloadEntity.toDomain(): DiagnosticPayload? {
 }
 
 private fun HeartRateDeduplicationKey.encode(): String = when (this) {
-    is HeartRateDeduplicationKey.D1History -> listOf("D1", deviceId.value, resolvedMeasuredAt?.toEpochMilli(), recordKey?.value?.encode()).joinToString("|")
+    is HeartRateDeduplicationKey.D1History -> listOf("D1", deviceId.value, resolvedMeasuredAt?.toEpochMilli(), recordKey?.value?.encode() ?: "").joinToString("|")
     is HeartRateDeduplicationKey.MeasurementSession -> "MEASUREMENT|${sessionId.value}"
     is HeartRateDeduplicationKey.AppWorkoutSample -> "APP|${sessionId.value}|${measuredAt.toEpochMilli()}"
     is HeartRateDeduplicationKey.WatchWorkoutSample -> "WATCH|${activityId.value}|${measuredAt.toEpochMilli()}"
@@ -251,7 +251,7 @@ private fun decodeHeartRateKey(value: String): HeartRateDeduplicationKey? {
     val parts = value.split('|')
     return when (parts.firstOrNull()) {
         "D1" -> HeartRateDeduplicationKey.D1History(uuid(parts.getOrNull(1))?.let(::DeviceId) ?: return null,
-            parts.getOrNull(2)?.toLongOrNull()?.let(Instant::ofEpochMilli), parts.getOrNull(3)?.decode()?.let { br.com.mwconsulting.championcompanion.core.model.D1RecordKey.create(it).successOrNull() })
+            parts.getOrNull(2)?.toLongOrNull()?.let(Instant::ofEpochMilli), parts.getOrNull(3)?.takeIf(String::isNotEmpty)?.decode()?.let { br.com.mwconsulting.championcompanion.core.model.D1RecordKey.create(it).successOrNull() })
         "MEASUREMENT" -> uuid(parts.getOrNull(1))?.let { HeartRateDeduplicationKey.MeasurementSession(HeartRateMeasurementSessionId(it)) }
         "APP" -> uuid(parts.getOrNull(1))?.let { id -> parts.getOrNull(2)?.toLongOrNull()?.let { HeartRateDeduplicationKey.AppWorkoutSample(AppWorkoutSessionId(id), Instant.ofEpochMilli(it)) } }
         "WATCH" -> uuid(parts.getOrNull(1))?.let { id -> parts.getOrNull(2)?.toLongOrNull()?.let { HeartRateDeduplicationKey.WatchWorkoutSample(WorkoutActivityId(id), Instant.ofEpochMilli(it)) } }
