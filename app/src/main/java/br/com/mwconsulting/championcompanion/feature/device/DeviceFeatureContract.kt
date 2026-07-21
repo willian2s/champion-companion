@@ -42,6 +42,18 @@ sealed interface DevicePocState {
     data class Failed(val error: ChampionBleError) : DevicePocState
 }
 
+enum class DevicePocHeartRateSignalQuality {
+    GOOD,
+    MEDIUM,
+    LOW,
+}
+
+enum class DevicePocHeartRateFinalSource {
+    D0_CURRENT,
+    F002_ESTIMATE,
+    UNAVAILABLE,
+}
+
 data class DeviceUiState(
     val cycleId: DevicePocCycleId = DevicePocCycleId.random(),
     val transportState: ChampionBleState = ChampionBleState.Disconnected,
@@ -60,8 +72,15 @@ data class DeviceUiState(
     val d0PacketCount: Int = 0,
     val f002PacketCount: Int = 0,
     val f002BufferedSampleCount: Int = 0,
+    val estimatedF002Bpm: Int? = null,
+    val estimatedF002Quality: DevicePocHeartRateSignalQuality? = null,
+    val estimatedF002QualityScore: Int = 0,
+    val estimatedF002SampleRateHz: Double? = null,
+    val estimatedF002PeakCount: Int = 0,
     val lastD0Bpm: Int? = null,
     val lastD0ObservedAt: Instant? = null,
+    val finalHeartRateBpm: Int? = null,
+    val finalHeartRateSource: DevicePocHeartRateFinalSource = DevicePocHeartRateFinalSource.UNAVAILABLE,
     val lastError: ChampionBleError? = null,
 )
 

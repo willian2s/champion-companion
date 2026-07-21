@@ -201,8 +201,15 @@ class DevicePocCoordinator @Inject constructor(
                 d0PacketCount = 0,
                 f002PacketCount = 0,
                 f002BufferedSampleCount = 0,
+                estimatedF002Bpm = null,
+                estimatedF002Quality = null,
+                estimatedF002QualityScore = 0,
+                estimatedF002SampleRateHz = null,
+                estimatedF002PeakCount = 0,
                 lastD0Bpm = null,
                 lastD0ObservedAt = null,
+                finalHeartRateBpm = null,
+                finalHeartRateSource = DevicePocHeartRateFinalSource.UNAVAILABLE,
                 lastError = null,
             )
         }
@@ -216,11 +223,17 @@ class DevicePocCoordinator @Inject constructor(
                             if (it.activeSessionId != sessionId || it.activeHeartRateSessionId != heartRateSessionId) {
                                 it
                             } else {
+                                val selection = DevicePocF002BpmEstimator.selectFinalBpm(
+                                    currentD0Bpm = parsed.bpm,
+                                    estimate = it.currentEstimate(),
+                                )
                                 it.copy(
                                     pocState = DevicePocState.MeasuringHeartRate,
                                     d0PacketCount = it.d0PacketCount + 1,
                                     lastD0Bpm = parsed.bpm,
                                     lastD0ObservedAt = parsed.observedAt,
+                                    finalHeartRateBpm = selection.bpm,
+                                    finalHeartRateSource = selection.source,
                                     lastError = null,
                                 )
                             }
@@ -244,10 +257,26 @@ class DevicePocCoordinator @Inject constructor(
                                 samples = samples,
                                 maxSamples = maxBufferedSamples,
                             )
+                            val estimate = inspectF002(
+                                samples = f002Buffer,
+                                startedAt = startedAt,
+                                observedAt = packet.observedAt,
+                            )
+                            val selection = DevicePocF002BpmEstimator.selectFinalBpm(
+                                currentD0Bpm = it.lastD0Bpm,
+                                estimate = estimate.estimate,
+                            )
                             it.copy(
                                 pocState = DevicePocState.MeasuringHeartRate,
                                 f002PacketCount = it.f002PacketCount + 1,
                                 f002BufferedSampleCount = bufferedCount,
+                                estimatedF002Bpm = estimate.estimate?.bpm,
+                                estimatedF002Quality = estimate.estimate?.quality ?: estimate.quality,
+                                estimatedF002QualityScore = estimate.estimate?.qualityScore ?: estimate.qualityScore,
+                                estimatedF002SampleRateHz = estimate.sampleRateHz,
+                                estimatedF002PeakCount = estimate.peakCount,
+                                finalHeartRateBpm = selection.bpm,
+                                finalHeartRateSource = selection.source,
                                 lastError = null,
                             )
                         }
@@ -309,10 +338,12 @@ class DevicePocCoordinator @Inject constructor(
         val stopResult = try {
             attemptHeartRateStop(sessionId)
         } finally {
+            val finalSelection = currentHeartRateSelection()
             clearHeartRateSession(
                 sessionId = sessionId,
                 heartRateSessionId = heartRateSessionId,
                 nextState = DevicePocState.CycleCompleted,
+                finalSelection = finalSelection,
             )
         }
 
@@ -565,8 +596,15 @@ class DevicePocCoordinator @Inject constructor(
                 d0PacketCount = 0,
                 f002PacketCount = 0,
                 f002BufferedSampleCount = 0,
+                estimatedF002Bpm = null,
+                estimatedF002Quality = null,
+                estimatedF002QualityScore = 0,
+                estimatedF002SampleRateHz = null,
+                estimatedF002PeakCount = 0,
                 lastD0Bpm = null,
                 lastD0ObservedAt = null,
+                finalHeartRateBpm = null,
+                finalHeartRateSource = DevicePocHeartRateFinalSource.UNAVAILABLE,
                 lastError = null,
             )
         }
@@ -625,6 +663,7 @@ class DevicePocCoordinator @Inject constructor(
         sessionId: ChampionSessionId,
         heartRateSessionId: DevicePocHeartRateSessionId,
         nextState: DevicePocState,
+        finalSelection: DevicePocF002BpmEstimator.FinalSelection,
     ) {
         clearHeartRateRuntimeState()
         updateState {
@@ -640,6 +679,8 @@ class DevicePocCoordinator @Inject constructor(
                     f002BufferedSampleCount = 0,
                     lastD0Bpm = null,
                     lastD0ObservedAt = null,
+                    finalHeartRateBpm = finalSelection.bpm,
+                    finalHeartRateSource = finalSelection.source,
                 )
             }
         }
@@ -651,6 +692,42 @@ class DevicePocCoordinator @Inject constructor(
         f002ObservationJob?.cancel()
         f002ObservationJob = null
         f002Buffer.clear()
+    }
+
+    private fun inspectF002(
+        samples: List<Int>,
+        startedAt: java.time.Instant,
+        observedAt: java.time.Instant,
+    ): DevicePocF002BpmEstimator.Inspection {
+        val durationSeconds = java.time.Duration.between(startedAt, observedAt).toMillis() / 1_000.0
+        return DevicePocF002BpmEstimator.inspect(
+            samples = samples,
+            durationSeconds = durationSeconds,
+        )
+    }
+
+    private fun currentHeartRateSelection(): DevicePocF002BpmEstimator.FinalSelection {
+        val current = state.value
+        return DevicePocF002BpmEstimator.selectFinalBpm(
+            currentD0Bpm = current.lastD0Bpm,
+            estimate = current.currentEstimate(),
+        )
+    }
+
+    private fun DeviceUiState.currentEstimate(): DevicePocF002BpmEstimator.Estimate? {
+        val bpm = estimatedF002Bpm ?: return null
+        val quality = estimatedF002Quality ?: return null
+        val sampleRateHz = estimatedF002SampleRateHz ?: return null
+        return DevicePocF002BpmEstimator.Estimate(
+            bpm = bpm,
+            quality = quality,
+            qualityScore = estimatedF002QualityScore,
+            sampleRateHz = sampleRateHz,
+            peakCount = estimatedF002PeakCount,
+            validIntervalCount = 0,
+            dynamicRange = 0,
+            intervalCv = 0.0,
+        )
     }
 
     private fun updateState(transform: (DeviceUiState) -> DeviceUiState) {
