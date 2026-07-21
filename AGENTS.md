@@ -58,6 +58,7 @@
 ## Convenções de mudança
 
 - Use Conventional Commits.
+- Sempre que executar uma task com spec associada, atualize também o `overview` da spec correspondente no mesmo trabalho.
 - Se mudança introduzir decisão arquitetural, de persistência, privacidade, navegação, build ou workflow com impacto duradouro, crie ou atualize ADR correspondente em `docs/decisions/` no mesmo trabalho.
 - Se mudança for visual, inclua screenshot no PR.
 - Não misture refatorações não relacionadas.

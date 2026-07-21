@@ -112,7 +112,7 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 
 ## Checklist
 
-- [ ] `004-01` fronteiras BLE e lacunas físicas auditadas
+- [x] `004-01` fronteiras BLE e lacunas físicas auditadas
 - [ ] `004-02` contratos, estados e erros definidos
 - [ ] `004-03` permissões e pré-requisitos tipados implementados
 - [ ] `004-04` catálogo UUID e filtro Champion centralizados
@@ -158,5 +158,6 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 ## Instruções Para Atualização Do Checklist
 
 - Cada task altera somente próprio `Status`.
+- Ao concluir qualquer task da fase, atualizar no mesmo trabalho o item correspondente neste overview.
 - `004-15` consolida este checklist e registra evidências finais.
 - Ao concluir task, atualizar item correspondente para `[x]` e registrar bloqueios reproduzíveis se houver.
