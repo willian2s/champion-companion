@@ -2,6 +2,7 @@ package br.com.mwconsulting.championcompanion.core.bluetooth.internal
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.launch
 
 internal class ChampionSessionActor<Message>(
@@ -19,7 +20,11 @@ internal class ChampionSessionActor<Message>(
     }
 
     suspend fun send(message: Message) {
-        mailbox.send(message)
+        try {
+            mailbox.send(message)
+        } catch (_: ClosedSendChannelException) {
+            // Cleanup paths can race on disconnect/close; a closed mailbox means the session is already torn down.
+        }
     }
 
     fun close() {

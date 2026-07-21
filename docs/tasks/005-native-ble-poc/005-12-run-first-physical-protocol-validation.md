@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21. Houve ciclo físico exploratório comprovado no Galaxy S22 com exportação do relatório sanitizado `cycle-a86ae7d2-6b02-4890-a330-2babd26ae2c0.json`. O ciclo confirmou scan real e falha reproduzível na conexão, com erro sanitizado `Canal Bluetooth incompatível com operação`, `error_category` igual a `incompatible_capability`, sem `transport_ready` e sem handshake A1.
 
 ## Objetivo
 
@@ -99,11 +99,42 @@ git status --short
 - lista de properties e comportamentos confirmados/divergentes;
 - bloqueios reproduzíveis, se houver.
 
+## Execução Desta Sessão
+
+1. Pré-condições confirmadas:
+   - `adb devices` retornou um dispositivo `device`, compatível com Galaxy S22 conectado por ADB.
+   - `./gradlew assembleDebug` ficou verde em 2026-07-21.
+   - permissão de dispositivo por perto foi concedida no aparelho.
+   - scan manual na tela técnica encontrou dispositivo e transicionou para `device_found`.
+2. Ciclo físico exportado:
+   - relatório sanitizado: `cycle-a86ae7d2-6b02-4890-a330-2babd26ae2c0.json`;
+   - `started_at`: `2026-07-21T21:28:29.675879Z`;
+   - `finished_at`: `2026-07-21T21:28:53.684398Z`;
+   - `duration_seconds`: `24`;
+   - `state_sequence`: `idle -> ready_to_scan -> scanning -> device_found -> connecting -> failed`.
+3. Resultado funcional observado:
+   - `transport_ready`: `false`;
+   - `handshake_confirmed`: `false`;
+   - `steps_capability`: `not_observed`;
+   - `heart_rate_result`: `unavailable`;
+   - erro sanitizado visto no app: `Canal Bluetooth incompatível com operação`.
+
+## Divergências Observadas
+
+- divergência física confirmada entre scan e conexão: o relógio é encontrado, mas a tentativa de conectar encerra em falha antes de `transport_ready`;
+- capabilities esperadas da PoC não ficaram disponíveis no hardware testado nesta execução;
+- nenhuma etapa de A1, FEA1, D0 ou F002 foi observada, porque o ciclo falhou ainda em `connecting`.
+
+## Bloqueios
+
+- falha reproduzível de conexão física com `error_category` `incompatible_capability`;
+- sem `transport_ready`, próximas confirmações de A1, FEA1, D0 e F002 ficam bloqueadas até correção na `005-13`.
+
 ## Atualização Documental
 
 - atualizar `Status`;
-- marcar checklist de `005-00` somente se execução física ocorreu.
+- marcar checklist de `005-00`, porque execução física ocorreu com evidência sanitizada exportada.
 
 ## Validação Final
 
-- confirmar explicitamente se task ficou concluída ou bloqueada por hardware.
+- Task satisfez critérios de aceite em 2026-07-21: houve pelo menos um ciclo exploratório no hardware alvo, relatório sanitizado exportado e divergência física registrada para correção posterior em `005-13`.

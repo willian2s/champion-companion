@@ -166,7 +166,6 @@ class AndroidChampionBleClient @Inject constructor(
             )
         }
         session.connection.disconnect()
-        session.queue?.disconnect(reason)
         ChampionBleResult.Success(Unit)
     }
 
@@ -178,7 +177,6 @@ class AndroidChampionBleClient @Inject constructor(
             )
         }
         session.connection.close()
-        session.queue?.disconnect(ChampionDisconnectReason.CLEANUP)
         mutableEvents.tryEmit(callbackBridge.closed(sessionId, session.session.transportKey))
         activeSession = null
         ChampionBleResult.Success(Unit)
@@ -299,7 +297,6 @@ class AndroidChampionBleClient @Inject constructor(
     private suspend fun closeActiveSessionLocked() {
         val session = activeSession ?: return
         session.connection.close()
-        session.queue?.disconnect(ChampionDisconnectReason.STALE_SESSION)
         mutableEvents.tryEmit(callbackBridge.closed(session.session.id, session.session.transportKey))
         activeSession = null
     }
