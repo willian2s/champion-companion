@@ -117,7 +117,7 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 - [x] `004-03` permissões e pré-requisitos tipados implementados
 - [x] `004-04` catálogo UUID e filtro Champion centralizados
 - [ ] `004-05` scanner nativo com timeout/cancelamento criado
-- [ ] `004-06` fila GATT serial criada
+- [x] `004-06` fila GATT serial criada
 - [ ] `004-07` callback bridge e client concreto criados
 - [ ] `004-08` discovery e capability registry criados
 - [ ] `004-09` notifications, indications e CCCD multiplexados

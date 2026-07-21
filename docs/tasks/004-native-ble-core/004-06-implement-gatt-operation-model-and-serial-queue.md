@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: implementados `ChampionGattOperation`, `ChampionGattQueue`, `ChampionBleTimeouts`, helpers de `ChampionRetryPolicy` e actor interno por sessao. Fila agora processa operacoes em FIFO, mantem no maximo uma ativa, arma timeout obrigatorio, aceita conclusao/cancelamento explicitos, aplica retry somente com policy limitada e encerra definitivamente no disconnect. Nenhum tipo Android BLE foi introduzido nesta fila.
 
 ## Objetivo
 
@@ -96,3 +98,33 @@ Fila é regra arquitetural central da Fase 04. Sem ela, callbacks, timeout e dis
 
 - `Status` deste arquivo concluído;
 - registrar se decisão de actor precisa ADR.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionGattOperation.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionGattQueue.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleTimeouts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionRetryPolicy.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/internal/ChampionSessionActor.kt`
+
+Conclusoes:
+
+- `ChampionGattOperation` passou a carregar `operationId`, `sessionId`, tipo, alvo, timeout, retry policy, tentativa atual e payload defensivamente copiado;
+- `ChampionGattQueue` executa FIFO serial por sessao com uma operacao ativa por vez;
+- timeout vira mensagem do actor e disputa com callback no mesmo fluxo serial, impedindo conclusao dupla;
+- `complete`, `fail` e `cancel` ignoram sessao antiga ou `operationId` nao ativo, protegendo contra callback tardio e duplicado;
+- retry ocorre somente quando `ChampionRetryPolicy.Limited` autoriza nova tentativa;
+- disconnect cancela operacao ativa, falha pendentes com `QueueClosed` e fecha fila de forma definitiva;
+- executor concreto da operacao segue abstrato e sem dependencia Android BLE nesta task.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*GattQueue*"`: falha por ausencia de testes com esse filtro nesta fase;
+- fila e actor nao importam `android.bluetooth.*`.
+
+ADR futura:
+
+- decisao de actor por sessao continua candidata a ADR futura, conforme spec `004-native-ble-core.md`, mas nao foi formalizada nesta task.
