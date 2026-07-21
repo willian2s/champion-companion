@@ -630,6 +630,13 @@ class DevicePocCoordinatorTest {
                 operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01))
         }
         assertEquals(ChampionBleResult.Success(Unit), start.await())
+        waitForCondition("heart rate session active before stop") {
+            coordinator.state.value.activeHeartRateSessionId != null &&
+                coordinator.state.value.pocState in setOf(
+                    DevicePocState.StartingHeartRate,
+                    DevicePocState.MeasuringHeartRate,
+                )
+        }
 
         val stopIndex = client.executedOperations.size
         val stop = async(start = CoroutineStart.UNDISPATCHED) { coordinator.stopHeartRateSession() }

@@ -43,6 +43,7 @@ class ChampionTransportStreams(
                 sessionId = sessionId,
                 type = ChampionOperationType.WRITE_CHARACTERISTIC,
                 target = ChampionGattTarget.Channel(command.channel),
+                writeType = command.writeType,
                 timeout = command.timeout,
                 retryPolicy = command.retryPolicy,
                 payload = command.payloadCopy(),

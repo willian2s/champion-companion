@@ -8,6 +8,8 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionMa
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDisconnectReason
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCancellationReason
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionOperationType
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionSessionId
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
@@ -21,12 +23,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
+import kotlin.coroutines.coroutineContext
 
 class DevicePocCoordinator @Inject constructor(
     private val connectionManager: ChampionConnectionManager,
@@ -34,6 +41,7 @@ class DevicePocCoordinator @Inject constructor(
 ) : DeviceFeatureContract {
     private val scope = CoroutineScope(SupervisorJob() + bleDispatcher)
     private val mutableState = MutableStateFlow(DeviceUiState())
+    private var handshakeObservationJob: Job? = null
     private var stepsObservationJob: Job? = null
     private var d0ObservationJob: Job? = null
     private var f002ObservationJob: Job? = null
@@ -440,12 +448,23 @@ class DevicePocCoordinator @Inject constructor(
             return ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
         }
 
+        val handshakeSubscription = transport.notifications.subscribe(ChampionChannelAlias.F008_NOTIFY)
+        if (handshakeSubscription is ChampionBleResult.Failure) {
+            transitionToProtocolFailure(sessionId, handshakeSubscription.error)
+            return ChampionBleResult.Failure(handshakeSubscription.error)
+        }
+
         moveToHandshaking(sessionId)
+        observeHandshakeConfirmation(
+            sessionId = sessionId,
+            packets = (handshakeSubscription as ChampionBleResult.Success).value,
+            timeout = timeout,
+        )
         delay(DevicePocHandshakeA1.initialDelay)
         var attempt = 1
         var result: ChampionBleResult<*> = ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
         while (true) {
-            result = transport.executeCommand(
+            result = transport.sendCommand(
                 DevicePocHandshakeA1.createCommand(
                     dateTime = dateTime,
                     timeout = timeout,
@@ -462,14 +481,48 @@ class DevicePocCoordinator @Inject constructor(
         }
 
         return when (result) {
-            is ChampionBleResult.Success -> {
-                moveToHandshakeConfirmed(sessionId)
-                ChampionBleResult.Success(Unit)
-            }
+            is ChampionBleResult.Success -> ChampionBleResult.Success(Unit)
 
             is ChampionBleResult.Failure -> {
+                handshakeObservationJob?.cancel()
+                handshakeObservationJob = null
                 transitionToFailure(sessionId, result.error)
                 ChampionBleResult.Failure(result.error)
+            }
+        }
+    }
+
+    private fun observeHandshakeConfirmation(
+        sessionId: ChampionSessionId,
+        packets: Flow<ChampionPacket>,
+        timeout: Duration,
+    ) {
+        handshakeObservationJob?.cancel()
+        handshakeObservationJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val currentJob = coroutineContext[Job]
+            try {
+                withTimeout(timeout) {
+                    packets.first { packet ->
+                        state.value.activeSessionId == sessionId && DevicePocHandshakeA1.isConfirmationPacket(packet)
+                    }
+                }
+                if (state.value.activeSessionId == sessionId) {
+                    moveToHandshakeConfirmed(sessionId)
+                }
+            } catch (_: CancellationException) {
+                Unit
+            } catch (_: TimeoutCancellationException) {
+                val current = state.value
+                if (current.activeSessionId == sessionId && current.pocState == DevicePocState.Handshaking) {
+                    transitionToFailure(
+                        sessionId,
+                        ChampionBleError.Timeout(ChampionOperationType.WAIT_FOR_RESPONSE, timeout),
+                    )
+                }
+            } finally {
+                if (handshakeObservationJob === currentJob) {
+                    handshakeObservationJob = null
+                }
             }
         }
     }
@@ -585,6 +638,8 @@ class DevicePocCoordinator @Inject constructor(
     }
 
     private fun clearCycleState(nextState: DevicePocState) {
+        handshakeObservationJob?.cancel()
+        handshakeObservationJob = null
         stepsObservationJob?.cancel()
         stepsObservationJob = null
         clearHeartRateRuntimeState()
@@ -624,6 +679,8 @@ class DevicePocCoordinator @Inject constructor(
         sessionId: ChampionSessionId?,
         error: ChampionBleError,
     ) {
+        handshakeObservationJob?.cancel()
+        handshakeObservationJob = null
         stepsObservationJob?.cancel()
         stepsObservationJob = null
         clearHeartRateRuntimeState()
@@ -644,6 +701,8 @@ class DevicePocCoordinator @Inject constructor(
         error: ChampionBleError,
     ) {
         if (state.value.activeSessionId != sessionId) return
+        handshakeObservationJob?.cancel()
+        handshakeObservationJob = null
         stepsObservationJob?.cancel()
         stepsObservationJob = null
         clearHeartRateRuntimeState()

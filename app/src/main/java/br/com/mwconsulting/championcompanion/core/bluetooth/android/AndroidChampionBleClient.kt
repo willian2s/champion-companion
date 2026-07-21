@@ -110,7 +110,15 @@ class AndroidChampionBleClient @Inject constructor(
                 val channel = operation.target.channelAliasOrNull()
                 val characteristicUuid = channel?.let(ChampionUuidCatalog::channelUuid)
                 val payload = operation.payloadCopy()
-                if (characteristicUuid == null || payload == null || !session.connection.writeCharacteristic(characteristicUuid, payload)) {
+                if (
+                    characteristicUuid == null ||
+                    payload == null ||
+                    !session.connection.writeCharacteristic(
+                        characteristicUuid = characteristicUuid,
+                        value = payload,
+                        writeType = operation.writeType,
+                    )
+                ) {
                     session.queue?.fail(operation.sessionId, operation.operationId, ChampionBleError.OperationRejected(operation.type))
                 }
             }

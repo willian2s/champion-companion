@@ -37,7 +37,10 @@ class ChampionBleCoreModelsTest {
             responseMatcher = null,
             payload = payload,
         )
-        val operation = testOperation(payload = payload)
+        val operation = testOperation(
+            payload = payload,
+            writeType = ChampionWriteType.WITH_RESPONSE,
+        )
         val packet = testPacket(bytes = payload)
 
         payload[0] = 0x7F
@@ -51,6 +54,7 @@ class ChampionBleCoreModelsTest {
         assertArrayEquals(byteArrayOf(0x01, 0x02, 0x03), command.payloadCopy())
         assertArrayEquals(byteArrayOf(0x01, 0x02, 0x03), operation.payloadCopy())
         assertArrayEquals(byteArrayOf(0x01, 0x02, 0x03), packet.bytesCopy())
+        assertEquals(ChampionWriteType.WITH_RESPONSE, operation.writeType)
     }
 
     @Test

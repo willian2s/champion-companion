@@ -119,6 +119,7 @@ class ChampionTransportSessionTest {
         awaitCondition { executedOperations.isNotEmpty() }
         assertEquals(ChampionOperationType.WRITE_CHARACTERISTIC, executedOperations.single().type)
         assertEquals(ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE), executedOperations.single().target)
+        assertEquals(ChampionWriteType.WITH_RESPONSE, executedOperations.single().writeType)
         assertArrayEquals(byteArrayOf(0x11, 0x22, 0x33), executedOperations.single().payloadCopy())
 
         val packet = ChampionPacket(

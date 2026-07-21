@@ -126,8 +126,8 @@ class ChampionBleConnectionManagerTest {
                 ChampionChannelAlias.FEA1_NOTIFY,
                 ChampionChannelAlias.FEA1_NOTIFY,
             ),
-            client.executedOperations.drop(2).map { operation ->
-                (operation.target as ChampionGattTarget.Channel).channel
+            client.executedOperations.drop(2).map { operation: ChampionGattOperation ->
+                (operation.target as ChampionGattTarget.Channel).alias
             },
         )
         assertTrue(manager.state.value is ChampionBleState.TransportReady)
