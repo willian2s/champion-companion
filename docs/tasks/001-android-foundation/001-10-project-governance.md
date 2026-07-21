@@ -29,7 +29,7 @@ Documentar execução local, qualidade, limites de escopo e convenção commits.
 
 - `README.md`: ambiente Android Studio/JDK 21, comandos Gradle, variantes, arquitetura inicial e privacidade de logs.
 - `AGENTS.md`: fontes de verdade, limites da Fase 1, checks, arquivos protegidos e convenção Conventional Commits.
-- `001-00-overview.md` não foi alterado: consolidação do checklist pertence somente à `001-09`.
+- `001-00-overview.md` deve registrar conclusão desta task no mesmo trabalho; `001-09` apenas consolida evidências finais da fase.
 
 ## Aceite
 

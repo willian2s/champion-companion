@@ -24,7 +24,8 @@ Controlar entrega da Fase 02: identidade Material 3 própria, componentes reutil
 - Não implementar BLE, Health Connect, persistência, notificações ativas ou sincronização real.
 - Não criar preferência/persistência de tema.
 - Não alterar roadmap, ADR, documentos concluídos, MotionLog, commits ou push.
-- Cada task atualiza somente próprio `Status`; `002-09` consolida este checklist.
+- Cada task atualiza próprio `Status` e item correspondente neste checklist no mesmo trabalho.
+- `002-09` consolida evidências finais e status da fase.
 
 ## Ordem e paralelismo
 

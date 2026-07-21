@@ -15,7 +15,7 @@ Consolidar evidências, validar spec 003 e encerrar `003-00`.
 ## Pode modificar
 
 - Este arquivo.
-- `003-00-overview.md` exclusivamente para checklist/status final.
+- `003-00-overview.md`, para consolidar evidências finais e status da fase.
 
 ## Passos
 
