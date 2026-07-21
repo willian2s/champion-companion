@@ -9,11 +9,16 @@ import kotlinx.serialization.json.put
 
 enum class LogEvent(val value: String) {
     ErrorPresented("error_presented"),
+    BlePacketObserved("ble_packet_observed"),
+    BleTransportState("ble_transport_state"),
+    BleOperationResult("ble_operation_result"),
 }
 
 /** Debug logger restricted to a fixed, non-sensitive event schema. */
 interface StructuredLogger {
     fun debug(event: LogEvent, error: InfrastructureError)
+
+    fun debug(event: LogEvent, metadata: Map<String, String?>)
 }
 
 internal fun interface DebugLogSink {
@@ -40,6 +45,48 @@ internal class DebugStructuredLogger(
             }.toString(),
         )
     }
+
+    override fun debug(event: LogEvent, metadata: Map<String, String?>) {
+        if (!isDebugBuild) return
+
+        val approvedFields = event.approvedFields() ?: return
+        sink.write(
+            buildJsonObject {
+                put("event", event.value)
+                approvedFields.forEach { field ->
+                    metadata[field]?.let { value -> put(field, value) }
+                }
+            }.toString(),
+        )
+    }
+}
+
+private fun LogEvent.approvedFields(): Set<String>? = when (this) {
+    LogEvent.ErrorPresented -> null
+    LogEvent.BlePacketObserved -> setOf(
+        "session_id",
+        "channel",
+        "direction",
+        "command_code",
+        "byte_count",
+        "consumed",
+    )
+
+    LogEvent.BleTransportState -> setOf(
+        "session_id",
+        "state",
+        "error_code",
+    )
+
+    LogEvent.BleOperationResult -> setOf(
+        "session_id",
+        "operation_id",
+        "operation_type",
+        "channel",
+        "byte_count",
+        "result",
+        "error_code",
+    )
 }
 
 internal val InfrastructureError.logCode: String

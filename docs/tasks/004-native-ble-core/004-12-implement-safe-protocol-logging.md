@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: implementados `ChampionProtocolLogger` e `ChampionDiagnosticPacketSink` com schema seguro de metadados BLE, sink opcional desacoplado de Room e extensão controlada do `StructuredLogger`. Logs BLE de debug permanecem sem payload, sem MAC, sem dados de saúde e sem identificadores persistentes de device.
 
 ## Objetivo
 
@@ -93,3 +95,35 @@ Roadmap antigo citava payload hexadecimal em debug. Fase 04 deve seguir guard ra
 
 - `Status` deste arquivo concluído;
 - registrar se política de logging exige ADR própria.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionProtocolLogger.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionDiagnosticPacketSink.kt`
+
+Arquivos atualizados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/logging/StructuredLogger.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/logging/LoggingModule.kt`
+
+Conclusoes:
+
+- `StructuredLogger` ganhou extensão segura para eventos com metadados allowlistados por `LogEvent`;
+- novos eventos BLE aprovados: pacote observado, estado de transporte e resultado de operação;
+- `ChampionProtocolLogger` registra apenas campos aprovados como `session_id`, `channel`, `direction`, `command_code`, `byte_count`, `state`, `operation_type`, `result` e `error_code`;
+- nenhum log BLE inclui hex, bytes brutos, MAC, BPM, passos, payload A1, credenciais ou IDs persistentes de device;
+- `ChampionDiagnosticPacketSink` é opcional, desacoplado de Room e recebe cópia defensiva de bytes para captura diagnóstica privada futura;
+- binding default ficou em `NoOpChampionDiagnosticPacketSink`, mantendo release sem diagnóstico detalhado adicional.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*DebugStructuredLoggerTest*"`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*Logger*"`: falha de infraestrutura do task runner no ambiente atual (`NoSuchFileException` em `test-results`), nao por erro de compilacao do logger;
+- nenhum arquivo de Room foi tocado.
+
+ADR:
+
+- politica de logging BLE ficou dentro de ADR-004 e nao exigiu ADR propria nesta task.

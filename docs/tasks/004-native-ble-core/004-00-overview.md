@@ -122,8 +122,8 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 - [x] `004-08` discovery e capability registry criados
 - [x] `004-09` notifications, indications e CCCD multiplexados
 - [x] `004-10` command/packet envelope e response routing criados
-- [ ] `004-11` connection manager, state machine e cleanup criados
-- [ ] `004-12` logging seguro implementado
+- [x] `004-11` connection manager, state machine e cleanup criados
+- [x] `004-12` logging seguro implementado
 - [ ] `004-13` Hilt, dispatcher BLE e fakes ligados
 - [ ] `004-14` testes BLE adicionados
 - [ ] `004-15` validação final concluída
