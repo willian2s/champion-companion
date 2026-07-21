@@ -119,7 +119,7 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 - [x] `004-05` scanner nativo com timeout/cancelamento criado
 - [x] `004-06` fila GATT serial criada
 - [x] `004-07` callback bridge e client concreto criados
-- [ ] `004-08` discovery e capability registry criados
+- [x] `004-08` discovery e capability registry criados
 - [ ] `004-09` notifications, indications e CCCD multiplexados
 - [ ] `004-10` command/packet envelope e response routing criados
 - [ ] `004-11` connection manager, state machine e cleanup criados

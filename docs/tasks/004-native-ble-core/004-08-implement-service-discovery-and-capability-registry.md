@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: implementados modelos puros de discovery/capabilities, mapper Android de `BluetoothGattService` para snapshot estreito e `ChampionCapabilityRegistry` para validar canais obrigatórios/opcionais e produzir snapshot imutável por sessão. FEA2, FEC8 e F002 write seguem opcionais e não bloqueiam `TransportReady`.
 
 ## Objetivo
 
@@ -91,3 +93,40 @@ Discovery não pode ficar espalhado por `getService()` e `getCharacteristic()` e
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionCapabilities.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionCapabilityRegistry.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidGattDiscoveryMapper.kt`
+
+Conclusoes:
+
+- discovery passou a ter snapshot puro via `ChampionDiscoverySnapshot`, `ChampionDiscoveredService` e `ChampionDiscoveredCharacteristic`;
+- `AndroidGattDiscoveryMapper` concentra leitura de `BluetoothGattService` e conversão de bitmask de properties para `ChampionChannelProperty`;
+- `ChampionCapabilityRegistry` resolve capabilities por `sessionId` a partir do snapshot Android estreito, sem espalhar `getService()`/`getCharacteristic()` por múltiplos componentes;
+- canais obrigatórios ausentes falham com `MissingRequiredService` ou `MissingRequiredChannel`;
+- canal presente com properties incompatíveis falha com `IncompatibleChannelProperties`;
+- canais opcionais ausentes apenas degradam capability, sem bloquear transporte;
+- snapshot final mantém `ChampionCapabilitySnapshot` imutável, serviços descobertos, opcionais disponíveis e subscriptions padrão possíveis na sessão.
+
+Limites mantidos:
+
+- nenhum `BluetoothGattService` ou tipo Android de discovery sai de `core/bluetooth/android/**`;
+- FEA2, FEC8 e F002 write não entram em `requiredTransportChannels`;
+- multiplexação de notifications, handshake e response routing continuam fora desta task.
+
+Integracao preparada:
+
+- registry já aceita `sessionId` e snapshot vindo do mapper Android;
+- resultado pode alimentar sessão/fila após discovery concreta sem retrabalho estrutural do modelo.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*Capability*"`: falha por ausência de testes com esse filtro nesta fase;
+- discovery tipada ficou centralizada nos novos arquivos, sem espalhamento adicional em outros componentes.
+
+Spec: nenhum ajuste factual necessario.
