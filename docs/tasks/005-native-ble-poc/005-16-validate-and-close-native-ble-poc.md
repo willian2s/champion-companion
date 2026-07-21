@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21. Fechamento final consolidou a rastreabilidade da Fase 05, confirmou o Gate A como aprovado em 2026-07-21 com base no aceite explícito do usuário sobre os dez ciclos físicos consecutivos já executados anteriormente, e registrou o estado real da validação automatizada nesta data: `./gradlew lint` verde, `./gradlew assembleDebug assembleRelease` verde, `./gradlew testDebugUnitTest` ainda vermelho por um teste JVM existente (`ChampionBleConnectionManagerTest > connect enables every available default subscription before transport ready`) e o comando agregado `./gradlew lint testDebugUnitTest assembleDebug assembleRelease` ainda sujeito a falha de tooling em `:app:lintAnalyzeDebugUnitTest`, onde o lint tenta abrir um fonte Hilt release gerado ausente durante a análise de `ExampleUnitTest.kt`. Não houve commit nem push; roadmap, ADRs e fases anteriores permaneceram intactos.
 
 ## Objetivo
 
@@ -100,6 +100,45 @@ git status --short
 - resultado formal do Gate A;
 - lista de ADRs potenciais e lacunas remanescentes.
 
+## Execução Desta Sessão
+
+Data executada: 2026-07-21.
+
+Checklist e rastreabilidade revisados:
+
+- `005-01` a `005-15` permanecem concluídas e coerentes com a matriz de rastreabilidade da `docs/specs/005-native-ble-poc.md`;
+- docs de protocolo atualizados na fase seguem compatíveis com os achados físicos já registrados em `005-13`;
+- nenhum ajuste factual adicional na spec foi necessário para este fechamento.
+
+Validação automatizada final:
+
+1. `./gradlew lint` passou em 2026-07-21 e gerou relatório HTML/SARIF em `app/build/reports/`.
+2. `./gradlew assembleDebug assembleRelease` passou em 2026-07-21.
+3. `./gradlew testDebugUnitTest` falhou em 2026-07-21 com um vermelho persistente em `ChampionBleConnectionManagerTest > connect enables every available default subscription before transport ready`.
+4. `./gradlew lint testDebugUnitTest assembleDebug assembleRelease` falhou em 2026-07-21 por bug de tooling em `:app:lintAnalyzeDebugUnitTest`: o lint tentou ler `app/build/generated/hilt/component_sources/release/.../DaggerChampionCompanionApplication_HiltComponents_SingletonC.java`, ausente durante a análise de `ExampleUnitTest.kt`.
+5. `./gradlew app:connectedDebugAndroidTest` não foi rerrodado neste fechamento porque a task `005-16` não alterou código Android/runtime; o encerramento reaproveitou a evidência física já consolidada em `005-12` a `005-15`.
+
+Evidência física consolidada:
+
+- primeira validação exploratória em 2026-07-21 comprovou scan real e capturou bloqueio inicial antes de `TransportReady`;
+- revalidações do mesmo dia levaram a PoC até `transport_ready`, capabilities reais, correções de timeout/roteamento e regra tolerante de A1;
+- cenários negativos físicos aceitos em 2026-07-21: permissão negada, Bluetooth desligado e cancelamento de scan;
+- Gate A aprovado em 2026-07-21 por confirmação explícita do usuário de que os dez ciclos consecutivos no Galaxy S22 com Champion C001 já haviam sido executados anteriormente.
+
+Resumo final da PoC:
+
+- permissões BLE e hardware BLE obrigatório ficaram declarados no manifesto;
+- `feature/device` permaneceu como superfície técnica debug-only para permissão, scan, conexão, A1, passos, BPM, reset, disconnect e export explícito;
+- `ChampionBleState` continuou separado do estado de protocolo da PoC;
+- A1, FEA1 e D0/F002 permaneceram efêmeros, sem Room, Health Connect ou persistência funcional;
+- o relatório por ciclo continuou sanitizado, privado e sem payload, MAC, bytes crus ou valores de saúde.
+
+Lacunas residuais e follow-up fora do escopo:
+
+- investigar e corrigir o teste JVM `ChampionBleConnectionManagerTest > connect enables every available default subscription before transport ready`;
+- investigar a falha de tooling do lint agregado em `:app:lintAnalyzeDebugUnitTest`;
+- avaliar em trabalho futuro os itens de ADR já listados na spec: ownership do handshake, coordenador acima de `ChampionTransportSession`, política de permissões BLE, `android.hardware.bluetooth_le` obrigatório, estimador F002, export sanitizado e mudanças duradouras do core BLE.
+
 ## Atualização Documental
 
 - atualizar `Status`;
@@ -109,3 +148,4 @@ git status --short
 
 - confirmar ausência de commit e push;
 - confirmar se roadmap, ADRs e fases anteriores permaneceram intactos.
+- Resultado desta sessão: Gate A aprovado em 2026-07-21; fase encerrada documentalmente com uma pendência de teste JVM e uma pendência de tooling lint registradas como follow-up fora do escopo.
