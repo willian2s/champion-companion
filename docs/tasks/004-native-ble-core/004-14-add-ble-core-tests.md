@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: adicionados testes JVM para filtro Champion, catálogo/capabilities, cópia defensiva, response matcher, fila GATT, timeout, cancelamento, retry, callback duplicado/stale, roteamento de pacotes, logging seguro e estados/cleanup do `ChampionConnectionManager`. Nenhum teste instrumentado foi necessário nesta task.
 
 ## Objetivo
 

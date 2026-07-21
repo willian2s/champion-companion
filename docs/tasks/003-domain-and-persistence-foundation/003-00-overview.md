@@ -26,7 +26,8 @@ Entregar domínio puro, Room V1 e DataStore para Champion Companion. Banco novo,
 - Proibir latitude, longitude, altitude por ponto, rota, polyline, segmentos, GPX, TCX, FIT e `ExerciseRoute` em domínio, Room, mapeadores, logs, fixtures e testes.
 - Não registrar payloads, identificadores, saúde ou dados pessoais. Auto Backup Android desativado.
 - IDs técnicos: UUIDv7. Nunca usar autoincremento como identidade/deduplicação única.
-- Cada task atualiza apenas próprio `Status`; `003-15` consolida este checklist.
+- Cada task atualiza próprio `Status` e item correspondente neste checklist no mesmo trabalho.
+- `003-15` consolida evidências finais e status da fase.
 
 ## Ordem e paralelismo
 

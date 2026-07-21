@@ -15,7 +15,7 @@ Consolidar evidências, validar requisitos e encerrar checklist de `002-00`.
 ## Pode modificar
 
 - Este arquivo.
-- `002-00-overview.md` exclusivamente para checklist/status final.
+- `002-00-overview.md`, para consolidar evidências finais e status da fase.
 
 ## Passos
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Concluída em 2026-07-20. Todas tasks da Fundação Android Nativa validadas.
+Concluída em 2026-07-20. Todas tasks da Fundação Android Nativa validadas. Governança reforçada em 2026-07-21: `AGENTS.md` segue como fonte de verdade para atualização de overview no mesmo trabalho.
 
 ## Objetivo
 
@@ -20,7 +20,8 @@ Manter ordem, dependências e checklist da Fundação Android Nativa.
 - Não implementar BLE, Room, Health Connect, GPS, serviços, parsers ou domínio funcional.
 - Não alterar roadmap, ADR-001 ou documentação Fase 0.
 - Não fazer commit ou push.
-- Cada task altera apenas próprio `Status`; `001-09` consolida este checklist.
+- Cada task altera próprio `Status` e atualiza item correspondente neste checklist no mesmo trabalho.
+- `001-09` consolida evidências finais e status da fase.
 
 ## Ordem
 

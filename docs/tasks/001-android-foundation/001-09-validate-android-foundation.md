@@ -10,13 +10,13 @@ Concluída em 2026-07-20.
 
 ## Objetivo
 
-Validar integração Fase 1; consolidar checklist `001-00` apenas após sucesso completo.
+Validar integração Fase 1; consolidar evidências finais e status da fase em `001-00`.
 
 ## Pode modificar
 
 - Testes básicos.
 - Este arquivo.
-- `001-00-overview.md`, somente consolidar sucesso.
+- `001-00-overview.md`, para consolidar evidências finais.
 
 ## Passos
 

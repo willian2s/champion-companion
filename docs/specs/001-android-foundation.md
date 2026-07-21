@@ -34,7 +34,7 @@ Criar fundação Android nativa para Champion Companion. Preservar projeto Andro
 
 | Task | Depende de | Pode modificar |
 |---|---|---|
-| `001-00-overview` | — | próprio arquivo; somente `001-09` consolida checklist final |
+| `001-00-overview` | — | próprio arquivo |
 | `001-01-audit-generated-project` | `001-00` | próprio arquivo |
 | `001-02-configure-build-foundation` | `001-01` | `gradle/libs.versions.toml`, Gradle raiz/app, `gradle.properties`, próprio arquivo |
 | `001-03-configure-dependency-injection` | `001-02` | catálogo, Gradle necessário, `AndroidManifest.xml`, `app/**`, próprio arquivo |
@@ -45,7 +45,7 @@ Criar fundação Android nativa para Champion Companion. Preservar projeto Andro
 | `001-08-configure-build-variants` | `001-03` | `app/build.gradle.kts`, recursos variante, testes instrumentados afetados, próprio arquivo |
 | `001-10-project-governance` | `001-01` | `README.md`, `AGENTS.md`, próprio arquivo |
 | `001-11-configure-ci` | `001-02`, `001-06`, `001-07`, `001-08`, `001-10` | `.github/workflows/**`, próprio arquivo |
-| `001-09-validate-android-foundation` | todas anteriores | testes básicos, próprio arquivo, `001-00-overview.md` somente consolidar sucesso |
+| `001-09-validate-android-foundation` | todas anteriores | testes básicos, próprio arquivo, `001-00-overview.md` para consolidar evidências finais |
 
 ## Ordem
 
@@ -59,7 +59,7 @@ Criar fundação Android nativa para Champion Companion. Preservar projeto Andro
 8. `001-11`
 9. `001-09`
 
-Cada task altera apenas próprio campo `Status`. `001-09` lê todas e atualiza checklist central após validação completa.
+Cada task altera próprio campo `Status` e atualiza `001-00-overview.md` no mesmo trabalho. `001-09` consolida evidências finais após validação completa.
 
 ## Rastreabilidade
 
