@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: package `core/bluetooth` criado com contratos puros para sessao efemera, dispositivo descoberto, aliases de service/canal, capabilities, estados explicitos, erros seguros, envelopes imutaveis de comando/pacote e interface publica unica de transporte. Nenhum contrato publico importa Android BLE. `TransportReady` segue separado de handshake. Validacao: `app:compileDebugKotlin` OK; comando `app:testDebugUnitTest --tests "*Ble*"` ainda falha por nao existirem testes BLE nesta fase, cobertura fica preparada para `004-14`.
 
 ## Objetivo
 
@@ -100,3 +102,31 @@ Sem contratos estáveis, scanner, fila, client e connection manager tendem a vaz
 
 - `Status` deste arquivo concluído;
 - eventual ajuste factual mínimo na spec, se necessário.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleState.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleError.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionPacket.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionCommand.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionSession.kt`
+
+Conclusoes:
+
+- sessao BLE agora possui identidade efemera tipada por `ChampionSessionId` e `ChampionSession`;
+- estado de conexao cobre `Disconnected`, `Scanning`, `Connecting`, `DiscoveringServices`, `ResolvingChannels`, `ConfiguringSubscriptions`, `TransportReady`, `Disconnecting` e `Failed`;
+- erros distinguem pre-requisito, timeout, callback de falha, stale session, subscription, cleanup e encerramento de fila;
+- `ChampionCommand` e `ChampionPacket` copiam `ByteArray` defensivamente e nao expõem referencia mutavel compartilhada;
+- contrato publico `ChampionBleTransport` expoe somente tipos puros, `Flow`/`StateFlow` e resultados tipados;
+- aliases F008, F002, FEA1, FEA2 e FEC8 ficaram centralizados sem introduzir parser funcional ou acesso Android.
+
+Validacoes executadas:
+
+- `grep "android\.bluetooth" core/bluetooth`: sem imports encontrados;
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*Ble*"`: falha esperada por ausencia de testes BLE nesta task e restricao de arquivos permitidos.
+
+Spec: nenhum ajuste factual necessario.
