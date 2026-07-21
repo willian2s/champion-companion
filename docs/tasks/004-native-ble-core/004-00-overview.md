@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-21. `004-01` a `004-14` concluídas; `004-15` pendente. Governança reforçada: `AGENTS.md` é fonte de verdade para atualização deste overview no mesmo trabalho.
+Concluída em 2026-07-21. `004-01` a `004-15` concluídas, com `lint`, `testDebugUnitTest`, `assembleDebug`, `assembleRelease` e `connectedDebugAndroidTest` verdes após correção final de permissões e compatibilidade API 33+/legado nos wrappers Android BLE `AndroidChampionBleScanner.kt` e `AndroidGattFacade.kt`. Governança reforçada: `AGENTS.md` é fonte de verdade para atualização deste overview no mesmo trabalho.
 
 ## Objetivo
 
@@ -126,7 +126,7 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 - [x] `004-12` logging seguro implementado
 - [x] `004-13` Hilt, dispatcher BLE e fakes ligados
 - [x] `004-14` testes BLE adicionados
-- [ ] `004-15` validação final concluída
+- [x] `004-15` validação final concluída
 
 ## Artefatos Esperados
 

@@ -7,6 +7,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Build
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleError
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBlePrerequisites
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleResult
@@ -201,10 +202,19 @@ class AndroidChampionBleScanner @Inject constructor(
 
     private fun ScanResult.toView(): AndroidScanResultView = AndroidScanResultView(
         transportKey = device.address,
-        name = device.name,
+        name = safeDeviceName(),
         localName = scanRecord?.deviceName,
         observedAt = Instant.now(),
     )
+
+    @SuppressLint("MissingPermission")
+    private fun ScanResult.safeDeviceName(): String? =
+        if (canReadDeviceName()) device.name else null
+
+    private fun canReadDeviceName(): Boolean {
+        val permissions = environment.snapshot().permissions
+        return permissions.sdkInt < Build.VERSION_CODES.S || permissions.bluetoothConnectGranted
+    }
 
     private data class ActiveScan(
         val scanner: BluetoothLeScanner,
