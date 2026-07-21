@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `005-01` a `005-06` concluídas em 2026-07-21. Core BLE já fechou resolver concreto de capabilities, snapshot produtivo de discovery e dispatch reutilizável de `ChampionCommand`; manifesto e entrypoint técnico debug de permissões já existem; `feature/device` já possui state machine explícita da PoC; A1 agora está implementado com builder puro, matcher por `F008_NOTIFY`, timeout explícito e confirmação que não depende de sucesso de write; e FEA1 agora usa `ChampionNotificationHub`, parser 24-bit little-endian, estado efêmero em memória e erro específico para capability opcional ausente sem derrubar `TransportReady`. `app:compileDebugKotlin` e `app:lintDebug` passaram nas tasks relevantes. Suite ampla de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-07`.
+Em andamento. `005-01` a `005-07` concluídas em 2026-07-21. Core BLE já fechou resolver concreto de capabilities, snapshot produtivo de discovery e dispatch reutilizável de `ChampionCommand`; manifesto e entrypoint técnico debug de permissões já existem; `feature/device` já possui state machine explícita da PoC; A1 agora está implementado com builder puro, matcher por `F008_NOTIFY`, timeout explícito e confirmação que não depende de sucesso de write; FEA1 agora usa `ChampionNotificationHub`, parser 24-bit little-endian, estado efêmero em memória e erro específico para capability opcional ausente sem derrubar `TransportReady`; e sessão técnica D0/F002 agora garante `F002` subscribed antes de `D0 01`, start/stop pela fila, parser D0 só para sessão atual, parser F002 little-endian com byte ímpar descartado, buffer limitado em memória e cleanup independente de sucesso do stop. `app:compileDebugKotlin` e `app:lintDebug` passaram nas tasks relevantes. Suite ampla de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-08`.
 
 ## Objetivo
 
@@ -154,7 +154,7 @@ Encerrar somente após dez ciclos completos e consecutivos no Galaxy S22 com Cha
 - [x] `005-04` coordenador e state machine da PoC criados
 - [x] `005-05` handshake A1 implementado e testado
 - [x] `005-06` passos FEA1 implementados e testados
-- [ ] `005-07` sessão D0/F002 implementada e testada
+- [x] `005-07` sessão D0/F002 implementada e testada
 - [ ] `005-08` estimador F002 implementado e testado
 - [ ] `005-09` tela técnica criada
 - [ ] `005-10` relatório sanitizado e fixtures criados

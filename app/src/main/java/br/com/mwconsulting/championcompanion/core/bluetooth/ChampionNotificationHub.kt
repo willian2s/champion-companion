@@ -48,20 +48,12 @@ class ChampionNotificationHub(
     }
 
     suspend fun subscribe(channel: ChampionChannelAlias): ChampionBleResult<Flow<ChampionPacket>> {
-        if (closed) return ChampionBleResult.Failure(ChampionBleError.QueueClosed(ChampionDisconnectReason.CLEANUP))
-        if (!sessionCapabilities.snapshot.hasChannel(channel)) {
-            return ChampionBleResult.Failure(ChampionBleError.MissingRequiredChannel(channel))
-        }
+        validateChannel(channel)?.let { return ChampionBleResult.Failure(it) }
 
         val flow = callbackFlow {
             val registration = registry.addSubscriber(channel, this)
             if (registration.shouldEnablePhysicalSubscription && !registry.isPhysicallyEnabled(channel)) {
-                val enableResult = cccdConfigurator.enableChannel(
-                    sessionId = sessionCapabilities.sessionId,
-                    channel = channel,
-                    capabilities = sessionCapabilities.snapshot,
-                    queue = queue,
-                )
+                val enableResult = ensurePhysicalSubscription(channel)
                 if (enableResult is ChampionBleResult.Failure) {
                     registry.removeSubscriber(registration)
                     close(RuntimeException(enableResult.error.toSafeMessage()))
@@ -77,10 +69,38 @@ class ChampionNotificationHub(
         return ChampionBleResult.Success(flow)
     }
 
+    suspend fun ensureSubscribed(channel: ChampionChannelAlias): ChampionBleResult<Unit> {
+        validateChannel(channel)?.let { return ChampionBleResult.Failure(it) }
+        return ensurePhysicalSubscription(channel)
+    }
+
     suspend fun close(reason: ChampionDisconnectReason) {
         if (closed) return
         closed = true
         collectorJob.cancel()
         registry.closeAll(RuntimeException("notification_hub_closed:$reason"))
+    }
+
+    private fun validateChannel(channel: ChampionChannelAlias): ChampionBleError? {
+        if (closed) return ChampionBleError.QueueClosed(ChampionDisconnectReason.CLEANUP)
+        if (!sessionCapabilities.snapshot.hasChannel(channel)) {
+            return ChampionBleError.MissingRequiredChannel(channel)
+        }
+        return null
+    }
+
+    private suspend fun ensurePhysicalSubscription(channel: ChampionChannelAlias): ChampionBleResult<Unit> {
+        if (registry.isPhysicallyEnabled(channel)) return ChampionBleResult.Success(Unit)
+        val enableResult = cccdConfigurator.enableChannel(
+            sessionId = sessionCapabilities.sessionId,
+            channel = channel,
+            capabilities = sessionCapabilities.snapshot,
+            queue = queue,
+        )
+        if (enableResult is ChampionBleResult.Failure) {
+            return enableResult
+        }
+        registry.markPhysicallyEnabled(channel)
+        return ChampionBleResult.Success(Unit)
     }
 }

@@ -5,12 +5,20 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleState
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionSessionId
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
+import java.time.Instant
 import java.util.UUID
 
 @JvmInline
 value class DevicePocCycleId(val value: UUID) {
     companion object {
         fun random(): DevicePocCycleId = DevicePocCycleId(UUID.randomUUID())
+    }
+}
+
+@JvmInline
+value class DevicePocHeartRateSessionId(val value: UUID) {
+    companion object {
+        fun random(): DevicePocHeartRateSessionId = DevicePocHeartRateSessionId(UUID.randomUUID())
     }
 }
 
@@ -42,9 +50,18 @@ data class DeviceUiState(
     val activeSessionId: ChampionSessionId? = null,
     val isStepsCapabilityAvailable: Boolean = false,
     val isStepsCapabilityMissing: Boolean = false,
+    val isHeartRateCapabilityAvailable: Boolean = false,
+    val isHeartRateCapabilityMissing: Boolean = false,
     val hasObservedSteps: Boolean = false,
     val stepsPacketCount: Int = 0,
     val lastStepCount: Int? = null,
+    val activeHeartRateSessionId: DevicePocHeartRateSessionId? = null,
+    val heartRateStartedAt: Instant? = null,
+    val d0PacketCount: Int = 0,
+    val f002PacketCount: Int = 0,
+    val f002BufferedSampleCount: Int = 0,
+    val lastD0Bpm: Int? = null,
+    val lastD0ObservedAt: Instant? = null,
     val lastError: ChampionBleError? = null,
 )
 
