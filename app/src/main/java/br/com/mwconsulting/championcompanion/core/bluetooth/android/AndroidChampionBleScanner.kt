@@ -160,6 +160,7 @@ class AndroidChampionBleScanner @Inject constructor(
     }
 
     private fun handleScanResult(view: AndroidScanResultView) {
+        if (view.name.isNullOrBlank() && view.localName.isNullOrBlank()) return
         val device = ChampionDiscoveredDevice(
             transportKey = view.transportKey,
             name = view.name,
