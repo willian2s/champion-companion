@@ -16,6 +16,7 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.awaitCondition
 import br.com.mwconsulting.championcompanion.core.bluetooth.capabilitySnapshot
 import br.com.mwconsulting.championcompanion.core.bluetooth.sessionCapabilities
 import br.com.mwconsulting.championcompanion.core.bluetooth.testDevice
+import br.com.mwconsulting.championcompanion.core.bluetooth.testPacket
 import br.com.mwconsulting.championcompanion.core.bluetooth.testSession
 import br.com.mwconsulting.championcompanion.core.bluetooth.testSessionId
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleClient
@@ -32,6 +33,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -253,6 +255,76 @@ class DevicePocCoordinatorTest {
         assertNull(coordinator.state.value.activeSessionId)
     }
 
+    @Test
+    fun `await steps fails with specific capability error and keeps transport ready`() = runBlocking {
+        val scanner = FakeChampionBleScanner()
+        val client = FakeChampionBleClient()
+        val session = testSession()
+        val device = testDevice()
+        client.setOpenResult(ChampionBleResult.Success(session))
+        val manager = buildManager(scanner, client)
+        val coordinator = DevicePocCoordinator(manager, Dispatchers.Default)
+
+        connectToTransportReady(coordinator, scanner, client, session, device)
+        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
+
+        val result = coordinator.awaitSteps()
+
+        assertEquals(
+            ChampionBleResult.Failure(ChampionBleError.MissingOptionalChannel(ChampionChannelAlias.FEA1_NOTIFY)),
+            result,
+        )
+        assertTrue(coordinator.state.value.transportState is ChampionBleState.TransportReady)
+        assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
+        assertTrue(coordinator.state.value.isStepsCapabilityMissing)
+        assertFalse(coordinator.state.value.hasObservedSteps)
+    }
+
+    @Test
+    fun `await steps subscribes via hub and stores sanitized evidence in memory`() = runBlocking {
+        val scanner = FakeChampionBleScanner()
+        val client = FakeChampionBleClient()
+        val session = testSession()
+        val device = testDevice()
+        client.setOpenResult(ChampionBleResult.Success(session))
+        val manager = buildManager(
+            scanner = scanner,
+            client = client,
+            optionalChannels = setOf(ChampionChannelAlias.FEA1_NOTIFY),
+        )
+        val coordinator = DevicePocCoordinator(manager, Dispatchers.Default)
+
+        connectToTransportReady(coordinator, scanner, client, session, device)
+        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
+
+        assertEquals(ChampionBleResult.Success(Unit), coordinator.awaitSteps())
+        completeNextQueuedOperation(client, 3)
+        awaitCondition { coordinator.state.value.pocState == DevicePocState.WaitingForSteps }
+
+        client.emit(
+            ChampionGattSessionEvent.CharacteristicChanged(
+                sessionId = session.id,
+                occurredAt = Instant.now(),
+                channel = ChampionChannelAlias.FEA1_NOTIFY,
+                packet = testPacket(
+                    sessionId = session.id,
+                    channel = ChampionChannelAlias.FEA1_NOTIFY,
+                    commandCode = 0x01,
+                    bytes = byteArrayOf(0x01, 0x56, 0x34, 0x12),
+                ),
+            ),
+        )
+
+        awaitCondition { coordinator.state.value.pocState == DevicePocState.StepsObserved }
+        val updated = coordinator.state.value
+        assertTrue(updated.isStepsCapabilityAvailable)
+        assertFalse(updated.isStepsCapabilityMissing)
+        assertTrue(updated.hasObservedSteps)
+        assertEquals(1, updated.stepsPacketCount)
+        assertEquals(0x123456, updated.lastStepCount)
+        assertNull(updated.lastError)
+    }
+
     private fun buildCoordinator(): DevicePocCoordinator {
         val manager = buildManager(FakeChampionBleScanner(), FakeChampionBleClient())
         return DevicePocCoordinator(manager, Dispatchers.Default)
@@ -261,6 +333,7 @@ class DevicePocCoordinatorTest {
     private fun buildManager(
         scanner: FakeChampionBleScanner,
         client: FakeChampionBleClient,
+        optionalChannels: Set<ChampionChannelAlias> = emptySet(),
     ): ChampionConnectionManager = ChampionConnectionManager(
         scanner = scanner,
         client = client,
@@ -270,6 +343,7 @@ class DevicePocCoordinatorTest {
                     currentSession.id,
                     ChampionChannelAlias.F008_NOTIFY,
                     ChampionChannelAlias.F008_WRITE,
+                    *optionalChannels.toTypedArray(),
                 ),
             )
         },

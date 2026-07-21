@@ -15,6 +15,7 @@ import br.com.mwconsulting.championcompanion.core.common.BleDispatcher
 import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -31,6 +32,7 @@ class DevicePocCoordinator @Inject constructor(
 ) : DeviceFeatureContract {
     private val scope = CoroutineScope(SupervisorJob() + bleDispatcher)
     private val mutableState = MutableStateFlow(DeviceUiState())
+    private var stepsObservationJob: Job? = null
 
     override val state: StateFlow<DeviceUiState> = mutableState.asStateFlow()
 
@@ -147,6 +149,71 @@ class DevicePocCoordinator @Inject constructor(
 
     suspend fun executeHandshake(): ChampionBleResult<Unit> = executeHandshake(ZonedDateTime.now())
 
+    suspend fun awaitSteps(): ChampionBleResult<Unit> {
+        val current = state.value
+        val sessionId = current.activeSessionId ?: return ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        if (current.pocState !in setOf(
+                DevicePocState.HandshakeConfirmed,
+                DevicePocState.WaitingForSteps,
+                DevicePocState.StepsObserved,
+            )
+        ) {
+            return ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        }
+        val transport = currentTransportSession()
+            ?: return ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        if (transport.session.id != sessionId) {
+            return ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
+        }
+        if (!transport.capabilities.snapshot.hasChannel(ChampionChannelAlias.FEA1_NOTIFY)) {
+            val error = ChampionBleError.MissingOptionalChannel(ChampionChannelAlias.FEA1_NOTIFY)
+            transitionToProtocolFailure(sessionId, error)
+            return ChampionBleResult.Failure(error)
+        }
+        if (stepsObservationJob?.isActive == true) {
+            moveToWaitingForSteps(sessionId)
+            return ChampionBleResult.Success(Unit)
+        }
+
+        val subscription = transport.notifications.subscribe(ChampionChannelAlias.FEA1_NOTIFY)
+        if (subscription is ChampionBleResult.Failure) {
+            transitionToProtocolFailure(sessionId, subscription.error)
+            return ChampionBleResult.Failure(subscription.error)
+        }
+
+        moveToWaitingForSteps(sessionId)
+        stepsObservationJob = scope.launch {
+            try {
+                (subscription as ChampionBleResult.Success).value.collect { packet ->
+                    if (state.value.activeSessionId != sessionId) return@collect
+                    when (val parsed = DevicePocFea1Steps.parse(packet)) {
+                        is DevicePocFea1Steps.Result.Valid -> updateState {
+                            if (it.activeSessionId != sessionId) {
+                                it
+                            } else {
+                                it.copy(
+                                    pocState = DevicePocState.StepsObserved,
+                                    hasObservedSteps = true,
+                                    stepsPacketCount = it.stepsPacketCount + 1,
+                                    lastStepCount = parsed.steps,
+                                    lastError = null,
+                                )
+                            }
+                        }
+
+                        is DevicePocFea1Steps.Result.Invalid -> {
+                            transitionToProtocolFailure(sessionId, parsed.error)
+                            stepsObservationJob?.cancel()
+                        }
+                    }
+                }
+            } catch (_: CancellationException) {
+                Unit
+            }
+        }
+        return ChampionBleResult.Success(Unit)
+    }
+
     internal suspend fun executeHandshake(
         dateTime: ZonedDateTime,
         timeout: Duration = DevicePocHandshakeA1.defaultTimeout,
@@ -234,6 +301,8 @@ class DevicePocCoordinator @Inject constructor(
                     it.copy(
                         transportState = transportState,
                         pocState = DevicePocState.TransportReady,
+                        isStepsCapabilityAvailable = transportState.capabilities.hasChannel(ChampionChannelAlias.FEA1_NOTIFY),
+                        isStepsCapabilityMissing = false,
                         lastError = null,
                     )
                 }
@@ -294,12 +363,19 @@ class DevicePocCoordinator @Inject constructor(
     }
 
     private fun clearCycleState(nextState: DevicePocState) {
+        stepsObservationJob?.cancel()
+        stepsObservationJob = null
         updateState {
             it.copy(
                 transportState = ChampionBleState.Disconnected,
                 pocState = nextState,
                 candidate = null,
                 activeSessionId = null,
+                isStepsCapabilityAvailable = false,
+                isStepsCapabilityMissing = false,
+                hasObservedSteps = false,
+                stepsPacketCount = 0,
+                lastStepCount = null,
                 lastError = null,
             )
         }
@@ -309,6 +385,8 @@ class DevicePocCoordinator @Inject constructor(
         sessionId: ChampionSessionId?,
         error: ChampionBleError,
     ) {
+        stepsObservationJob?.cancel()
+        stepsObservationJob = null
         updateState {
             it.copy(
                 transportState = ChampionBleState.Failed(
@@ -318,6 +396,27 @@ class DevicePocCoordinator @Inject constructor(
                 pocState = DevicePocState.Failed(error),
                 lastError = error,
             )
+        }
+    }
+
+    private fun transitionToProtocolFailure(
+        sessionId: ChampionSessionId,
+        error: ChampionBleError,
+    ) {
+        if (state.value.activeSessionId != sessionId) return
+        stepsObservationJob?.cancel()
+        stepsObservationJob = null
+        updateState {
+            if (it.activeSessionId != sessionId) {
+                it
+            } else {
+                it.copy(
+                    pocState = DevicePocState.Failed(error),
+                    isStepsCapabilityMissing = error is ChampionBleError.MissingOptionalChannel &&
+                        error.channel == ChampionChannelAlias.FEA1_NOTIFY,
+                    lastError = error,
+                )
+            }
         }
     }
 

@@ -40,6 +40,11 @@ data class DeviceUiState(
     val pocState: DevicePocState = DevicePocState.Idle,
     val candidate: ChampionDiscoveredDevice? = null,
     val activeSessionId: ChampionSessionId? = null,
+    val isStepsCapabilityAvailable: Boolean = false,
+    val isStepsCapabilityMissing: Boolean = false,
+    val hasObservedSteps: Boolean = false,
+    val stepsPacketCount: Int = 0,
+    val lastStepCount: Int? = null,
     val lastError: ChampionBleError? = null,
 )
 
