@@ -1,50 +1,63 @@
-# Repository Guidelines
+# Champion Companion
 
-## Fonte de contexto
+## Ler primeiro
 
-Leia [a baseline atual](docs/core/current-project-baseline.md) antes de alterar
-código, dependências ou arquitetura. Especificações, roadmap e ADRs definem
-requisitos; este arquivo define apenas como contribuir.
+- Leia `docs/core/current-project-baseline.md` antes de mudar código, dependências ou arquitetura.
+- Se tocar escopo funcional, confira spec correspondente em `docs/specs/` e ADRs em `docs/decisions/`.
 
-## Build, testes e desenvolvimento
+## Estrutura real
 
-Use o Gradle Wrapper; não substitua por Gradle global.
+- Repo tem só módulo Android `:app`; `settings.gradle.kts` não inclui outros módulos.
+- Entrypoint: `app/src/main/java/br/com/mwconsulting/championcompanion/MainActivity.kt` -> `ChampionCompanionTheme` -> `core/navigation/ChampionNavigation.kt`.
+- Navegação usa `androidx.navigation3` com back stack manual (`mutableStateListOf<AppDestination>`). Não procure `NavHost`/`NavController`.
+- Infra fica em `core/common`, `core/error`, `core/logging`, `core/navigation`, `core/preferences`, `core/database`.
+- Domínio e contratos ficam em `core/model`; implementação persistente fica em `data/` via `RoomRepositories` + `RepositoryModule`.
+- Features atuais: `feature/home`, `health`, `calendar`, `exercises`, `device`, `profile`, `settings`.
 
+## Toolchain e comandos
+
+- Use só wrapper: `./gradlew`.
+- Toolchain de compilação está fixada em Java/Kotlin 21 (`app/build.gradle.kts`). SDK alvo/compile: 36.
+- Verificação completa esperada para mudanças em código ou Gradle:
 ```bash
-./gradlew lint                 # análise Android/Lint
-./gradlew testDebugUnitTest    # testes JVM da variante debug
-./gradlew assembleDebug        # APK debug
-./gradlew assembleRelease      # APK release
 ./gradlew lint testDebugUnitTest assembleDebug assembleRelease
 ```
+- Comandos focados úteis:
+```bash
+./gradlew app:testDebugUnitTest --tests "*NomeDoTeste*"
+./gradlew app:connectedDebugAndroidTest
+./gradlew app:lintDebug
+```
+- `connectedDebugAndroidTest` precisa dispositivo/emulador conectado.
 
-Execute o último comando antes de abrir um PR que altere código ou Gradle.
+## Quirks de build
 
-## Estilo e organização
+- `gradle.properties` mantém `org.gradle.configuration-cache=true`; não introduza mudanças que quebrem cache sem necessidade.
+- Flags `android.disallowKotlinSourceSets=false` e `android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE` existem por compatibilidade KSP 2.2.10/AGP 9.3. Não remova sem upgrade coordenado.
+- `assembleRelease` deve continuar funcionando sem credenciais locais: `app/build.gradle.kts` só aplica assinatura release quando `keystore.properties` existe.
 
-Siga o estilo Kotlin existente: quatro espaços, imports explícitos, funções e
-propriedades em `camelCase`, classes/Composables em `PascalCase`. Mantenha um
-recurso dentro de seu pacote. Prefira telas pequenas e estado UI seguro a
-lógica de domínio na camada Compose.
+## Room, DataStore, DI
 
-## Testes
+- Banco usa Room 3 com `AndroidSQLiteDriver()` em produção e testes instrumentados.
+- Schemas exportados ficam em `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/`. Se mudar entidades/DAOs/versão, atualize schema exportado e testes instrumentados relacionados.
+- DataStore de preferências usa nome fixo `champion_preferences` em `core/preferences/PreferencesModule.kt`.
+- Hilt está no app inteiro: `ChampionCompanionApplication` tem `@HiltAndroidApp`; módulos principais ficam em `core/database`, `core/logging`, `core/preferences`, `data`.
 
-Adicione teste unitário para cada regra, mapeamento de erro ou comportamento não
-visual; use nomes descritivos em crases, como
-`` `network error maps to safe message` ``. Use teste instrumentado somente
-quando depender de framework Android, Compose ou dispositivo. Execute o teste
-afetado e `testDebugUnitTest`; não reduza cobertura existente.
+## Testes e guard rails
 
-## Segurança e mudanças
+- Prefira JVM tests em `app/src/test` para regras de domínio, mapeadores, codecs e política de logs.
+- Use `app/src/androidTest` quando depender de Compose, Room real, `AndroidSQLiteDriver` ou framework Android.
+- `Phase003PrivacyGuardTest` bloqueia termos de localização/rota em `core/model`, `core/database`, `data`, `core/logging` e testes. Não introduza latitude/longitude/GPX/rotas nesses escopos.
+- `DebugStructuredLoggerTest` exige logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
-Nunca registre dados sensíveis, tokens, segredos ou identificadores. Não exponha
-stack traces ou mensagens internas na UI. Confirme limites de escopo na baseline
-e na especificação aplicável antes de introduzir uma nova capacidade.
+## Privacidade e backup
 
-## Commits e pull requests
+- `AndroidManifest.xml` mantém `android:allowBackup="false"`.
+- `app/src/main/res/xml/backup_rules.xml` e `data_extraction_rules.xml` negam backup e device transfer para root/files/database/sharedpref/external. Preserve isso ao tocar manifest ou regras XML.
 
-Use Conventional Commits, como `feat: add device connection state` ou
-`fix: map transport failure safely`. Faça commits pequenos e coesos. PRs devem
-explicar objetivo e impacto, vincular issue/tarefa quando houver, listar os
-comandos executados e incluir captura de tela para mudanças visuais. Não misture
-refatorações não relacionadas.
+## Convenções de mudança
+
+- Use Conventional Commits.
+- Se mudança introduzir decisão arquitetural, de persistência, privacidade, navegação, build ou workflow com impacto duradouro, crie ou atualize ADR correspondente em `docs/decisions/` no mesmo trabalho.
+- Se mudança for visual, inclua screenshot no PR.
+- Não misture refatorações não relacionadas.
