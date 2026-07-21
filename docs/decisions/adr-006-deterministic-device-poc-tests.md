@@ -29,7 +29,13 @@ Na prática, parte dessa suíte ficou flakey. Sintomas observados:
 - write A1 expirando mesmo com conclusão explícita da fila;
 - observer lógico nem sempre armado a tempo para receber packet fake.
 
-Parte dos cenários foi reativada com melhorias no harness, mas alguns testes ainda precisaram ficar com `@Ignore` por instabilidade do fake, não por falta de regra de negócio.
+Em 2026-07-21, a task `005-11` ampliou a malha automatizada da PoC e estabilizou parte do harness de conexão:
+
+- `./gradlew app:testDebugUnitTest` ficou verde;
+- cobertura JVM do coordenador passou a incluir falha de scan, falha de connect, transição `TransportReady` e guards básicos de cleanup;
+- o helper de conexão do teste deixou de depender de `Deferred` preso em `coroutineScope` filho, reduzindo uma fonte concreta de timeout artificial.
+
+Mesmo assim, alguns cenários ainda precisaram ficar com `@Ignore` por instabilidade do fake, não por falta de regra de negócio.
 
 ## Decisão
 
@@ -53,13 +59,14 @@ Adotar como direção permanente para testes do `DevicePocCoordinator`:
 
 - reduz risco de regressão silenciosa no coordenador BLE;
 - deixa falha de teste mais ligada a regra de negócio e menos a corrida de coroutine;
+- já permitiu reativar parte da cobertura essencial sem ampliar escopo para instrumentados;
 - facilita reativar cobertura de handshake, steps e D0/F002 sem depender de sleeps implícitos.
 
 ### Negativas
 
 - exige investimento adicional em infraestrutura de teste;
 - pode duplicar parte do comportamento já coberto em testes lower-level se escopo não for bem separado;
-- até migração completa, suíte continuará com pequeno conjunto de cenários ignorados.
+- até migração completa, suíte continua com pequeno conjunto de cenários ignorados no `DevicePocCoordinatorTest`.
 
 ## Alternativas consideradas
 
@@ -70,5 +77,5 @@ Adotar como direção permanente para testes do `DevicePocCoordinator`:
 ## Próximos passos
 
 - criar fake de transporte mais alto nível ou driver determinístico para `ChampionGattQueue`;
-- reativar primeiro cenários de A1 success, capability-missing, stale callback e observers FEA1/D0/F002;
+- reativar primeiro cenários hoje ignorados de A1 success, capability-missing, stale callback e observers FEA1/D0/F002;
 - revisar `DevicePocCoordinatorTest` sempre que nova task BLE aumentar dependência de ordering assíncrono.

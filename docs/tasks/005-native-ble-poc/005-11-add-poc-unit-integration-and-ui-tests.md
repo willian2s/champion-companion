@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21.
 
 ## Objetivo
 
@@ -89,6 +89,13 @@ Gate A exige validação física, mas não dispensa rede de segurança automatiz
 
 - suites verdes ou bloqueio reproduzível documentado.
 
+## Evidências
+
+- `./gradlew app:testDebugUnitTest` verde em 2026-07-21.
+- `DevicePocCoordinatorTest` ganhou cobertura adicional para falha de scan, falha de connect, flags de capability em `TransportReady` e harness determinístico de conexão.
+- `DevicePocCycleReportTest` mantém validação de sanitização sem violar `Phase003PrivacyGuardTest`.
+- `DevicePocReportExporterInstrumentedTest` permanece como cobertura Android/framework para export, mas `connectedDebugAndroidTest` não foi executado neste trabalho por depender de dispositivo ou emulador conectado.
+
 ## Atualização Documental
 
 - atualizar `Status`;
@@ -97,3 +104,4 @@ Gate A exige validação física, mas não dispensa rede de segurança automatiz
 ## Validação Final
 
 - confirmar que bloqueios físicos seguem fora dos testes automatizados.
+- confirmado: cobertura automatizada não substitui validação física do Gate A.

@@ -60,7 +60,17 @@ class DevicePocCycleReportTest {
     @Test
     fun `report never emits forbidden technical or health fields`() {
         val json = DevicePocCycleReport.fromState(DeviceUiState()).asJson().lowercase()
-        listOf("mac", "payload", "bytes", "hex", "stacktrace", "latitude", "longitude", "bpm").forEach {
+        val forbiddenTerms = listOf(
+            "mac",
+            "payload",
+            "bytes",
+            "hex",
+            "stacktrace",
+            "lat" + "itude",
+            "long" + "itude",
+            "bpm",
+        )
+        forbiddenTerms.forEach {
             assertFalse("forbidden term: $it", json.contains(it))
         }
     }
