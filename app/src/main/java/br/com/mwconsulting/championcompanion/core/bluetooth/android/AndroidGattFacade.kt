@@ -39,7 +39,11 @@ interface AndroidGattConnection {
 interface AndroidGattCallback {
     fun onConnectionStateChanged(isConnected: Boolean, detail: SafeGattDetail?)
 
-    fun onServicesDiscovered(serviceUuids: Set<UUID>, detail: SafeGattDetail?)
+    fun onServicesDiscovered(
+        serviceUuids: Set<UUID>,
+        snapshot: AndroidGattDiscoverySnapshot,
+        detail: SafeGattDetail?,
+    )
 
     fun onCharacteristicRead(characteristicUuid: UUID, value: ByteArray, detail: SafeGattDetail?)
 
@@ -58,6 +62,7 @@ fun interface AndroidGattFacade {
 
 class DefaultAndroidGattFacade @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val discoveryMapper: AndroidGattDiscoveryMapper,
 ) : AndroidGattFacade {
     @SuppressLint("MissingPermission")
     override fun connect(transportKey: String, callback: AndroidGattCallback): AndroidGattConnection? {
@@ -78,6 +83,7 @@ class DefaultAndroidGattFacade @Inject constructor(
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 callback.onServicesDiscovered(
                     serviceUuids = gatt.services.mapTo(linkedSetOf()) { it.uuid },
+                    snapshot = discoveryMapper.map(gatt.services),
                     detail = status.toSafeDetail(),
                 )
             }

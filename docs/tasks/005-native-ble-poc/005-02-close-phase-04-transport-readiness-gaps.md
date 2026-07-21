@@ -2,7 +2,9 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21.
+
+Resumo: `ChampionCapabilityResolver` deixou de ser stub e passou a resolver capabilities reais a partir de snapshot concreto de discovery mantido pelo client Android. `DefaultAndroidGattFacade` agora entrega snapshot mapeado de services/characteristics/properties no callback de discovery, `AndroidChampionBleClient` passou a armazenar esse snapshot por sessão ativa, e `ChampionBleModule` passou a prover bindings concretos também para `AndroidBleEnvironment` e `AndroidGattFacade`. O core ganhou dispatch reutilizável de `ChampionCommand` sobre fila + router em `ChampionTransportStreams` e `ChampionTransportSession`, preservando `TransportReady` como estado de transporte puro. Validação de compilação de produção passou em `app:compileDebugKotlin`. Validação de testes ficou parcialmente bloqueada por falhas pré-existentes e não relacionadas em `app/src/test/java/.../core/designsystem`, `core/error`, `core/model` e `data`, antes da suite BLE nova terminar compilação.
 
 ## Objetivo
 
@@ -113,3 +115,94 @@ Hoje o Hilt injeta `ChampionCapabilityResolver` stub e o caminho concreto ainda 
 ## Validação Final
 
 - confirmar sem alterações em Manifest, Compose e roadmap.
+
+## Implementação Executada
+
+### Resolver concreto de capabilities
+
+- `ChampionStoredDiscoveryCapabilityResolver` foi adicionado em `ChampionConnectionManager.kt`;
+- ele recebe provider de `AndroidGattDiscoverySnapshot` por `sessionId` e delega a `ChampionCapabilityRegistry`;
+- ausência de snapshot após discovery agora falha com `ChampionBleError.DiscoveryFailed()` em vez de `OperationUnavailable` genérico.
+
+### Snapshot concreto de discovery no caminho produtivo
+
+- `DefaultAndroidGattFacade` passou a receber `AndroidGattDiscoveryMapper`;
+- callback `onServicesDiscovered` agora entrega `serviceUuids` e `AndroidGattDiscoverySnapshot` mapeado do `BluetoothGatt` real;
+- `AndroidChampionBleClient` armazena o snapshot na sessão ativa e expõe `discoverySnapshot(sessionId)` para o resolver produtivo.
+
+### Wiring Hilt faltante
+
+- `ChampionBleModule` agora fornece `AndroidBleEnvironment <- DefaultAndroidBleEnvironment`;
+- `ChampionBleModule` agora fornece `AndroidGattFacade <- DefaultAndroidGattFacade`;
+- `ChampionCapabilityResolver` agora usa `AndroidChampionBleClient::discoverySnapshot`.
+
+### Dispatch reutilizável de `ChampionCommand`
+
+- `ChampionTransportStreams` ganhou:
+  - `sendCommand(sessionId, queue, command)`
+  - `executeCommand(sessionId, queue, command)`
+- `executeCommand` registra espera de resposta antes do write usando `CoroutineStart.UNDISPATCHED`, reduzindo janela de corrida entre write e notify rápido.
+- `ChampionTransportSession` ganhou:
+  - `sendCommand(command)`
+  - `executeCommand(command)`
+- validação de capability/write type fica na sessão antes de enfileirar operação.
+
+### Ajuste estrutural para respostas cross-channel com matcher custom
+
+- `ChampionResponseMatchers.forCommand` passou a escopar matcher custom por `sessionId` em vez de `sessionId + channel`;
+- default sem matcher custom permanece por `sessionId + channel + commandCode`;
+- isso fecha gap necessário para A1, onde write sai em `F008_WRITE` e confirmação chega por `F008_NOTIFY`.
+
+## Semântica De `TransportReady` Preservada
+
+- `ChampionBleState.TransportReady` não foi renomeado nem recebeu semântica de handshake;
+- mudanças desta task fecharam somente capabilities reais, snapshot de discovery e caminho de comando;
+- nenhuma lógica de A1, FEA1 ou D0/F002 foi implementada aqui.
+
+## Testes E Validação
+
+### Produção
+
+Comando executado:
+
+```bash
+./gradlew app:compileDebugKotlin
+```
+
+Resultado:
+
+- `BUILD SUCCESSFUL`
+
+### Testes BLE focados
+
+Comando executado:
+
+```bash
+./gradlew app:testDebugUnitTest --tests "*ChampionBleConnectionManagerTest" --tests "*ChampionBleCapabilityRegistryTest" --tests "*ChampionBleCoreModelsTest" --tests "*ChampionBlePacketRouterTest" --tests "*ChampionTransportSessionTest"
+```
+
+Resultado:
+
+- compilação de testes bloqueada por falhas pré-existentes não relacionadas em árvores `core/designsystem`, `core/error`, `core/model` e `data`;
+- bloqueio ocorre antes do término da validação da suite BLE nova;
+- bloqueio ficou registrado, não mascarado.
+
+### Cobertura adicionada nesta task
+
+- `ChampionTransportSessionTest.kt` cobre:
+  - resolver concreto de capabilities com snapshot Android;
+  - dispatch de comando pela fila e await de resposta;
+  - rejeição de comando quando capability é incompatível.
+
+## Critérios De Aceite Atendidos
+
+- app agora tem caminho produtivo para capabilities reais sem stub;
+- caminho reutilizável de `ChampionCommand` existe acima da fila e do router;
+- `TransportReady` permaneceu transporte puro;
+- nenhuma feature recebeu `BluetoothGatt`;
+- nenhuma alteração tocou Manifest, Compose, roadmap ou ADRs.
+
+## Bloqueios Remanescentes
+
+- suite de testes unitários do app já estava quebrada fora do escopo BLE;
+- `005-03` pode seguir, mas `005-11` ou validações mais amplas continuarão herdando esse bloqueio até correção separada.

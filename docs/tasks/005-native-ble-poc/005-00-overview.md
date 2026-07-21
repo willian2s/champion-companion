@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `005-01` concluída em 2026-07-21. Auditoria confirmou reuso obrigatório dos contratos da Fase 04 e isolou três gaps estruturais antes da PoC funcional: resolver concreto de capabilities, fechamento do snapshot produtivo de discovery e dispatch reutilizável de `ChampionCommand` acima da fila existente. Próxima task obrigatória: `005-02`.
+Em andamento. `005-01` e `005-02` concluídas em 2026-07-21. Core BLE agora tem resolver concreto de capabilities, snapshot produtivo de discovery no client Android, bindings Hilt faltantes para environment/facade e dispatch reutilizável de `ChampionCommand` sobre fila + router, preservando `TransportReady` como transporte puro. Validação de produção passou em `app:compileDebugKotlin`. Suite de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-03`.
 
 ## Objetivo
 
@@ -149,7 +149,7 @@ Encerrar somente após dez ciclos completos e consecutivos no Galaxy S22 com Cha
 ## Checklist
 
 - [x] `005-01` contratos Fase 04 e lacunas físicas auditados
-- [ ] `005-02` gaps mínimos de `TransportReady` físico fechados
+- [x] `005-02` gaps mínimos de `TransportReady` físico fechados
 - [ ] `005-03` permissões e entrypoint técnico preparados
 - [ ] `005-04` coordenador e state machine da PoC criados
 - [ ] `005-05` handshake A1 implementado e testado

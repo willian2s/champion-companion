@@ -16,12 +16,27 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidGattDiscoverySnapshot
 
 fun interface ChampionCapabilityResolver {
     suspend fun resolve(
         session: ChampionSession,
         queue: ChampionGattQueue,
     ): ChampionBleResult<ChampionSessionCapabilities>
+}
+
+class ChampionStoredDiscoveryCapabilityResolver(
+    private val snapshotProvider: suspend (ChampionSessionId) -> AndroidGattDiscoverySnapshot?,
+) : ChampionCapabilityResolver {
+    override suspend fun resolve(
+        session: ChampionSession,
+        queue: ChampionGattQueue,
+    ): ChampionBleResult<ChampionSessionCapabilities> {
+        val unused = queue
+        val discoverySnapshot = snapshotProvider(session.id)
+            ?: return ChampionBleResult.Failure(ChampionBleError.DiscoveryFailed())
+        return ChampionCapabilityRegistry.resolve(session.id, discoverySnapshot)
+    }
 }
 
 class ChampionConnectionManager(
