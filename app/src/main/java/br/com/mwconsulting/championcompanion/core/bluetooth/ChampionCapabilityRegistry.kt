@@ -45,7 +45,11 @@ object ChampionCapabilityRegistry {
                 continue
             }
 
-            if (!characteristic.properties.containsAll(definition.properties)) {
+            if (!propertiesAreCompatible(
+                    expected = definition.properties,
+                    discovered = characteristic.properties,
+                )
+            ) {
                 return ChampionBleResult.Failure(
                     ChampionBleError.IncompatibleChannelProperties(channelAlias),
                 )
@@ -74,5 +78,16 @@ object ChampionCapabilityRegistry {
                 defaultSubscribedChannels = ChampionUuidCatalog.defaultSubscribedChannels.intersect(availableChannels),
             ),
         )
+    }
+
+    private fun propertiesAreCompatible(
+        expected: Set<ChampionChannelProperty>,
+        discovered: Set<ChampionChannelProperty>,
+    ): Boolean {
+        if (discovered.containsAll(expected)) return true
+        if (expected == setOf(ChampionChannelProperty.WRITE)) {
+            return discovered.contains(ChampionChannelProperty.WRITE_WITHOUT_RESPONSE)
+        }
+        return false
     }
 }

@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import br.com.mwconsulting.championcompanion.core.bluetooth.SafeGattDetail
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionWriteType
 
 interface AndroidGattConnection {
     val transportKey: String
@@ -23,7 +24,7 @@ interface AndroidGattConnection {
 
     fun readCharacteristic(characteristicUuid: UUID): Boolean
 
-    fun writeCharacteristic(characteristicUuid: UUID, value: ByteArray): Boolean
+    fun writeCharacteristic(characteristicUuid: UUID, value: ByteArray, writeType: ChampionWriteType? = null): Boolean
 
     fun writeDescriptor(characteristicUuid: UUID, descriptorUuid: UUID, value: ByteArray): Boolean
 
@@ -39,7 +40,11 @@ interface AndroidGattConnection {
 interface AndroidGattCallback {
     fun onConnectionStateChanged(isConnected: Boolean, detail: SafeGattDetail?)
 
-    fun onServicesDiscovered(serviceUuids: Set<UUID>, detail: SafeGattDetail?)
+    fun onServicesDiscovered(
+        serviceUuids: Set<UUID>,
+        snapshot: AndroidGattDiscoverySnapshot,
+        detail: SafeGattDetail?,
+    )
 
     fun onCharacteristicRead(characteristicUuid: UUID, value: ByteArray, detail: SafeGattDetail?)
 
@@ -58,6 +63,7 @@ fun interface AndroidGattFacade {
 
 class DefaultAndroidGattFacade @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val discoveryMapper: AndroidGattDiscoveryMapper,
 ) : AndroidGattFacade {
     @SuppressLint("MissingPermission")
     override fun connect(transportKey: String, callback: AndroidGattCallback): AndroidGattConnection? {
@@ -78,6 +84,7 @@ class DefaultAndroidGattFacade @Inject constructor(
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 callback.onServicesDiscovered(
                     serviceUuids = gatt.services.mapTo(linkedSetOf()) { it.uuid },
+                    snapshot = discoveryMapper.map(gatt.services),
                     detail = status.toSafeDetail(),
                 )
             }
@@ -176,17 +183,22 @@ class DefaultAndroidGattFacade @Inject constructor(
         }
 
         @SuppressLint("MissingPermission")
-        override fun writeCharacteristic(characteristicUuid: UUID, value: ByteArray): Boolean {
+        override fun writeCharacteristic(
+            characteristicUuid: UUID,
+            value: ByteArray,
+            writeType: ChampionWriteType?,
+        ): Boolean {
             val characteristic = findCharacteristic(characteristicUuid) ?: return false
             if (!hasBluetoothConnectPermission(context)) return false
+            val resolvedWriteType = characteristic.resolveWriteType(writeType) ?: return false
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 gatt.writeCharacteristic(
                     characteristic,
                     value.copyOf(),
-                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
+                    resolvedWriteType,
                 ) == BluetoothStatusCodes.SUCCESS
             } else {
-                writeCharacteristicLegacy(characteristic, value)
+                writeCharacteristicLegacy(characteristic, value, resolvedWriteType)
             }
         }
 
@@ -235,10 +247,36 @@ class DefaultAndroidGattFacade @Inject constructor(
         private fun writeCharacteristicLegacy(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
+            writeType: Int,
         ): Boolean {
             characteristic.value = value.copyOf()
-            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            characteristic.writeType = writeType
             return gatt.writeCharacteristic(characteristic)
+        }
+
+        private fun BluetoothGattCharacteristic.resolveWriteType(requestedWriteType: ChampionWriteType?): Int? {
+            val hasWrite = properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
+            val hasWriteNoResponse = properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
+
+            return when (requestedWriteType) {
+                ChampionWriteType.WITH_RESPONSE -> when {
+                    hasWrite -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    hasWriteNoResponse -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    else -> null
+                }
+
+                ChampionWriteType.WITHOUT_RESPONSE -> when {
+                    hasWriteNoResponse -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    hasWrite -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    else -> null
+                }
+
+                null -> when {
+                    hasWrite -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    hasWriteNoResponse -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    else -> null
+                }
+            }
         }
 
         @SuppressLint("MissingPermission")

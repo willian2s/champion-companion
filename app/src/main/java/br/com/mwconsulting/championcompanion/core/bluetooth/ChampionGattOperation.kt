@@ -20,6 +20,7 @@ class ChampionGattOperation(
     val sessionId: ChampionSessionId,
     val type: ChampionOperationType,
     val target: ChampionGattTarget,
+    val writeType: ChampionWriteType? = null,
     val timeout: Duration,
     val retryPolicy: ChampionRetryPolicy,
     val attempt: Int,
@@ -41,6 +42,7 @@ class ChampionGattOperation(
         sessionId = sessionId,
         type = type,
         target = target,
+        writeType = writeType,
         timeout = timeout,
         retryPolicy = retryPolicy,
         attempt = nextAttempt,
@@ -55,6 +57,7 @@ class ChampionGattOperation(
             sessionId == other.sessionId &&
             type == other.type &&
             target == other.target &&
+            writeType == other.writeType &&
             timeout == other.timeout &&
             retryPolicy == other.retryPolicy &&
             attempt == other.attempt &&
@@ -66,6 +69,7 @@ class ChampionGattOperation(
         result = 31 * result + sessionId.hashCode()
         result = 31 * result + type.hashCode()
         result = 31 * result + target.hashCode()
+        result = 31 * result + (writeType?.hashCode() ?: 0)
         result = 31 * result + timeout.hashCode()
         result = 31 * result + retryPolicy.hashCode()
         result = 31 * result + attempt
@@ -74,13 +78,14 @@ class ChampionGattOperation(
     }
 
     override fun toString(): String =
-        "ChampionGattOperation(operationId=$operationId, sessionId=$sessionId, type=$type, target=$target, timeout=$timeout, attempt=$attempt, payloadSize=$payloadSize)"
+        "ChampionGattOperation(operationId=$operationId, sessionId=$sessionId, type=$type, target=$target, writeType=$writeType, timeout=$timeout, attempt=$attempt, payloadSize=$payloadSize)"
 
     companion object {
         fun create(
             sessionId: ChampionSessionId,
             type: ChampionOperationType,
             target: ChampionGattTarget,
+            writeType: ChampionWriteType? = null,
             timeout: Duration,
             retryPolicy: ChampionRetryPolicy = ChampionRetryPolicy.None,
             payload: ByteArray? = null,
@@ -89,6 +94,7 @@ class ChampionGattOperation(
             sessionId = sessionId,
             type = type,
             target = target,
+            writeType = writeType,
             timeout = timeout,
             retryPolicy = retryPolicy,
             attempt = 1,

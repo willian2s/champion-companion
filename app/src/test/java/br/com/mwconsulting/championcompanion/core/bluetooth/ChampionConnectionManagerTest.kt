@@ -73,6 +73,67 @@ class ChampionBleConnectionManagerTest {
     }
 
     @Test
+    fun `connect enables every available default subscription before transport ready`() = runBlocking {
+        val scanner = FakeChampionBleScanner()
+        val client = FakeChampionBleClient()
+        val session = testSession()
+        client.setOpenResult(ChampionBleResult.Success(session))
+        val manager = ChampionConnectionManager(
+            scanner = scanner,
+            client = client,
+            capabilityResolver = ChampionCapabilityResolver { currentSession, _ ->
+                ChampionBleResult.Success(
+                    sessionCapabilities(
+                        currentSession.id,
+                        ChampionChannelAlias.F008_NOTIFY,
+                        ChampionChannelAlias.F008_WRITE,
+                        ChampionChannelAlias.F002_NOTIFY,
+                        ChampionChannelAlias.FEA1_NOTIFY,
+                    ),
+                )
+            },
+            parentScope = CoroutineScope(Dispatchers.Default + Job()),
+            timeouts = ChampionBleTimeouts(connect = 200.milliseconds, discovery = 200.milliseconds),
+        )
+        yield()
+
+        val result = async { manager.connect(testDevice()) }
+        awaitCondition { client.attachedQueues.containsKey(session.id) }
+        client.emit(
+            ChampionGattSessionEvent.ConnectionStateChanged(
+                sessionId = session.id,
+                occurredAt = Instant.now(),
+                transportKey = session.transportKey,
+                isConnected = true,
+                detail = null,
+            ),
+        )
+        completeNextQueuedOperation(client, 0)
+        completeNextQueuedOperation(client, 1)
+        completeNextQueuedOperation(client, 2)
+        completeNextQueuedOperation(client, 3)
+        completeNextQueuedOperation(client, 4)
+        completeNextQueuedOperation(client, 5)
+
+        val transport = (result.await() as ChampionBleResult.Success).value
+        assertEquals(session.id, transport.session.id)
+        assertEquals(
+            listOf(
+                ChampionChannelAlias.F008_NOTIFY,
+                ChampionChannelAlias.F008_NOTIFY,
+                ChampionChannelAlias.F002_NOTIFY,
+                ChampionChannelAlias.F002_NOTIFY,
+                ChampionChannelAlias.FEA1_NOTIFY,
+                ChampionChannelAlias.FEA1_NOTIFY,
+            ),
+            client.executedOperations.drop(2).map { operation: ChampionGattOperation ->
+                (operation.target as ChampionGattTarget.Channel).alias
+            },
+        )
+        assertTrue(manager.state.value is ChampionBleState.TransportReady)
+    }
+
+    @Test
     fun `stale callback is ignored and active session disconnect becomes failed cleanup`() = runBlocking {
         val scanner = FakeChampionBleScanner()
         val client = FakeChampionBleClient()

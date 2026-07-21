@@ -160,12 +160,7 @@ class AndroidChampionBleScanner @Inject constructor(
     }
 
     private fun handleScanResult(view: AndroidScanResultView) {
-        val device = ChampionDiscoveredDevice(
-            transportKey = view.transportKey,
-            name = view.name,
-            localName = view.localName,
-            observedAt = view.observedAt,
-        )
+        val device = view.toDiscoveredDeviceOrNull() ?: return
         if (!ChampionDeviceFilter.matches(device)) return
 
         scope.launch {
@@ -229,4 +224,18 @@ class AndroidChampionBleScanner @Inject constructor(
         val callback: ScanCallback,
         val start: () -> Unit,
     )
+}
+
+internal fun AndroidScanResultView.toDiscoveredDeviceOrNull(): ChampionDiscoveredDevice? {
+    val normalizedName = name?.trim()?.takeIf(String::isNotEmpty)
+    val normalizedLocalName = localName?.trim()?.takeIf(String::isNotEmpty)
+    if (normalizedName == null && normalizedLocalName == null) return null
+    return runCatching {
+        ChampionDiscoveredDevice(
+            transportKey = transportKey,
+            name = normalizedName,
+            localName = normalizedLocalName,
+            observedAt = observedAt,
+        )
+    }.getOrNull()
 }

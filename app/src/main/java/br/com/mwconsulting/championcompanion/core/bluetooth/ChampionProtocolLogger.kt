@@ -87,6 +87,7 @@ class ChampionProtocolLogger(
             is ChampionBleError.DiscoveryFailed -> "discovery_failed"
             is ChampionBleError.MissingRequiredService -> "missing_required_service"
             is ChampionBleError.MissingRequiredChannel -> "missing_required_channel"
+            is ChampionBleError.MissingOptionalChannel -> "missing_optional_channel"
             is ChampionBleError.IncompatibleChannelProperties -> "incompatible_channel_properties"
             is ChampionBleError.OperationRejected -> "operation_rejected"
             is ChampionBleError.CallbackFailure -> "callback_failure"

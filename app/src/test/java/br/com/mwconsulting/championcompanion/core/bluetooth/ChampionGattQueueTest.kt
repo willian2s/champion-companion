@@ -138,6 +138,23 @@ class ChampionBleGattQueueTest {
         assertTrue(executed.size == 1)
     }
 
+    @Test
+    fun `disconnect is safe when called again after queue closes`() = runBlocking {
+        val sessionId = testSessionId()
+        val queue = newQueue(sessionId)
+
+        queue.disconnect(ChampionDisconnectReason.USER_REQUESTED)
+        queue.disconnect(ChampionDisconnectReason.CLEANUP)
+
+        val result = queue.enqueue(testOperation(sessionId = sessionId))
+        assertEquals(
+            ChampionGattTerminalResult.Failure(
+                ChampionBleError.QueueClosed(ChampionDisconnectReason.USER_REQUESTED),
+            ),
+            result,
+        )
+    }
+
     private fun newQueue(
         sessionId: ChampionSessionId,
         executed: MutableList<ChampionGattOperation> = mutableListOf(),

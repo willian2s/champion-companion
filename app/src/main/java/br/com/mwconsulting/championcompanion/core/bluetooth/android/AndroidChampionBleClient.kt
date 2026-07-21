@@ -39,6 +39,12 @@ class AndroidChampionBleClient @Inject constructor(
 
     override val events: Flow<ChampionGattSessionEvent> = mutableEvents.asSharedFlow()
 
+    suspend fun discoverySnapshot(sessionId: ChampionSessionId): AndroidGattDiscoverySnapshot? = mutex.withLock {
+        val session = activeSession ?: return@withLock null
+        if (session.session.id != sessionId) return@withLock null
+        session.discoverySnapshot
+    }
+
     override suspend fun openSession(device: ChampionDiscoveredDevice): ChampionBleResult<ChampionSession> = mutex.withLock {
         closeActiveSessionLocked()
 
@@ -55,6 +61,7 @@ class AndroidChampionBleClient @Inject constructor(
             session = session,
             connection = connection,
             queue = null,
+            discoverySnapshot = null,
         )
         ChampionBleResult.Success(session)
     }
@@ -103,7 +110,15 @@ class AndroidChampionBleClient @Inject constructor(
                 val channel = operation.target.channelAliasOrNull()
                 val characteristicUuid = channel?.let(ChampionUuidCatalog::channelUuid)
                 val payload = operation.payloadCopy()
-                if (characteristicUuid == null || payload == null || !session.connection.writeCharacteristic(characteristicUuid, payload)) {
+                if (
+                    characteristicUuid == null ||
+                    payload == null ||
+                    !session.connection.writeCharacteristic(
+                        characteristicUuid = characteristicUuid,
+                        value = payload,
+                        writeType = operation.writeType,
+                    )
+                ) {
                     session.queue?.fail(operation.sessionId, operation.operationId, ChampionBleError.OperationRejected(operation.type))
                 }
             }
@@ -159,7 +174,6 @@ class AndroidChampionBleClient @Inject constructor(
             )
         }
         session.connection.disconnect()
-        session.queue?.disconnect(reason)
         ChampionBleResult.Success(Unit)
     }
 
@@ -171,7 +185,6 @@ class AndroidChampionBleClient @Inject constructor(
             )
         }
         session.connection.close()
-        session.queue?.disconnect(ChampionDisconnectReason.CLEANUP)
         mutableEvents.tryEmit(callbackBridge.closed(sessionId, session.session.transportKey))
         activeSession = null
         ChampionBleResult.Success(Unit)
@@ -188,7 +201,15 @@ class AndroidChampionBleClient @Inject constructor(
             handleEvent(event)
         }
 
-        override fun onServicesDiscovered(serviceUuids: Set<java.util.UUID>, detail: SafeGattDetail?) {
+        override fun onServicesDiscovered(
+            serviceUuids: Set<java.util.UUID>,
+            snapshot: AndroidGattDiscoverySnapshot,
+            detail: SafeGattDetail?,
+        ) {
+            val current = activeSession
+            if (current != null && current.session.id == session.id) {
+                activeSession = current.copy(discoverySnapshot = snapshot)
+            }
             handleEvent(callbackBridge.servicesDiscovered(session.id, serviceUuids, detail))
         }
 
@@ -284,7 +305,6 @@ class AndroidChampionBleClient @Inject constructor(
     private suspend fun closeActiveSessionLocked() {
         val session = activeSession ?: return
         session.connection.close()
-        session.queue?.disconnect(ChampionDisconnectReason.STALE_SESSION)
         mutableEvents.tryEmit(callbackBridge.closed(session.session.id, session.session.transportKey))
         activeSession = null
     }
@@ -303,5 +323,6 @@ class AndroidChampionBleClient @Inject constructor(
         val session: ChampionSession,
         val connection: AndroidGattConnection,
         val queue: ChampionGattQueue?,
+        val discoverySnapshot: AndroidGattDiscoverySnapshot?,
     )
 }

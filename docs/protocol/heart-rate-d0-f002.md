@@ -38,6 +38,27 @@ Nenhum detalhe deste documento foi classificado como `Confirmado no uso funciona
 | Valor em tempo real | primeiro byte em resposta D0 entre 35 e 220, salvo em `lastD0Bpm` | Confirmado pelo codigo |
 | Valor final manual | `lastD0Bpm` preferido; senao estimativa F002; senao `null` | Confirmado pelo codigo |
 
+## Evidencia Fisica 2026-07-21
+
+A primeira validacao real da PoC Android nao chegou a `D0 01`. O ciclo sanitizado `a86ae7d2-6b02-4890-a330-2babd26ae2c0` falhou antes de `TransportReady`, com `handshake_confirmed=false` e `error_category=incompatible_capability`.
+
+Leitura tecnica:
+
+- a falha bloqueou observacao fisica de D0 e F002 nesta data;
+- o ajuste aplicado no app passou a aceitar `F008_WRITE` como canal compativel quando a characteristic Android anunciar `WRITE` ou `WRITE_WITHOUT_RESPONSE`;
+- D0 e F002 continuam sem confirmacao fisica no Champion Companion Android ate nova execucao dirigida.
+
+Na segunda validacao real de 2026-07-21, o ciclo `859c7105-57d5-4667-8b77-461ba69084f8` confirmou `transport_ready=true`, `steps_capability=available` e `heart_rate_capability=available`, mas ainda falhou durante o handshake. Portanto:
+
+- F002 notify ja tem disponibilidade fisica confirmada como capability no Galaxy S22 com Champion C001;
+- D0 e amostras F002 ainda nao tiveram observacao funcional, porque o fluxo continua bloqueado antes do inicio da sessao de batimento.
+
+Na terceira validacao real de 2026-07-21, o ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e` repetiu `transport_ready=true`, `handshake_confirmed=false`, `heart_rate_capability=available` e falhou com `error_category=timeout`. Portanto:
+
+- F002 notify segue confirmado fisicamente como capability disponivel;
+- D0 e amostras F002 continuam sem observacao funcional, porque o bloqueio permaneceu restrito ao A1;
+- a PoC Android passou a aplicar atraso inicial curto e retry limitado no handshake antes da proxima revalidacao fisica da sessao de BPM.
+
 ## Fluxo De Medicao Manual Na Tela Saude
 
 1. Usuario toca iniciar.

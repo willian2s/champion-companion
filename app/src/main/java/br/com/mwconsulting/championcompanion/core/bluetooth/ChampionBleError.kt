@@ -65,6 +65,10 @@ sealed interface ChampionBleError {
         override val isRecoverable: Boolean = false
     }
 
+    data class MissingOptionalChannel(val channel: ChampionChannelAlias) : ChampionBleError {
+        override val isRecoverable: Boolean = true
+    }
+
     data class IncompatibleChannelProperties(val channel: ChampionChannelAlias) : ChampionBleError {
         override val isRecoverable: Boolean = false
     }
@@ -146,6 +150,7 @@ fun ChampionBleError.toSafeMessage(): String = when (this) {
     is ChampionBleError.DiscoveryFailed -> "Não foi possível descobrir os canais do dispositivo."
     is ChampionBleError.MissingRequiredService -> "Serviço Bluetooth obrigatório ausente."
     is ChampionBleError.MissingRequiredChannel -> "Canal Bluetooth obrigatório ausente."
+    is ChampionBleError.MissingOptionalChannel -> "Canal Bluetooth opcional necessário para esta etapa está ausente."
     is ChampionBleError.IncompatibleChannelProperties -> "Canal Bluetooth incompatível com operação necessária."
     is ChampionBleError.OperationRejected -> "Operação Bluetooth rejeitada."
     is ChampionBleError.CallbackFailure -> "Operação Bluetooth falhou durante execução."

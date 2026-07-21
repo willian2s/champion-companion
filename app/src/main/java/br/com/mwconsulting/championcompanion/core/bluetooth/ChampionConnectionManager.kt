@@ -16,12 +16,27 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidGattDiscoverySnapshot
 
 fun interface ChampionCapabilityResolver {
     suspend fun resolve(
         session: ChampionSession,
         queue: ChampionGattQueue,
     ): ChampionBleResult<ChampionSessionCapabilities>
+}
+
+class ChampionStoredDiscoveryCapabilityResolver(
+    private val snapshotProvider: suspend (ChampionSessionId) -> AndroidGattDiscoverySnapshot?,
+) : ChampionCapabilityResolver {
+    override suspend fun resolve(
+        session: ChampionSession,
+        queue: ChampionGattQueue,
+    ): ChampionBleResult<ChampionSessionCapabilities> {
+        val unused = queue
+        val discoverySnapshot = snapshotProvider(session.id)
+            ?: return ChampionBleResult.Failure(ChampionBleError.DiscoveryFailed())
+        return ChampionCapabilityRegistry.resolve(session.id, discoverySnapshot)
+    }
 }
 
 class ChampionConnectionManager(
@@ -144,17 +159,20 @@ class ChampionConnectionManager(
             scope = scope,
         )
 
-        val requiredSubscription = notificationHub.subscribe(ChampionChannelAlias.F008_NOTIFY)
-        if (requiredSubscription is ChampionBleResult.Failure) {
-            cleanupSession(session, queue, requiredSubscription.error, notificationHub, streams)
-            mutableState.value = ChampionBleState.Failed(session, requiredSubscription.error)
-            return ChampionBleResult.Failure(requiredSubscription.error)
-        }
-
-        val requiredCollector = scope.launch {
-            (requiredSubscription as ChampionBleResult.Success).value.collect { packet ->
-                protocolLogger?.logPacketObserved(packet, consumedByMatcher = false)
+        val subscriptionCollectors = mutableListOf<Job>()
+        for (channel in capabilities.defaultSubscribedChannels) {
+            val subscription = notificationHub.subscribe(channel)
+            if (subscription is ChampionBleResult.Failure) {
+                cleanupSession(session, queue, subscription.error, notificationHub, streams, jobs = subscriptionCollectors)
+                mutableState.value = ChampionBleState.Failed(session, subscription.error)
+                return ChampionBleResult.Failure(subscription.error)
             }
+            val collector = scope.launch {
+                (subscription as ChampionBleResult.Success).value.collect { packet ->
+                    protocolLogger?.logPacketObserved(packet, consumedByMatcher = false)
+                }
+            }
+            subscriptionCollectors += collector
         }
 
         val transport = ChampionTransportSession(
@@ -163,7 +181,7 @@ class ChampionConnectionManager(
             queue = queue,
             notifications = notificationHub,
             streams = streams,
-            internalJobs = listOf(requiredCollector),
+            internalJobs = subscriptionCollectors,
         )
 
         mutex.withLock {

@@ -8,6 +8,7 @@ Catalogar o dispositivo Champion C001 conforme baseline MotionLog, com UUIDs, se
 
 - `Confirmado pelo codigo`: existe no codigo MotionLog analisado.
 - `Confirmado no uso funcional atual`: consta como fluxo funcional da baseline ou documento MotionLog de validacao.
+- `Confirmado fisicamente na PoC Android`: observado na execucao real do Champion Companion no Galaxy S22.
 - `Inferido a partir do codigo`: deduzido por relacao entre constantes, handlers e parsers.
 - `Ainda nao confirmado`: presente como lacuna, constante sem fluxo completo, ou requisito sem evidencia fisica nesta task.
 
@@ -48,6 +49,63 @@ Catalogar o dispositivo Champion C001 conforme baseline MotionLog, com UUIDs, se
 | `0000fee7-0000-1000-8000-00805f9b34fb` | `0000fea2-0000-1000-8000-00805f9b34fb` | indicate opcional no prototipo; nao assinado pelo app atual | status/ack no prototipo Web BLE | Ainda nao confirmado no app atual |
 | `0000fee7-0000-1000-8000-00805f9b34fb` | `0000fec8-0000-1000-8000-00805f9b34fb` | indicate opcional no prototipo; nao assinado pelo app atual | handshake/status no prototipo Web BLE | Ainda nao confirmado no app atual |
 
+## Evidencia Fisica 2026-07-21
+
+Primeira validacao exploratoria real da PoC Android no Galaxy S22 produziu o ciclo sanitizado `a86ae7d2-6b02-4890-a330-2babd26ae2c0` com sequencia `idle -> ready_to_scan -> scanning -> device_found -> connecting -> failed`.
+
+Confirmacoes fisicas desta execucao:
+
+- scan real encontrou um dispositivo Champion e levou a PoC ate `device_found`;
+- tentativa de conexao falhou antes de `TransportReady`;
+- `transport_ready=false`, `handshake_confirmed=false` e `error_category=incompatible_capability`;
+- nenhuma capability opcional foi observada nesta execucao.
+
+Leitura tecnica resultante:
+
+- o achado fisico mostrou que a validacao antiga de propriedade GATT estava estreita demais para o canal de escrita principal;
+- a PoC Android passou a tratar `F008_WRITE` e `F002_WRITE` como canais write-capable quando o Android anunciar `WRITE` ou apenas `WRITE_WITHOUT_RESPONSE`;
+- isso corrige o bloqueio principal sem afirmar ainda qual property exata o firmware publica no hardware real, porque o relatorio sanitizado nao exporta bitmap de properties.
+
+Segunda validacao real da mesma data produziu o ciclo sanitizado `859c7105-57d5-4667-8b77-461ba69084f8` com sequencia `idle -> permissions_required -> ready_to_scan -> scanning -> device_found -> connecting -> transport_ready -> handshaking -> failed`.
+
+Confirmacoes fisicas adicionais desta segunda execucao:
+
+- `transport_ready=true`;
+- `steps_capability=available`;
+- `heart_rate_capability=available`;
+- falha migrou do transporte para a etapa de handshake;
+- o relatorio exportado marcou `error_category=internal_failure`, mas a PoC Android foi ajustada para preservar erro especifico de espera do pacote, em vez de mascarar timeout/cancelamento como falha interna.
+
+Terceira validacao real de 2026-07-21 produziu o ciclo sanitizado `a0971467-e876-4192-96c1-c0c306ed0b3e` com sequencia `idle -> ready_to_scan -> scanning -> device_found -> connecting -> transport_ready -> handshaking -> failed`.
+
+Confirmacoes fisicas adicionais desta terceira execucao:
+
+- `transport_ready=true`;
+- `steps_capability=available`;
+- `heart_rate_capability=available`;
+- falha do A1 ficou confirmada como `error_category=timeout`, nao mais `internal_failure`.
+
+Leitura tecnica adicional:
+
+- o caminho de transporte continuou estavel entre a segunda e a terceira execucao;
+- a divergencia restante ficou concentrada no handshake A1 e no timing da espera pela confirmacao;
+- a PoC Android passou a aplicar atraso inicial curto e retry limitado por timeout para aproximar o comportamento do MotionLog background antes da proxima revalidacao fisica.
+
+Quarta validacao real de 2026-07-21 produziu o ciclo sanitizado `bd57e034-aa94-43e1-987a-f0745ceea48b` com sequencia `idle -> ready_to_scan -> scanning -> device_found -> connecting -> transport_ready -> handshaking -> failed`.
+
+Confirmacoes fisicas adicionais desta quarta execucao:
+
+- `transport_ready=true`;
+- `steps_capability=available`;
+- `heart_rate_capability=available`;
+- falha do A1 permaneceu `error_category=timeout` mesmo apos atraso inicial e retry.
+
+Leitura tecnica adicional:
+
+- a comparacao com `motionlog-app` mostrou que o bootstrap nativo ainda nao ativava todos os `defaultSubscribedChannels` antes do A1;
+- o catalogo da PoC ja marcava `F008_NOTIFY`, `F002_NOTIFY` e `FEA1_NOTIFY` como subscriptions default, mas apenas `F008_NOTIFY` era ativado no connect;
+- o connect foi corrigido para subir todos os `defaultSubscribedChannels` disponiveis antes de `TransportReady`.
+
 ## Comandos Catalogados
 
 | Comando | Payload | Characteristic de escrita | Resposta esperada | Documento detalhado |
@@ -73,6 +131,8 @@ Catalogar o dispositivo Champion C001 conforme baseline MotionLog, com UUIDs, se
 ## Lacunas Para `000-14`
 
 - Confirmar com dispositivo fisico se FEA2/FEC8 devem ser tratados como indications reais no app nativo.
-- Confirmar propriedades GATT exatas de cada characteristic no Android nativo.
+- Confirmar propriedades GATT exatas de cada characteristic no Android nativo. Em 2026-07-21 houve falha fisica `incompatible_capability` antes de `TransportReady`; a PoC ja aceita `WRITE` e `WRITE_WITHOUT_RESPONSE`, mas a property exata ainda nao foi exportada em evidencias publicas.
 - Confirmar se F002 write tem uso real ou se deve permanecer fora do MVP.
 - Confirmar nome/localName observado em scan fisico para evitar filtro estreito demais.
+- Revalidar fisicamente se atraso+retry no A1 eliminam o timeout observado no ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e`.
+- Revalidar fisicamente se subscriptions default completas eliminam o timeout observado no ciclo `bd57e034-aa94-43e1-987a-f0745ceea48b`.

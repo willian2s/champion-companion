@@ -1,0 +1,2914 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Champion C001 Data Collector v7.6</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #121a2f;
+      --card2: #0f172a;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #263248;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #172554 0, var(--bg) 42%);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 26px 0 40px;
+    }
+
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.15; }
+    h1 { font-size: clamp(24px, 4vw, 38px); }
+    h2 { font-size: 18px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    code, pre { font-family: var(--mono); }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)), var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 45px rgba(0,0,0,.22);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+    .span-3 { grid-column: span 3; }
+
+    @media (max-width: 880px) {
+      .span-8, .span-6, .span-4, .span-3 { grid-column: span 12; }
+      .topbar { flex-direction: column; }
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button, input, select {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #0b1224;
+      color: var(--text);
+      font: inherit;
+    }
+
+    input, select { width: 100%; }
+    input[readonly] { color: var(--muted); }
+
+    button {
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #06121f;
+      font-weight: 700;
+      border: 0;
+      transition: transform .12s ease, opacity .12s ease;
+    }
+
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.secondary {
+      background: #182238;
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+    button.danger {
+      background: linear-gradient(135deg, #fb7185, #ef4444);
+      color: white;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, .72);
+      border-radius: 16px;
+      padding: 14px;
+      min-height: 92px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .metric .value {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+
+    .metric .sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: rgba(15, 23, 42, .8);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--muted);
+    }
+
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.bad { background: var(--bad); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 9px 7px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .scroll {
+      max-height: 340px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card2);
+    }
+
+    .log {
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.42;
+      margin: 0;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      color: #cbd5e1;
+    }
+
+    .small { font-size: 13px; color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    .muted { color: var(--muted); }
+    .warnbox {
+      border-left: 4px solid var(--warn);
+      padding: 10px 12px;
+      background: rgba(245, 158, 11, .08);
+      border-radius: 12px;
+      color: #fde68a;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <div>
+      <h1>Champion C001 Data Collector v7.6</h1>
+      <p>Coletor BLE silencioso com handshake automático, passos, batimento estimado, histórico de medições, qualidade de sinal e calibração.</p>
+    </div>
+    <div class="row">
+      <span class="pill"><span id="connectionDot" class="dot bad"></span><span id="connectionLabel">Desconectado</span></span>
+      <span class="pill"><span id="handshakeDot" class="dot"></span><span id="handshakeLabel">Handshake pendente</span></span>
+    </div>
+  </div>
+
+  <section class="grid">
+    <div class="card span-12">
+      <h2>Conexão</h2>
+      <div class="row">
+        <button id="connectBtn">Conectar Champion</button>
+        <button id="disconnectBtn" class="secondary" disabled>Desconectar</button>
+        <button id="subscribeBtn" class="secondary" disabled>Ativar notificações</button>
+        <button id="handshakeBtn" disabled>Enviar handshake A1</button>
+        <label style="margin:0; display:flex; align-items:center; gap:8px;">
+          <input id="autoHandshakeInput" type="checkbox" checked style="width:auto;" />
+          handshake automático
+        </label>
+      </div>
+
+      <div class="grid" style="margin-top: 14px;">
+        <div class="span-6">
+          <label>D4 dia/bloco do treino</label>
+          <input id="sportModelDayInput" value="0" />
+        </div>
+        <div class="span-6">
+          <label>Baixar treino por dia/bloco</label>
+          <button id="readSportModelDayBtn" class="secondary" disabled style="width:100%;">D4 dados do treino</button>
+        </div>
+      </div>
+      <p class="small" style="margin-top: 10px;">Testes de exercícios do relógio: <code>D3</code> lista CRCs/blocos disponíveis, <code>D4 [dia]</code> baixa os pacotes do treino, <code>D8</code> lê esporte atual via Sport Model e <code>A8</code> é fallback antigo.</p>
+
+      <div class="grid" style="margin-top: 14px;">
+        <div class="span-6">
+          <label>Dispositivo</label>
+          <input id="deviceInfo" readonly value="Nenhum dispositivo selecionado" />
+        </div>
+        <div class="span-3">
+          <label>Senha</label>
+          <input id="passwordInput" value="0000" maxlength="8" />
+        </div>
+        <div class="span-3">
+          <label>Último A1 gerado</label>
+          <input id="lastA1" readonly value="-" />
+        </div>
+      </div>
+    </div>
+
+    <div class="metric span-3">
+      <div class="label">Passos</div>
+      <div id="stepsValue" class="value">--</div>
+      <div id="stepsSub" class="sub">Aguardando contador FEA1</div>
+    </div>
+
+    <div class="metric span-3">
+      <div class="label">Batimento</div>
+      <div id="heartValue" class="value">-- bpm</div>
+      <div id="heartSub" class="sub">Sem medição final</div>
+    </div>
+
+    <div class="metric span-3">
+      <div class="label">Sensor F002</div>
+      <div id="sensorPackets" class="value">0</div>
+      <div id="sensorSub" class="sub">0 pacotes/s</div>
+    </div>
+
+    <div class="metric span-3">
+      <div class="label">Amostras</div>
+      <div id="sampleCount" class="value">0</div>
+      <div id="sampleSub" class="sub">buffer em memória</div>
+    </div>
+
+    <div class="metric span-3">
+      <div class="label">Qualidade</div>
+      <div id="qualityValue" class="value">--</div>
+      <div id="qualitySub" class="sub">aguardando sinal</div>
+    </div>
+
+    <div class="card span-8">
+      <h2>Medição de batimento</h2>
+      <p>Este modo coleta o stream bruto <code>F0020002</code> em memória, sem renderizar pacote por pacote.</p>
+      <div class="row">
+        <button id="startHrBtn" disabled>Iniciar batimento 60s</button>
+        <button id="stopHrBtn" class="danger" disabled>Parar medição</button>
+        <button id="exportJsonBtn" class="secondary" disabled>Exportar JSON</button>
+        <button id="exportCsvBtn" class="secondary" disabled>Exportar CSV do sensor</button>
+      </div>
+
+      <div class="grid" style="margin-top: 14px;">
+        <div class="span-3">
+          <label>Duração da coleta</label>
+          <input id="hrDurationInput" value="60" />
+        </div>
+        <div class="span-3">
+          <label>Limite de pacotes F002 em memória</label>
+          <input id="maxPacketsInput" value="5000" />
+        </div>
+        <div class="span-3">
+          <label>BPM exibido no relógio/app</label>
+          <input id="watchBpmInput" placeholder="opcional" />
+        </div>
+        <div class="span-3">
+          <label>Status da sessão</label>
+          <input id="sessionStatus" readonly value="Parada" />
+        </div>
+        <div class="span-3">
+          <label style="margin-top: 8px; display:flex; align-items:center; gap:8px;">
+            <input id="realtimeBpmInput" type="checkbox" checked style="width:auto;" />
+            atualizar BPM em tempo real
+          </label>
+        </div>
+      </div>
+
+      <div class="warnbox" style="margin-top: 14px;">
+        O BPM é estimado localmente a partir do stream F002 e atualizado ao vivo durante a coleta.
+      </div>
+    </div>
+
+    <div class="card span-4">
+      <h2>Histórico de batimento</h2>
+      <p class="small">Pelo log deste Champion, <code>DF</code> respondeu vazio (<code>DF FF FF</code>). Portanto esta versão prioriza o caminho <code>D1</code> com parsers iguais aos métodos do APK: <code>handOriginalData</code> e <code>handOriginalDataForMulticolour</code>.</p>
+      <div class="row">
+        <button id="readOriginalBtn" disabled>D1 hoje app</button>
+        <button id="readOriginalDfBtn" class="secondary" disabled>DF hoje teste</button>
+        <button id="readOriginalDfYesterdayBtn" class="secondary" disabled>DF ontem teste</button>
+        <button id="readOriginalDfBeforeYesterdayBtn" class="secondary" disabled>DF anteontem teste</button>
+        <button id="readOriginalYesterdayBtn" class="secondary" disabled>D1 ontem</button>
+        <button id="readOriginalBeforeYesterdayBtn" class="secondary" disabled>D1 anteontem</button>
+        <button id="readBatteryOrConfigBtn" class="secondary" disabled>A0 bateria/config</button>
+        <button id="readSleepBtn" class="secondary" disabled>E0 sono hoje</button>
+        <button id="readSportBtn" class="secondary" disabled>A8 esporte atual</button>
+        <button id="readCurrentSportModelBtn" class="secondary" disabled>D8 esporte atual</button>
+        <button id="readSportModelCrcBtn" class="secondary" disabled>D3 CRC treinos</button>
+      </div>
+
+      <div class="warnbox" style="margin-top: 14px;">
+        <strong>D4 parser de treino para teste:</strong> depois de rodar <code>D3 CRC treinos</code>, teste os blocos abaixo.
+        O app oficial percorre dias/blocos e baixa somente os que possuem CRC novo. Aqui vamos testar manualmente.
+      </div>
+
+      <div class="grid" style="margin-top: 14px;">
+        <div class="span-6">
+          <label>D4 dia/bloco manual</label>
+          <input id="sportModelDayInputInline" value="0" />
+        </div>
+        <div class="span-6">
+          <label>Baixar treino por D4</label>
+          <button id="readSportModelDayInlineBtn" class="secondary" disabled style="width:100%;">D4 dados do treino</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top: 10px;">
+        <button id="readSportModelD4Day0Btn" class="secondary" disabled>D4 0</button>
+        <button id="readSportModelD4Day1Btn" class="secondary" disabled>D4 1</button>
+        <button id="readSportModelD4Day2Btn" class="secondary" disabled>D4 2</button>
+        <button id="readSportModelD4Day3Btn" class="secondary" disabled>D4 3</button>
+        <button id="readSportModelD4Day4Btn" class="secondary" disabled>D4 4</button>
+        <button id="readSportModelD4Day5Btn" class="secondary" disabled>D4 5</button>
+        <button id="readSportModelD4Day6Btn" class="secondary" disabled>D4 6</button>
+        <button id="readSportModelD4Day7Btn" class="secondary" disabled>D4 7</button>
+        <button id="readSportModelD4Day8Btn" class="secondary" disabled>D4 8</button>
+        <button id="readSportModelD4Day9Btn" class="secondary" disabled>D4 9</button>
+      </div>
+
+      <div class="grid" style="margin-top: 14px;">
+        <div class="span-6">
+          <label>Histórico heart desde data/hora</label>
+          <input id="manualHistoryDateTimeInput" type="datetime-local" />
+        </div>
+        <div class="span-6">
+          <label>Timestamp Unix gerado</label>
+          <input id="manualHistoryTimestampInput" readonly value="0" />
+        </div>
+      </div>
+      <label style="margin-top: 10px; display:flex; align-items:center; gap:8px;">
+        <input id="manualHistoryFromStartInput" type="checkbox" style="width:auto;" />
+        buscar desde o início, usando timestamp 0
+      </label>
+      <div class="row" style="margin-top: 10px;">
+        <button id="readManualHistoryBtn" disabled>DE 02 histórico heart</button>
+      </div>
+      <p class="small" style="margin-top: 10px;">Envia somente <code>DE 02</code> de frequência cardíaca com máscara <code>02 00 00 00</code>. A data/hora escolhida é convertida para timestamp Unix em segundos.</p>
+    </div>
+
+    <div class="card span-12">
+      <h2>Histórico heart interpretado</h2>
+      <p id="manualHeartHistoryStatus" class="small">Aguardando leitura <code>DF</code> automático, <code>D1</code> fallback, <code>DE 02</code> manual ou amostras <code>D0</code>.</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Data/hora</th>
+              <th>Timestamp</th>
+              <th>BPM</th>
+              <th>Versão</th>
+              <th>Origem</th>
+            </tr>
+          </thead>
+          <tbody id="manualHeartHistoryTable">
+            <tr><td colspan="5" class="muted">Nenhum histórico de batimento interpretado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top: 10px;">Observação: valores confirmados seguem o layout do APK. Quando o pacote não passa no parser oficial, ele fica somente no inspetor bruto e no resumo 30min para comparação com o app oficial.</p>
+    </div>
+
+    <div class="card span-12">
+      <h2>Blocos DF remontados</h2>
+      <p id="dfBlockStatus" class="small">Aguardando pacotes <code>DF</code>. O parser remonta blocos, valida CRC quando possível e extrai <code>B1</code> data/hora, <code>B4</code> rate/PPG e <code>B5</code> heart/ECG.</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Bloco</th>
+              <th>Dia leitura</th>
+              <th>Pacotes</th>
+              <th>CRC</th>
+              <th>B1 data</th>
+              <th>B4 rate</th>
+              <th>B5 heart</th>
+            </tr>
+          </thead>
+          <tbody id="dfBlockTable">
+            <tr><td colspan="7" class="muted">Nenhum bloco DF remontado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card span-12">
+      <h2>Inspetor bruto D1</h2>
+      <p id="d1RawStatus" class="small">Aguardando pacotes <code>D1</code>. Esta tabela não afirma que os candidatos são BPM; ela serve para comparar com o app oficial.</p>
+      <div class="row" style="margin-bottom:10px;">
+        <button id="exportD1RawCsvBtn" class="secondary" disabled>Exportar D1 bruto CSV</button>
+        <button id="exportD1RawJsonBtn" class="secondary" disabled>Exportar D1 bruto JSON</button>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Slot estimado</th>
+              <th>Pacote</th>
+              <th>Offset/dia</th>
+              <th>Bytes 13-19</th>
+              <th>Candidatos 30-220</th>
+              <th>HEX</th>
+            </tr>
+          </thead>
+          <tbody id="d1RawTable">
+            <tr><td colspan="6" class="muted">Nenhum pacote D1 recebido.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card span-12">
+      <h2>Resumo D1 por blocos de 30 min</h2>
+      <p id="d1HalfHourStatus" class="small">Aguardando pacotes D1. Esta visão agrupa os 6 pacotes de 5 minutos de cada meia hora, igual a tela do app, e mostra os bytes candidatos lado a lado.</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Bloco</th>
+              <th>Pacotes</th>
+              <th>b13</th>
+              <th>b14</th>
+              <th>b17</th>
+              <th>b18</th>
+              <th>b19</th>
+              <th>Parser oficial</th>
+            </tr>
+          </thead>
+          <tbody id="d1HalfHourTable">
+            <tr><td colspan="8" class="muted">Nenhum pacote D1 recebido.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+
+    <div class="card span-12">
+      <h2>Inspetor Sport Model / exercícios do relógio</h2>
+      <p id="sportModelStatus" class="small">Aguardando comandos <code>D3</code>, <code>D4</code>, <code>D8</code> ou <code>A8</code>. Esta área é experimental e serve para validar o protocolo de exercícios executados no relógio.</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Pacote</th>
+              <th>Total</th>
+              <th>Leitura</th>
+              <th>Dados interpretados</th>
+              <th>HEX</th>
+            </tr>
+          </thead>
+          <tbody id="sportModelTable">
+            <tr><td colspan="6" class="muted">Nenhum pacote de esporte recebido.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="exportSportModelJsonBtn" class="secondary" disabled>Exportar Sport JSON</button>
+        <button id="clearSportModelBtn" class="secondary">Limpar inspetor Sport</button>
+      </div>
+    </div>
+
+    <div class="card span-12">
+      <h2>Pacotes resumidos</h2>
+      <p class="small">A tabela conta pacotes por UUID/header. O stream F002 não é exibido linha a linha.</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Origem</th>
+              <th>Header</th>
+              <th>Qtd.</th>
+              <th>Primeiro</th>
+              <th>Último</th>
+              <th>Último HEX</th>
+              <th>Leitura</th>
+            </tr>
+          </thead>
+          <tbody id="packetTable">
+            <tr><td colspan="7" class="muted">Nenhum pacote recebido.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card span-12">
+      <h2>Log resumido</h2>
+      <pre id="log" class="log"></pre>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const UUIDS = {
+    F008_SERVICE: "f0080001-0451-4000-b000-000000000000",
+    F008_NOTIFY: "f0080002-0451-4000-b000-000000000000",
+    F008_WRITE: "f0080003-0451-4000-b000-000000000000",
+
+    F002_SERVICE: "f0020001-0451-4000-b000-000000000000",
+    F002_NOTIFY: "f0020002-0451-4000-b000-000000000000",
+    F002_WRITE: "f0020003-0451-4000-b000-000000000000",
+
+    FEE7_SERVICE: "0000fee7-0000-1000-8000-00805f9b34fb",
+    FEA1_NOTIFY: "0000fea1-0000-1000-8000-00805f9b34fb",
+    FEA2_INDICATE: "0000fea2-0000-1000-8000-00805f9b34fb",
+    FEC8_INDICATE: "0000fec8-0000-1000-8000-00805f9b34fb"
+  };
+
+  const OPTIONAL_SERVICES = [
+    UUIDS.F008_SERVICE,
+    UUIDS.F002_SERVICE,
+    UUIDS.FEE7_SERVICE,
+    "00001800-0000-1000-8000-00805f9b34fb",
+    "00001801-0000-1000-8000-00805f9b34fb"
+  ];
+
+  const COMMANDS = {
+    READ_BATTERY_OR_CONFIG: [0xA0, 0x00],
+    HR_START: [0xD0, 0x01],
+    HR_STOP: [0xD0, 0x00],
+    SLEEP_TODAY: [0xE0, 0x00],
+    ORIGINAL_TODAY: [0xD1, 0x01, 0x00, 0x00],
+    ORIGINAL_YESTERDAY: [0xD1, 0x01, 0x00, 0x01],
+    ORIGINAL_BEFORE_YESTERDAY: [0xD1, 0x01, 0x00, 0x02],
+    ORIGINAL_DF_TODAY: [0xDF, 0x01, 0x00, 0x00],
+    ORIGINAL_DF_YESTERDAY: [0xDF, 0x01, 0x00, 0x01],
+    ORIGINAL_DF_BEFORE_YESTERDAY: [0xDF, 0x01, 0x00, 0x02],
+    SPORT_CURRENT: [0xA8, 0x00],
+    SPORT_MODEL_CURRENT: [0xD8, 0x00],
+    SPORT_MODEL_CRC: [0xD3, 0x01, 0x00, 0x00]
+  };
+
+  const els = {
+    connectBtn: document.querySelector("#connectBtn"),
+    disconnectBtn: document.querySelector("#disconnectBtn"),
+    subscribeBtn: document.querySelector("#subscribeBtn"),
+    handshakeBtn: document.querySelector("#handshakeBtn"),
+    autoHandshakeInput: document.querySelector("#autoHandshakeInput"),
+    deviceInfo: document.querySelector("#deviceInfo"),
+    passwordInput: document.querySelector("#passwordInput"),
+    lastA1: document.querySelector("#lastA1"),
+
+    connectionDot: document.querySelector("#connectionDot"),
+    connectionLabel: document.querySelector("#connectionLabel"),
+    handshakeDot: document.querySelector("#handshakeDot"),
+    handshakeLabel: document.querySelector("#handshakeLabel"),
+
+    stepsValue: document.querySelector("#stepsValue"),
+    stepsSub: document.querySelector("#stepsSub"),
+    heartValue: document.querySelector("#heartValue"),
+    heartSub: document.querySelector("#heartSub"),
+    sensorPackets: document.querySelector("#sensorPackets"),
+    sensorSub: document.querySelector("#sensorSub"),
+    sampleCount: document.querySelector("#sampleCount"),
+    sampleSub: document.querySelector("#sampleSub"),
+    qualityValue: document.querySelector("#qualityValue"),
+    qualitySub: document.querySelector("#qualitySub"),
+
+    startHrBtn: document.querySelector("#startHrBtn"),
+    stopHrBtn: document.querySelector("#stopHrBtn"),
+    exportJsonBtn: document.querySelector("#exportJsonBtn"),
+    exportCsvBtn: document.querySelector("#exportCsvBtn"),
+    hrDurationInput: document.querySelector("#hrDurationInput"),
+    maxPacketsInput: document.querySelector("#maxPacketsInput"),
+    watchBpmInput: document.querySelector("#watchBpmInput"),
+    realtimeBpmInput: document.querySelector("#realtimeBpmInput"),
+    sessionStatus: document.querySelector("#sessionStatus"),
+
+    readBatteryOrConfigBtn: document.querySelector("#readBatteryOrConfigBtn"),
+    readSleepBtn: document.querySelector("#readSleepBtn"),
+    readOriginalBtn: document.querySelector("#readOriginalBtn"),
+    readOriginalYesterdayBtn: document.querySelector("#readOriginalYesterdayBtn"),
+    readOriginalBeforeYesterdayBtn: document.querySelector("#readOriginalBeforeYesterdayBtn"),
+    readOriginalDfBtn: document.querySelector("#readOriginalDfBtn"),
+    readSportBtn: document.querySelector("#readSportBtn"),
+    readCurrentSportModelBtn: document.querySelector("#readCurrentSportModelBtn"),
+    readSportModelCrcBtn: document.querySelector("#readSportModelCrcBtn"),
+    readSportModelDayBtn: document.querySelector("#readSportModelDayBtn"),
+    readSportModelDayInlineBtn: document.querySelector("#readSportModelDayInlineBtn"),
+    sportModelDayInput: document.querySelector("#sportModelDayInput"),
+    sportModelDayInputInline: document.querySelector("#sportModelDayInputInline"),
+    readSportModelD4DayBtns: Array.from({ length: 10 }, (_, i) => document.querySelector(`#readSportModelD4Day${i}Btn`)),
+    sportModelTable: document.querySelector("#sportModelTable"),
+    sportModelStatus: document.querySelector("#sportModelStatus"),
+    exportSportModelJsonBtn: document.querySelector("#exportSportModelJsonBtn"),
+    clearSportModelBtn: document.querySelector("#clearSportModelBtn"),
+    manualHistoryDateTimeInput: document.querySelector("#manualHistoryDateTimeInput"),
+    manualHistoryTimestampInput: document.querySelector("#manualHistoryTimestampInput"),
+    manualHistoryFromStartInput: document.querySelector("#manualHistoryFromStartInput"),
+    readManualHistoryBtn: document.querySelector("#readManualHistoryBtn"),
+    manualHeartHistoryTable: document.querySelector("#manualHeartHistoryTable"),
+    manualHeartHistoryStatus: document.querySelector("#manualHeartHistoryStatus"),
+    d1RawTable: document.querySelector("#d1RawTable"),
+    d1RawStatus: document.querySelector("#d1RawStatus"),
+    d1HalfHourTable: document.querySelector("#d1HalfHourTable"),
+    d1HalfHourStatus: document.querySelector("#d1HalfHourStatus"),
+    exportD1RawCsvBtn: document.querySelector("#exportD1RawCsvBtn"),
+    exportD1RawJsonBtn: document.querySelector("#exportD1RawJsonBtn"),
+    dfBlockTable: document.querySelector("#dfBlockTable"),
+    dfBlockStatus: document.querySelector("#dfBlockStatus"),
+
+    packetTable: document.querySelector("#packetTable"),
+    log: document.querySelector("#log")
+  };
+
+  let device = null;
+  let server = null;
+  let characteristics = new Map();
+  let connected = false;
+  let subscribed = false;
+  let handshakeOk = false;
+  let handshakeAssumed = false;
+  let lastHandshakeSentAt = 0;
+  let heartTimer = null;
+  let uiTimer = null;
+  let autoHandshakeRunning = false;
+  let lastRealtimeBpmUpdate = 0;
+  let lastSensorTick = { timestamp: Date.now(), packets: 0 };
+
+  const logLines = [];
+  const packets = new Map();
+  const session = resetSession();
+
+  function resetSession() {
+    return {
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      startedAt: null,
+      endedAt: null,
+      active: false,
+      steps: null,
+      lastD0: null,
+      estimatedBpm: null,
+      estimatedBpmMeta: null,
+      watchBpm: null,
+      calibrationDelta: null,
+      signalQuality: null,
+      sensorPackets: [],
+      f008Responses: [],
+      manualMeasurementResponses: [],
+      originalHistoryResponses: [],
+      originalD1Discarded: 0,
+      originalD1Accepted: 0,
+      originalDFAccepted: 0,
+      originalDFBlocks: [],
+      originalDFPackets: [],
+      manualHeartHistory: [],
+      d1RawSamples: [],
+      d0HeartSamples: [],
+      currentHeartLast: null,
+      sportModelEvents: [],
+      sportModelPackets: [],
+      sportModelD4Assembly: {
+        active: false,
+        day: null,
+        totalPkg: 0,
+        lastPkg: 0,
+        packets: []
+      },
+      manualMeasurementAssembly: {
+        active: false,
+        totalPkgNum: 0,
+        nowPkgNum: -1,
+        chunks: []
+      },
+      notes: [
+        "BPM final do relógio ainda não confirmado. O app estima BPM localmente a partir do stream F002 em uint16 little-endian.",
+        "D0 01 aciona o sensor; F002 ativo confirma que a medição iniciou.",
+        "D0 00 deve parar a medição."
+      ]
+    };
+  }
+
+  function hardResetSession() {
+    const fresh = resetSession();
+    Object.keys(session).forEach(key => delete session[key]);
+    Object.assign(session, fresh);
+    updateMetrics();
+  }
+
+  function log(message, detail) {
+    const time = new Date().toLocaleTimeString();
+    const line = detail === undefined
+      ? `[${time}] ${message}`
+      : `[${time}] ${message}\n${typeof detail === "string" ? detail : JSON.stringify(detail, null, 2)}`;
+
+    logLines.push(line);
+    while (logLines.length > 180) logLines.shift();
+    els.log.textContent = logLines.join("\n\n");
+    els.log.scrollTop = els.log.scrollHeight;
+  }
+
+  function bytesToHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, "0").toUpperCase()).join(" ");
+  }
+
+  function hexToBytes(hex) {
+    return new Uint8Array(
+      String(hex)
+        .replace(/0x/gi, "")
+        .split(/[\s,;:-]+/)
+        .filter(Boolean)
+        .map(v => parseInt(v, 16) & 0xff)
+    );
+  }
+
+  function bytesFromArray(values) {
+    return new Uint8Array(values.map(v => v & 0xff));
+  }
+
+  function uint16LEValues(bytes) {
+    const values = [];
+    for (let i = 0; i + 1 < bytes.length; i += 2) {
+      values.push(bytes[i] | (bytes[i + 1] << 8));
+    }
+    return values;
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function classifyPacket(uuid, bytes) {
+    const head = bytes.length ? bytes[0] : null;
+
+    if (uuid === UUIDS.FEA1_NOTIFY && bytes.length === 4 && bytes[0] === 0x01) {
+      const steps = bytes[1] | (bytes[2] << 8) | (bytes[3] << 16);
+      return { key: `${uuid}|FEA1`, header: "FEA1", reading: `passos/status ${steps}` };
+    }
+
+    if (uuid === UUIDS.F002_NOTIFY) {
+      return { key: `${uuid}|F002_STREAM`, header: "F002", reading: "stream bruto de sensor" };
+    }
+
+    const labelByHeader = {
+      0xA1: "A1 senha/handshake",
+      0xA0: "A0 bateria/config/config",
+      0xA7: "A7 funções do dispositivo",
+      0xAD: "AD funções de mensagem",
+      0xB8: "B8 config pessoal",
+      0xD0: "D0 batimento atual",
+      0xE0: "E0 sono",
+      0xD1: "D1 original/histórico",
+      0xD3: "D3 Sport Model CRC",
+      0xD4: "D4 Sport Model dados",
+      0xD5: "D5 Sport Model open/close",
+      0xD8: "D8 Sport Model atual",
+      0xDF: "DF original DF",
+      0xA8: "A8 esporte atual",
+      0xDE: "DE histórico de medição manual"
+    };
+
+    const header = head === null ? "--" : head.toString(16).padStart(2, "0").toUpperCase();
+    return {
+      key: `${uuid}|${header}`,
+      header,
+      reading: labelByHeader[head] || "desconhecido"
+    };
+  }
+
+  function trackPacket(uuid, bytes, options = {}) {
+    const hex = bytesToHex(bytes);
+    const info = classifyPacket(uuid, bytes);
+    const time = new Date().toLocaleTimeString();
+    const existing = packets.get(info.key);
+
+    if (existing) {
+      existing.count += 1;
+      existing.lastSeen = time;
+      existing.lastHex = hex;
+      existing.reading = info.reading;
+    } else {
+      packets.set(info.key, {
+        uuid,
+        header: info.header,
+        count: 1,
+        firstSeen: time,
+        lastSeen: time,
+        lastHex: hex,
+        reading: info.reading
+      });
+    }
+
+    if (!options.silent) renderPacketTable();
+  }
+
+  function renderPacketTable() {
+    const rows = Array.from(packets.values()).sort((a, b) => b.count - a.count);
+
+    if (!rows.length) {
+      els.packetTable.innerHTML = `<tr><td colspan="7" class="muted">Nenhum pacote recebido.</td></tr>`;
+      return;
+    }
+
+    els.packetTable.innerHTML = rows.map(row => `
+      <tr>
+        <td><code>${row.uuid}</code></td>
+        <td><code>${row.header}</code></td>
+        <td>${row.count}</td>
+        <td>${row.firstSeen}</td>
+        <td>${row.lastSeen}</td>
+        <td><code>${row.lastHex}</code></td>
+        <td>${row.reading}</td>
+      </tr>
+    `).join("");
+  }
+
+  function setConnectedState(value) {
+    connected = value;
+    els.connectionDot.className = `dot ${connected ? "ok" : "bad"}`;
+    els.connectionLabel.textContent = connected ? "Conectado" : "Desconectado";
+
+    els.connectBtn.disabled = connected;
+    els.disconnectBtn.disabled = !connected;
+    els.subscribeBtn.disabled = !connected;
+    els.handshakeBtn.disabled = !connected;
+    updateActionButtons();
+  }
+
+  function setHandshakeState(value, assumed = false) {
+    handshakeOk = value;
+    handshakeAssumed = Boolean(value && assumed);
+    els.handshakeDot.className = `dot ${handshakeOk ? "ok" : subscribed ? "warn" : ""}`;
+    els.handshakeLabel.textContent = handshakeOk
+      ? (handshakeAssumed ? "Handshake OK (assumido)" : "Handshake OK")
+      : subscribed ? "Handshake pendente" : "Handshake pendente";
+    updateActionButtons();
+  }
+
+  function looksLikeHandshakeAck(bytes) {
+    if (!bytes || !bytes.length) return false;
+    if (bytes[0] === 0xA1 && (bytes[19] === 0x01 || bytes[1] === 0x01)) return true;
+    // Alguns firmwares confirmam o A1 por FEA2/FEC8 sem repetir o header completo.
+    // Se acabou de enviar A1 e chegou um pacote curto de ACK/status, trate como confirmação operacional.
+    const recentA1 = lastHandshakeSentAt && (Date.now() - lastHandshakeSentAt) < 2500;
+    if (recentA1 && (bytes[0] === 0x01 || bytes[0] === 0x00) && bytes.length <= 20) return true;
+    return false;
+  }
+
+  function updateActionButtons() {
+    const ready = connected && subscribed && handshakeOk;
+    els.startHrBtn.disabled = !ready || session.active;
+    els.stopHrBtn.disabled = !session.active;
+    els.readBatteryOrConfigBtn.disabled = !ready;
+    els.readSleepBtn.disabled = !ready;
+    els.readOriginalBtn.disabled = !ready;
+    if (els.readOriginalYesterdayBtn) els.readOriginalYesterdayBtn.disabled = !ready;
+    if (els.readOriginalBeforeYesterdayBtn) els.readOriginalBeforeYesterdayBtn.disabled = !ready;
+    els.readOriginalDfBtn.disabled = !ready;
+    if (els.readOriginalDfYesterdayBtn) els.readOriginalDfYesterdayBtn.disabled = !ready;
+    if (els.readOriginalDfBeforeYesterdayBtn) els.readOriginalDfBeforeYesterdayBtn.disabled = !ready;
+    els.readSportBtn.disabled = !ready;
+    if (els.readCurrentSportModelBtn) els.readCurrentSportModelBtn.disabled = !ready;
+    if (els.readSportModelCrcBtn) els.readSportModelCrcBtn.disabled = !ready;
+    if (els.readSportModelDayBtn) els.readSportModelDayBtn.disabled = !ready;
+    if (els.readSportModelDayInlineBtn) els.readSportModelDayInlineBtn.disabled = !ready;
+    if (els.readSportModelD4DayBtns) els.readSportModelD4DayBtns.forEach(btn => { if (btn) btn.disabled = !ready; });
+    els.readManualHistoryBtn.disabled = !ready;
+
+    const hasData = session.sensorPackets.length > 0 || session.f008Responses.length > 0 || session.manualMeasurementResponses.length > 0 || session.originalHistoryResponses.length > 0 || session.d0HeartSamples.length > 0 || session.manualHeartHistory.length > 0 || session.sportModelEvents.length > 0;
+    els.exportJsonBtn.disabled = !hasData;
+    els.exportCsvBtn.disabled = session.sensorPackets.length === 0;
+  }
+
+  async function getCharacteristic(serviceUuid, characteristicUuid) {
+    const key = `${serviceUuid}|${characteristicUuid}`;
+    if (characteristics.has(key)) return characteristics.get(key);
+
+    const service = await server.getPrimaryService(serviceUuid);
+    const characteristic = await service.getCharacteristic(characteristicUuid);
+    characteristics.set(key, characteristic);
+    return characteristic;
+  }
+
+
+  async function autoSubscribeAndHandshake() {
+    if (autoHandshakeRunning) return;
+
+    autoHandshakeRunning = true;
+
+    try {
+      log("Auto handshake: ativando notificações...");
+      await subscribeAll();
+
+      // Pequena pausa para o navegador registrar os listeners antes do A1.
+      await new Promise(resolve => setTimeout(resolve, 350));
+
+      log("Auto handshake: enviando A1...");
+      await sendHandshake();
+    } catch (error) {
+      log("Erro no auto handshake", error.message);
+    } finally {
+      autoHandshakeRunning = false;
+      updateActionButtons();
+    }
+  }
+
+
+  async function connect() {
+    if (!navigator.bluetooth) {
+      alert("Este navegador não suporta Web Bluetooth. Use Chrome ou Edge.");
+      return;
+    }
+
+    log("Solicitando dispositivo BLE...");
+
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: "Champion" }, { namePrefix: "CHAMPION" }],
+      optionalServices: OPTIONAL_SERVICES
+    });
+
+    device.addEventListener("gattserverdisconnected", onDisconnected);
+
+    els.deviceInfo.value = `${device.name || "Sem nome"} (${device.id})`;
+    log("Dispositivo selecionado", { name: device.name, id: device.id });
+
+    server = await device.gatt.connect();
+    characteristics.clear();
+    subscribed = false;
+    setConnectedState(true);
+    setHandshakeState(false);
+    log("Conectado ao GATT Server.");
+
+    if (els.autoHandshakeInput.checked) {
+      await autoSubscribeAndHandshake();
+    }
+  }
+
+  async function disconnect() {
+    if (device?.gatt?.connected) {
+      device.gatt.disconnect();
+    }
+    onDisconnected();
+  }
+
+  function onDisconnected() {
+    subscribed = false;
+    setConnectedState(false);
+    setHandshakeState(false);
+    if (session.active) stopHeartRate(false);
+    log("Dispositivo desconectado.");
+  }
+
+  async function startNotifications(serviceUuid, characteristicUuid, handler, label) {
+    const characteristic = await getCharacteristic(serviceUuid, characteristicUuid);
+    characteristic.removeEventListener("characteristicvaluechanged", handler);
+    characteristic.addEventListener("characteristicvaluechanged", handler);
+    await characteristic.startNotifications();
+    log(`Notify ativo: ${label}`, characteristicUuid);
+  }
+
+  async function subscribeAll() {
+    await startNotifications(UUIDS.FEE7_SERVICE, UUIDS.FEA1_NOTIFY, onFea1Changed, "FEA1 passos/status");
+    await startNotifications(UUIDS.F008_SERVICE, UUIDS.F008_NOTIFY, onF008Changed, "F008 protocolo");
+    await startNotifications(UUIDS.F002_SERVICE, UUIDS.F002_NOTIFY, onF002Changed, "F002 sensor bruto");
+
+    try {
+      await startNotifications(UUIDS.FEE7_SERVICE, UUIDS.FEA2_INDICATE, onGenericChanged, "FEA2 status/ack");
+    } catch (error) {
+      log("FEA2 indisponível ou sem permissão", error.message);
+    }
+
+    try {
+      await startNotifications(UUIDS.FEE7_SERVICE, UUIDS.FEC8_INDICATE, onGenericChanged, "FEC8 handshake");
+    } catch (error) {
+      log("FEC8 indisponível ou sem permissão", error.message);
+    }
+
+    subscribed = true;
+    els.handshakeDot.className = "dot warn";
+    updateActionButtons();
+    log("Notificações principais ativadas.");
+  }
+
+  async function writeF008(valuesOrBytes, label) {
+    const bytes = valuesOrBytes instanceof Uint8Array ? valuesOrBytes : bytesFromArray(valuesOrBytes);
+    const characteristic = await getCharacteristic(UUIDS.F008_SERVICE, UUIDS.F008_WRITE);
+    await characteristic.writeValueWithResponse(bytes);
+    log(`Enviado F008 ${label || ""}`.trim(), bytesToHex(bytes));
+  }
+
+  function buildA1Handshake(passwordText) {
+    const passwordNumber = parseInt(passwordText || "0", 10) || 0;
+    const now = new Date();
+    const year = now.getFullYear();
+    const timezone15Min = Math.round((-now.getTimezoneOffset()) / 15);
+
+    const bytes = new Uint8Array(20);
+    bytes[0] = 0xA1;
+    bytes[1] = passwordNumber & 0xff;
+    bytes[2] = (passwordNumber >> 8) & 0xff;
+    bytes[3] = 0x00;
+    bytes[4] = (year >> 8) & 0xff;
+    bytes[5] = year & 0xff;
+    bytes[6] = now.getMonth() + 1;
+    bytes[7] = now.getDate();
+    bytes[8] = now.getHours();
+    bytes[9] = now.getMinutes();
+    bytes[10] = now.getSeconds();
+    bytes[11] = 1; // 24h
+    bytes[12] = 1;
+    bytes[13] = timezone15Min & 0xff;
+    bytes[14] = 0; // manual connect flag
+    return bytes;
+  }
+
+  async function sendHandshake() {
+    if (!subscribed) await subscribeAll();
+
+    const bytes = buildA1Handshake(els.passwordInput.value);
+    els.lastA1.value = bytesToHex(bytes);
+    lastHandshakeSentAt = Date.now();
+    await writeF008(bytes, "A1 handshake");
+
+    // Fallback para testes: em algumas sessões o relógio aceita comandos D1/D3/D4,
+    // mas não devolve o ACK A1 no F008. Sem isso a UI ficava presa em
+    // "Handshake pendente" e bloqueava os botões. Se nenhum ACK explícito
+    // chegar em 1.2s, liberamos como handshake assumido.
+    setTimeout(() => {
+      if (connected && subscribed && !handshakeOk && Date.now() - lastHandshakeSentAt >= 1100) {
+        setHandshakeState(true, true);
+        log("Handshake A1 não retornou ACK explícito; liberando como OK assumido para teste.");
+      }
+    }, 1200);
+  }
+
+  function onFea1Changed(event) {
+    const bytes = new Uint8Array(event.target.value.buffer.slice(0));
+    trackPacket(UUIDS.FEA1_NOTIFY, bytes, { silent: true });
+
+    if (bytes.length === 4 && bytes[0] === 0x01) {
+      // FEA1 parece enviar contador de passos/status:
+      // 01 53 00 00 => 0x000053 = 83 passos.
+      const steps = bytes[1] | (bytes[2] << 8) | (bytes[3] << 16);
+      session.steps = steps;
+      els.stepsValue.textContent = String(steps);
+      els.stepsSub.textContent = "passos via FEA1";
+    }
+  }
+
+  function onF008Changed(event) {
+    const bytes = new Uint8Array(event.target.value.buffer.slice(0));
+    const header = bytes[0];
+    trackPacket(UUIDS.F008_NOTIFY, bytes);
+
+    session.f008Responses.push({
+      timestamp: Date.now(),
+      iso: nowIso(),
+      header: header.toString(16).padStart(2, "0").toUpperCase(),
+      hex: bytesToHex(bytes),
+      bytes: Array.from(bytes)
+    });
+
+    if (looksLikeHandshakeAck(bytes)) {
+      setHandshakeState(true, false);
+      log("Handshake A1 confirmado.");
+    }
+
+    if (header === 0xD0) {
+      session.lastD0 = Array.from(bytes);
+      parseD0(bytes);
+    }
+
+    if (header === 0xA0) {
+      log("Resposta A0 recebida, possível bateria/config", bytesToHex(bytes));
+    }
+
+    if (header === 0xA8 || header === 0xD8 || header === 0xD3 || header === 0xD4 || header === 0xD5) {
+      let parsed;
+      if (header === 0xA8) parsed = parseSportCurrentA8(bytes);
+      else if (header === 0xD8) parsed = parseSportCurrentD8(bytes);
+      else if (header === 0xD3) parsed = parseSportModelCrcD3(bytes);
+      else if (header === 0xD4) parsed = parseSportModelD4(bytes);
+      else parsed = { source: "D5 Sport Model open/close", header: "D5", note: "Pacote D5 recebido; manter HEX para análise.", bytes: Array.from(bytes) };
+      addSportModelEvent(header.toString(16).padStart(2, "0").toUpperCase(), parsed, bytes);
+      log(`Pacote Sport Model ${header.toString(16).padStart(2, "0").toUpperCase()} recebido`, parsed);
+    }
+
+    if (header === 0xD1 || header === 0xDF) {
+      const parsed = processOriginalHeartResponse(bytes);
+      if (header === 0xD1 && parsed.rawSample) {
+        addD1RawSample(parsed.rawSample);
+        renderD1RawSamples();
+        renderD1HalfHourBuckets();
+      }
+      const response = {
+        timestamp: Date.now(),
+        iso: nowIso(),
+        hex: bytesToHex(bytes),
+        bytes: Array.from(bytes),
+        parsed
+      };
+      session.originalHistoryResponses.push(response);
+
+      if (parsed.records?.length) {
+        if (header === 0xDF) session.originalDFAccepted += parsed.records.length; else session.originalD1Accepted += parsed.records.length;
+        mergeManualHeartRecords(parsed.records);
+        renderManualHeartHistoryTable();
+        log(`Histórico automático heart interpretado (${parsed.source})`, parsed.records);
+      } else if (parsed.record) {
+        if (header === 0xDF) session.originalDFAccepted += 1; else session.originalD1Accepted += 1;
+        mergeManualHeartRecords([parsed.record]);
+        renderManualHeartHistoryTable();
+        log(`Histórico automático heart interpretado (${parsed.source})`, parsed.record);
+      } else {
+        if (header === 0xD1 && parsed.discardReason) {
+          session.originalD1Discarded += 1;
+        }
+
+        if (parsed.finish) {
+          renderManualHeartHistoryTable(parsed.note || `Leitura ${parsed.source} finalizada.`);
+          log(`Leitura ${parsed.source} finalizada`, parsed);
+        } else if (!parsed.discardReason || session.originalD1Discarded <= 5 || session.originalD1Discarded % 25 === 0) {
+          log(`Pacote ${parsed.source} ignorado pelo parser`, parsed);
+        }
+      }
+    }
+
+    if (header === 0xDE) {
+      const parsed = processManualMeasurementHeartResponse(bytes);
+      const response = {
+        timestamp: Date.now(),
+        iso: nowIso(),
+        hex: bytesToHex(bytes),
+        bytes: Array.from(bytes),
+        parsed
+      };
+      session.manualMeasurementResponses.push(response);
+      log("Resposta DE recebida, histórico manual de batimento", response);
+
+      if (parsed.empty) {
+        renderManualHeartHistoryTable(parsed.note || "Relógio respondeu DE com 0 pacotes.");
+      }
+
+      if (parsed.records?.length) {
+        mergeManualHeartRecords(parsed.records);
+        renderManualHeartHistoryTable();
+        log(`Histórico heart interpretado: ${parsed.records.length} registro(s).`);
+      } else if (parsed.complete && !parsed.empty) {
+        renderManualHeartHistoryTable(parsed.note || "Leitura DE completa, mas sem BPM interpretável.");
+      }
+    }
+
+    updateMetrics();
+  }
+
+  function onF002Changed(event) {
+    const bytes = new Uint8Array(event.target.value.buffer.slice(0));
+    trackPacket(UUIDS.F002_NOTIFY, bytes, { silent: true });
+
+    lastSensorTick.packets += 1;
+
+    if (!session.active) {
+      els.heartSub.textContent = session.estimatedBpm
+        ? "sensor F002 ativo fora de sessão; mantendo BPM final"
+        : "sensor F002 ativo fora de sessão";
+      updateMetrics();
+      return;
+    }
+
+    const maxPackets = Math.max(100, parseInt(els.maxPacketsInput.value, 10) || 5000);
+    if (session.sensorPackets.length >= maxPackets) return;
+
+    const values = uint16LEValues(bytes);
+
+    session.sensorPackets.push({
+      timestamp: Date.now(),
+      t: session.startedAt ? Date.now() - session.startedAt : 0,
+      hex: bytesToHex(bytes),
+      values
+    });
+
+    const now = Date.now();
+    const elapsed = session.startedAt ? now - session.startedAt : 0;
+
+    // Atualização ao vivo: espera alguns segundos de sinal e roda no máximo a cada 2s.
+    // Isso evita travar a UI enquanto mantém o campo de batimentos vivo.
+    if (
+      els.realtimeBpmInput.checked &&
+      elapsed >= 8000 &&
+      session.sensorPackets.length >= 80 &&
+      now - lastRealtimeBpmUpdate >= 2000
+    ) {
+      lastRealtimeBpmUpdate = now;
+      updateEstimatedBpmFromSensor({ realtime: true });
+    } else if (!session.estimatedBpm) {
+      els.heartSub.textContent = `coletando sinal... ${session.sensorPackets.length} pacotes`;
+    }
+
+    updateMetrics();
+  }
+
+
+  function onGenericChanged(event) {
+    const bytes = new Uint8Array(event.target.value.buffer.slice(0));
+    trackPacket(event.target.uuid, bytes);
+
+    if (!handshakeOk && looksLikeHandshakeAck(bytes)) {
+      setHandshakeState(true, false);
+      log("Handshake confirmado via ACK/status genérico", bytesToHex(bytes));
+    }
+  }
+
+
+  function movingAverage(values, windowSize) {
+    const out = new Array(values.length);
+    let sum = 0;
+
+    for (let i = 0; i < values.length; i++) {
+      sum += values[i];
+      if (i >= windowSize) sum -= values[i - windowSize];
+      const n = Math.min(i + 1, windowSize);
+      out[i] = sum / n;
+    }
+
+    return out;
+  }
+
+  function estimateBpmFromSensorPackets() {
+    const packets = session.sensorPackets;
+    if (!packets.length || !session.startedAt) return null;
+
+    const samples = [];
+    for (const packet of packets) {
+      for (const value of packet.values) {
+        if (value > 0) samples.push(value);
+      }
+    }
+
+    if (samples.length < 250) return null;
+
+    const durationSec = Math.max(1, ((session.endedAt || Date.now()) - session.startedAt) / 1000);
+    const fs = samples.length / durationSec;
+
+    const startIndex = Math.floor(Math.min(samples.length * 0.25, fs * 6));
+    const x = samples.slice(startIndex);
+    if (x.length < 250) return null;
+
+    const rawMean = x.reduce((a, b) => a + b, 0) / x.length;
+    const rawStd = Math.sqrt(x.reduce((a, b) => a + Math.pow(b - rawMean, 2), 0) / x.length);
+    const dynamicRange = Math.max(...x) - Math.min(...x);
+
+    const baselineWindow = Math.max(15, Math.round(fs * 0.75));
+    const smoothWindow = Math.max(3, Math.round(fs * 0.04));
+    const baseline = movingAverage(x, baselineWindow);
+    const detrended = x.map((v, i) => v - baseline[i]);
+    const smooth = movingAverage(detrended, smoothWindow);
+
+    const mean = smooth.reduce((a, b) => a + b, 0) / smooth.length;
+    const std = Math.sqrt(smooth.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / smooth.length);
+    const threshold = mean + std * 0.35;
+    const minDistance = Math.max(1, Math.round(fs * 0.4));
+
+    const peaks = [];
+    for (let i = 1; i < smooth.length - 1; i++) {
+      if (smooth[i] > threshold && smooth[i] > smooth[i - 1] && smooth[i] >= smooth[i + 1]) {
+        const last = peaks[peaks.length - 1];
+        if (last === undefined || i - last >= minDistance) {
+          peaks.push(i);
+        } else if (smooth[i] > smooth[last]) {
+          peaks[peaks.length - 1] = i;
+        }
+      }
+    }
+
+    const intervals = [];
+    for (let i = 1; i < peaks.length; i++) {
+      const sec = (peaks[i] - peaks[i - 1]) / fs;
+      if (sec >= 0.4 && sec <= 1.6) intervals.push(sec);
+    }
+
+    let bpm = null;
+    let intervalCv = null;
+
+    if (intervals.length >= 3) {
+      intervals.sort((a, b) => a - b);
+      const medianInterval = intervals[Math.floor(intervals.length / 2)];
+      bpm = Math.round(60 / medianInterval);
+
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const intervalStd = Math.sqrt(intervals.reduce((a, b) => a + Math.pow(b - avgInterval, 2), 0) / intervals.length);
+      intervalCv = intervalStd / avgInterval;
+
+      if (bpm < 35 || bpm > 220) bpm = null;
+    }
+
+    let qualityScore = 100;
+    if (!bpm) qualityScore -= 50;
+    if (samples.length < 2500) qualityScore -= 25;
+    if (durationSec < 20) qualityScore -= 20;
+    if (peaks.length < 12) qualityScore -= 20;
+    if (intervalCv !== null && intervalCv > 0.28) qualityScore -= 30;
+    else if (intervalCv !== null && intervalCv > 0.18) qualityScore -= 15;
+    if (dynamicRange < 250) qualityScore -= 15;
+
+    qualityScore = Math.max(0, Math.min(100, Math.round(qualityScore)));
+
+    let signalQuality = "baixa";
+    if (qualityScore >= 75) signalQuality = "boa";
+    else if (qualityScore >= 45) signalQuality = "média";
+
+    return {
+      bpm,
+      sampleRate: Number(fs.toFixed(1)),
+      peaks: peaks.length,
+      validIntervals: intervals.length,
+      intervalCv: intervalCv === null ? null : Number(intervalCv.toFixed(3)),
+      samples: samples.length,
+      usedSamples: x.length,
+      signalQuality,
+      qualityScore,
+      dynamicRange,
+      rawStd: Number(rawStd.toFixed(1)),
+      method: "F002 peak estimate"
+    };
+  }
+
+  function updateEstimatedBpmFromSensor(options = {}) {
+    const { realtime = false } = options;
+    const result = estimateBpmFromSensorPackets();
+
+    if (!result || !result.bpm) {
+      session.estimatedBpmMeta = result || session.estimatedBpmMeta || null;
+      session.signalQuality = result?.signalQuality || session.signalQuality || "baixa";
+
+      if (!session.estimatedBpm) {
+        els.heartValue.textContent = "-- bpm";
+      }
+
+      if (realtime && session.active) {
+        els.heartSub.textContent = result
+          ? `coletando sinal... ${result.sampleRate} Hz, ${result.peaks} picos`
+          : "coletando sinal...";
+      } else {
+        els.heartSub.textContent = result
+          ? `sem estimativa confiável (${result.sampleRate} Hz, ${result.peaks} picos)`
+          : "sem estimativa confiável do F002";
+      }
+
+      els.qualityValue.textContent = result?.signalQuality || "--";
+      els.qualitySub.textContent = result ? `score ${result.qualityScore}/100` : "aguardando sinal";
+      return result;
+    }
+
+    const watchBpm = parseInt(els.watchBpmInput.value, 10);
+    session.watchBpm = Number.isFinite(watchBpm) ? watchBpm : null;
+    session.calibrationDelta = session.watchBpm ? result.bpm - session.watchBpm : null;
+
+    session.estimatedBpm = result.bpm;
+    session.estimatedBpmMeta = result;
+    session.signalQuality = result.signalQuality;
+
+    els.heartValue.textContent = realtime && session.active
+      ? `${result.bpm} bpm`
+      : `${result.bpm} bpm`;
+
+    const prefix = realtime && session.active ? "ao vivo" : "final";
+
+    els.heartSub.textContent = session.watchBpm
+      ? `${prefix}; relógio/app: ${session.watchBpm} bpm; delta ${session.calibrationDelta >= 0 ? "+" : ""}${session.calibrationDelta}`
+      : `${prefix}; F002 ${result.sampleRate} Hz, ${result.peaks} picos`;
+
+    els.qualityValue.textContent = result.signalQuality;
+    els.qualitySub.textContent = `score ${result.qualityScore}/100, CV ${result.intervalCv}`;
+
+    return result;
+  }
+
+
+  function parseD0(bytes) {
+    // Pelo APK: HeartDetectNewActivity.handlerRateValue usa:
+    // iArr[1] = BPM atual, iArr[5] = estado.
+    // D0 01 inicia a leitura em tempo real; D0 00 encerra.
+    if (bytes[0] !== 0xD0) return;
+
+    const bpm = bytes.length >= 2 ? (bytes[1] & 0xff) : 0;
+    const state = bytes.length >= 6 ? (bytes[5] & 0xff) : null;
+    const validBpm = bpm >= 30 && bpm <= 200;
+
+    if (validBpm) {
+      const timestampMs = Date.now();
+      const record = {
+        timestamp: Math.floor(timestampMs / 1000),
+        dateTime: new Date(timestampMs).toLocaleString(),
+        version: null,
+        rates: [bpm],
+        source: `D0 atual/último; state=${state ?? "-"}`
+      };
+
+      session.currentHeartLast = record;
+      session.d0HeartSamples.push({
+        timestamp: timestampMs,
+        iso: nowIso(),
+        bpm,
+        state,
+        hex: bytesToHex(bytes)
+      });
+      mergeManualHeartRecords([record]);
+      renderManualHeartHistoryTable();
+
+      session.estimatedBpm = bpm;
+      els.heartValue.textContent = `${bpm} bpm`;
+      els.heartSub.textContent = `D0 atual/último; state ${state ?? "-"}`;
+      return;
+    }
+
+    if (bpm === 1 || bpm === 2) {
+      els.heartSub.textContent = `D0 sem BPM; possível erro de uso/sensor (${bpm})`;
+      return;
+    }
+
+    if (!session.estimatedBpm) {
+      els.heartSub.textContent = session.active
+        ? `D0 sem BPM ainda; state ${state ?? "-"}; sensor F002 pode estar ativo`
+        : `D0 sem BPM; state ${state ?? "-"}`;
+    }
+  }
+
+  async function startHeartRate() {
+    if (!subscribed || !handshakeOk) {
+      await autoSubscribeAndHandshake();
+    }
+
+    hardResetSession();
+    lastRealtimeBpmUpdate = 0;
+    session.startedAt = Date.now();
+    session.active = true;
+    els.sessionStatus.value = "Coletando batimento";
+    updateActionButtons();
+    log("Medição de batimento iniciada.");
+    await writeF008(COMMANDS.HR_START, "D0 01 iniciar batimento");
+
+    const duration = Math.max(5, parseInt(els.hrDurationInput.value, 10) || 60);
+    heartTimer = setTimeout(() => stopHeartRate(true), duration * 1000);
+  }
+
+  async function stopHeartRate(sendStop = true) {
+    if (heartTimer) clearTimeout(heartTimer);
+    heartTimer = null;
+    session.active = false;
+    session.endedAt = Date.now();
+    els.sessionStatus.value = "Parada";
+    if (sendStop && connected) {
+      await writeF008(COMMANDS.HR_STOP, "D0 00 parar batimento");
+    }
+    const bpmEstimate = updateEstimatedBpmFromSensor({ realtime: false });
+
+    log("Medição de batimento finalizada.", {
+      packets: session.sensorPackets.length,
+      samples: session.sensorPackets.reduce((acc, p) => acc + p.values.length, 0),
+      estimatedBpm: bpmEstimate
+    });
+    updateActionButtons();
+    updateMetrics();
+  }
+
+  const MANUAL_HEART_MASK = 1 << 1;
+
+  function readUint32LE(bytes, offset) {
+    if (offset + 3 >= bytes.length) return 0;
+    return (
+      (bytes[offset] & 0xff) |
+      ((bytes[offset + 1] & 0xff) << 8) |
+      ((bytes[offset + 2] & 0xff) << 16) |
+      ((bytes[offset + 3] & 0xff) << 24)
+    ) >>> 0;
+  }
+
+  function writeUint32LE(bytes, offset, value) {
+    const unsigned = value >>> 0;
+    bytes[offset] = unsigned & 0xff;
+    bytes[offset + 1] = (unsigned >>> 8) & 0xff;
+    bytes[offset + 2] = (unsigned >>> 16) & 0xff;
+    bytes[offset + 3] = (unsigned >>> 24) & 0xff;
+  }
+
+  function toLocalDateTimeInputValue(date) {
+    const pad = value => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function localDateTimeInputToUnixSeconds(value) {
+    if (!value) return 0;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 0;
+    return Math.max(0, Math.floor(date.getTime() / 1000));
+  }
+
+  function updateManualHistoryTimestampPreview() {
+    if (els.manualHistoryFromStartInput?.checked) {
+      els.manualHistoryDateTimeInput.disabled = true;
+      els.manualHistoryTimestampInput.value = "0";
+      return 0;
+    }
+
+    els.manualHistoryDateTimeInput.disabled = false;
+
+    if (!els.manualHistoryDateTimeInput.value) {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      els.manualHistoryDateTimeInput.value = toLocalDateTimeInputValue(startOfToday);
+    }
+
+    const timestamp = localDateTimeInputToUnixSeconds(els.manualHistoryDateTimeInput.value);
+    els.manualHistoryTimestampInput.value = String(timestamp);
+    return timestamp;
+  }
+
+  function buildManualMeasurementHistoryCommand(timestamp) {
+    const safeTimestamp = Math.max(0, Number(timestamp) || 0);
+    const bytes = new Uint8Array(20);
+
+    bytes[0] = 0xDE;
+    bytes[1] = 0x02;
+    writeUint32LE(bytes, 2, safeTimestamp);
+    writeUint32LE(bytes, 6, MANUAL_HEART_MASK);
+    writeUint32LE(bytes, 10, MANUAL_HEART_MASK);
+    // bytes 14..19 ficam zerados, igual ao comando observado no APK.
+
+    return bytes;
+  }
+
+  function resetManualMeasurementAssembly() {
+    session.manualMeasurementAssembly = {
+      active: false,
+      totalPkgNum: 0,
+      nowPkgNum: -1,
+      chunks: []
+    };
+  }
+
+  function concatUint8Arrays(chunks) {
+    const total = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      out.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return out;
+  }
+
+  function formatUnixSeconds(seconds) {
+    if (!seconds) return "-";
+    const date = new Date(seconds * 1000);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString();
+  }
+
+  function parseManualHeartRecordsFromContent(content) {
+    const records = [];
+    let position = 0;
+
+    while (position < content.length) {
+      const tag = content[position++];
+
+      if (tag === 0xA0) {
+        const length = content[position++] || 0;
+        position += length;
+        continue;
+      }
+
+      if (tag !== 0xA1) {
+        continue;
+      }
+
+      const reservedOrVersion = content[position++] ?? null;
+      const manualType = content[position++] ?? null;
+      const blockLength = readUint32LE(content, position);
+      position += 4;
+
+      if (position + blockLength > content.length) {
+        records.push({
+          error: "Bloco A1 incompleto",
+          manualType,
+          reservedOrVersion,
+          expectedLength: blockLength,
+          available: content.length - position
+        });
+        break;
+      }
+
+      const a1Content = content.slice(position, position + blockLength);
+      position += blockLength;
+
+      // Tipo 1 = frequência cardíaca, conforme ManualMeasurementHandler.parseA1Data(...).
+      if (manualType !== 1) continue;
+
+      records.push(...parseManualHeartA1Content(a1Content));
+    }
+
+    return records.filter(record => !record.error || record.error);
+  }
+
+  function parseManualHeartA1Content(a1Content) {
+    const records = [];
+    let position = 0;
+
+    while (position < a1Content.length) {
+      const tag = a1Content[position++];
+      if (tag !== 0xB0) continue;
+
+      const blockLength = readUint32LE(a1Content, position);
+      position += 4;
+
+      if (position + blockLength > a1Content.length) {
+        records.push({
+          error: "Bloco B0 incompleto",
+          expectedLength: blockLength,
+          available: a1Content.length - position
+        });
+        break;
+      }
+
+      const b0Content = a1Content.slice(position, position + blockLength);
+      position += blockLength;
+      records.push(parseManualHeartB0Content(b0Content));
+    }
+
+    return records;
+  }
+
+  function parseManualHeartB0Content(b0Content) {
+    const record = {
+      timestamp: 0,
+      dateTime: "-",
+      version: null,
+      rates: [],
+      source: "DE/A1(type=1)/B0/C0-C2"
+    };
+    let position = 0;
+
+    while (position < b0Content.length) {
+      const tag = b0Content[position++];
+
+      if (tag === 0xC0) {
+        const length = b0Content[position++] || 0;
+        record.timestamp = readUint32LE(b0Content, position);
+        record.dateTime = formatUnixSeconds(record.timestamp);
+        position += length;
+        continue;
+      }
+
+      if (tag === 0xC1) {
+        const length = b0Content[position++] || 0;
+        record.version = length > 0 ? (b0Content[position] & 0xff) : null;
+        position += length;
+        continue;
+      }
+
+      if (tag === 0xC2) {
+        const length = b0Content[position++] || 0;
+        const rates = Array.from(b0Content.slice(position, position + length)).map(v => v & 0xff);
+        record.rates.push(...rates.filter(v => v >= 30 && v <= 240));
+        position += length;
+        continue;
+      }
+
+      // Tag desconhecida: avança de forma conservadora para evitar travar o parser.
+    }
+
+    return record;
+  }
+
+
+  function isValidBpm(value) {
+    return Number.isFinite(value) && value >= 30 && value <= 220;
+  }
+
+  function dateFromDayOffset(dayOffset, hour, minute) {
+    const date = new Date();
+    date.setHours(hour || 0, minute || 0, 0, 0);
+    date.setDate(date.getDate() - (dayOffset || 0));
+    return date;
+  }
+
+
+  function parseD1OfficialNormal(bytes) {
+    const dayOffset = bytes[5] & 0xff;
+    const packetDayOfMonth = bytes[7] & 0xff;
+    const hour = bytes[8] & 0xff;
+    const minute = bytes[9] & 0xff;
+    const bpm = bytes[14] & 0xff;
+    const date = dateFromDayOffset(dayOffset, hour, minute);
+    const expectedDayOfMonth = date.getDate();
+    return {
+      parser: "APK handOriginalData",
+      dayOffset,
+      packetDayOfMonth,
+      expectedDayOfMonth,
+      hour,
+      minute,
+      bpm,
+      date,
+      valid: packetDayOfMonth === expectedDayOfMonth && hour <= 23 && minute <= 59 && isValidBpm(bpm),
+      reason: packetDayOfMonth !== expectedDayOfMonth ? "day_mismatch" : (!isValidBpm(bpm) ? "invalid_bpm" : "ok")
+    };
+  }
+
+  function parseD1OfficialMulticolour(bytes) {
+    const packed = bytes[5] & 0xff;
+    const dayOffset = Math.floor(packed / 32);
+    const hour = packed % 32;
+    const minute = bytes[19] & 0xff;
+    const bpm = bytes[14] & 0xff;
+    const date = dateFromDayOffset(dayOffset, hour, minute);
+    return {
+      parser: "APK handOriginalDataForMulticolour",
+      packed,
+      dayOffset,
+      hour,
+      minute,
+      bpm,
+      date,
+      valid: hour <= 23 && minute <= 59 && isValidBpm(bpm),
+      reason: hour > 23 || minute > 59 ? "invalid_time" : (!isValidBpm(bpm) ? "invalid_bpm" : "ok")
+    };
+  }
+
+  function buildHeartRecord({ date, bpm, currentPkg, totalPkg, source, parser, confidence, rawHex }) {
+    return {
+      timestamp: Math.floor(date.getTime() / 1000),
+      dateTime: date.toLocaleString(),
+      version: `${currentPkg}/${totalPkg}`,
+      rates: [bpm],
+      source,
+      parser,
+      confidence,
+      rawHex
+    };
+  }
+
+  function processOriginalHeartResponse(bytes) {
+    const header = bytes[0];
+
+    if (header === 0xDF) {
+      return processDfOriginalHeartResponse(bytes);
+    }
+
+    const source = "D1 original automático";
+    const currentPkg = bytes.length > 2 ? (bytes[1] | (bytes[2] << 8)) : 0;
+    const totalPkg = bytes.length > 4 ? (bytes[3] | (bytes[4] << 8)) : 0;
+    const dayOrHour = bytes.length > 5 ? (bytes[5] & 0xff) : 0;
+    const rawHex = bytesToHex(bytes);
+
+    const parsed = {
+      source,
+      header: header.toString(16).padStart(2, "0").toUpperCase(),
+      currentPkg,
+      totalPkg,
+      dayOffset: dayOrHour,
+      finish: currentPkg === totalPkg || (bytes[3] === 0 && bytes[4] === 0),
+      hex: rawHex,
+      records: []
+    };
+
+    if (bytes.length < 20) {
+      parsed.note = "Pacote curto demais para parser D1.";
+      return parsed;
+    }
+
+    // D1 fica apenas como fallback de protocolo antigo.
+    // Valores que não passam no layout estrito do app ficam só no inspetor bruto.
+    const standardDayOffset = dayOrHour;
+    const packetDayOfMonth = bytes[7] & 0xff;
+    const standardHour = bytes[8] & 0xff;
+    const standardMinute = bytes[9] & 0xff;
+    const standardBpm = bytes[14] & 0xff;
+    const tailBpm = bytes[17] & 0xff;
+    const tailHour = bytes[18] & 0xff;
+    const tailMinute = bytes[19] & 0xff;
+    const officialNormal = parseD1OfficialNormal(bytes);
+    const officialMulticolour = parseD1OfficialMulticolour(bytes);
+    const standardDate = officialNormal.date;
+    const expectedDayOfMonth = officialNormal.expectedDayOfMonth;
+
+    parsed.packetDayOfMonth = packetDayOfMonth;
+    parsed.expectedDayOfMonth = expectedDayOfMonth;
+    parsed.standardHour = standardHour;
+    parsed.standardMinute = standardMinute;
+    parsed.standardBpmCandidate = standardBpm;
+    parsed.tailHour = tailHour;
+    parsed.tailMinute = tailMinute;
+    parsed.tailBpmCandidate = tailBpm;
+    parsed.officialNormal = officialNormal;
+    parsed.officialMulticolour = officialMulticolour;
+
+    const slotIndex = Math.max(0, currentPkg - 1);
+    const slotHour = Math.floor((slotIndex * 5) / 60);
+    const slotMinute = (slotIndex * 5) % 60;
+    const candidateBytes = [];
+    for (let i = 5; i < bytes.length; i++) {
+      const value = bytes[i] & 0xff;
+      if (isValidBpm(value)) candidateBytes.push({ index: i, value });
+    }
+    parsed.rawSample = {
+      timestamp: Date.now(),
+      currentPkg,
+      totalPkg,
+      dayOffset: standardDayOffset,
+      slotTime: `${String(slotHour).padStart(2, "0")}:${String(slotMinute).padStart(2, "0")}`,
+      bytes13to19: Array.from(bytes.slice(13, 20)).map(v => v.toString(16).padStart(2, "0").toUpperCase()).join(" "),
+      bytes: Array.from(bytes),
+      b13: bytes[13] & 0xff,
+      b14: bytes[14] & 0xff,
+      b17: bytes[17] & 0xff,
+      b18: bytes[18] & 0xff,
+      b19: bytes[19] & 0xff,
+      officialNormal,
+      officialMulticolour,
+      candidates: candidateBytes,
+      hex: rawHex
+    };
+
+    if (officialNormal.valid) {
+      parsed.records.push(buildHeartRecord({
+        date: officialNormal.date,
+        bpm: officialNormal.bpm,
+        currentPkg,
+        totalPkg,
+        source: "D1 APK handOriginalData · alta",
+        parser: "apk_handOriginalData_byte7_8_9_14",
+        confidence: "alta",
+        rawHex
+      }));
+      parsed.note = "Registro D1 aceito pelo método handOriginalData do APK.";
+      return parsed;
+    }
+
+    if (officialMulticolour.valid) {
+      parsed.records.push(buildHeartRecord({
+        date: officialMulticolour.date,
+        bpm: officialMulticolour.bpm,
+        currentPkg,
+        totalPkg,
+        source: "D1 APK multicolour · média/alta",
+        parser: "apk_handOriginalDataForMulticolour_byte5_byte14_byte19",
+        confidence: "média/alta",
+        rawHex
+      }));
+      parsed.note = "Registro D1 aceito pelo método handOriginalDataForMulticolour do APK.";
+      return parsed;
+    }
+
+    parsed.discardReason = "no_confirmed_bpm";
+    parsed.note = parsed.finish
+      ? "Leitura D1 finalizada; pacote sem candidato de heart válido."
+      : "Pacote D1 sem heart confirmado no layout estrito; candidatos mantidos apenas no inspetor bruto.";
+    return parsed;
+  }
+
+  function processDfOriginalHeartResponse(bytes) {
+    const currentPkg = bytes.length > 2 ? readUint16LE(bytes, 1) : 0;
+    const totalPkg = bytes.length > 5 ? readUint16LE(bytes, 4) : 0;
+    const parsed = {
+      source: "DF original automático",
+      header: "DF",
+      currentPkg,
+      totalPkg,
+      finish: currentPkg === totalPkg || (bytes.length > 4 && bytes[3] === 0 && bytes[4] === 0),
+      hex: bytesToHex(bytes),
+      records: []
+    };
+
+    session.originalDFPackets.push(Array.from(bytes));
+    const result = parseDfPackets(session.originalDFPackets);
+    session.originalDFBlocks = result.blocks;
+    renderDfBlocks();
+
+    if (result.records.length) {
+      parsed.records = result.records;
+      parsed.note = `DF processado por blocos: ${result.blocks.length} bloco(s), ${result.records.length} ponto(s) de heart/rate.`;
+    } else {
+      parsed.note = `DF acumulado: ${session.originalDFPackets.length} pacote(s), ${result.blocks.length} bloco(s), ainda sem B1+B4/B5 válido.`;
+      parsed.discardReason = parsed.finish ? "df_finished_without_records" : "df_waiting_more_packets";
+    }
+
+    if (parsed.finish) {
+      parsed.note += " Leitura DF finalizada pelo contador de pacotes.";
+    }
+
+    return parsed;
+  }
+
+  function readUint16LE(bytes, offset) {
+    if (offset + 1 >= bytes.length) return 0;
+    return (bytes[offset] & 0xff) | ((bytes[offset + 1] & 0xff) << 8);
+  }
+
+  function getDfHead(packet, previousPackageLength = -1) {
+    const protocolType5 = true;
+    let packageLength = 20;
+    if (previousPackageLength === -1) {
+      if (protocolType5 && packet.length > 13 && (packet[13] & 0xff) >= 20) {
+        packageLength = packet[13] & 0xff;
+      }
+    } else {
+      packageLength = Math.max(previousPackageLength, 20);
+    }
+
+    return {
+      currentBlockIndex: readUint16LE(packet, 1),
+      blockPositionIndex: packet[3] & 0xff,
+      allBlockCount: readUint16LE(packet, 4),
+      allBlockPosition: packet[6] & 0xff,
+      readDay: packet[7] & 0xff,
+      readType: packet[8] & 0xff,
+      dataType: packet[9] & 0xff,
+      count: packet[10] & 0xff,
+      crc: readUint16LE(packet, 11),
+      packageLength
+    };
+  }
+
+  function crc16Modbus(bytes) {
+    let crc = 0xffff;
+    for (const value of bytes) {
+      crc ^= (value & 0xff);
+      for (let i = 0; i < 8; i++) {
+        if (crc & 1) crc = (crc >> 1) ^ 0xA001;
+        else crc >>= 1;
+      }
+    }
+    return crc & 0xffff;
+  }
+
+  function parseDfPackets(packetArrays) {
+    const packets = packetArrays.map(values => Uint8Array.from(values)).filter(p => p.length >= 14 && p[0] === 0xDF);
+    const blocks = [];
+    let currentKey = null;
+    let currentHead = null;
+    let currentChunks = [];
+    let previousPackageLength = -1;
+
+    function finishBlock() {
+      if (!currentHead) return;
+      const content = concatUint8Arrays(currentChunks);
+      const validCount = currentHead.count > 0 && currentHead.count <= content.length ? currentHead.count : content.length;
+      const crcContent = content.slice(0, validCount);
+      const crcCalculated = crc16Modbus(crcContent);
+      const crcOk = validCount > 0 && currentHead.crc === crcCalculated;
+      const fiveMinute = parseFiveMinuteBlockContent(crcContent);
+      const block = {
+        key: currentKey,
+        head: currentHead,
+        content,
+        validCount,
+        crcCalculated,
+        crcOk,
+        fiveMinute,
+        records: []
+      };
+      block.records = buildHeartRecordsFromFiveMinuteBlock(block);
+      blocks.push(block);
+    }
+
+    for (const packet of packets) {
+      const key = `${packet[1] & 0xff}-${packet[2] & 0xff}`;
+      if (key !== currentKey) {
+        finishBlock();
+        currentKey = key;
+        currentHead = (packet[1] === 0xff && packet[2] === 0xff) ? null : getDfHead(packet, previousPackageLength);
+        currentChunks = [];
+        if (currentHead && previousPackageLength === -1) previousPackageLength = currentHead.packageLength;
+      } else if (currentHead) {
+        const takeLen = Math.max(0, Math.min(currentHead.packageLength - 4, packet.length - 4));
+        if (takeLen > 0) currentChunks.push(packet.slice(4, 4 + takeLen));
+      }
+    }
+    finishBlock();
+
+    const dedup = new Map();
+    for (const block of blocks) {
+      for (const record of block.records) {
+        const key = `${record.timestamp}|${record.rates[0]}|${record.parser}`;
+        dedup.set(key, record);
+      }
+    }
+
+    return {
+      blocks,
+      records: Array.from(dedup.values()).sort((a, b) => b.timestamp - a.timestamp)
+    };
+  }
+
+  function concatUint8Arrays(parts) {
+    const length = parts.reduce((sum, part) => sum + part.length, 0);
+    const out = new Uint8Array(length);
+    let offset = 0;
+    for (const part of parts) {
+      out.set(part, offset);
+      offset += part.length;
+    }
+    return out;
+  }
+
+  function parseFiveMinuteBlockContent(content) {
+    const result = {
+      rawHex: bytesToHex(content),
+      dateBytes: null,
+      rateBytes: null,
+      heartBytes: null,
+      blocks: []
+    };
+
+    let pos = 0;
+    while (pos + 1 < content.length) {
+      const tag = content[pos] & 0xff;
+      const len = content[pos + 1] & 0xff;
+      const start = pos + 2;
+      const end = start + len;
+      if (tag < 0xB1 || tag > 0xC3 || len <= 0 || end > content.length) {
+        pos += 1;
+        continue;
+      }
+
+      const blockContent = content.slice(start, end);
+      const tagHex = `0x${tag.toString(16).toUpperCase()}`;
+      result.blocks.push({ tag: tagHex, length: len, hex: bytesToHex(blockContent) });
+      if (tag === 0xB1 && len === 4 && (blockContent[0] !== 0 || blockContent[1] !== 0)) result.dateBytes = blockContent;
+      if (tag === 0xB4) result.rateBytes = blockContent;
+      if (tag === 0xB5) result.heartBytes = blockContent;
+      pos = end;
+    }
+
+    return result;
+  }
+
+  function buildHeartRecordsFromFiveMinuteBlock(block) {
+    const fm = block.fiveMinute;
+    if (!fm?.dateBytes) return [];
+
+    const month = fm.dateBytes[0] & 0xff;
+    const day = fm.dateBytes[1] & 0xff;
+    const hour = fm.dateBytes[2] & 0xff;
+    const minute = fm.dateBytes[3] & 0xff;
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return [];
+
+    const now = new Date();
+    const base = new Date(now.getFullYear(), month - 1, day, hour, minute, 0, 0);
+    const heart = fm.heartBytes ? Array.from(fm.heartBytes.slice(0, 5)).map(v => v & 0xff) : [];
+    const rate = fm.rateBytes ? Array.from(fm.rateBytes.slice(0, 5)).map(v => v & 0xff) : [];
+    const records = [];
+
+    for (let i = 0; i < 5; i++) {
+      const heartValue = heart[i] || 0;
+      const rateValue = rate[i] || 0;
+      const bpm = isValidBpm(heartValue) ? heartValue : isValidBpm(rateValue) ? rateValue : 0;
+      if (!bpm) continue;
+      const date = new Date(base.getTime() + i * 60 * 1000);
+      records.push(buildHeartRecord({
+        date,
+        bpm,
+        currentPkg: block.head.currentBlockIndex,
+        totalPkg: block.head.allBlockCount,
+        source: isValidBpm(heartValue) ? "DF B5 heart/ECG · alta" : "DF B4 rate/PPG · média",
+        parser: isValidBpm(heartValue) ? "df_block_B1_B5" : "df_block_B1_B4",
+        confidence: isValidBpm(heartValue) ? "alta" : "média",
+        rawHex: block.fiveMinute.rawHex
+      }));
+    }
+
+    return records;
+  }
+
+  function renderDfBlocks() {
+    const rows = (session.originalDFBlocks || []).slice(-80).reverse();
+    if (!els.dfBlockTable) return;
+
+    if (!rows.length) {
+      els.dfBlockTable.innerHTML = `<tr><td colspan="7" class="muted">Nenhum bloco DF remontado.</td></tr>`;
+      if (els.dfBlockStatus) els.dfBlockStatus.textContent = `Pacotes DF acumulados: ${session.originalDFPackets.length}. Aguardando blocos completos.`;
+      return;
+    }
+
+    const recordCount = rows.reduce((sum, block) => sum + (block.records?.length || 0), 0);
+    if (els.dfBlockStatus) {
+      els.dfBlockStatus.textContent = `Pacotes DF: ${session.originalDFPackets.length}. Blocos remontados: ${session.originalDFBlocks.length}. Pontos extraídos nos blocos exibidos: ${recordCount}.`;
+    }
+
+    els.dfBlockTable.innerHTML = rows.map(block => {
+      const b1 = block.fiveMinute?.dateBytes ? Array.from(block.fiveMinute.dateBytes).join("/") : "-";
+      const b4 = block.fiveMinute?.rateBytes ? bytesToHex(block.fiveMinute.rateBytes.slice(0, 10)) : "-";
+      const b5 = block.fiveMinute?.heartBytes ? bytesToHex(block.fiveMinute.heartBytes.slice(0, 10)) : "-";
+      const crc = block.validCount
+        ? `${block.crcOk ? "OK" : "falhou"} ${block.head.crc.toString(16).toUpperCase()}/${block.crcCalculated.toString(16).toUpperCase()}`
+        : "sem conteúdo";
+      return `
+        <tr>
+          <td><code>${block.key}</code></td>
+          <td>${block.head.readDay}</td>
+          <td>${block.head.blockPositionIndex}/${block.head.allBlockPosition} · len ${block.content.length}/${block.validCount}</td>
+          <td>${crc}</td>
+          <td><code>${b1}</code></td>
+          <td><code>${b4}</code></td>
+          <td><code>${b5}</code></td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function processManualMeasurementHeartResponse(bytes) {
+    if (!bytes.length || bytes[0] !== 0xDE) return null;
+
+    const packetNum = readUint32LE(bytes, 2);
+    const content = bytes.slice(6);
+    const assembly = session.manualMeasurementAssembly;
+    const parsed = {
+      header: "DE",
+      subCommandOrStatus: bytes.length > 1 ? `0x${bytes[1].toString(16).padStart(2, "0").toUpperCase()}` : null,
+      length: bytes.length,
+      packetNum,
+      totalPkgNum: assembly.totalPkgNum,
+      contentHex: bytesToHex(content),
+      records: []
+    };
+
+    if (packetNum === 0) {
+      resetManualMeasurementAssembly();
+      session.manualMeasurementAssembly.active = true;
+      session.manualMeasurementAssembly.nowPkgNum = 0;
+      session.manualMeasurementAssembly.totalPkgNum = readUint32LE(bytes, 8);
+      session.manualMeasurementAssembly.chunks.push(content);
+      parsed.totalPkgNum = session.manualMeasurementAssembly.totalPkgNum;
+
+      if (parsed.totalPkgNum === 0) {
+        parsed.complete = true;
+        parsed.empty = true;
+        parsed.note = "Sem histórico manual de batimento após o timestamp solicitado.";
+        resetManualMeasurementAssembly();
+        return parsed;
+      }
+    } else {
+      if (!assembly.active) {
+        parsed.warning = "Recebi pacote DE sem pacote inicial 0; ainda assim tentei acumular.";
+        session.manualMeasurementAssembly.active = true;
+      }
+
+      if (assembly.nowPkgNum + 1 !== packetNum) {
+        parsed.warning = `Sequência inesperada: esperado ${assembly.nowPkgNum + 1}, recebido ${packetNum}.`;
+      }
+
+      assembly.nowPkgNum = packetNum;
+      assembly.chunks.push(content);
+    }
+
+    const current = session.manualMeasurementAssembly;
+    parsed.totalPkgNum = current.totalPkgNum;
+    parsed.progress = current.totalPkgNum ? `${packetNum + 1}/${current.totalPkgNum}` : "desconhecido";
+
+    if (current.totalPkgNum && packetNum + 1 === current.totalPkgNum) {
+      const allContent = concatUint8Arrays(current.chunks);
+      parsed.complete = true;
+      parsed.concatenatedLength = allContent.length;
+      parsed.records = parseManualHeartRecordsFromContent(allContent)
+        .filter(record => record.rates?.length || record.error);
+      parsed.note = parsed.records.length
+        ? "Histórico de batimento interpretado com parser experimental baseado no APK."
+        : "Leitura completa, mas nenhum bloco Heart/C2 com BPM foi encontrado.";
+      resetManualMeasurementAssembly();
+    } else {
+      parsed.complete = false;
+      parsed.note = "Pacote DE acumulado; aguardando restante da leitura.";
+    }
+
+    return parsed;
+  }
+
+
+  function addD1RawSample(sample) {
+    if (!sample) return;
+    session.d1RawSamples.push(sample);
+    if (session.d1RawSamples.length > 1000) session.d1RawSamples.shift();
+    if (els.exportD1RawCsvBtn) els.exportD1RawCsvBtn.disabled = session.d1RawSamples.length === 0;
+    if (els.exportD1RawJsonBtn) els.exportD1RawJsonBtn.disabled = session.d1RawSamples.length === 0;
+  }
+
+  function renderD1RawSamples() {
+    if (!els.d1RawTable) return;
+    const rows = (session.d1RawSamples || []).slice().sort((a, b) => (b.currentPkg || 0) - (a.currentPkg || 0));
+
+    if (els.d1RawStatus) {
+      els.d1RawStatus.textContent = rows.length
+        ? `${rows.length} pacote(s) D1 bruto(s). Candidatos são bytes possíveis, não BPM confirmado.`
+        : "Nenhum pacote D1 recebido.";
+    }
+
+    if (!rows.length) {
+      els.d1RawTable.innerHTML = `<tr><td colspan="6" class="muted">Nenhum pacote D1 recebido.</td></tr>`;
+      return;
+    }
+
+    els.d1RawTable.innerHTML = rows.map(row => {
+      const candidates = row.candidates?.length
+        ? row.candidates.map(c => `b${c.index}=${c.value}`).join(", ")
+        : "-";
+      return `
+        <tr>
+          <td><code>${row.slotTime || "-"}</code></td>
+          <td>${row.currentPkg}/${row.totalPkg}</td>
+          <td>${row.dayOffset ?? "-"}</td>
+          <td><code>${row.bytes13to19 || "-"}</code></td>
+          <td><code>${candidates}</code></td>
+          <td><code>${row.hex || "-"}</code></td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+
+  function formatUniqueValues(values) {
+    const counts = new Map();
+    for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([value, count]) => `${value}×${count}`).join(", ") || "-";
+  }
+
+  function renderD1HalfHourBuckets() {
+    if (!els.d1HalfHourTable) return;
+    const samples = (session.d1RawSamples || []).slice().sort((a, b) => (a.currentPkg || 0) - (b.currentPkg || 0));
+    if (!samples.length) {
+      els.d1HalfHourTable.innerHTML = `<tr><td colspan="8" class="muted">Nenhum pacote D1 recebido.</td></tr>`;
+      if (els.d1HalfHourStatus) els.d1HalfHourStatus.textContent = "Aguardando pacotes D1.";
+      return;
+    }
+
+    const buckets = new Map();
+    for (const sample of samples) {
+      const slotIndex = Math.max(0, (sample.currentPkg || 1) - 1);
+      const minutes = slotIndex * 5;
+      const bucketMinutes = Math.floor(minutes / 30) * 30;
+      const label = `${String(Math.floor(bucketMinutes / 60)).padStart(2, "0")}:${String(bucketMinutes % 60).padStart(2, "0")}`;
+      if (!buckets.has(label)) buckets.set(label, []);
+      buckets.get(label).push(sample);
+    }
+
+    const rows = Array.from(buckets.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+    els.d1HalfHourTable.innerHTML = rows.map(([label, list]) => {
+      const normalValid = list.filter(s => s.officialNormal?.valid).map(s => s.officialNormal.bpm);
+      const multiValid = list.filter(s => s.officialMulticolour?.valid).map(s => s.officialMulticolour.bpm);
+      const official = normalValid.length || multiValid.length
+        ? `normal: ${formatUniqueValues(normalValid)} / multi: ${formatUniqueValues(multiValid)}`
+        : "-";
+      return `
+        <tr>
+          <td><code>${label}</code></td>
+          <td>${list.map(s => s.currentPkg).join(", ")}</td>
+          <td><code>${formatUniqueValues(list.map(s => s.b13))}</code></td>
+          <td><code>${formatUniqueValues(list.map(s => s.b14))}</code></td>
+          <td><code>${formatUniqueValues(list.map(s => s.b17))}</code></td>
+          <td><code>${formatUniqueValues(list.map(s => s.b18))}</code></td>
+          <td><code>${formatUniqueValues(list.map(s => s.b19))}</code></td>
+          <td><code>${official}</code></td>
+        </tr>
+      `;
+    }).join("");
+
+    if (els.d1HalfHourStatus) {
+      els.d1HalfHourStatus.textContent = `${samples.length} pacote(s) D1 agrupados em ${rows.length} bloco(s) de 30 min. Compare os bytes com a tela do app oficial.`;
+    }
+  }
+
+  function exportD1RawJson() {
+    const payload = {
+      app: "Champion C001 Data Collector",
+      exportedAt: nowIso(),
+      device: device ? { name: device.name, id: device.id } : null,
+      d1RawSamples: session.d1RawSamples || []
+    };
+    downloadText(`champion-c001-d1-raw-${Date.now()}.json`, JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function exportD1RawCsv() {
+    const rows = ["currentPkg,totalPkg,slotTime,dayOffset,b13,b14,b17,b18,b19,normalValid,normalBpm,normalHour,normalMinute,normalReason,multiValid,multiBpm,multiHour,multiMinute,multiReason,hex"];
+    for (const s of (session.d1RawSamples || [])) {
+      rows.push([
+        s.currentPkg ?? "", s.totalPkg ?? "", s.slotTime ?? "", s.dayOffset ?? "",
+        s.b13 ?? "", s.b14 ?? "", s.b17 ?? "", s.b18 ?? "", s.b19 ?? "",
+        s.officialNormal?.valid ?? "", s.officialNormal?.bpm ?? "", s.officialNormal?.hour ?? "", s.officialNormal?.minute ?? "", s.officialNormal?.reason ?? "",
+        s.officialMulticolour?.valid ?? "", s.officialMulticolour?.bpm ?? "", s.officialMulticolour?.hour ?? "", s.officialMulticolour?.minute ?? "", s.officialMulticolour?.reason ?? "",
+        `"${String(s.hex || "").replace(/"/g, '""')}"`
+      ].join(","));
+    }
+    downloadText(`champion-c001-d1-raw-${Date.now()}.csv`, rows.join("\n"), "text/csv");
+  }
+
+  function mergeManualHeartRecords(records) {
+    const existingKeys = new Set(session.manualHeartHistory.map(record => `${record.timestamp}|${record.rates.join("-")}`));
+    for (const record of records) {
+      const key = `${record.timestamp}|${record.rates.join("-")}`;
+      if (!existingKeys.has(key)) {
+        existingKeys.add(key);
+        session.manualHeartHistory.push(record);
+      }
+    }
+    session.manualHeartHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }
+
+  function renderManualHeartHistoryTable(statusMessage) {
+    const rows = session.manualHeartHistory || [];
+
+    if (els.manualHeartHistoryStatus) {
+      els.manualHeartHistoryStatus.textContent = statusMessage || (rows.length
+        ? `${rows.length} registro(s) válido(s). DF confirmados: ${session.originalDFAccepted || 0}; D1 confirmados: ${session.originalD1Accepted || 0}; D1 sem confirmação: ${session.originalD1Discarded || 0}.`
+        : `Nenhum heart confirmado. DF confirmados: ${session.originalDFAccepted || 0}; D1 sem confirmação: ${session.originalD1Discarded || 0}.`);
+    }
+
+    if (!els.manualHeartHistoryTable) return;
+
+    if (!rows.length) {
+      els.manualHeartHistoryTable.innerHTML = `<tr><td colspan="5" class="muted">${statusMessage || "Nenhum histórico de batimento interpretado."}</td></tr>`;
+      return;
+    }
+
+    els.manualHeartHistoryTable.innerHTML = rows.map(row => `
+      <tr>
+        <td>${row.dateTime || "-"}</td>
+        <td><code>${row.timestamp || "-"}</code></td>
+        <td><strong>${row.rates?.join(", ") || "-"}</strong></td>
+        <td>${row.version ?? "-"}</td>
+        <td><code>${row.source || row.error || "-"}</code></td>
+      </tr>
+    `).join("");
+  }
+
+  async function readManualMeasurementHistory() {
+    if (!subscribed || !handshakeOk) {
+      await autoSubscribeAndHandshake();
+    }
+
+    const timestamp = updateManualHistoryTimestampPreview();
+    const bytes = buildManualMeasurementHistoryCommand(timestamp);
+    renderManualHeartHistoryTable("Aguardando resposta DE do relógio...");
+    const selectedDateTime = els.manualHistoryFromStartInput?.checked
+      ? "desde início"
+      : (els.manualHistoryDateTimeInput.value || "-");
+    await writeF008(bytes, `DE 02 histórico manual HEART timestamp=${Math.max(0, timestamp)} dataHora=${selectedDateTime} mask=0x00000002`);
+  }
+
+  async function sendHistoryCommand(values, label) {
+    if (!subscribed || !handshakeOk) {
+      await autoSubscribeAndHandshake();
+    }
+    await writeF008(values, label);
+  }
+
+
+  function uint32LE(bytes, start) {
+    return ((bytes[start] || 0) | ((bytes[start + 1] || 0) << 8) | ((bytes[start + 2] || 0) << 16) | ((bytes[start + 3] || 0) << 24)) >>> 0;
+  }
+
+  function parseSportCurrentA8(bytes) {
+    const values = Array.from(bytes);
+    return {
+      source: "A8 esporte atual fallback",
+      header: "A8",
+      note: "Parser A8 é experimental; mantendo bytes brutos e candidatos inteiros.",
+      candidates: {
+        u16: uint16LEValues(bytes.slice(1)),
+        u32_2: bytes.length >= 6 ? uint32LE(bytes, 2) : null,
+        u32_6: bytes.length >= 10 ? uint32LE(bytes, 6) : null,
+        u32_10: bytes.length >= 14 ? uint32LE(bytes, 10) : null
+      },
+      bytes: values
+    };
+  }
+
+  function parseSportCurrentD8(bytes) {
+    const steps = bytes.length >= 6 ? uint32LE(bytes, 2) : null;
+    const distanceRaw = bytes.length >= 10 ? uint32LE(bytes, 6) : null;
+    const caloriesRaw = bytes.length >= 14 ? uint32LE(bytes, 10) : null;
+    return {
+      source: "D8 Sport Model atual",
+      header: "D8",
+      steps,
+      distanceRaw,
+      caloriesRaw,
+      note: "Pelo APK, D8 usa bytes 2..5 passos, 6..9 distância e 10..13 calorias, todos little-endian. Unidade de distância/calorias ainda deve ser validada contra o app."
+    };
+  }
+
+  function parseSportModelCrcD3(bytes) {
+    const currentPkg = bytes.length >= 3 ? (bytes[1] | (bytes[2] << 8)) : null;
+    const totalPkg = bytes.length >= 5 ? (bytes[3] | (bytes[4] << 8)) : null;
+    const body = Array.from(bytes.slice(5));
+
+    // No Champion C001 observado, o D3 voltou em um único pacote:
+    // D3 01 01 C6 C7 B9 45 91 FC ...
+    // Os CRCs úteis aparecem como u16 little-endian a partir do offset 3.
+    const crc16Candidates = [];
+    for (let i = 3; i + 1 < bytes.length; i += 2) {
+      const value = bytes[i] | (bytes[i + 1] << 8);
+      if (value > 0) {
+        crc16Candidates.push({
+          block: crc16Candidates.length,
+          offset: i,
+          value,
+          hexLE: `${bytes[i].toString(16).padStart(2, "0").toUpperCase()} ${bytes[i + 1].toString(16).padStart(2, "0").toUpperCase()}`
+        });
+      }
+    }
+
+    const crc32Candidates = [];
+    for (let i = 5; i + 3 < bytes.length; i += 4) {
+      const value = uint32LE(bytes, i);
+      if (value > 0) crc32Candidates.push({ offset: i, value });
+    }
+
+    return {
+      source: "D3 Sport Model CRC",
+      header: "D3",
+      currentPkg,
+      totalPkg,
+      crc16Candidates,
+      crc32Candidates,
+      bodyHex: bytesToHex(body),
+      note: "D3 lista CRCs/blocos de treinos salvos. Para este relógio, os CRCs relevantes parecem ser u16 little-endian: C7C6, 45B9, FC91. Depois baixe D4 0, D4 1, D4 2..."
+    };
+  }
+
+  function localDateTimeFromParts(year, month, day, hour, minute, second = 0) {
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day, hour || 0, minute || 0, second || 0, 0);
+  }
+
+  function formatLocalDateTime(date) {
+    if (!date || Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString();
+  }
+
+  function parseD4WorkoutAssembly(packets) {
+    if (!packets || packets.length < 3) return null;
+
+    const ordered = packets
+      .map(item => item instanceof Uint8Array ? Array.from(item) : item)
+      .filter(item => item && item.length >= 20 && item[0] === 0xD4)
+      .sort((a, b) => {
+        const pa = a[1] | (a[2] << 8);
+        const pb = b[1] | (b[2] << 8);
+        return pa - pb;
+      });
+
+    if (ordered.length < 3) return null;
+
+    const p1 = ordered[0].slice(5);
+    const p2 = ordered[1].slice(5);
+    const p3 = ordered[2].slice(5);
+
+    const block = p1[0];
+
+    const start = localDateTimeFromParts(
+      p1[2] | (p1[3] << 8),
+      p1[4],
+      p1[5],
+      p1[6],
+      p1[7],
+      p1[8]
+    );
+
+    // O fim observado não traz segundos no payload; usar 00.
+    const stop = localDateTimeFromParts(
+      p1[9] | (p1[10] << 8),
+      p1[11],
+      p1[12],
+      p1[13],
+      p1[14],
+      0
+    );
+
+    const summary = {
+      block,
+      startTime: start ? start.toISOString() : null,
+      startTimeLocal: formatLocalDateTime(start),
+      stopTime: stop ? stop.toISOString() : null,
+      stopTimeLocal: formatLocalDateTime(stop),
+      durationSeconds: start && stop ? Math.max(0, Math.round((stop.getTime() - start.getTime()) / 1000)) : null,
+
+      // Header observado no pacote 2:
+      // payload[2..5] = passos totais
+      // payload[6..9] = distância raw total
+      // payload[10..13] = calorias raw total
+      // payload[1] e payload[14] ainda são mantidos como campos desconhecidos.
+      headerUnknown1: p2[1],
+      totalSteps: uint32LE(p2, 2),
+      totalDistanceRaw: uint32LE(p2, 6),
+      totalCaloriesRaw: uint32LE(p2, 10),
+      headerUnknown14: p2[14],
+
+      // Header observado no pacote 3:
+      headerUnknown3_1: p3[1],
+      recordCountExpected: p3[4],
+      crc: p3[9] | (p3[10] << 8),
+      crcHexLE: `${p3[9].toString(16).padStart(2, "0").toUpperCase()} ${p3[10].toString(16).padStart(2, "0").toUpperCase()}`,
+      dataTypeCandidate: p3[13],
+      sportTypeCandidate: p3[14]
+    };
+
+    const samples = ordered.slice(3).map((packet, index) => {
+      const p = packet.slice(5);
+      const packetIndex = packet[1] | (packet[2] << 8);
+      const bpm = p[1];
+      return {
+        packetIndex,
+        minuteIndex: index,
+        block: p[0],
+        bpm: bpm >= 30 && bpm <= 220 ? bpm : null,
+        rawBpm: bpm,
+
+        // Campos inferidos por soma contra o header.
+        // sum(stepCount) bate com totalSteps.
+        // sum(distanceRaw) bate com totalDistanceRaw.
+        // sum(caloriesRaw) bate com totalCaloriesRaw.
+        sportCountRaw: p[2] | (p[3] << 8),
+        stepCount: p[4] | (p[5] << 8),
+        caloriesRaw: p[6] | (p[7] << 8),
+        distanceRaw: p[8],
+        pauseRaw: p[9] | (p[10] << 8),
+        tailAscii: String.fromCharCode(...p.slice(11, 15)),
+        payloadHex: bytesToHex(p),
+        rawHex: bytesToHex(packet)
+      };
+    });
+
+    const acceptedBpmSamples = samples.filter(sample => sample.bpm !== null);
+    const aggregate = {
+      sampleCount: samples.length,
+      acceptedBpmCount: acceptedBpmSamples.length,
+      avgBpm: acceptedBpmSamples.length
+        ? Math.round(acceptedBpmSamples.reduce((sum, sample) => sum + sample.bpm, 0) / acceptedBpmSamples.length)
+        : null,
+      minBpm: acceptedBpmSamples.length ? Math.min(...acceptedBpmSamples.map(sample => sample.bpm)) : null,
+      maxBpm: acceptedBpmSamples.length ? Math.max(...acceptedBpmSamples.map(sample => sample.bpm)) : null,
+      summedSteps: samples.reduce((sum, sample) => sum + sample.stepCount, 0),
+      summedDistanceRaw: samples.reduce((sum, sample) => sum + sample.distanceRaw, 0),
+      summedCaloriesRaw: samples.reduce((sum, sample) => sum + sample.caloriesRaw, 0)
+    };
+
+    aggregate.matchesHeader = {
+      steps: aggregate.summedSteps === summary.totalSteps,
+      distanceRaw: aggregate.summedDistanceRaw === summary.totalDistanceRaw,
+      caloriesRaw: aggregate.summedCaloriesRaw === summary.totalCaloriesRaw
+    };
+
+    return {
+      source: "D4 Sport Model workout parsed",
+      parser: "champion_c001_d4_header_plus_minute_samples",
+      summary,
+      aggregate,
+      samples,
+      note: "Parser inferido dos pacotes D4: pacote 1 = datas, pacote 2 = totais, pacote 3 = contagem/CRC, pacotes 4+ = amostras por minuto. Validado por soma: steps/distanceRaw/caloriesRaw batem com o header."
+    };
+  }
+
+  function parseSportModelD4(bytes) {
+    const currentPkg = bytes.length >= 3 ? (bytes[1] | (bytes[2] << 8)) : null;
+    const totalPkg = bytes.length >= 5 ? (bytes[3] | (bytes[4] << 8)) : null;
+    const payload = Array.from(bytes.slice(5));
+    const possibleHeader = payload.slice(0, 14);
+    const bpmCandidates = [];
+    for (let i = 0; i < bytes.length; i++) {
+      const value = bytes[i];
+      if (value >= 30 && value <= 220) bpmCandidates.push({ index: i, value });
+    }
+
+    const finish = totalPkg !== null && currentPkg !== null && totalPkg > 0 && currentPkg >= totalPkg;
+    const emptyDay = currentPkg === 0 && totalPkg === 0;
+
+    session.sportModelD4Assembly.active = !finish && !emptyDay;
+    session.sportModelD4Assembly.totalPkg = totalPkg || session.sportModelD4Assembly.totalPkg;
+    session.sportModelD4Assembly.lastPkg = currentPkg || session.sportModelD4Assembly.lastPkg;
+    session.sportModelD4Assembly.packets.push(Array.from(bytes));
+
+    const parsedWorkout = finish ? parseD4WorkoutAssembly(session.sportModelD4Assembly.packets) : null;
+
+    return {
+      source: "D4 Sport Model dados",
+      header: "D4",
+      currentPkg,
+      totalPkg,
+      finish,
+      emptyDay,
+      payloadHex: bytesToHex(payload),
+      possibleHeaderHex: bytesToHex(possibleHeader),
+      bpmCandidates,
+      assemblyPackets: session.sportModelD4Assembly.packets.length,
+      workout: parsedWorkout,
+      note: parsedWorkout
+        ? `D4 finalizado e interpretado: ${parsedWorkout.summary.startTimeLocal} → ${parsedWorkout.summary.stopTimeLocal}, ${parsedWorkout.summary.totalSteps} passos, ${parsedWorkout.aggregate.acceptedBpmCount} BPM(s).`
+        : emptyDay
+          ? "D4 retornou vazio para este dia/bloco."
+          : "D4 baixa dados de treino. Aguardando pacote final para remontar cabeçalho e amostras por minuto."
+    };
+  }
+
+  function addSportModelEvent(type, parsed, bytes) {
+    const event = {
+      timestamp: Date.now(),
+      iso: nowIso(),
+      type,
+      packet: parsed.currentPkg ?? null,
+      total: parsed.totalPkg ?? null,
+      parsed,
+      hex: bytesToHex(bytes),
+      bytes: Array.from(bytes)
+    };
+    session.sportModelEvents.push(event);
+    while (session.sportModelEvents.length > 300) session.sportModelEvents.shift();
+    renderSportModelTable();
+    updateActionButtons();
+    return event;
+  }
+
+  function renderSportModelTable() {
+    const rows = session.sportModelEvents.slice().reverse().slice(0, 120);
+    if (!els.sportModelTable) return;
+    if (!rows.length) {
+      els.sportModelTable.innerHTML = `<tr><td colspan="6" class="muted">Nenhum pacote de esporte recebido.</td></tr>`;
+      if (els.sportModelStatus) els.sportModelStatus.textContent = "Aguardando pacotes de esporte.";
+      if (els.exportSportModelJsonBtn) els.exportSportModelJsonBtn.disabled = true;
+      return;
+    }
+
+    els.sportModelTable.innerHTML = rows.map(row => {
+      const p = row.parsed || {};
+      let reading = p.note || "";
+      if (row.type === "D8") reading = `steps=${p.steps ?? "-"}, distRaw=${p.distanceRaw ?? "-"}, kcalRaw=${p.caloriesRaw ?? "-"}`;
+      if (row.type === "D3") reading = `${p.crc16Candidates?.length || 0} CRC16: ${(p.crc16Candidates || []).map(item => item.value).join(", ")}`;
+      if (row.type === "D4") {
+        if (p.workout?.summary) {
+          const s = p.workout.summary;
+          const a = p.workout.aggregate;
+          reading = `treino ${s.block}: ${s.startTimeLocal} → ${s.stopTimeLocal}; steps=${s.totalSteps}; distRaw=${s.totalDistanceRaw}; kcalRaw=${s.totalCaloriesRaw}; bpm ${a.avgBpm ?? "-"} (${a.minBpm ?? "-"}-${a.maxBpm ?? "-"})`;
+        } else if (p.emptyDay) {
+          reading = "D4 vazio para este dia/bloco";
+        } else {
+          reading = `${p.assemblyPackets || 0} pacote(s) acumulado(s), ${p.bpmCandidates?.length || 0} candidatos BPM`;
+        }
+      }
+      return `
+        <tr>
+          <td><code>${row.type}</code></td>
+          <td>${row.packet ?? "-"}</td>
+          <td>${row.total ?? "-"}</td>
+          <td>${reading}</td>
+          <td><code>${escapeHtml(JSON.stringify(p).slice(0, 900))}${JSON.stringify(p).length > 900 ? "..." : ""}</code></td>
+          <td><code>${row.hex}</code></td>
+        </tr>
+      `;
+    }).join("");
+
+    if (els.sportModelStatus) {
+      const d3 = session.sportModelEvents.filter(e => e.type === "D3").length;
+      const d4 = session.sportModelEvents.filter(e => e.type === "D4").length;
+      const d8 = session.sportModelEvents.filter(e => e.type === "D8").length;
+      const a8 = session.sportModelEvents.filter(e => e.type === "A8").length;
+      els.sportModelStatus.textContent = `Sport Model: ${rows.length} evento(s) exibido(s). D3=${d3}, D4=${d4}, D8=${d8}, A8=${a8}.`;
+    }
+    if (els.exportSportModelJsonBtn) els.exportSportModelJsonBtn.disabled = false;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function clearSportModelInspector() {
+    session.sportModelEvents = [];
+    session.sportModelD4Assembly = { active: false, day: null, totalPkg: 0, lastPkg: 0, packets: [] };
+    renderSportModelTable();
+    log("Inspetor Sport Model limpo.");
+  }
+
+  function exportSportModelJson() {
+    const payload = {
+      app: "Champion C001 Sport Model Inspector",
+      exportedAt: nowIso(),
+      device: device ? { name: device.name, id: device.id } : null,
+      sportModelEvents: session.sportModelEvents,
+      d4Assembly: session.sportModelD4Assembly
+    };
+    downloadText(`champion-c001-sport-model-${Date.now()}.json`, JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function getSportModelDayInputValue() {
+    const inlineValue = els.sportModelDayInputInline?.value;
+    const topValue = els.sportModelDayInput?.value;
+    const value = inlineValue !== undefined && inlineValue !== null && inlineValue !== "" ? inlineValue : topValue;
+    return Math.max(0, Math.min(255, parseInt(value || "0", 10) || 0));
+  }
+
+  function buildSportModelDayCommand(dayOverride) {
+    const day = Math.max(0, Math.min(255, Number.isFinite(dayOverride) ? dayOverride : getSportModelDayInputValue()));
+    if (els.sportModelDayInput) els.sportModelDayInput.value = String(day);
+    if (els.sportModelDayInputInline) els.sportModelDayInputInline.value = String(day);
+    session.sportModelD4Assembly = { active: true, day, totalPkg: 0, lastPkg: 0, packets: [] };
+    log("Preparando leitura D4 Sport Model", { day, command: bytesToHex(bytesFromArray([0xD4, day, 0x00, 0x00])) });
+    return [0xD4, day, 0x00, 0x00];
+  }
+
+  function updateMetrics() {
+    els.sensorPackets.textContent = String(session.sensorPackets.length);
+    const samples = session.sensorPackets.reduce((acc, packet) => acc + packet.values.length, 0);
+    els.sampleCount.textContent = String(samples);
+
+    if (session.sensorPackets.length) {
+      const last = session.sensorPackets[session.sensorPackets.length - 1];
+      const flat = last.values;
+      const avg = flat.reduce((a, b) => a + b, 0) / Math.max(1, flat.length);
+      els.sampleSub.textContent = `última média ${avg.toFixed(0)}`;
+    } else {
+      els.sampleSub.textContent = "buffer em memória";
+    }
+
+    updateActionButtons();
+  }
+
+  function updatePacketRate() {
+    const now = Date.now();
+    const deltaSec = Math.max(0.5, (now - lastSensorTick.timestamp) / 1000);
+    const rate = lastSensorTick.packets / deltaSec;
+    els.sensorSub.textContent = `${rate.toFixed(1)} pacotes/s`;
+    lastSensorTick = { timestamp: now, packets: 0 };
+
+    renderPacketTable();
+  }
+
+  function downloadText(filename, content, type = "application/json") {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportJson() {
+    const payload = {
+      app: "Champion C001 Data Collector",
+      exportedAt: nowIso(),
+      device: device ? { name: device.name, id: device.id } : null,
+      session
+    };
+    downloadText(`champion-c001-session-${Date.now()}.json`, JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function exportCsv() {
+    const rows = ["packet_index,timestamp,t_ms,sample_index,value"];
+    session.sensorPackets.forEach((packet, packetIndex) => {
+      packet.values.forEach((value, sampleIndex) => {
+        rows.push(`${packetIndex},${packet.timestamp},${packet.t},${sampleIndex},${value}`);
+      });
+    });
+    downloadText(`champion-c001-sensor-${Date.now()}.csv`, rows.join("\n"), "text/csv");
+  }
+
+  els.connectBtn.addEventListener("click", () => connect().catch(error => log("Erro ao conectar", error.message)));
+  els.disconnectBtn.addEventListener("click", () => disconnect().catch(error => log("Erro ao desconectar", error.message)));
+  els.subscribeBtn.addEventListener("click", () => subscribeAll().catch(error => log("Erro ao ativar notificações", error.message)));
+  els.handshakeBtn.addEventListener("click", () => sendHandshake().catch(error => log("Erro no handshake", error.message)));
+
+  els.startHrBtn.addEventListener("click", () => startHeartRate().catch(error => log("Erro ao iniciar batimento", error.message)));
+  els.stopHrBtn.addEventListener("click", () => stopHeartRate(true).catch(error => log("Erro ao parar batimento", error.message)));
+  els.exportJsonBtn.addEventListener("click", exportJson);
+  els.exportCsvBtn.addEventListener("click", exportCsv);
+  els.exportD1RawCsvBtn?.addEventListener("click", exportD1RawCsv);
+  els.exportD1RawJsonBtn?.addEventListener("click", exportD1RawJson);
+
+  els.readBatteryOrConfigBtn.addEventListener("click", () => sendHistoryCommand(COMMANDS.READ_BATTERY_OR_CONFIG, "A0 00 bateria/config").catch(error => log("Erro A0", error.message)));
+  els.readSleepBtn.addEventListener("click", () => sendHistoryCommand(COMMANDS.SLEEP_TODAY, "E0 00 sono hoje").catch(error => log("Erro E0", error.message)));
+  els.readOriginalBtn.addEventListener("click", () => {
+    session.d1RawSamples = [];
+    renderD1RawSamples();
+    renderD1HalfHourBuckets();
+    sendHistoryCommand(COMMANDS.ORIGINAL_TODAY, "D1 01 00 00 histórico automático heart hoje").catch(error => log("Erro D1", error.message));
+  });
+  els.readOriginalYesterdayBtn?.addEventListener("click", () => sendHistoryCommand(COMMANDS.ORIGINAL_YESTERDAY, "D1 01 00 01 histórico automático heart ontem").catch(error => log("Erro D1 ontem", error.message)));
+  els.readOriginalBeforeYesterdayBtn?.addEventListener("click", () => sendHistoryCommand(COMMANDS.ORIGINAL_BEFORE_YESTERDAY, "D1 01 00 02 histórico automático heart anteontem").catch(error => log("Erro D1 anteontem", error.message)));
+  els.readOriginalDfBtn.addEventListener("click", () => {
+    session.originalDFPackets = [];
+    session.originalDFBlocks = [];
+    renderDfBlocks();
+    sendHistoryCommand(COMMANDS.ORIGINAL_DF_TODAY, "DF 01 00 00 original DF hoje").catch(error => log("Erro DF", error.message));
+  });
+  els.readOriginalDfYesterdayBtn?.addEventListener("click", () => {
+    session.originalDFPackets = [];
+    session.originalDFBlocks = [];
+    renderDfBlocks();
+    sendHistoryCommand(COMMANDS.ORIGINAL_DF_YESTERDAY, "DF 01 00 01 original DF ontem").catch(error => log("Erro DF ontem", error.message));
+  });
+  els.readOriginalDfBeforeYesterdayBtn?.addEventListener("click", () => {
+    session.originalDFPackets = [];
+    session.originalDFBlocks = [];
+    renderDfBlocks();
+    sendHistoryCommand(COMMANDS.ORIGINAL_DF_BEFORE_YESTERDAY, "DF 01 00 02 original DF anteontem").catch(error => log("Erro DF anteontem", error.message));
+  });
+  els.readSportBtn.addEventListener("click", () => sendHistoryCommand(COMMANDS.SPORT_CURRENT, "A8 00 esporte atual").catch(error => log("Erro A8", error.message)));
+  els.readCurrentSportModelBtn?.addEventListener("click", () => sendHistoryCommand(COMMANDS.SPORT_MODEL_CURRENT, "D8 00 esporte atual Sport Model").catch(error => log("Erro D8", error.message)));
+  els.readSportModelCrcBtn?.addEventListener("click", () => sendHistoryCommand(COMMANDS.SPORT_MODEL_CRC, "D3 01 00 00 CRC/lista de treinos Sport Model").catch(error => log("Erro D3", error.message)));
+  function sendSportModelD4(dayOverride) {
+    const day = Math.max(0, Math.min(255, Number.isFinite(dayOverride) ? dayOverride : getSportModelDayInputValue()));
+    return sendHistoryCommand(buildSportModelDayCommand(day), `D4 ${String(day).padStart(2, "0")} 00 00 dados do treino Sport Model`);
+  }
+
+  els.readSportModelDayBtn?.addEventListener("click", () => sendSportModelD4().catch(error => log("Erro D4", error.message)));
+  els.readSportModelDayInlineBtn?.addEventListener("click", () => sendSportModelD4().catch(error => log("Erro D4", error.message)));
+  els.readSportModelD4DayBtns?.forEach((btn, day) => {
+    btn?.addEventListener("click", () => sendSportModelD4(day).catch(error => log(`Erro D4 ${day}`, error.message)));
+  });
+  els.exportSportModelJsonBtn?.addEventListener("click", exportSportModelJson);
+  els.clearSportModelBtn?.addEventListener("click", clearSportModelInspector);
+  els.manualHistoryDateTimeInput.addEventListener("change", updateManualHistoryTimestampPreview);
+  els.manualHistoryDateTimeInput.addEventListener("input", updateManualHistoryTimestampPreview);
+  els.manualHistoryFromStartInput.addEventListener("change", updateManualHistoryTimestampPreview);
+  els.readManualHistoryBtn.addEventListener("click", () => readManualMeasurementHistory().catch(error => log("Erro DE 02 histórico manual", error.message)));
+
+  updateManualHistoryTimestampPreview();
+  uiTimer = setInterval(updatePacketRate, 1000);
+  renderSportModelTable();
+  setConnectedState(false);
+  setHandshakeState(false);
+  renderManualHeartHistoryTable();
+  log("Página carregada. v7.7 com handshake tolerante + D4 parser de treino + inspetor Sport Model D3/D4/D8. Handshake automático ativado por padrão. Use Chrome/Edge via localhost.");
+})();
+</script>
+</body>
+</html>

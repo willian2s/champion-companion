@@ -4,11 +4,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,11 +56,14 @@ class ChampionPacketRouter(
 
         return try {
             ChampionBleResult.Success(deferred.await())
-        } catch (_: Throwable) {
-            val failure = pendingMutex.withLock {
-                pending[awaiterId]?.failure ?: ChampionBleError.UnexpectedInternal
-            }
+        } catch (error: PacketAwaitFailedException) {
+            ChampionBleResult.Failure(error.error)
+        } catch (_: CancellationException) {
+            val failure = pendingMutex.withLock { pending[awaiterId]?.failure }
+                ?: ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP)
             ChampionBleResult.Failure(failure)
+        } catch (_: Throwable) {
+            ChampionBleResult.Failure(ChampionBleError.UnexpectedInternal)
         }
     }
 
@@ -80,7 +83,7 @@ class ChampionPacketRouter(
         awaiters.forEach { awaiter ->
             awaiter.timeoutJob.cancel()
             awaiter.failure = ChampionBleError.QueueClosed(reason)
-            awaiter.completion.cancel()
+            awaiter.completion.completeExceptionally(PacketAwaitFailedException(awaiter.failure))
         }
     }
 
@@ -103,7 +106,7 @@ class ChampionPacketRouter(
             operation = ChampionOperationType.WAIT_FOR_RESPONSE,
             after = request.timeout,
         )
-        awaiter.completion.cancel()
+        awaiter.completion.completeExceptionally(PacketAwaitFailedException(awaiter.failure))
     }
 
     private suspend fun removeAwaiter(awaiterId: Long) {
@@ -118,4 +121,8 @@ class ChampionPacketRouter(
     ) {
         var failure: ChampionBleError = ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP)
     }
+
+    private class PacketAwaitFailedException(
+        val error: ChampionBleError,
+    ) : Exception("Packet await failed: $error")
 }

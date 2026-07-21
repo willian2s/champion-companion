@@ -34,7 +34,7 @@ object ChampionResponseMatchers {
         sessionId: ChampionSessionId,
         command: ChampionCommand,
     ): ChampionResponseMatcher = command.responseMatcher?.let { matcher ->
-        byChannel(sessionId = sessionId, channel = command.channel, delegate = matcher)
+        bySession(sessionId = sessionId, delegate = matcher)
     } ?: byChannelAndCommand(
         sessionId = sessionId,
         channel = command.channel,
