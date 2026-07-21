@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21.
 
 ## Objetivo
 
@@ -94,8 +94,14 @@ PoC precisa provar sequência, duração, capabilities, limpeza e resultado de c
 
 ## Evidências Esperadas
 
-- amostra de relatório sanitizado;
-- fixtures sintéticas documentadas.
+- `DevicePocCycleReport` produz JSON versionado com ciclo, horários, duração,
+  sequência de estados, capabilities, contagens e categorias de erro;
+- relatório não inclui identificador de transporte, payload, bytes, hex,
+  stack trace, passos exatos ou BPM exato;
+- `DevicePocReportExporter` grava somente em `cacheDir/poc-reports/` após ação
+  explícita de exportação na tela debug;
+- fixtures sintéticas `A1`, `FEA1`, `D0` e `F002` documentam apenas observação e
+  contagem, sem captura de dispositivo ou dado de saúde.
 
 ## Atualização Documental
 
@@ -104,4 +110,6 @@ PoC precisa provar sequência, duração, capabilities, limpeza e resultado de c
 
 ## Validação Final
 
-- confirmar ausência de payload ou dado real de saúde commitado.
+- testes JVM de relatório cobrem campos obrigatórios, termos proibidos e
+  cobertura das quatro fixtures sintéticas;
+- nenhuma fixture ou relatório contém payload ou dado real de saúde.

@@ -56,6 +56,8 @@ enum class DevicePocHeartRateFinalSource {
 
 data class DeviceUiState(
     val cycleId: DevicePocCycleId = DevicePocCycleId.random(),
+    val cycleStartedAt: Instant = Instant.now(),
+    val pocStateHistory: List<String> = listOf(DevicePocState.Idle.reportName),
     val transportState: ChampionBleState = ChampionBleState.Disconnected,
     val pocState: DevicePocState = DevicePocState.Idle,
     val candidate: ChampionDiscoveredDevice? = null,
@@ -83,5 +85,26 @@ data class DeviceUiState(
     val finalHeartRateSource: DevicePocHeartRateFinalSource = DevicePocHeartRateFinalSource.UNAVAILABLE,
     val lastError: ChampionBleError? = null,
 )
+
+internal val DevicePocState.reportName: String
+    get() = when (this) {
+        DevicePocState.Idle -> "idle"
+        DevicePocState.PermissionsRequired -> "permissions_required"
+        DevicePocState.ReadyToScan -> "ready_to_scan"
+        DevicePocState.Scanning -> "scanning"
+        DevicePocState.DeviceFound -> "device_found"
+        DevicePocState.Connecting -> "connecting"
+        DevicePocState.TransportReady -> "transport_ready"
+        DevicePocState.Handshaking -> "handshaking"
+        DevicePocState.HandshakeConfirmed -> "handshake_confirmed"
+        DevicePocState.WaitingForSteps -> "waiting_for_steps"
+        DevicePocState.StepsObserved -> "steps_observed"
+        DevicePocState.StartingHeartRate -> "starting_heart_rate"
+        DevicePocState.MeasuringHeartRate -> "measuring_heart_rate"
+        DevicePocState.StoppingHeartRate -> "stopping_heart_rate"
+        DevicePocState.CycleCompleted -> "cycle_completed"
+        DevicePocState.Disconnecting -> "disconnecting"
+        is DevicePocState.Failed -> "failed"
+    }
 
 interface DeviceFeatureContract : UiStateStore<DeviceUiState>

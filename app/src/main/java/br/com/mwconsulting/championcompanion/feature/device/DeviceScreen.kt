@@ -284,6 +284,20 @@ private fun DeviceDebugEntrypoint() {
                 ) {
                     Text("Reiniciar ciclo")
                 }
+                OutlinedButton(
+                    onClick = {
+                        val report = DevicePocCycleReport.fromState(state, Instant.now())
+                        val exportedReport = DevicePocReportExporter.export(context, report)
+                        val shareIntent = DevicePocReportExporter.createShareIntent(exportedReport).apply {
+                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Relatório sanitizado da PoC BLE")
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartilhar relatório sanitizado"))
+                    },
+                    enabled = state.pocState == DevicePocState.CycleCompleted || state.pocState is DevicePocState.Failed,
+                ) {
+                    Text("Exportar relatório")
+                }
             }
         }
 

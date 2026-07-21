@@ -731,7 +731,13 @@ class DevicePocCoordinator @Inject constructor(
     }
 
     private fun updateState(transform: (DeviceUiState) -> DeviceUiState) {
-        mutableState.value = transform(mutableState.value)
+        val previous = mutableState.value
+        val updated = transform(previous)
+        mutableState.value = if (updated.pocState == previous.pocState) {
+            updated
+        } else {
+            updated.copy(pocStateHistory = previous.pocStateHistory + updated.pocState.reportName)
+        }
     }
 
     private fun ChampionBleState.sessionIdOrNull(): ChampionSessionId? = when (this) {
