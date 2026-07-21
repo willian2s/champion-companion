@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: adicionados qualifier `@BleDispatcher`, módulo Hilt `ChampionBleModule` e fakes estreitos para scanner, client, clock e source de pacotes. Componentes principais do núcleo BLE agora são injetáveis sem expor `BluetoothGatt` cru e testes podem isolar fluxos com doubles leves.
 
 ## Objetivo
 
@@ -90,3 +92,38 @@ Sem DI e doubles, núcleo BLE vira difícil de testar, fácil de acoplar e prope
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleModule.kt`
+- `app/src/test/java/br/com/mwconsulting/championcompanion/core/bluetooth/fakes/FakeChampionBleScanner.kt`
+- `app/src/test/java/br/com/mwconsulting/championcompanion/core/bluetooth/fakes/FakeChampionBleClient.kt`
+- `app/src/test/java/br/com/mwconsulting/championcompanion/core/bluetooth/fakes/FakeMonotonicClock.kt`
+- `app/src/test/java/br/com/mwconsulting/championcompanion/core/bluetooth/fakes/RecordedChampionPacketSource.kt`
+
+Arquivos atualizados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/common/CoroutineDispatchersModule.kt`
+
+Conclusoes:
+
+- `CoroutineDispatchersModule` agora expõe qualifier dedicado `@BleDispatcher` sem substituir `Dispatchers.IO` global existente;
+- `ChampionBleModule` liga `ChampionBleScanner`, `ChampionBleClient`, mapper Android de discovery, resolver de capabilities, `ChampionConnectionManager` e logger BLE no Hilt;
+- `ChampionConnectionManager` passa a ser injetável com `CoroutineScope` montado sobre dispatcher BLE dedicado;
+- bindings não expõem `BluetoothGatt` cru nem singletons globais livres da implementação Android;
+- `FakeChampionBleScanner` permite controlar resultado de scan, observar request e cancelamentos;
+- `FakeChampionBleClient` grava operações executadas, queues anexadas, disconnects/closes e permite emitir eventos de sessão;
+- `FakeMonotonicClock` mantém avanço manual estreito para cenários de timeout/ordenação;
+- `RecordedChampionPacketSource` fornece stream gravável de `ChampionPacket` para testes de router/streams.
+
+Limite atual documentado:
+
+- resolver de capabilities injetado por Hilt foi mantido seguro e explícito, retornando falha `OperationUnavailable` por padrão enquanto wrappers atuais ainda não expõem snapshot Android completo de services/characteristics para fio final da discovery.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*Fake*"`: falha de infraestrutura KSP do ambiente atual (`NoSuchFileException` em `build/generated/ksp/debug`), nao por erro de compilacao dos fakes;
+- nenhum singleton global livre de `BluetoothGatt` foi introduzido.

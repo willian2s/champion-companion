@@ -124,7 +124,7 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 - [x] `004-10` command/packet envelope e response routing criados
 - [x] `004-11` connection manager, state machine e cleanup criados
 - [x] `004-12` logging seguro implementado
-- [ ] `004-13` Hilt, dispatcher BLE e fakes ligados
+- [x] `004-13` Hilt, dispatcher BLE e fakes ligados
 - [ ] `004-14` testes BLE adicionados
 - [ ] `004-15` validação final concluída
 

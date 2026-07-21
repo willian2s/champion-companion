@@ -16,6 +16,10 @@ annotation class DefaultDispatcher
 @Retention(AnnotationRetention.BINARY)
 annotation class IoDispatcher
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class BleDispatcher
+
 @Module
 @InstallIn(SingletonComponent::class)
 object CoroutineDispatchersModule {
@@ -26,4 +30,8 @@ object CoroutineDispatchersModule {
     @IoDispatcher
     @Provides
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+    @BleDispatcher
+    @Provides
+    fun provideBleDispatcher(): CoroutineDispatcher = Dispatchers.IO
 }
