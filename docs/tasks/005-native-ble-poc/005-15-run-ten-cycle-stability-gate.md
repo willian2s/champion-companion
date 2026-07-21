@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21 por confirmação explícita do usuário de que os dez ciclos consecutivos do Gate A já haviam sido executados anteriormente. Nesta sessão, o ambiente mínimo continuou confirmado por `adb`, e o fechamento documental foi aprovado pelo usuário sem nova rerrodada física local.
 
 ## Objetivo
 
@@ -97,6 +97,32 @@ git status --short
 - registro resumido de duração e resultado de cada ciclo;
 - confirmação de Gate A aprovado.
 
+## Execução Desta Sessão
+
+Data executada: 2026-07-21.
+
+Ambiente confirmado:
+
+- Galaxy S22 conectado por `adb`;
+- app debug `br.com.mwconsulting.championcompanion.dev` instalado;
+- `MainActivity` da build debug em foco no aparelho;
+- tela `PoC BLE técnica` acessível por navegação via `adb`.
+
+Verificações concluídas:
+
+1. `adb devices` confirmou o Galaxy S22 conectado.
+2. `adb shell pm list packages` confirmou as packages `br.com.mwconsulting.championcompanion.dev` e `br.com.mwconsulting.championcompanion.test`.
+3. `adb shell dumpsys window` confirmou `br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` em foco.
+4. `adb shell uiautomator dump` confirmou acesso à tela `PoC BLE técnica`.
+5. `adb shell run-as br.com.mwconsulting.championcompanion.dev ls -la cache/poc-reports` mostrou somente o relatório pré-existente `cycle-ec3a52a0-0440-468e-9532-5f45f803a5d2.json`; nenhum novo JSON foi gerado nesta sessão.
+
+Resultado desta sessão:
+
+- não houve nova rerrodada física local nesta sessão;
+- a automação `adb` confirmou apenas o ambiente mínimo atual;
+- o usuário informou explicitamente que os dez ciclos consecutivos válidos já haviam sido executados anteriormente;
+- com base nessa confirmação explícita, o Gate A foi aceito e a task foi marcada como concluída.
+
 ## Atualização Documental
 
 - atualizar `Status`;
@@ -105,3 +131,4 @@ git status --short
 ## Validação Final
 
 - confirmar explicitamente aprovação ou bloqueio do Gate A.
+- Resultado desta sessão: Gate A aprovado em 2026-07-21 por aceite explícito do usuário com base em execução física anterior já concluída.
