@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: criados contrato puro `ChampionBleScanner`, wrapper seguro `AndroidScanResultView` e implementação `AndroidChampionBleScanner` com pré-requisitos antes do scan, exclusão mútua, timeout, cancelamento, deduplicação e filtro Champion. Scanner para em sucesso, timeout, cancelamento ou erro. Nenhum `ScanResult` sai da implementação Android e não existe auto-connect.
 
 ## Objetivo
 
@@ -96,3 +98,36 @@ O scan é primeiro ponto de contato com Android BLE. Precisa respeitar permissõ
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleScanner.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidChampionBleScanner.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidScanResultView.kt`
+
+Conclusoes:
+
+- `ChampionBleScanner` expoe apenas contrato puro com `scan`, `cancelScan` e estado `isScanning`;
+- `AndroidChampionBleScanner` valida permissao e prontidao via `ChampionBlePrerequisites.forScan` antes de iniciar qualquer scan;
+- scan simultaneo falha tipadamente com `ScanAlreadyInProgress`;
+- callback Android converte `ScanResult` para `AndroidScanResultView`, depois para `ChampionDiscoveredDevice` filtrado e deduplicado;
+- sucesso encerra scan no primeiro candidato Champion aceito e devolve lista deduplicada acumulada ate aquele ponto;
+- timeout encerra scan com `ChampionBleError.Timeout(ChampionOperationType.SCAN, ...)`;
+- cancelamento encerra scan com `OperationCancelled`;
+- cleanup de `stopScan` e estado ativo ficou idempotente e sempre limpa `isScanning`.
+
+Limites mantidos:
+
+- sem conexao GATT implicita;
+- sem handshake;
+- sem vazamento de `ScanResult` ou `BluetoothLeScanner` para contratos publicos.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*BleScanner*"`: falha por ausencia de testes com esse filtro nesta fase;
+- busca por `ScanResult`/`BluetoothLeScanner` em `core/bluetooth`: ocorrencias somente em `core/bluetooth/android/**`.
+
+Spec: nenhum ajuste factual necessario.
