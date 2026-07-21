@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: implementados contrato puro `ChampionBleClient`, `ChampionGattCallbackBridge`, fachada Android mínima de GATT e `AndroidChampionBleClient`. Callbacks Android agora viram eventos internos puros com `sessionId`, detalhes sanitizados e bytes copiados defensivamente. Tipos Android BLE ficaram confinados ao subpackage `core/bluetooth/android`.
 
 ## Objetivo
 
@@ -93,3 +95,34 @@ Somente implementação BLE concreta pode tocar `BluetoothGatt` e `BluetoothGatt
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBleClient.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionGattCallbackBridge.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidChampionBleClient.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidGattFacade.kt`
+
+Conclusoes:
+
+- `ChampionBleClient` passou a expor somente contrato puro: abrir sessao, anexar fila, executar operacao, disconnect, close e stream de eventos internos;
+- `ChampionGattCallbackBridge` converte callbacks em `ChampionGattSessionEvent` com `sessionId`, `Instant`, `SafeGattDetail`, mapeamento de canal por UUID e copia defensiva de bytes;
+- `AndroidGattFacade` encapsula `BluetoothGatt`, `BluetoothGattCallback`, `BluetoothGattCharacteristic`, `BluetoothGattDescriptor` e `BluetoothManager` em API estreita e simulavel;
+- `AndroidChampionBleClient` integra callback bridge com sessao ativa, ignora stale callbacks por `sessionId`, emite eventos puros e resolve fila associada para connect, discovery, read, write, descriptor, mtu e disconnect;
+- `close()` ficou controlado no client concreto, nunca exposto como `BluetoothGatt.close()` publico.
+
+Limites mantidos:
+
+- nenhum tipo Android BLE saiu dos arquivos em `core/bluetooth/android`;
+- callbacks antigos de sessao fechada ou substituida sao descartados silenciosamente;
+- discovery completo, capability registry final e multiplexacao de subscriptions continuam fora desta task.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- busca por `import android.` em `core/bluetooth`: ocorrencias somente em `core/bluetooth/android/**` e wrapper Android existente;
+- `./gradlew app:testDebugUnitTest --tests "*CallbackBridge*"`: nao usada como evidencia final por instabilidade do compilador incremental/KSP no ambiente atual; cobertura especifica segue para fase de testes `004-14`.
+
+Spec: nenhum ajuste factual necessario.
