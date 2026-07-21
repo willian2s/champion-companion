@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionSessionId
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 class FakeChampionBleClient : ChampionBleClient {
@@ -23,6 +24,7 @@ class FakeChampionBleClient : ChampionBleClient {
     val attachedQueues = mutableMapOf<ChampionSessionId, ChampionGattQueue>()
     val disconnects = mutableListOf<Pair<ChampionSessionId, ChampionDisconnectReason>>()
     val closes = mutableListOf<ChampionSessionId>()
+    val eventSubscriptionCount: StateFlow<Int> = mutableEvents.subscriptionCount
 
     override val events: Flow<ChampionGattSessionEvent> = mutableEvents.asSharedFlow()
 
