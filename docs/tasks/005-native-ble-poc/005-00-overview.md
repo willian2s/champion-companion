@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `005-01` e `005-02` concluídas em 2026-07-21. Core BLE agora tem resolver concreto de capabilities, snapshot produtivo de discovery no client Android, bindings Hilt faltantes para environment/facade e dispatch reutilizável de `ChampionCommand` sobre fila + router, preservando `TransportReady` como transporte puro. Validação de produção passou em `app:compileDebugKotlin`. Suite de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-03`.
+Em andamento. `005-01`, `005-02` e `005-03` concluídas em 2026-07-21. Core BLE já fechou resolver concreto de capabilities, snapshot produtivo de discovery e dispatch reutilizável de `ChampionCommand`. Manifesto agora declara permissões BLE por SDK e `android.hardware.bluetooth_le`, e `feature/device` já expõe entrypoint técnico debug com Activity Result API e estado seguro de permissões/pré-requisitos. `app:compileDebugKotlin` e `app:lintDebug` passaram. Suite ampla de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-04` ou `005-05`, respeitando dependências.
 
 ## Objetivo
 
@@ -150,7 +150,7 @@ Encerrar somente após dez ciclos completos e consecutivos no Galaxy S22 com Cha
 
 - [x] `005-01` contratos Fase 04 e lacunas físicas auditados
 - [x] `005-02` gaps mínimos de `TransportReady` físico fechados
-- [ ] `005-03` permissões e entrypoint técnico preparados
+- [x] `005-03` permissões e entrypoint técnico preparados
 - [ ] `005-04` coordenador e state machine da PoC criados
 - [ ] `005-05` handshake A1 implementado e testado
 - [ ] `005-06` passos FEA1 implementados e testados

@@ -2,7 +2,9 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-21.
+
+Resumo: `AndroidManifest.xml` agora declara somente permissões BLE exigidas pela spec, com `BLUETOOTH_SCAN` marcado como `neverForLocation`, permissões legadas limitadas a `maxSdkVersion="30"` e `android.hardware.bluetooth_le` como obrigatório. `feature/device/DeviceScreen.kt` deixou de ser placeholder puro e passou a funcionar como entrypoint técnico debug da PoC: exibe estado de ambiente BLE, permissões observadas, bloqueios atuais do core e botão explícito para solicitar permissões runtime via Activity Result API. Release continua sem expor fluxo técnico. Validações `app:compileDebugKotlin` e `app:lintDebug` passaram.
 
 ## Objetivo
 
@@ -111,3 +113,79 @@ PoC física depende de permissões corretas por SDK e de uma superfície de entr
 ## Validação Final
 
 - confirmar que nenhuma permissão fora do escopo foi adicionada.
+
+## Implementação Executada
+
+### Manifesto
+
+Foram adicionados:
+
+- `android.hardware.bluetooth_le` com `required="true"`;
+- `android.permission.BLUETOOTH` com `android:maxSdkVersion="30"`;
+- `android.permission.BLUETOOTH_ADMIN` com `android:maxSdkVersion="30"`;
+- `android.permission.ACCESS_FINE_LOCATION` com `android:maxSdkVersion="30"`;
+- `android.permission.BLUETOOTH_SCAN` com `android:usesPermissionFlags="neverForLocation"`;
+- `android.permission.BLUETOOTH_CONNECT`.
+
+Não foram adicionados:
+
+- `BLUETOOTH_ADVERTISE`;
+- `ACCESS_BACKGROUND_LOCATION`;
+- permissões de foreground service;
+- localização no Android 12+.
+
+### Entrypoint técnico debug
+
+`feature/device/DeviceScreen.kt` agora:
+
+- mantém placeholder seguro em builds não-debug;
+- expõe superfície técnica apenas em build depurável;
+- mostra se BLE é suportado, se Bluetooth está habilitado e se scan/conexão estão prontos segundo `ChampionBlePrerequisites`;
+- mostra permissões observadas por SDK;
+- mostra bloqueios atuais de scan e conexão sem tratá-los como erro interno;
+- solicita permissões runtime somente por ação explícita do usuário;
+- não inicia scan automaticamente;
+- não tenta conectar automaticamente;
+- registra refresh de estado ao retomar app, permitindo retry após ida a Settings.
+
+### Runtime permission request
+
+- usa `rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions())`;
+- Android 12+: solicita apenas `BLUETOOTH_SCAN` e `BLUETOOTH_CONNECT` quando ausentes;
+- Android 11 e inferiores: solicita apenas `ACCESS_FINE_LOCATION` quando ausente;
+- permissões legadas `BLUETOOTH` e `BLUETOOTH_ADMIN` são apenas declaradas, não solicitadas em runtime;
+- negação não é convertida em erro fatal nem dispara loop.
+
+## Critérios De Aceite Atendidos
+
+- manifesto declara somente permissões necessárias;
+- `BLUETOOTH_SCAN` usa `neverForLocation`;
+- runtime permission request é iniciado pelo usuário;
+- tela mostra permissões ausentes e bloqueios de forma segura;
+- entrypoint técnico não virou fluxo final de produto.
+
+## Validação Executada
+
+Comandos executados:
+
+```bash
+./gradlew app:compileDebugKotlin
+./gradlew app:lintDebug
+```
+
+Resultados:
+
+- `app:compileDebugKotlin`: `BUILD SUCCESSFUL`;
+- `app:lintDebug`: `BUILD SUCCESSFUL` e relatório gerado em `app/build/reports/lint-results-debug.html`.
+
+Observações:
+
+- `connectedDebugAndroidTest` não foi executado nesta task;
+- compilação emitiu warning de depreciação para `LocalLifecycleOwner` importado do pacote antigo, sem bloquear build.
+
+## Evidência Final
+
+- permissões BLE por SDK ficaram declaradas conforme spec;
+- entrypoint técnico debug existe em `feature/device`;
+- nenhuma permissão fora do escopo foi adicionada;
+- nenhuma lógica de A1, FEA1 ou D0/F002 foi introduzida nesta task.
