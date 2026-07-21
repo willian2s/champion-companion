@@ -48,12 +48,12 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionMa
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDisconnectReason
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionRuntimePermission
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionStoredDiscoveryCapabilityResolver
+import br.com.mwconsulting.championcompanion.core.bluetooth.toSafeMessage
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidChampionBleClient
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidChampionBleScanner
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidGattDiscoveryMapper
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.DefaultAndroidBleEnvironment
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.DefaultAndroidGattFacade
-import br.com.mwconsulting.championcompanion.core.bluetooth.toSafeMessage
 import java.time.Duration
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -230,7 +230,7 @@ private fun DeviceDebugEntrypoint() {
                 Button(
                     onClick = {
                         val candidate = state.candidate ?: return@Button
-                        scope.launch { coordinator.connect(candidate) }
+                        scope.launch { coordinator.connectAndBootstrap(candidate) }
                     },
                     enabled = connectReadiness.isReady && state.candidate != null && state.canConnect(),
                 ) {
@@ -338,6 +338,8 @@ private fun DeviceDebugEntrypoint() {
             PermissionStatusRow("Sessão ativa", if (state.activeSessionId != null) "Sim" else "Não")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             PermissionStatusRow("Handshake confirmado", if (state.pocState !is DevicePocState.Failed && state.pocState.isHandshakeConfirmedOrLater()) "Sim" else "Não")
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            PermissionStatusRow("Modo do handshake", state.handshakeOutcome().label())
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             PermissionStatusRow("Passos observados", if (state.hasObservedSteps) "Sim" else "Não")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -608,6 +610,12 @@ private fun DevicePocHeartRateFinalSource.label(): String = when (this) {
     DevicePocHeartRateFinalSource.UNAVAILABLE -> "Indisponível"
 }
 
+private fun DevicePocHandshakeOutcome.label(): String = when (this) {
+    DevicePocHandshakeOutcome.UNCONFIRMED -> "Não confirmado"
+    DevicePocHandshakeOutcome.CONFIRMED -> "Confirmado por ACK"
+    DevicePocHandshakeOutcome.ASSUMED -> "Assumido sem ACK"
+}
+
 private fun capabilityState(isAvailable: Boolean, isMissing: Boolean): String = when {
     isAvailable -> "Disponível"
     isMissing -> "Ausente para esta etapa"
@@ -622,12 +630,8 @@ private fun ChampionBleState.capabilitiesOrNull(): ChampionCapabilitySnapshot? =
     else -> null
 }
 
-private fun DevicePocState.isHandshakeConfirmedOrLater(): Boolean = this in setOf(
-    DevicePocState.HandshakeConfirmed,
-    DevicePocState.WaitingForSteps,
-    DevicePocState.StepsObserved,
-    DevicePocState.StartingHeartRate,
-    DevicePocState.MeasuringHeartRate,
-    DevicePocState.StoppingHeartRate,
-    DevicePocState.CycleCompleted,
-)
+private fun DeviceUiState.handshakeOutcome(): DevicePocHandshakeOutcome = when {
+    pocState.isHandshakeConfirmedOrLater() && isHandshakeAssumed -> DevicePocHandshakeOutcome.ASSUMED
+    pocState.isHandshakeConfirmedOrLater() -> DevicePocHandshakeOutcome.CONFIRMED
+    else -> DevicePocHandshakeOutcome.UNCONFIRMED
+}

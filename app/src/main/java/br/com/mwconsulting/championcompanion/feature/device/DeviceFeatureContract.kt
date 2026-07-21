@@ -62,6 +62,7 @@ data class DeviceUiState(
     val pocState: DevicePocState = DevicePocState.Idle,
     val candidate: ChampionDiscoveredDevice? = null,
     val activeSessionId: ChampionSessionId? = null,
+    val isHandshakeAssumed: Boolean = false,
     val isStepsCapabilityAvailable: Boolean = false,
     val isStepsCapabilityMissing: Boolean = false,
     val isHeartRateCapabilityAvailable: Boolean = false,
@@ -86,6 +87,12 @@ data class DeviceUiState(
     val lastError: ChampionBleError? = null,
 )
 
+enum class DevicePocHandshakeOutcome {
+    UNCONFIRMED,
+    CONFIRMED,
+    ASSUMED,
+}
+
 internal val DevicePocState.reportName: String
     get() = when (this) {
         DevicePocState.Idle -> "idle"
@@ -106,5 +113,15 @@ internal val DevicePocState.reportName: String
         DevicePocState.Disconnecting -> "disconnecting"
         is DevicePocState.Failed -> "failed"
     }
+
+internal fun DevicePocState.isHandshakeConfirmedOrLater(): Boolean = this in setOf(
+    DevicePocState.HandshakeConfirmed,
+    DevicePocState.WaitingForSteps,
+    DevicePocState.StepsObserved,
+    DevicePocState.StartingHeartRate,
+    DevicePocState.MeasuringHeartRate,
+    DevicePocState.StoppingHeartRate,
+    DevicePocState.CycleCompleted,
+)
 
 interface DeviceFeatureContract : UiStateStore<DeviceUiState>

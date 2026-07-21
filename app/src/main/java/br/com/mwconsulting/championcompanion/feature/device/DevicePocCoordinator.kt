@@ -23,7 +23,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +30,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
 import kotlin.coroutines.coroutineContext
 
@@ -134,9 +132,24 @@ class DevicePocCoordinator @Inject constructor(
         }
     }
 
+    suspend fun connectAndBootstrap(device: ChampionDiscoveredDevice): ChampionBleResult<ChampionTransportSession> {
+        val result = connect(device)
+        val transport = (result as? ChampionBleResult.Success)?.value ?: return result
+        scope.launch {
+            state.first { current ->
+                current.activeSessionId == transport.session.id && current.pocState == DevicePocState.TransportReady
+            }
+            if (state.value.activeSessionId == transport.session.id && state.value.pocState == DevicePocState.TransportReady) {
+                executeHandshake()
+            }
+        }
+        return result
+    }
+
     suspend fun disconnect(
         reason: ChampionDisconnectReason = ChampionDisconnectReason.USER_REQUESTED,
     ): ChampionBleResult<Unit> {
+        cancelCycleObservationJobs()
         updateState {
             it.copy(
                 pocState = DevicePocState.Disconnecting,
@@ -154,8 +167,10 @@ class DevicePocCoordinator @Inject constructor(
 
     suspend fun resetCycle(): ChampionBleResult<Unit> {
         val nextCycleId = DevicePocCycleId.random()
+        cancelCycleObservationJobs()
+        val result = connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
         mutableState.value = DeviceUiState(cycleId = nextCycleId)
-        return connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
+        return result
     }
 
     suspend fun currentTransportSession(): ChampionTransportSession? = connectionManager.currentSession()
@@ -251,6 +266,8 @@ class DevicePocCoordinator @Inject constructor(
                 }
             } catch (_: CancellationException) {
                 Unit
+            } catch (error: RuntimeException) {
+                if (!error.isExpectedObserverShutdown()) throw error
             }
         }
         f002ObservationJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -293,6 +310,8 @@ class DevicePocCoordinator @Inject constructor(
                 }
             } catch (_: CancellationException) {
                 Unit
+            } catch (error: RuntimeException) {
+                if (!error.isExpectedObserverShutdown()) throw error
             }
         }
 
@@ -428,6 +447,8 @@ class DevicePocCoordinator @Inject constructor(
                 }
             } catch (_: CancellationException) {
                 Unit
+            } catch (error: RuntimeException) {
+                if (!error.isExpectedObserverShutdown()) throw error
             }
         }
         return ChampionBleResult.Success(Unit)
@@ -458,7 +479,6 @@ class DevicePocCoordinator @Inject constructor(
         observeHandshakeConfirmation(
             sessionId = sessionId,
             packets = (handshakeSubscription as ChampionBleResult.Success).value,
-            timeout = timeout,
         )
         delay(DevicePocHandshakeA1.initialDelay)
         var attempt = 1
@@ -481,7 +501,25 @@ class DevicePocCoordinator @Inject constructor(
         }
 
         return when (result) {
-            is ChampionBleResult.Success -> ChampionBleResult.Success(Unit)
+            is ChampionBleResult.Success -> {
+                delay(DevicePocHandshakeA1.assumedSuccessDelay)
+                val settled = state.value
+                when {
+                    settled.activeSessionId != sessionId ->
+                        ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
+
+                    settled.pocState == DevicePocState.Handshaking -> {
+                        handshakeObservationJob?.cancel()
+                        handshakeObservationJob = null
+                        moveToHandshakeConfirmed(sessionId, assumed = true)
+                        ChampionBleResult.Success(Unit)
+                    }
+
+                    settled.pocState.isHandshakeConfirmedOrLater() -> ChampionBleResult.Success(Unit)
+
+                    else -> ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
+                }
+            }
 
             is ChampionBleResult.Failure -> {
                 handshakeObservationJob?.cancel()
@@ -495,30 +533,21 @@ class DevicePocCoordinator @Inject constructor(
     private fun observeHandshakeConfirmation(
         sessionId: ChampionSessionId,
         packets: Flow<ChampionPacket>,
-        timeout: Duration,
     ) {
         handshakeObservationJob?.cancel()
         handshakeObservationJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             val currentJob = coroutineContext[Job]
             try {
-                withTimeout(timeout) {
-                    packets.first { packet ->
-                        state.value.activeSessionId == sessionId && DevicePocHandshakeA1.isConfirmationPacket(packet)
-                    }
+                packets.first { packet ->
+                    state.value.activeSessionId == sessionId && DevicePocHandshakeA1.isConfirmationPacket(packet)
                 }
                 if (state.value.activeSessionId == sessionId) {
-                    moveToHandshakeConfirmed(sessionId)
+                    moveToHandshakeConfirmed(sessionId, assumed = false)
                 }
             } catch (_: CancellationException) {
                 Unit
-            } catch (_: TimeoutCancellationException) {
-                val current = state.value
-                if (current.activeSessionId == sessionId && current.pocState == DevicePocState.Handshaking) {
-                    transitionToFailure(
-                        sessionId,
-                        ChampionBleError.Timeout(ChampionOperationType.WAIT_FOR_RESPONSE, timeout),
-                    )
-                }
+            } catch (error: RuntimeException) {
+                if (!error.isExpectedObserverShutdown()) throw error
             } finally {
                 if (handshakeObservationJob === currentJob) {
                     handshakeObservationJob = null
@@ -574,6 +603,7 @@ class DevicePocCoordinator @Inject constructor(
                     it.copy(
                         transportState = transportState,
                         pocState = DevicePocState.TransportReady,
+                        isHandshakeAssumed = false,
                         isStepsCapabilityAvailable = transportState.capabilities.hasChannel(ChampionChannelAlias.FEA1_NOTIFY),
                         isHeartRateCapabilityAvailable = transportState.capabilities.hasChannel(ChampionChannelAlias.F002_NOTIFY),
                         isStepsCapabilityMissing = false,
@@ -607,9 +637,19 @@ class DevicePocCoordinator @Inject constructor(
         nextState = DevicePocState.Handshaking,
     )
 
-    internal fun moveToHandshakeConfirmed(sessionId: ChampionSessionId): Boolean = moveProtocolState(
+    internal fun moveToHandshakeConfirmed(
+        sessionId: ChampionSessionId,
+        assumed: Boolean = false,
+    ): Boolean = moveProtocolState(
         sessionId = sessionId,
         nextState = DevicePocState.HandshakeConfirmed,
+        update = {
+            it.copy(
+                pocState = DevicePocState.HandshakeConfirmed,
+                isHandshakeAssumed = assumed,
+                lastError = null,
+            )
+        },
     )
 
     internal fun moveToWaitingForSteps(sessionId: ChampionSessionId): Boolean = moveProtocolState(
@@ -625,30 +665,28 @@ class DevicePocCoordinator @Inject constructor(
     private fun moveProtocolState(
         sessionId: ChampionSessionId,
         nextState: DevicePocState,
-    ): Boolean {
-        val current = state.value
-        if (current.activeSessionId != sessionId) return false
-        updateState {
+        update: (DeviceUiState) -> DeviceUiState = {
             it.copy(
                 pocState = nextState,
                 lastError = null,
             )
-        }
+        },
+    ): Boolean {
+        val current = state.value
+        if (current.activeSessionId != sessionId) return false
+        updateState(update)
         return true
     }
 
     private fun clearCycleState(nextState: DevicePocState) {
-        handshakeObservationJob?.cancel()
-        handshakeObservationJob = null
-        stepsObservationJob?.cancel()
-        stepsObservationJob = null
-        clearHeartRateRuntimeState()
+        cancelCycleObservationJobs()
         updateState {
             it.copy(
                 transportState = ChampionBleState.Disconnected,
                 pocState = nextState,
                 candidate = null,
                 activeSessionId = null,
+                isHandshakeAssumed = false,
                 isStepsCapabilityAvailable = false,
                 isStepsCapabilityMissing = false,
                 isHeartRateCapabilityAvailable = false,
@@ -679,11 +717,7 @@ class DevicePocCoordinator @Inject constructor(
         sessionId: ChampionSessionId?,
         error: ChampionBleError,
     ) {
-        handshakeObservationJob?.cancel()
-        handshakeObservationJob = null
-        stepsObservationJob?.cancel()
-        stepsObservationJob = null
-        clearHeartRateRuntimeState()
+        cancelCycleObservationJobs()
         updateState {
             it.copy(
                 transportState = ChampionBleState.Failed(
@@ -701,11 +735,7 @@ class DevicePocCoordinator @Inject constructor(
         error: ChampionBleError,
     ) {
         if (state.value.activeSessionId != sessionId) return
-        handshakeObservationJob?.cancel()
-        handshakeObservationJob = null
-        stepsObservationJob?.cancel()
-        stepsObservationJob = null
-        clearHeartRateRuntimeState()
+        cancelCycleObservationJobs()
         updateState {
             if (it.activeSessionId != sessionId) {
                 it
@@ -762,6 +792,17 @@ class DevicePocCoordinator @Inject constructor(
         f002ObservationJob = null
         f002Buffer.clear()
     }
+
+    private fun cancelCycleObservationJobs() {
+        handshakeObservationJob?.cancel()
+        handshakeObservationJob = null
+        stepsObservationJob?.cancel()
+        stepsObservationJob = null
+        clearHeartRateRuntimeState()
+    }
+
+    private fun Throwable.isExpectedObserverShutdown(): Boolean =
+        message?.startsWith("notification_hub_closed:") == true
 
     private fun inspectF002(
         samples: List<Int>,

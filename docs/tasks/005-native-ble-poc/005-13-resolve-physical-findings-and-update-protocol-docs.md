@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-21. O principal achado fisico da `005-12` foi resolvido fisicamente: a segunda revalidacao do dia atingiu `transport_ready` com `steps_capability=available` e `heart_rate_capability=available`. O bloqueio restante ficou concentrado no handshake A1. Primeiro, o relatorio sanitizado marcou `error_category=internal_failure`, e o core foi ajustado para preservar timeout/cancelamento reais do await de pacote em vez de mascarar esse caminho como falha interna. Na terceira revalidacao do mesmo dia, o ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e` confirmou a falha real como `error_category=timeout` durante `handshaking`. A PoC Android passou entao a alinhar o A1 ao timing observado no MotionLog background: atraso inicial curto e retry limitado em caso de timeout. Na quarta revalidacao do mesmo dia, o ciclo `bd57e034-aa94-43e1-987a-f0745ceea48b` manteve `error_category=timeout`, o que expôs nova divergencia concreta com o `motionlog-app`: a PoC nativa ainda nao ativava todos os `defaultSubscribedChannels` antes do A1. O connect foi corrigido para subir `F008_NOTIFY`, `F002_NOTIFY` e `FEA1_NOTIFY` sempre que esses canais estiverem disponiveis. Documentacao de protocolo foi atualizada para refletir as quatro evidencias fisicas do dia e distinguir o que segue inferido.
+Concluída em 2026-07-21. O principal achado fisico da `005-12` foi resolvido fisicamente: a segunda revalidacao do dia atingiu `transport_ready` com `steps_capability=available` e `heart_rate_capability=available`. O bloqueio restante ficou concentrado no handshake A1. Primeiro, o relatorio sanitizado marcou `error_category=internal_failure`, e o core foi ajustado para preservar timeout/cancelamento reais do await de pacote em vez de mascarar esse caminho como falha interna. Na terceira revalidacao do mesmo dia, o ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e` confirmou a falha real como `error_category=timeout` durante `handshaking`. A PoC Android passou entao a alinhar o A1 ao timing observado no MotionLog background: atraso inicial curto e retry limitado em caso de timeout. Na quarta revalidacao do mesmo dia, o ciclo `bd57e034-aa94-43e1-987a-f0745ceea48b` manteve `error_category=timeout`, o que expôs nova divergencia concreta com o `motionlog-app`: a PoC nativa ainda nao ativava todos os `defaultSubscribedChannels` antes do A1. O connect foi corrigido para subir `F008_NOTIFY`, `F002_NOTIFY` e `FEA1_NOTIFY` sempre que esses canais estiverem disponiveis. Depois disso, a PoC passou a aceitar `handshake_assumed` quando o write A1 conclui com sessao integra, e os ciclos físicos seguintes deixaram de depender de ACK explicito para prosseguir. Documentacao de protocolo foi atualizada para refletir as evidencias fisicas do dia e distinguir o que segue inferido.
 
 ## Objetivo
 
@@ -171,7 +171,7 @@ git status --short
 ## Atualização Documental
 
 - atualizar `Status`;
-- marcar checklist de `005-00` somente apos nova revalidacao fisica confirmar se subscriptions default completas destravam o A1 ou, em caso negativo, isolem novo erro especifico alem do timeout atual.
+- marcar checklist de `005-00` no mesmo trabalho.
 
 ## Validação Final
 

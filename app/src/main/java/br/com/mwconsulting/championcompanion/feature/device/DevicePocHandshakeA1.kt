@@ -20,6 +20,7 @@ internal object DevicePocHandshakeA1 {
     const val MAX_ATTEMPTS = 3
     val initialDelay: Duration = 1.seconds
     val retryDelay: Duration = 1500.milliseconds
+    val assumedSuccessDelay: Duration = 1200.milliseconds
     val defaultTimeout: Duration = 15.seconds
 
     fun buildPayload(

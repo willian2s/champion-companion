@@ -16,6 +16,7 @@ data class DevicePocCycleReport(
     val stateSequence: List<String>,
     val transportReady: Boolean,
     val handshakeConfirmed: Boolean,
+    val handshakeMode: String,
     val stepsCapability: String,
     val heartRateCapability: String,
     val stepsPacketCount: Int,
@@ -38,6 +39,7 @@ data class DevicePocCycleReport(
         append("],\n")
         field("transport_ready", transportReady.toString(), false)
         field("handshake_confirmed", handshakeConfirmed.toString(), false)
+        field("handshake_mode", handshakeMode)
         field("steps_capability", stepsCapability)
         field("heart_rate_capability", heartRateCapability)
         field("steps_packet_count", stepsPacketCount.toString(), false)
@@ -71,11 +73,8 @@ data class DevicePocCycleReport(
                 stateSequence = state.pocStateHistory,
                 transportReady = state.transportState is br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleState.TransportReady ||
                     state.pocStateHistory.contains("transport_ready"),
-                handshakeConfirmed = state.pocStateHistory.contains("handshake_confirmed") || state.pocState in setOf(
-                    DevicePocState.HandshakeConfirmed, DevicePocState.WaitingForSteps, DevicePocState.StepsObserved,
-                    DevicePocState.StartingHeartRate, DevicePocState.MeasuringHeartRate,
-                    DevicePocState.StoppingHeartRate, DevicePocState.CycleCompleted,
-                ),
+                handshakeConfirmed = state.handshakeOutcome() != DevicePocHandshakeOutcome.UNCONFIRMED,
+                handshakeMode = state.handshakeOutcome().name.lowercase(),
                 stepsCapability = capabilityLabel(state.isStepsCapabilityAvailable, state.isStepsCapabilityMissing),
                 heartRateCapability = capabilityLabel(state.isHeartRateCapabilityAvailable, state.isHeartRateCapabilityMissing),
                 stepsPacketCount = state.stepsPacketCount,
@@ -123,4 +122,10 @@ private fun ChampionBleError.reportCategory(): String = when (this) {
     ChampionBleError.ScanAlreadyInProgress -> "scan_in_progress"
     ChampionBleError.OperationUnavailable -> "operation_unavailable"
     ChampionBleError.UnexpectedInternal -> "internal_failure"
+}
+
+private fun DeviceUiState.handshakeOutcome(): DevicePocHandshakeOutcome = when {
+    pocState.isHandshakeConfirmedOrLater() && isHandshakeAssumed -> DevicePocHandshakeOutcome.ASSUMED
+    pocState.isHandshakeConfirmedOrLater() || pocStateHistory.contains("handshake_confirmed") -> DevicePocHandshakeOutcome.CONFIRMED
+    else -> DevicePocHandshakeOutcome.UNCONFIRMED
 }

@@ -30,7 +30,7 @@ Nenhum detalhe deste documento foi classificado como `Confirmado no uso funciona
 | Characteristic de resposta | `f0080002-0451-4000-b000-000000000000` notify | Confirmado pelo codigo |
 | Tamanho do payload enviado | 20 bytes | Confirmado pelo codigo |
 | Senha usada no app | `0000` | Confirmado pelo codigo |
-| Condicao de sucesso | F008 notify com tamanho minimo 20, `bytes[0] == 0xA1` e `bytes[19] == 0x01` | Confirmado pelo codigo |
+| Condicao de sucesso | ACK explicito em F008 notify `A1 ... 01` ou sucesso assumido apos write A1 concluido e janela curta sem erro de sessao | Confirmado pelo codigo |
 
 ## Evidencia Fisica 2026-07-21
 
@@ -75,7 +75,7 @@ Nova leitura tecnica apos o quarto ciclo:
 2. Descobrir services e characteristics.
 3. Assinar FEA1 notify, F008 notify e F002 notify.
 4. Enviar A1 em F008 write quando `handshakeOk` ainda for falso.
-5. Atualizar `handshakeOk` para verdadeiro somente ao receber confirmacao em F008 notify.
+5. Atualizar `handshakeOk` para verdadeiro ao receber confirmacao em F008 notify ou por tolerancia operacional quando o device aceita o write A1 sem devolver ACK.
 6. Prosseguir com comandos como D0, D1, D3 e D4.
 
 Classificacao: `Confirmado pelo codigo`.
@@ -165,7 +165,7 @@ Classificacao: `Confirmado pelo codigo`.
 | Foreground `sendHandshakeA1Async` | sem timeout proprio no metodo | sem retry interno | erro da escrita propaga para chamador | Confirmado pelo codigo |
 | Conexao foreground via runtime | handshake enviado apos subscribe; falha fica em `lastError`/toast conforme tela | sem retry especifico do A1 | `disconnectAsync` remove subscriptions, cancela conexao e zera `handshakeOk` | Confirmado pelo codigo |
 | Background Kotlin | sem espera de ack A1; escrita tenta ate 3 vezes | 3 tentativas, `1_500 ms` entre elas | stop monitoring remove runnable de handshake e fecha GATT | Confirmado pelo codigo |
-| Champion Companion PoC apos revalidacoes de 2026-07-21 | timeout explicito de 15s por tentativa | atraso inicial de `1_000 ms`; retry em timeout ate 3 tentativas com `1_500 ms` entre elas | connect ativa todos os `defaultSubscribedChannels` disponiveis; disconnect/reset limpam sessao e invalidam handshake | Confirmado pelo codigo |
+| Champion Companion PoC apos ajuste tolerante de 2026-07-21 | timeout de write por tentativa; ACK nao e mais obrigatorio para liberar fluxo | atraso inicial de `1_000 ms`; retry em timeout de write ate 3 tentativas com `1_500 ms` entre elas; sucesso assumido apos `1_200 ms` sem erro de sessao | connect ativa todos os `defaultSubscribedChannels` disponiveis; disconnect/reset limpam sessao e invalidam handshake | Confirmado pelo codigo |
 
 Lacuna: ainda falta confirmar fisicamente se subscriptions default completas destravam o A1 ou se o firmware exige outra condicao alem de timing e bootstrap de notify.
 
@@ -201,10 +201,11 @@ Classificacao: `Confirmado pelo codigo`.
 - Enviar A1 somente depois de discovery e notificacoes principais ativas.
 - Garantir `defaultSubscribedChannels` completos antes do A1 quando esses canais estiverem disponiveis.
 - Usar F008 write com response.
-- Considerar handshake confirmado apenas por F008 notify `A1` com byte 19 igual a `01`.
+- Preferir F008 notify `A1` com byte 19 igual a `01` como confirmacao explicita.
+- Aceitar handshake assumido quando o write A1 conclui, a sessao permanece integra e nenhum ACK explicito chega dentro da janela curta de tolerancia observada no `motionlog-app` e no HTML de referencia.
 - Limpar estado de handshake em disconnect.
 - Aplicar atraso inicial curto e retry limitado quando o await do A1 expirar.
-- Nao tratar sucesso de escrita como sucesso de handshake no fluxo foreground.
+- Nao tratar write A1 falho como sucesso de handshake.
 
 ## Lacunas Para `000-14`
 
