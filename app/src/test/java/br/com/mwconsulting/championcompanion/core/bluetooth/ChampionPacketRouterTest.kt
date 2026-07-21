@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
+import kotlin.time.Duration.Companion.milliseconds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -83,6 +84,33 @@ class ChampionBlePacketRouterTest {
         launch { router.close(ChampionDisconnectReason.CLEANUP) }
         assertTrue(pending.await() is ChampionBleResult.Failure)
         assertTrue(source.recorded().contains(packet))
+        scope.cancel()
+    }
+
+    @Test
+    fun `await packet timeout returns timeout instead of internal failure`() = runBlocking {
+        val sessionId = testSessionId()
+        val source = RecordedChampionPacketSource()
+        val scope = CoroutineScope(Dispatchers.Default + Job())
+        val router = ChampionPacketRouter(source.packets, scope)
+
+        val result = router.awaitPacket(
+            ChampionAwaitPacketRequest(
+                sessionId = sessionId,
+                timeout = 25.milliseconds,
+                matcher = ChampionResponseMatchers.byChannel(sessionId, ChampionChannelAlias.F008_NOTIFY),
+            ),
+        )
+
+        assertEquals(
+            ChampionBleResult.Failure(
+                ChampionBleError.Timeout(
+                    operation = ChampionOperationType.WAIT_FOR_RESPONSE,
+                    after = 25.milliseconds,
+                ),
+            ),
+            result,
+        )
         scope.cancel()
     }
 }

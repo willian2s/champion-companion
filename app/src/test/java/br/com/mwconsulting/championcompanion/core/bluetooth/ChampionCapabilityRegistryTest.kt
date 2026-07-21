@@ -47,4 +47,18 @@ class ChampionBleCapabilityRegistryTest {
             (incompatible as ChampionBleResult.Failure).error,
         )
     }
+
+    @Test
+    fun `resolve accepts required write channel when android reports write without response`() {
+        val result = ChampionCapabilityRegistry.resolve(
+            sessionId = testSessionId(),
+            discovery = discoverySnapshot(
+                ChampionChannelAlias.F008_NOTIFY to setOf(ChampionChannelProperty.NOTIFY),
+                ChampionChannelAlias.F008_WRITE to setOf(ChampionChannelProperty.WRITE_WITHOUT_RESPONSE),
+            ),
+        )
+
+        val capabilities = (result as ChampionBleResult.Success).value
+        assertTrue(capabilities.snapshot.isTransportReady())
+    }
 }

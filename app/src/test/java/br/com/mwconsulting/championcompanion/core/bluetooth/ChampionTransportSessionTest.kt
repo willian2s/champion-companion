@@ -182,4 +182,72 @@ class ChampionTransportSessionTest {
         scope.coroutineContext[Job]?.cancel()
         Unit
     }
+
+    @Test
+    fun `transport session accepts with response command on write without response channel`() = runBlocking {
+        val session = testSession()
+        val scope = CoroutineScope(Dispatchers.Default + Job())
+        lateinit var queue: ChampionGattQueue
+        val executedOperations = mutableListOf<ChampionGattOperation>()
+        queue = ChampionGattQueue(
+            sessionId = session.id,
+            parentScope = scope,
+            operationExecutor = { operation ->
+                executedOperations += operation
+                scope.launch {
+                    queue.complete(operation.sessionId, operation.operationId)
+                }
+            },
+        )
+        val snapshot = ChampionCapabilitySnapshot(
+            requiredChannels = setOf(ChampionChannelAlias.F008_NOTIFY, ChampionChannelAlias.F008_WRITE),
+            availableChannels = setOf(ChampionChannelAlias.F008_NOTIFY, ChampionChannelAlias.F008_WRITE),
+            channels = mapOf(
+                ChampionChannelAlias.F008_NOTIFY to ChampionChannelCapability(
+                    channel = ChampionChannelAlias.F008_NOTIFY,
+                    properties = setOf(ChampionChannelProperty.NOTIFY),
+                ),
+                ChampionChannelAlias.F008_WRITE to ChampionChannelCapability(
+                    channel = ChampionChannelAlias.F008_WRITE,
+                    properties = setOf(ChampionChannelProperty.WRITE_WITHOUT_RESPONSE),
+                ),
+            ),
+        )
+        val capabilities = ChampionSessionCapabilities(
+            sessionId = session.id,
+            snapshot = snapshot,
+            discoveredServices = setOf(ChampionServiceAlias.F008),
+            optionalChannelsAvailable = emptySet(),
+            defaultSubscribedChannels = setOf(ChampionChannelAlias.F008_NOTIFY),
+        )
+        val transport = ChampionTransportSession(
+            session = session,
+            capabilities = capabilities,
+            queue = queue,
+            notifications = ChampionNotificationHub(
+                sessionCapabilities = capabilities,
+                queue = queue,
+                sessionEvents = MutableSharedFlow(),
+                scope = scope,
+            ),
+            streams = ChampionTransportStreams(RecordedChampionPacketSource().packets, scope),
+            internalJobs = emptyList(),
+        )
+        val command = ChampionCommand(
+            commandCode = 0xA1,
+            channel = ChampionChannelAlias.F008_WRITE,
+            writeType = ChampionWriteType.WITH_RESPONSE,
+            timeout = 500.milliseconds,
+            retryPolicy = ChampionRetryPolicy.None,
+            responseMatcher = null,
+            payload = byteArrayOf(0x00),
+        )
+
+        val result = transport.sendCommand(command)
+
+        assertEquals(ChampionBleResult.Success(Unit), result)
+        assertEquals(ChampionOperationType.WRITE_CHARACTERISTIC, executedOperations.single().type)
+        scope.coroutineContext[Job]?.cancel()
+        Unit
+    }
 }

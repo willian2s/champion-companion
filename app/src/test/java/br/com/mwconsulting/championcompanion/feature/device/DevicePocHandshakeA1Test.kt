@@ -1,5 +1,7 @@
 package br.com.mwconsulting.championcompanion.feature.device
 
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleError
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionOperationType
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacketDirection
@@ -55,6 +57,34 @@ class DevicePocHandshakeA1Test {
         assertEquals(DevicePocHandshakeA1.COMMAND_CODE, command.commandCode)
         assertEquals(ChampionChannelAlias.F008_WRITE, command.channel)
         assertEquals(5.seconds, command.timeout)
+    }
+
+    @Test
+    fun `a1 retry policy retries only timeout before max attempts`() {
+        assertTrue(
+            DevicePocHandshakeA1.shouldRetry(
+                ChampionBleError.Timeout(ChampionOperationType.WAIT_FOR_RESPONSE, 1.seconds),
+                attempt = 1,
+            ),
+        )
+        assertTrue(
+            DevicePocHandshakeA1.shouldRetry(
+                ChampionBleError.Timeout(ChampionOperationType.WAIT_FOR_RESPONSE, 1.seconds),
+                attempt = 2,
+            ),
+        )
+        assertFalse(
+            DevicePocHandshakeA1.shouldRetry(
+                ChampionBleError.Timeout(ChampionOperationType.WAIT_FOR_RESPONSE, 1.seconds),
+                attempt = DevicePocHandshakeA1.MAX_ATTEMPTS,
+            ),
+        )
+        assertFalse(
+            DevicePocHandshakeA1.shouldRetry(
+                ChampionBleError.CallbackFailure(ChampionOperationType.WRITE_CHARACTERISTIC),
+                attempt = 1,
+            ),
+        )
     }
 
     @Test

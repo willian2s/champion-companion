@@ -32,6 +32,30 @@ Mapear comandos BLE gerais do Champion C001 conforme MotionLog, sem detalhar par
 | F002 | stream sensor | nao identificado | F002 notify | amostras uint16 little-endian | Confirmado pelo codigo |
 | FEA1 | passos/status | sem comando identificado | FEA1 notify | `01` + passos 24-bit little-endian | Confirmado pelo codigo |
 
+## Evidencia Fisica 2026-07-21
+
+A primeira execucao real da PoC Android chegou a `device_found`, mas falhou em `connecting` com `error_category=incompatible_capability` antes de `TransportReady`, A1 e D0.
+
+Impacto no mapeamento:
+
+- o canal logico `F008_WRITE` continua sendo o canal de escrita dos comandos A1 e D0;
+- no Champion Companion Android, compatibilidade de escrita passou a aceitar characteristic anunciada como `WRITE` ou apenas `WRITE_WITHOUT_RESPONSE`;
+- essa mudanca e suportada pelo achado fisico, mas a property exata observada no firmware do relogio ainda nao esta confirmada em documento publico sanitizado.
+
+Na segunda execucao real de 2026-07-21, a PoC Android atingiu `transport_ready` e entrou em `handshaking`, o que confirma fisicamente o caminho de transporte e availability dos canais `FEA1_NOTIFY` e `F002_NOTIFY` no hardware testado. A falha restante ficou no await de confirmacao do A1, nao mais na descoberta de capabilities.
+
+Na terceira execucao real de 2026-07-21, o ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e` repetiu `transport_ready -> handshaking -> failed` com `error_category=timeout`. Isso reforca que:
+
+- o mapeamento fisico dos canais obrigatorios e opcionais continua valido no hardware testado;
+- a divergencia restante para o comando A1 esta no recebimento da confirmacao, nao na descoberta nem no roteamento dos canais;
+- a PoC Android passou a aplicar atraso inicial curto e retry limitado por timeout para aproximar o timing do MotionLog antes da proxima validacao fisica.
+
+Na quarta execucao real de 2026-07-21, o ciclo `bd57e034-aa94-43e1-987a-f0745ceea48b` repetiu `transport_ready -> handshaking -> failed` com `error_category=timeout` mesmo apos atraso inicial e retry. Isso refinou a leitura:
+
+- o problema remanescente do A1 nao estava apenas no timing;
+- ao comparar com `motionlog-app`, foi identificado que a PoC nativa ainda nao ativava todos os `defaultSubscribedChannels` antes do A1;
+- o connect foi corrigido para ativar `F008_NOTIFY`, `F002_NOTIFY` e `FEA1_NOTIFY` sempre que disponiveis, alinhando o bootstrap da PoC ao app de referencia.
+
 ## FEA1 Passos
 
 Pacote aceito:
@@ -125,3 +149,6 @@ Classificacao: `Ainda nao confirmado` para payload recebido, offsets, escalas e 
 - Capturar pacote real de A0, A8, DF e E0 se estes fluxos forem mantidos.
 - Confirmar se A8 substitui ou complementa D3/D4 em algum firmware.
 - Confirmar se FEA1 e push espontaneo ou depende de comando anterior no dispositivo fisico.
+- Confirmar fisicamente a property Android publicada por `F008_WRITE` e `F002_WRITE` no Champion C001 apos o ajuste de compatibilidade da PoC.
+- Confirmar se o timeout fisico do A1 no ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e` desaparece com atraso+retry da PoC.
+- Confirmar se o timeout fisico do A1 no ciclo `bd57e034-aa94-43e1-987a-f0745ceea48b` desaparece com subscriptions default completas no connect.

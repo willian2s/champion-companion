@@ -32,6 +32,43 @@ Nenhum detalhe deste documento foi classificado como `Confirmado no uso funciona
 | Senha usada no app | `0000` | Confirmado pelo codigo |
 | Condicao de sucesso | F008 notify com tamanho minimo 20, `bytes[0] == 0xA1` e `bytes[19] == 0x01` | Confirmado pelo codigo |
 
+## Evidencia Fisica 2026-07-21
+
+Na primeira validacao real da PoC Android, o fluxo nao chegou a A1. O ciclo sanitizado `a86ae7d2-6b02-4890-a330-2babd26ae2c0` falhou antes de `TransportReady` com `error_category=incompatible_capability`.
+
+Consequencia pratica:
+
+- A1 ainda nao tem confirmacao fisica no Champion Companion Android;
+- o principal achado tecnico foi anterior ao protocolo A1: o canal `F008_WRITE` precisava aceitar characteristic Android anunciada como write-capable mesmo sem `PROPERTY_WRITE` estrita;
+- a PoC foi ajustada para aceitar `WRITE` ou `WRITE_WITHOUT_RESPONSE` no canal logico de escrita e revalidacao fisica permanece necessaria.
+
+Na segunda validacao real de 2026-07-21, o ciclo `859c7105-57d5-4667-8b77-461ba69084f8` atingiu `transport_ready` e entrou em `handshaking`, mas ainda falhou sem `handshake_confirmed`.
+
+Nova leitura tecnica:
+
+- A1 agora tem pre-condicoes fisicas confirmadas no Champion Companion Android: conexao, discovery e capabilities opcionais observadas;
+- a categoria exportada `internal_failure` foi isolada como defeito do `ChampionPacketRouter`, que podia mascarar timeout/cancelamento do await da resposta A1;
+- a PoC Android foi ajustada para preservar o erro especifico do await, o que deve tornar a proxima evidência fisica mais precisa;
+- a confirmacao fisica do pacote A1 segue pendente.
+
+Na terceira validacao real de 2026-07-21, o ciclo `a0971467-e876-4192-96c1-c0c306ed0b3e` repetiu `transport_ready -> handshaking -> failed`, desta vez com `error_category=timeout`.
+
+Nova leitura tecnica apos o terceiro ciclo:
+
+- o await da resposta A1 realmente expirou no hardware testado;
+- transporte e discovery continuam confirmados fisicamente antes da falha;
+- a PoC Android alinhou o A1 ao timing observado no MotionLog background: atraso inicial de `1_000 ms` antes da primeira tentativa e retry limitado a 3 tentativas quando a falha for timeout;
+- a confirmacao fisica do notify `A1 ... 01` continua pendente.
+
+Na quarta validacao real de 2026-07-21, o ciclo `bd57e034-aa94-43e1-987a-f0745ceea48b` repetiu `transport_ready -> handshaking -> failed` com `error_category=timeout`, mesmo apos atraso inicial e retry.
+
+Nova leitura tecnica apos o quarto ciclo:
+
+- timing sozinho nao explicou a falha do A1;
+- ao comparar com `motionlog-app`, foi identificado que o app de referencia sobe `FEA1_NOTIFY`, `F008_NOTIFY` e `F002_NOTIFY` antes do A1;
+- a PoC Android nativa ainda ativava apenas `F008_NOTIFY` no connect, embora `defaultSubscribedChannels` ja catalogasse os tres canais;
+- o bootstrap do connect foi corrigido para ativar todos os `defaultSubscribedChannels` disponiveis antes de declarar `TransportReady`.
+
 ## Fluxo Foreground
 
 1. Conectar ao device Champion.
@@ -128,8 +165,9 @@ Classificacao: `Confirmado pelo codigo`.
 | Foreground `sendHandshakeA1Async` | sem timeout proprio no metodo | sem retry interno | erro da escrita propaga para chamador | Confirmado pelo codigo |
 | Conexao foreground via runtime | handshake enviado apos subscribe; falha fica em `lastError`/toast conforme tela | sem retry especifico do A1 | `disconnectAsync` remove subscriptions, cancela conexao e zera `handshakeOk` | Confirmado pelo codigo |
 | Background Kotlin | sem espera de ack A1; escrita tenta ate 3 vezes | 3 tentativas, `1_500 ms` entre elas | stop monitoring remove runnable de handshake e fecha GATT | Confirmado pelo codigo |
+| Champion Companion PoC apos revalidacoes de 2026-07-21 | timeout explicito de 15s por tentativa | atraso inicial de `1_000 ms`; retry em timeout ate 3 tentativas com `1_500 ms` entre elas | connect ativa todos os `defaultSubscribedChannels` disponiveis; disconnect/reset limpam sessao e invalidam handshake | Confirmado pelo codigo |
 
-Lacuna: timeout final do handshake no Champion Companion nativo deve ser definido na implementacao futura.
+Lacuna: ainda falta confirmar fisicamente se subscriptions default completas destravam o A1 ou se o firmware exige outra condicao alem de timing e bootstrap de notify.
 
 Classificacao da lacuna: `Ainda nao confirmado`.
 
@@ -161,15 +199,17 @@ Classificacao: `Confirmado pelo codigo`.
 ## Regras Para Champion Companion
 
 - Enviar A1 somente depois de discovery e notificacoes principais ativas.
+- Garantir `defaultSubscribedChannels` completos antes do A1 quando esses canais estiverem disponiveis.
 - Usar F008 write com response.
 - Considerar handshake confirmado apenas por F008 notify `A1` com byte 19 igual a `01`.
 - Limpar estado de handshake em disconnect.
-- Definir timeout explicito no comando A1 da nova camada BLE.
+- Aplicar atraso inicial curto e retry limitado quando o await do A1 expirar.
 - Nao tratar sucesso de escrita como sucesso de handshake no fluxo foreground.
 
 ## Lacunas Para `000-14`
 
 - Confirmar fisicamente o conteudo completo da resposta A1 alem de `bytes[0]` e `bytes[19]`.
 - Confirmar comportamento de senha incorreta e se senha diferente de `0000` deve existir no Champion Companion.
-- Definir timeout e retry finais do A1 no app nativo.
+- Confirmar fisicamente se a politica atual de timeout, retry e subscriptions default do A1 e suficiente no app nativo.
 - Confirmar se o background Kotlin atual deveria aguardar ack A1 antes de D1 ou se o firmware aceita D1 apos escrita bem-sucedida.
+- Confirmar se o hardware real expoe `F008_WRITE` como `WRITE`, `WRITE_WITHOUT_RESPONSE` ou ambos no Android nativo.

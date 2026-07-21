@@ -23,14 +23,20 @@ data class ChampionTransportSession(
     private fun validateCommand(command: ChampionCommand): ChampionBleError? {
         val capability = capabilities.snapshot.capabilityOf(command.channel)
             ?: return ChampionBleError.MissingRequiredChannel(command.channel)
-        val requiredProperty = when (command.writeType) {
-            ChampionWriteType.WITH_RESPONSE -> ChampionChannelProperty.WRITE
-            ChampionWriteType.WITHOUT_RESPONSE -> ChampionChannelProperty.WRITE_WITHOUT_RESPONSE
-        }
-        return if (capability.properties.contains(requiredProperty)) {
+        return if (capability.supportsWrite(command.writeType)) {
             null
         } else {
             ChampionBleError.IncompatibleChannelProperties(command.channel)
         }
+    }
+
+    private fun ChampionChannelCapability.supportsWrite(writeType: ChampionWriteType): Boolean = when (writeType) {
+        ChampionWriteType.WITH_RESPONSE ->
+            properties.contains(ChampionChannelProperty.WRITE) ||
+                properties.contains(ChampionChannelProperty.WRITE_WITHOUT_RESPONSE)
+
+        ChampionWriteType.WITHOUT_RESPONSE ->
+            properties.contains(ChampionChannelProperty.WRITE_WITHOUT_RESPONSE) ||
+                properties.contains(ChampionChannelProperty.WRITE)
     }
 }

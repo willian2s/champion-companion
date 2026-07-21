@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.feature.device
 
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleError
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCommand
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket
@@ -9,12 +10,16 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionWriteType
 import java.time.ZonedDateTime
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 internal object DevicePocHandshakeA1 {
     const val COMMAND_CODE: Int = 0xA1
     private const val PAYLOAD_SIZE = 20
     private const val DEFAULT_PASSWORD = 0
+    const val MAX_ATTEMPTS = 3
+    val initialDelay: Duration = 1.seconds
+    val retryDelay: Duration = 1500.milliseconds
     val defaultTimeout: Duration = 15.seconds
 
     fun buildPayload(
@@ -67,4 +72,9 @@ internal object DevicePocHandshakeA1 {
         val bytes = packet.bytesCopy()
         return bytes[0].toInt().and(0xFF) == COMMAND_CODE && bytes[19] == 0x01.toByte()
     }
+
+    fun shouldRetry(
+        error: ChampionBleError,
+        attempt: Int,
+    ): Boolean = error is ChampionBleError.Timeout && attempt < MAX_ATTEMPTS
 }

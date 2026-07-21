@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -440,12 +441,21 @@ class DevicePocCoordinator @Inject constructor(
         }
 
         moveToHandshaking(sessionId)
-        val result = transport.executeCommand(
-            DevicePocHandshakeA1.createCommand(
-                dateTime = dateTime,
-                timeout = timeout,
-            ),
-        )
+        delay(DevicePocHandshakeA1.initialDelay)
+        var attempt = 1
+        var result: ChampionBleResult<*> = ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        while (true) {
+            result = transport.executeCommand(
+                DevicePocHandshakeA1.createCommand(
+                    dateTime = dateTime,
+                    timeout = timeout,
+                ),
+            )
+            val error = (result as? ChampionBleResult.Failure)?.error ?: break
+            if (!DevicePocHandshakeA1.shouldRetry(error, attempt)) break
+            delay(DevicePocHandshakeA1.retryDelay)
+            attempt += 1
+        }
         val latest = state.value
         if (latest.activeSessionId != sessionId) {
             return ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
