@@ -1,157 +1,51 @@
 # Baseline Atual
 
-## Objetivo
+## Produto E Fase
 
-Registrar a baseline funcional do MotionLog usada como referencia para a Fase 0 do Champion Companion.
+Champion Companion e aplicativo Android nativo do relogio Champion C001, escrito em Kotlin e Jetpack Compose.
 
-## Data Da Analise
+A Fase 1 estabelece fundacao atual do projeto. Escopo nao inclui BLE, Room, Health Connect, GPS/localizacao, servicos, parsers ou dominio funcional. Fases futuras devem preservar separacao entre transporte, protocolo, dominio e UI definida no roadmap.
 
-- Data: `2026-07-20 07:21:13 -03`
-- Workspace: `/Volumes/SSD/develop/pessoal/champion-companion`
+## Ambiente E Validacao
 
-## Repositorios
-
-### MotionLog
-
-- Caminho: `../motionlog-app`
-- Regra: somente leitura
-- Branch esperada: `feat/015-watch-workouts-d3-d4`
-- Branch observada: `feat/015-watch-workouts-d3-d4`
-- Commit observado: `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`
-- Status: limpo no momento da verificacao
-
-### Champion Companion
-
-- Caminho: `/Volumes/SSD/develop/pessoal/champion-companion`
-- Status antes da criacao deste arquivo: limpo no momento da verificacao
-
-## Comandos Executados
-
-### Confirmar branch do MotionLog
+Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use somente o Gradle Wrapper do repositorio. Validacao fisica desta fase usa Galaxy S22 via ADB.
 
 ```bash
-git -C ../motionlog-app branch --show-current
+./gradlew lint
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+./gradlew assembleRelease
+./gradlew lint testDebugUnitTest assembleDebug assembleRelease
 ```
 
-Saida:
+## Base De Codigo
 
-```text
-feat/015-watch-workouts-d3-d4
-```
+Ha um modulo Android, `app`.
 
-### Confirmar commit do MotionLog
+- Codigo-fonte: `app/src/main/java/br/com/mwconsulting/championcompanion`
+- Recursos: `app/src/main/res`
+- Testes JVM: `app/src/test`
+- Testes instrumentados: `app/src/androidTest`
 
-```bash
-git -C ../motionlog-app rev-parse HEAD
-```
+`app` concentra estado global. `core.common`, `core.error`, `core.logging` e `core.navigation` sao infraestrutura. `feature/` contem `home`, `health`, `calendar`, `exercises`, `device`, `profile` e `settings`.
 
-Saida:
+Compose constroi UI. Hilt faz injecao. Coroutines e `StateFlow` modelam estado. Kotlin Serialization representa rotas. Navegacao contem somente sete destinos iniciais. Erros devem virar estado UI seguro; detalhes tecnicos ficam no Logcat de debug.
 
-```text
-0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb
-```
+## Variantes
 
-### Confirmar status do MotionLog
+- `debug`: `br.com.mwconsulting.championcompanion.dev`, `Champion Companion Dev`, `1.0-dev`
+- `release`: `br.com.mwconsulting.championcompanion`, `Champion Companion`, `1.0`
 
-```bash
-git -C ../motionlog-app status --short
-```
+Release ainda nao recebe assinatura de producao.
 
-Saida:
+## Privacidade E Logs
 
-```text
+Logs estruturados usam `android.util.Log` apenas para diagnostico em debug. Nao registrar payload BLE, coordenadas ou rotas, tokens, credenciais, identificadores pessoais ou dados de saude. Release deve manter logs diagnosticos inativos ou sem detalhes.
 
-```
+## Fontes Autoritativas
 
-Interpretacao: repositorio sem alteracoes nao commitadas no momento da verificacao.
-
-### Confirmar status do Champion Companion
-
-```bash
-git status --short
-```
-
-Saida:
-
-```text
-
-```
-
-Interpretacao: repositorio sem alteracoes nao commitadas antes da criacao deste documento.
-
-## Status Da Baseline
-
-Baseline pode ser usada para as proximas tasks da Fase 0.
-
-Evidencias:
-
-- Branch observada corresponde a branch esperada.
-- Commit observado corresponde ao commit registrado no planejamento.
-- `motionlog-app` estava limpo no momento da verificacao.
-- `champion-companion` estava limpo antes da criacao deste artefato.
-
-## Funcionalidades Confirmadas Nesta Task
-
-Nenhum fluxo funcional foi confirmado por execucao do aplicativo nesta task.
-
-Somente foram confirmados:
-
-- branch do MotionLog;
-- commit do MotionLog;
-- status Git do MotionLog;
-- status Git inicial do Champion Companion.
-
-## APK E Dispositivo
-
-- APK baseline: nao verificado nesta task.
-- MotionLog instalado em dispositivo: nao verificado nesta task.
-- Champion C001 fisico: nao usado nesta task.
-- Fluxos funcionais em dispositivo: nao executados nesta task.
-
-## Limitacoes
-
-- Esta task nao analisou codigo do MotionLog.
-- Esta task nao executou o aplicativo MotionLog.
-- Esta task nao capturou pacotes BLE.
-- Esta task nao validou APK instalado.
-- Fixtures reais permanecem pendentes para fases futuras.
-
-## Fixtures Progressivas
-
-Fixtures reais nao sao obrigatorias para concluir esta verificacao.
-
-Estrutura futura prevista pela spec:
-
-```text
-docs/protocol/sample-packets/
-```
-
-Padrao previsto:
-
-```text
-<fluxo>-<cenario>.hex
-<fluxo>-<cenario>-expected.json
-<fluxo>-<cenario>-notes.md
-```
-
-## Referencias Autoritativas Lidas
-
-- `docs/tasks/000-00-overview.md`
-- `docs/specs/000-phase-zero-baseline-handoff.md`
-- `docs/roadmap/champion-companion-roadmap.md`
-- `docs/decisions/adr-001-native-rewrite.md`
-- `docs/specs/_inputs/phase-zero-original-requirements.md`
-
-## Alinhamento Com Roadmap E ADR
-
-- Roadmap confirma que `feat/015-watch-workouts-d3-d4` e a fonte de verdade funcional para a reimplementacao.
-- ADR-001 confirma a decisao de criar Champion Companion em Android nativo e manter MotionLog como baseline funcional temporaria.
-- Nenhuma alteracao foi feita no roadmap, na ADR ou nos requisitos originais.
-
-## Bloqueios
-
-Nenhum bloqueio identificado nesta task.
-
-## Conclusao
-
-Task `000-01` concluida. Baseline funcional verificada e liberada para as proximas tasks da Fase 0.
+- Requisitos: `docs/specs/`
+- Direcao de produto: `docs/roadmap/`
+- Decisoes: `docs/decisions/`
+- Protocolos: `docs/protocol/`
+- Baseline de referencia detalhada: `docs/core/current-project-baseline.md`
