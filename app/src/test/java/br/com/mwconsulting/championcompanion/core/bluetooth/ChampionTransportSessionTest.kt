@@ -60,6 +60,7 @@ class ChampionTransportSessionTest {
         val missing = resolver.resolve(testSession(seed = 2), queue)
         assertEquals(ChampionBleError.DiscoveryFailed(), (missing as ChampionBleResult.Failure).error)
         scope.coroutineContext[Job]?.cancel()
+        Unit
     }
 
     @Test
@@ -132,6 +133,7 @@ class ChampionTransportSessionTest {
 
         assertEquals(ChampionBleResult.Success(packet), result.await())
         scope.coroutineContext[Job]?.cancel()
+        Unit
     }
 
     @Test
@@ -178,5 +180,6 @@ class ChampionTransportSessionTest {
             result,
         )
         scope.coroutineContext[Job]?.cancel()
+        Unit
     }
 }

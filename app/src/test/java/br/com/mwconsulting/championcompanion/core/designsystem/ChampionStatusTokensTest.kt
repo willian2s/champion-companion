@@ -36,10 +36,10 @@ class ChampionStatusTokensTest {
     fun `status color pairs meet minimum text contrast in both themes`() {
         listOf(LightChampionStatusColors, DarkChampionStatusColors)
             .flatMap { it.colorPairs() }
-            .forEach { (container, content) ->
+            .forEach { pair ->
                 assertTrue(
-                    "Expected contrast >= 4.5, was ${contrastRatio(content, container)}",
-                    contrastRatio(content, container) >= 4.5f,
+                    "Expected contrast >= 4.5, was ${contrastRatio(pair.content, pair.container)}",
+                    contrastRatio(pair.content, pair.container) >= 4.5f,
                 )
             }
     }
