@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: criados `ChampionUuidCatalog` e `ChampionDeviceFilter` para centralizar UUIDs confirmados do Champion C001, explicitar canais obrigatorios/opcionais e filtrar dispositivos por prefixo `champion` em `name` ou `localName` com normalizacao segura. FEA2, FEC8 e F002 write seguem nao obrigatorios.
 
 ## Objetivo
 
@@ -87,3 +89,28 @@ UUIDs e regras de filtro não podem ficar duplicados entre scanner, client, mana
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionUuidCatalog.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionDeviceFilter.kt`
+
+Conclusoes:
+
+- catalogo unico agora concentra F008, F002, FEE7, FEA1, FEA2, FEC8 e CCCD;
+- `requiredTransportChannels` ficou restrito a `F008_NOTIFY` e `F008_WRITE`;
+- `defaultSubscribedChannels` inclui F008 notify, F002 notify e FEA1 notify;
+- F002 write, FEA2 e FEC8 seguem opcionais e fora do caminho critico de `TransportReady`;
+- filtro aceita `Champion`, `champion` e `Champion C001` por prefixo e rejeita substring arbitraria;
+- nomes ausentes sao tratados sem excecao;
+- API de deduplicacao por `transportKey` foi preparada para uso futuro do scanner.
+
+Validacoes executadas:
+
+- busca por UUIDs BLE hardcoded em `app/src/main/java/**/*.kt`: ocorrencias somente em `ChampionUuidCatalog.kt`;
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*ChampionDeviceFilter*"`: build bem-sucedido, sem testes BLE especificos ainda.
+
+Spec: nenhum ajuste factual necessario.

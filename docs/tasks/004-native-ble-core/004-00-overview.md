@@ -114,8 +114,8 @@ Controlar ordem, dependências, checklist e riscos de conflito da Fase 04.
 
 - [x] `004-01` fronteiras BLE e lacunas físicas auditadas
 - [x] `004-02` contratos, estados e erros definidos
-- [ ] `004-03` permissões e pré-requisitos tipados implementados
-- [ ] `004-04` catálogo UUID e filtro Champion centralizados
+- [x] `004-03` permissões e pré-requisitos tipados implementados
+- [x] `004-04` catálogo UUID e filtro Champion centralizados
 - [ ] `004-05` scanner nativo com timeout/cancelamento criado
 - [ ] `004-06` fila GATT serial criada
 - [ ] `004-07` callback bridge e client concreto criados

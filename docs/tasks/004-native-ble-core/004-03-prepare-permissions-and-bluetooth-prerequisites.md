@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: criados `ChampionBlePrerequisites`, `AndroidBleEnvironment` e `AndroidPermissionSnapshot` para avaliar suporte BLE, adapter, estado ligado e permissoes por SDK sem side effects e sem UI. Scan e connect agora podem receber resultado tipado com bloqueios seguros e lista explicita de permissoes faltantes. `AndroidManifest.xml` permaneceu intacto.
 
 ## Objetivo
 
@@ -94,3 +96,34 @@ Fase 04 precisa impedir operações ilegais antes do scan/conexão, mas não dev
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionBlePrerequisites.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidBleEnvironment.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/android/AndroidPermissionSnapshot.kt`
+
+Conclusoes:
+
+- ambiente Android foi encapsulado em snapshot estreito com `sdkInt`, suporte BLE, presenca de adapter, estado ligado e permissoes correntes;
+- mapeamento de permissao diferencia Android 12+ de SDKs anteriores;
+- `ChampionBlePrerequisites` avalia separadamente `SCAN` e `CONNECT`;
+- resultado tipado inclui `ChampionBleReadiness`, snapshot de pre-requisitos e lista de `ChampionMissingPrerequisite` com `ChampionBleError` seguro e permissoes faltantes;
+- nao existe solicitacao de permissao, loop automatico, scan ou conexao nesta task.
+
+Politica modelada:
+
+- scan em Android 12+ exige `BLUETOOTH_SCAN` e `BLUETOOTH_CONNECT`, seguindo referencia de transporte da baseline;
+- connect em Android 12+ exige `BLUETOOTH_CONNECT`;
+- em SDKs anteriores, scan e connect dependem de `BLUETOOTH` e `BLUETOOTH_ADMIN`;
+- localizacao continua obrigatoria apenas quando `isLocationPermissionRequired` estiver ativa no snapshot Android.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*Prerequisite*"`: sucesso, mas sem testes BLE especificos desta fase ainda;
+- `AndroidManifest.xml`: sem alteracoes.
+
+Spec: nenhum ajuste factual necessario.
