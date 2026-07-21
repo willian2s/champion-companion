@@ -2,7 +2,9 @@
 
 ## Status
 
-Pendente.
+Concluida.
+
+Resumo: implementados `ChampionResponseMatchers`, `ChampionPacketRouter` e `ChampionTransportStreams` para aguardar respostas por sessao/canal/codigo inicial, com timeout/cancelamento e coexistencia com streams observadores. Nenhum parser funcional de A1/D0/D1/D3/D4 foi introduzido.
 
 ## Objetivo
 
@@ -90,3 +92,38 @@ Fase 04 prepara transporte para Fase 05 e posteriores. Precisa expor pacotes seg
 ## Atualização Documental Esperada
 
 - `Status` deste arquivo concluído.
+
+## Implementacao Registrada
+
+Arquivos criados:
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionPacketRouter.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionResponseMatcher.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionTransportStreams.kt`
+
+Conclusoes:
+
+- `ChampionResponseMatchers` agora centraliza matchers estruturais por sessao, canal e codigo inicial;
+- `ChampionPacketRouter` coleta pacotes do transporte, mantem registry de esperas pendentes e resolve matcher por ordem de registro;
+- timeout de resposta usa `ChampionAwaitPacketRequest.timeout` e falha com `ChampionBleError.Timeout(ChampionOperationType.WAIT_FOR_RESPONSE, ...)`;
+- cancelamento/encerramento limpa awaiters pendentes com erro seguro de fila/operacao cancelada;
+- pacote consumido por matcher continua sendo emitido para `packets`, preservando coexistencia com streams observadores conforme direcao da spec;
+- `ChampionTransportStreams` expõe stream global de pacotes, stream por sessao/canal e helper `awaitCommand` sobre `ChampionCommand` usando matcher estrutural default quando `responseMatcher` customizado nao existe.
+
+Regras preservadas:
+
+- bytes continuam copiados defensivamente por `ChampionPacket` e `ChampionCommand` ja existentes;
+- matcher considera `sessionId`, `channel` e `commandCode` quando aplicavel;
+- pacote tardio de sessao antiga nao casa com await de sessao diferente;
+- nenhum parser profundo ou matcher funcional de A1/D1/D3/D4 foi implementado.
+
+Limite atual:
+
+- roteador ficou pronto como infraestrutura standalone e ainda nao foi acoplado ao manager final da sessao nesta task;
+- politica atual resolve primeiro matcher pendente compativel e ainda publica mesmo pacote para observers.
+
+Validacoes executadas:
+
+- `./gradlew app:compileDebugKotlin`: sucesso;
+- `./gradlew app:testDebugUnitTest --tests "*PacketRouter*"`: falha por ausencia de testes com esse filtro nesta fase;
+- nenhuma logica de parser profundo foi adicionada.
