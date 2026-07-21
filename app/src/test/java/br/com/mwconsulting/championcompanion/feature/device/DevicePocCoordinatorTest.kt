@@ -21,11 +21,14 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.testSessionId
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleClient
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleScanner
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -163,6 +166,93 @@ class DevicePocCoordinatorTest {
         )
     }
 
+    @Test
+    fun `handshake succeeds only after matching notify and updates protocol state`() = runBlocking {
+        val scanner = FakeChampionBleScanner()
+        val client = FakeChampionBleClient()
+        val session = testSession()
+        val device = testDevice()
+        client.setOpenResult(ChampionBleResult.Success(session))
+        val manager = buildManager(scanner, client)
+        val coordinator = DevicePocCoordinator(manager, Dispatchers.Default)
+
+        connectToTransportReady(coordinator, scanner, client, session, device)
+
+        val handshake = async {
+            coordinator.executeHandshake(
+                ZonedDateTime.of(2026, 7, 21, 14, 5, 9, 0, ZoneOffset.UTC),
+                timeout = 200.milliseconds,
+            )
+        }
+        completeNextQueuedOperation(client, 3)
+        client.emit(
+            ChampionGattSessionEvent.CharacteristicChanged(
+                sessionId = session.id,
+                occurredAt = Instant.now(),
+                channel = ChampionChannelAlias.F008_NOTIFY,
+                packet = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket(
+                    sessionId = session.id,
+                    channel = ChampionChannelAlias.F008_NOTIFY,
+                    direction = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacketDirection.INBOUND,
+                    observedAt = Instant.now(),
+                    commandCode = 0xA1,
+                    bytes = ByteArray(20).also {
+                        it[0] = 0xA1.toByte()
+                        it[19] = 0x01
+                    },
+                ),
+            ),
+        )
+
+        assertEquals(ChampionBleResult.Success(Unit), handshake.await())
+        assertEquals(DevicePocState.HandshakeConfirmed, coordinator.state.value.pocState)
+    }
+
+    @Test
+    fun `handshake timeout moves current session to failed`() = runBlocking {
+        val scanner = FakeChampionBleScanner()
+        val client = FakeChampionBleClient()
+        val session = testSession()
+        val device = testDevice()
+        client.setOpenResult(ChampionBleResult.Success(session))
+        val manager = buildManager(scanner, client)
+        val coordinator = DevicePocCoordinator(manager, Dispatchers.Default)
+
+        connectToTransportReady(coordinator, scanner, client, session, device)
+
+        val handshake = async {
+            coordinator.executeHandshake(
+                ZonedDateTime.of(2026, 7, 21, 14, 5, 9, 0, ZoneOffset.UTC),
+                timeout = 50.milliseconds,
+            )
+        }
+        completeNextQueuedOperation(client, 3)
+
+        val result = handshake.await()
+        assertTrue(result is ChampionBleResult.Failure)
+        assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
+    }
+
+    @Test
+    fun `disconnect invalidates confirmed handshake`() = runBlocking {
+        val scanner = FakeChampionBleScanner()
+        val client = FakeChampionBleClient()
+        val session = testSession()
+        val device = testDevice()
+        client.setOpenResult(ChampionBleResult.Success(session))
+        val manager = buildManager(scanner, client)
+        val coordinator = DevicePocCoordinator(manager, Dispatchers.Default)
+
+        connectToTransportReady(coordinator, scanner, client, session, device)
+        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
+
+        coordinator.disconnect(ChampionDisconnectReason.USER_REQUESTED)
+
+        assertEquals(DevicePocState.Idle, coordinator.state.value.pocState)
+        assertEquals(ChampionBleState.Disconnected, coordinator.state.value.transportState)
+        assertNull(coordinator.state.value.activeSessionId)
+    }
+
     private fun buildCoordinator(): DevicePocCoordinator {
         val manager = buildManager(FakeChampionBleScanner(), FakeChampionBleClient())
         return DevicePocCoordinator(manager, Dispatchers.Default)
@@ -194,5 +284,37 @@ class DevicePocCoordinatorTest {
         awaitCondition { client.executedOperations.size > index }
         val operation = client.executedOperations[index]
         client.attachedQueues.getValue(operation.sessionId).complete(operation.sessionId, operation.operationId)
+    }
+
+    private suspend fun connectToTransportReady(
+        coordinator: DevicePocCoordinator,
+        scanner: FakeChampionBleScanner,
+        client: FakeChampionBleClient,
+        session: ChampionSession,
+        device: br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice,
+    ) = coroutineScope {
+        coordinator.markReadyToScan()
+        scanner.enqueueResult(ChampionBleResult.Success(listOf(device)))
+        coordinator.scan(
+            br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(500.milliseconds),
+        )
+
+        val connectResult = async { coordinator.connect(device) }
+        awaitCondition { client.attachedQueues.containsKey(session.id) }
+        client.emit(
+            ChampionGattSessionEvent.ConnectionStateChanged(
+                sessionId = session.id,
+                occurredAt = Instant.now(),
+                transportKey = session.transportKey,
+                isConnected = true,
+                detail = null,
+            ),
+        )
+        yield()
+        completeNextQueuedOperation(client, 0)
+        completeNextQueuedOperation(client, 1)
+        completeNextQueuedOperation(client, 2)
+        connectResult.await()
+        awaitCondition { coordinator.state.value.pocState == DevicePocState.TransportReady }
     }
 }

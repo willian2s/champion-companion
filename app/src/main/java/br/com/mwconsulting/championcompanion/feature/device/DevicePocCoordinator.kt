@@ -7,10 +7,12 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDisconnectReason
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCancellationReason
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionSessionId
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
 import br.com.mwconsulting.championcompanion.core.common.BleDispatcher
+import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Duration
 
 class DevicePocCoordinator @Inject constructor(
     private val connectionManager: ChampionConnectionManager,
@@ -141,6 +144,48 @@ class DevicePocCoordinator @Inject constructor(
     }
 
     suspend fun currentTransportSession(): ChampionTransportSession? = connectionManager.currentSession()
+
+    suspend fun executeHandshake(): ChampionBleResult<Unit> = executeHandshake(ZonedDateTime.now())
+
+    internal suspend fun executeHandshake(
+        dateTime: ZonedDateTime,
+        timeout: Duration = DevicePocHandshakeA1.defaultTimeout,
+    ): ChampionBleResult<Unit> {
+        val current = state.value
+        val sessionId = current.activeSessionId ?: return ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        if (current.pocState != DevicePocState.TransportReady) {
+            return ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        }
+        val transport = currentTransportSession()
+            ?: return ChampionBleResult.Failure(ChampionBleError.OperationUnavailable)
+        if (transport.session.id != sessionId) {
+            return ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
+        }
+
+        moveToHandshaking(sessionId)
+        val result = transport.executeCommand(
+            DevicePocHandshakeA1.createCommand(
+                dateTime = dateTime,
+                timeout = timeout,
+            ),
+        )
+        val latest = state.value
+        if (latest.activeSessionId != sessionId) {
+            return ChampionBleResult.Failure(ChampionBleError.OperationCancelled(ChampionCancellationReason.CLEANUP))
+        }
+
+        return when (result) {
+            is ChampionBleResult.Success -> {
+                moveToHandshakeConfirmed(sessionId)
+                ChampionBleResult.Success(Unit)
+            }
+
+            is ChampionBleResult.Failure -> {
+                transitionToFailure(sessionId, result.error)
+                ChampionBleResult.Failure(result.error)
+            }
+        }
+    }
 
     internal suspend fun handleTransportStateUpdate(transportState: ChampionBleState) {
         val current = state.value

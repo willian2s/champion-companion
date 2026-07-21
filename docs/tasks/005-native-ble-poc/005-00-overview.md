@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `005-01` a `005-04` concluídas em 2026-07-21. Core BLE já fechou resolver concreto de capabilities, snapshot produtivo de discovery e dispatch reutilizável de `ChampionCommand`; manifesto e entrypoint técnico debug de permissões já existem; e `feature/device` agora possui state machine explícita da PoC com `cycleId`, `activeSessionId`, cleanup e guards de callback tardio em `DevicePocCoordinator`. `app:compileDebugKotlin` e `app:lintDebug` passaram nas tasks relevantes. Suite ampla de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-05`.
+Em andamento. `005-01` a `005-05` concluídas em 2026-07-21. Core BLE já fechou resolver concreto de capabilities, snapshot produtivo de discovery e dispatch reutilizável de `ChampionCommand`; manifesto e entrypoint técnico debug de permissões já existem; `feature/device` já possui state machine explícita da PoC; e A1 agora está implementado com builder puro, matcher por `F008_NOTIFY`, timeout explícito e confirmação que não depende de sucesso de write. `app:compileDebugKotlin` e `app:lintDebug` passaram nas tasks relevantes. Suite ampla de testes do app segue parcialmente bloqueada por falhas pré-existentes fora de BLE em `core/designsystem`, `core/error`, `core/model` e `data`. Próxima task obrigatória: `005-06`.
 
 ## Objetivo
 
@@ -152,7 +152,7 @@ Encerrar somente após dez ciclos completos e consecutivos no Galaxy S22 com Cha
 - [x] `005-02` gaps mínimos de `TransportReady` físico fechados
 - [x] `005-03` permissões e entrypoint técnico preparados
 - [x] `005-04` coordenador e state machine da PoC criados
-- [ ] `005-05` handshake A1 implementado e testado
+- [x] `005-05` handshake A1 implementado e testado
 - [ ] `005-06` passos FEA1 implementados e testados
 - [ ] `005-07` sessão D0/F002 implementada e testada
 - [ ] `005-08` estimador F002 implementado e testado
