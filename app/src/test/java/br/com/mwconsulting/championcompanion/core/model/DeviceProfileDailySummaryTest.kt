@@ -93,6 +93,33 @@ class DeviceProfileDailySummaryTest {
     }
 
     @Test
+    fun `daily summary rejects nonfinite metrics and reversed timestamps`() {
+        val nonfinite = DailySummary.create(
+            dailySummaryId(), DailySummaryKey(deviceId(), DataOrigin.WATCH_DAILY_SUMMARY, LocalDate.of(2026, 7, 21)),
+            0, Double.NaN, null, Instant.parse("2026-07-21T10:00:00Z"), Instant.parse("2026-07-21T10:00:00Z"), DataValidity.VALID,
+        )
+        val reversed = DailySummary.create(
+            dailySummaryId(), DailySummaryKey(deviceId(), DataOrigin.WATCH_DAILY_SUMMARY, LocalDate.of(2026, 7, 21)),
+            0, null, null, Instant.parse("2026-07-21T10:01:00Z"), Instant.parse("2026-07-21T10:00:00Z"), DataValidity.VALID,
+        )
+
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_RANGE), nonfinite)
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_TEMPORAL_ORDER), reversed)
+    }
+
+    @Test
+    fun `profile and weight reject nonpositive or nonfinite values`() {
+        assertEquals(
+            DomainResult.Failure(DomainValidationError.INVALID_RANGE),
+            UserProfile.create(UserProfileId(UUID.randomUUID()), Instant.EPOCH, Double.POSITIVE_INFINITY),
+        )
+        assertEquals(
+            DomainResult.Failure(DomainValidationError.INVALID_RANGE),
+            WeightMeasurement.create(WeightMeasurementId(UUID.randomUUID()), 0.0, WeightUnit.KILOGRAMS, Instant.EPOCH, DataOrigin.MANUAL_ENTRY),
+        )
+    }
+
+    @Test
     fun `weight preserves unit instant and origin`() {
         val measuredAt = Instant.parse("2026-07-21T10:00:00Z")
 

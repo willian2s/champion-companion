@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-21.
 
 ## Dependência
 
@@ -30,3 +30,7 @@ Consolidar cobertura JVM determinística para todas as regras não visuais da Fa
 
 - Cada regra, mapeamento de erro e comportamento não visual possui teste unitário.
 - Testes não usam modelos Room como domínio nem dados sensíveis.
+
+## Validação
+
+- `./gradlew testDebugUnitTest` passou.

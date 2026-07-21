@@ -51,6 +51,32 @@ class DomainIdsTest {
     }
 
     @Test
+    fun `uuidv7 parser rejects malformed and non RFC variants`() {
+        val nonRfcVariant = "0190029f-2f80-7000-0000-000000000001"
+
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER), UuidV7.parse("not-an-id"))
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER), UuidV7.parse(nonRfcVariant))
+    }
+
+    @Test
+    fun `uuidv7 generator remains ordered when clock moves backward`() {
+        val clock = object : Clock() {
+            var millis = 2_000L
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId) = this
+            override fun instant() = Instant.ofEpochMilli(millis)
+        }
+        val generator = UuidV7Generator(clock, Random(1))
+
+        val first = generator.next()
+        clock.millis = 1_000L
+        val second = generator.next()
+
+        assertTrue(first < second)
+        assertEquals(2_000L, UuidV7.timestamp(second).valueOrNull())
+    }
+
+    @Test
     fun `parser version rejects empty value without exposing input`() {
         assertEquals(
             DomainResult.Failure(DomainValidationError.EMPTY_VALUE),

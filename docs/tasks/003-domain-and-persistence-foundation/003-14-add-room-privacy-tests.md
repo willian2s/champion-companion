@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-21.
 
 ## Dependência
 
@@ -29,3 +29,9 @@ Validar comportamento físico Room e impedir regressão de persistência de rota
 
 - Integridade física e retenção têm evidência automatizada.
 - Busca de privacidade falha diante de introdução de rota/coordenada proibida.
+
+## Validação
+
+- `./gradlew testDebugUnitTest` passou.
+- `./gradlew compileDebugAndroidTestKotlin` passou.
+- `connectedDebugAndroidTest` não executado: nenhum dispositivo ADB conectado.

@@ -43,6 +43,28 @@ class DiagnosticPayloadTest {
         assertFalse(deleted.contains(newest.id))
     }
 
+    @Test
+    fun `payload copies private bytes and enforces result error pairing`() {
+        val source = byteArrayOf(1)
+        val capture = DiagnosticPayloadCapture("D1", DiagnosticCaptureFlow.WATCH_HISTORY, source, null, null, ParserVersion.create("v1").valueOrNull()!!, now)
+        val stored = DiagnosticPayload.create(DiagnosticPayloadId(uuid(1)), capture, DiagnosticParseResult.COMPLETED).valueOrNull()!!
+        source[0] = 2
+
+        assertEquals(1, stored.bytesForPrivateStorage()[0].toInt())
+        assertEquals(
+            DomainResult.Failure(DomainValidationError.INVALID_STATE),
+            DiagnosticPayload.create(DiagnosticPayloadId(uuid(2)), capture, DiagnosticParseResult.TECHNICAL_ERROR),
+        )
+    }
+
+    @Test
+    fun `invalid parser result maps to invalid and retention keeps cutoff boundary`() {
+        val boundary = payload(capturedAt = now.minus(DiagnosticRetention.maximumAge))
+
+        assertEquals(ParserValidity.INVALID, DiagnosticPayload.parserValidityFor(DiagnosticParseResult.INVALID))
+        assertEquals(emptyList<DiagnosticPayloadId>(), DiagnosticRetention.payloadIdsToDelete(listOf(boundary), now))
+    }
+
     private fun payload(
         result: DiagnosticParseResult = DiagnosticParseResult.COMPLETED,
         error: SafeDiagnosticError? = null,

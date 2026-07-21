@@ -84,6 +84,26 @@ class WatchWorkoutActivityTest {
         assertFalse(activity.metrics.distances.estimatedMeters is DomainValue.Present)
     }
 
+    @Test
+    fun `parser input rejects invalid block metrics intervals and heart rate`() {
+        val invalidCrc = WatchWorkoutImport.create(WatchWorkoutImportId(uuid(3)), WorkoutActivityId(uuid(2)), parserInput().copy(crc = 0), importedAt)
+        val invalidSample = WorkoutActivity.createFromImport(
+            WorkoutActivityId(uuid(2)), parserInput().copy(heartRateSamples = listOf(WorkoutHeartRateSample(startedAt, 221))), importedAt,
+        )
+
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_RANGE), invalidCrc)
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_RANGE), invalidSample)
+    }
+
+    @Test
+    fun `sync workflow retries after failure but cannot discard syncing activity`() {
+        val reviewed = activity().confirmReview(WorkoutType.RUNNING, importedAt).valueOrNull()!!
+        val failed = reviewed.startSync().valueOrNull()!!.markSyncFailed().valueOrNull()!!
+
+        assertEquals(ActivityWorkflowState.SYNCING, failed.startSync().valueOrNull()!!.workflowState)
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_STATE), failed.startSync().valueOrNull()!!.discard())
+    }
+
     private fun activity(
         steps: Long = 500,
         parserValidity: ParserValidity = ParserValidity.VALID,

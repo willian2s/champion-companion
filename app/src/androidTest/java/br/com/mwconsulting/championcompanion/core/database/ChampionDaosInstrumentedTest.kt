@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChampionDaosInstrumentedTest {
@@ -67,6 +68,42 @@ class ChampionDaosInstrumentedTest {
         }
     }
 
+    @Test
+    fun pendingBpmQueryExcludesInvalidUnresolvedAndActiveSyncOperations() = runBlocking {
+        val database = database()
+        try {
+            database.deviceDao().insert(device())
+            database.heartRateDao().insert(heartRate("eligible", "VALID", 1_000L, "WATCH_D1_HISTORY"))
+            database.heartRateDao().insert(heartRate("invalid", "INVALID", 2_000L, "WATCH_D1_HISTORY"))
+            database.heartRateDao().insert(heartRate("unresolved", "VALID", null, "WATCH_D1_HISTORY"))
+            database.heartRateDao().insert(heartRate("other-source", "VALID", 3_000L, "MANUAL"))
+            database.heartRateDao().insert(heartRate("syncing", "VALID", 4_000L, "WATCH_D1_HISTORY"))
+            database.healthSyncOperationDao().insert(
+                HealthSyncOperationEntity("sync-1", "syncing", "HEART_RATE_MEASUREMENT", "HEART_RATE", "SYNCING", 1, 4_001L, null),
+            )
+
+            assertEquals(listOf("eligible"), database.heartRateDao().findValidPendingForSync().map { it.id })
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun uniqueDeduplicationKeyRejectsDuplicateHeartRateRows() = runBlocking {
+        val database = database()
+        try {
+            database.deviceDao().insert(device())
+            database.heartRateDao().insert(heartRate("first", "VALID", 1_000L, "WATCH_D1_HISTORY"))
+            val duplicateRejected = runCatching {
+                database.heartRateDao().insert(heartRate("first", "VALID", 2_000L, "WATCH_D1_HISTORY").copy(id = "second"))
+            }.isFailure
+
+            assertTrue(duplicateRejected)
+        } finally {
+            database.close()
+        }
+    }
+
     private fun database(): ChampionDatabase {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return Room.inMemoryDatabaseBuilder(context, ChampionDatabase::class.java)
@@ -119,5 +156,20 @@ class ChampionDaosInstrumentedTest {
         result = "COMPLETED",
         safeError = null,
         capturedAtEpochMillis = capturedAtEpochMillis,
+    )
+
+    private fun heartRate(id: String, validity: String, measuredAt: Long?, source: String) = HeartRateMeasurementEntity(
+        id = id,
+        source = source,
+        bpm = 72,
+        measuredAtEpochMillis = measuredAt,
+        observedLocalDateTime = null,
+        validity = validity,
+        deviceId = "device-1",
+        importedAtEpochMillis = 2_000L,
+        parserVersion = "v1",
+        appWorkoutSessionId = null,
+        workoutActivityId = null,
+        deduplicationKey = "d1:$id",
     )
 }

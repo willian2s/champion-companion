@@ -38,6 +38,16 @@ class AppWorkoutSessionTest {
         assertEquals(AppWorkoutSessionState.DISCARDED, discarded.state)
     }
 
+    @Test
+    fun `session rejects unknown type and backwards timestamps`() {
+        assertEquals(
+            DomainResult.Failure(DomainValidationError.INVALID_STATE),
+            AppWorkoutSession.create(AppWorkoutSessionId(uuid(1)), WorkoutType.UNKNOWN, at(0)),
+        )
+        val active = session().start(at(10)).valueOrNull()!!
+        assertEquals(DomainResult.Failure(DomainValidationError.INVALID_STATE), active.pause(at(9)))
+    }
+
     private fun session() = AppWorkoutSession.create(
         AppWorkoutSessionId(uuid(1)), WorkoutType.WALKING, at(0),
     ).valueOrNull()!!
