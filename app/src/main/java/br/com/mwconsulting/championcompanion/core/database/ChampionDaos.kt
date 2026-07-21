@@ -60,6 +60,9 @@ interface DailySummaryDao {
 
 @Dao
 interface HeartRateDao {
+    @Query("SELECT * FROM heart_rate_measurements WHERE id = :id")
+    suspend fun findById(id: String): HeartRateMeasurementEntity?
+
     @Query("SELECT * FROM heart_rate_measurements WHERE deduplicationKey = :deduplicationKey")
     suspend fun findByDeduplicationKey(deduplicationKey: String): HeartRateMeasurementEntity?
 
@@ -93,6 +96,9 @@ interface WorkoutActivityDao {
 
 @Dao
 interface WatchWorkoutImportDao {
+    @Query("SELECT * FROM watch_workout_imports WHERE activityId = :activityId")
+    suspend fun findByActivityId(activityId: String): WatchWorkoutImportEntity?
+
     @Query("SELECT * FROM watch_workout_imports WHERE deviceId = :deviceId AND origin = :origin AND crc = :crc")
     suspend fun findByNaturalKey(deviceId: String, origin: String, crc: Int): WatchWorkoutImportEntity?
 
@@ -105,6 +111,9 @@ interface WatchWorkoutImportDao {
 
 @Dao
 interface WorkoutDetailDao {
+    @Query("SELECT * FROM workout_intervals WHERE activityId = :activityId ORDER BY intervalIndex")
+    suspend fun findIntervalsForActivity(activityId: String): List<WorkoutIntervalEntity>
+
     @Query("DELETE FROM workout_intervals WHERE activityId = :activityId")
     suspend fun deleteIntervalsForActivity(activityId: String): Int
 
@@ -113,6 +122,9 @@ interface WorkoutDetailDao {
 
     @Query("DELETE FROM workout_heart_rate_samples WHERE activityId = :activityId")
     suspend fun deleteHeartRateSamplesForActivity(activityId: String): Int
+
+    @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis")
+    suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>)
@@ -138,12 +150,18 @@ interface AppWorkoutSessionDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(session: AppWorkoutSessionEntity)
 
+    @Update
+    suspend fun update(session: AppWorkoutSessionEntity): Int
+
     @Query("UPDATE app_workout_sessions SET state = :nextState WHERE id = :id AND state IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String): Int
 }
 
 @Dao
 interface HealthSyncOperationDao {
+    @Query("SELECT * FROM health_sync_operations WHERE id = :id")
+    suspend fun findById(id: String): HealthSyncOperationEntity?
+
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND recordType = :recordType")
     suspend fun findByNaturalKey(aggregateId: String, recordType: String): HealthSyncOperationEntity?
 
@@ -159,6 +177,9 @@ interface HealthSyncOperationDao {
 
 @Dao
 interface DiagnosticPayloadDao {
+    @Query("SELECT * FROM diagnostic_payloads WHERE id = :id")
+    suspend fun findById(id: String): DiagnosticPayloadEntity?
+
     @Query("SELECT * FROM diagnostic_payloads WHERE capturedAtEpochMillis < :expiresBeforeEpochMillis ORDER BY capturedAtEpochMillis")
     suspend fun findExpired(expiresBeforeEpochMillis: Long): List<DiagnosticPayloadEntity>
 
