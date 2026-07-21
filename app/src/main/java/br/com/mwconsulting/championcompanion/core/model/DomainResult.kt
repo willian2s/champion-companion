@@ -10,6 +10,7 @@ enum class DomainValidationError {
     EMPTY_VALUE,
     INVALID_IDENTIFIER,
     INVALID_RANGE,
+    INVALID_STATE,
     INVALID_TEMPORAL_ORDER,
 }
 

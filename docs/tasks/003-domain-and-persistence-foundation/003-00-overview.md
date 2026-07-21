@@ -43,13 +43,13 @@ Entregar domínio puro, Room V1 e DataStore para Champion Companion. Banco novo,
 
 - [x] `003-01` Build, dependências e limites de persistência preparados.
 - [x] `003-02` Primitivos de domínio, tempo, IDs, proveniência e invariantes comuns criados.
-- [ ] `003-03` Dispositivo, perfil, peso e resumo diário modelados.
-- [ ] `003-04` BPM e sync individual futura modelados.
-- [ ] `003-05` Atividades D3/D4, importação e revisão modeladas.
-- [ ] `003-06` Calibração de esteira preserva origem e métricas derivadas.
-- [ ] `003-07` Sessões iniciadas pelo app e recuperação modeladas.
-- [ ] `003-08` Diagnóstico, validade de parser, retenção e reprocessamento modelados.
-- [ ] `003-09` Schema Room V1, entidades, converters, FKs e índices criados.
+- [x] `003-03` Dispositivo, perfil, peso e resumo diário modelados.
+- [x] `003-04` BPM e sync individual futura modelados.
+- [x] `003-05` Atividades D3/D4, importação e revisão modeladas.
+- [x] `003-06` Calibração de esteira preserva origem e métricas derivadas.
+- [x] `003-07` Sessões iniciadas pelo app e recuperação modeladas.
+- [x] `003-08` Diagnóstico, validade de parser, retenção e reprocessamento modelados.
+- [x] `003-09` Schema Room V1, entidades, converters, FKs e índices criados.
 - [ ] `003-10` DAOs e consultas requeridas criados.
 - [ ] `003-11` DataStore, Hilt e contratos de repository criados.
 - [ ] `003-12` Mapeadores, repositories e transações implementados.
