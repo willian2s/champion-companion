@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03` e `008-04` concluidas em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04` e `008-05` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -80,6 +80,15 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Resultado final continua efemero no coordinator; persistencia segue para `008-05`/`008-06`.
 - Testes pequenos agora cobrem gate, callback tardio ignorado, stop falho sem bloquear cleanup e timeout sem reaproveitar valor antigo.
 - Nenhuma ADR nova foi necessaria neste ponto; gate atual permanece compatível com ADR-007 e ADR-008.
+
+## Achados De `008-05`
+
+- `HeartRateMeasurement.createManualMeasurement(...)` agora centraliza criacao do registro final manual valido com `MANUAL_MEASUREMENT` e dedup por `MeasurementSession(sessionId)`.
+- `HeartRateDao` agora expoe query observavel generica da ultima medicao valida e query observavel de recentes manuais validos sem alterar schema ou versao do banco.
+- `RoomRepositories.saveManualMeasurement(...)` agora e idempotente por `sessionId`, retorna registro existente em retries e nao cria `HealthSyncOperation` para medicao manual.
+- Importacao D1 e `findPendingSync()` permaneceram inalterados e continuam restritos a `WATCH_D1_HISTORY` valido com sync pendente.
+- Testes pequenos cobrem factory manual, round-trip de mapper e queries criticas de ultima medicao valida e recentes manuais.
+- Schema atual v2 bastou; nenhuma migration foi necessaria.
 
 ## Estado Herdado
 
@@ -169,6 +178,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/DomainTime.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RepositoryModule.kt`
 
@@ -178,7 +188,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-02` contratos, state machine e gate BLE definidos
 - [x] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
 - [x] `008-04` coordinator manual implementado
-- [ ] `008-05` persistencia final, deduplicacao e queries implementadas
+- [x] `008-05` persistencia final, deduplicacao e queries implementadas
 - [ ] `008-06` `HealthViewModel` criado
 - [ ] `008-07` UI da Saude criada
 - [ ] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados

@@ -275,7 +275,7 @@ internal fun DiagnosticPayloadEntity.toDomain(): DiagnosticPayload? {
     ).successOrNull()
 }
 
-private fun HeartRateDeduplicationKey.encode(): String = when (this) {
+internal fun HeartRateDeduplicationKey.encode(): String = when (this) {
     is HeartRateDeduplicationKey.D1History -> listOf("D1", deviceId.value, resolvedMeasuredAt?.toEpochMilli(), recordKey?.value?.encode() ?: "").joinToString("|")
     is HeartRateDeduplicationKey.MeasurementSession -> "MEASUREMENT|${sessionId.value}"
     is HeartRateDeduplicationKey.AppWorkoutSample -> "APP|${sessionId.value}|${measuredAt.toEpochMilli()}"

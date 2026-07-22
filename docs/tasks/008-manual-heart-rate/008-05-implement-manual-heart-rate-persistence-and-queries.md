@@ -2,7 +2,15 @@
 
 ## Status
 
-Planejada.
+Concluida em 2026-07-22.
+
+## Resultado
+
+- `HeartRateMeasurement.createManualMeasurement(...)` centraliza criacao do registro final manual valido.
+- `HeartRateRepository` agora salva medicao manual de forma idempotente por `sessionId` e expoe queries observaveis para ultima medicao valida e recentes manuais.
+- `HeartRateDao` ganhou queries sem alterar schema nem versao do banco.
+- `RoomRepositories` manteve importacao D1 e fila de sync inalteradas; medicao manual nao cria `HealthSyncOperation`.
+- Testes pequenos cobrindo factory manual, mapper e queries criticas foram adicionados.
 
 ## Objetivo
 
@@ -104,6 +112,8 @@ Dominio atual ja possui `MANUAL_MEASUREMENT` e deduplicacao por `MeasurementSess
 ## Evidencia Manual
 
 - Registrar se schema atual bastou ou se houve necessidade funcional inevitavel de migration.
+
+- Schema atual v2 bastou. Nenhuma migration foi necessaria.
 
 ## Atualizacao Do Overview
 

@@ -55,6 +55,25 @@ class HeartRateAndSyncTest {
     }
 
     @Test
+    fun `manual measurement factory creates valid non sync record`() {
+        val measurement = HeartRateMeasurement.createManualMeasurement(
+            id = measurementId(),
+            sessionId = measurementSessionId(6),
+            deviceId = deviceId(),
+            bpm = 78,
+            measuredAt = Instant.parse("2026-07-21T10:02:00Z"),
+            parserVersion = ParserVersion.create("manual-v1").valueOrNull()!!,
+        ).valueOrNull()!!
+
+        assertEquals(HeartRateSource.MANUAL_MEASUREMENT, measurement.source)
+        assertFalse(measurement.isEligibleForSync)
+        assertEquals(
+            HeartRateDeduplicationKey.MeasurementSession(measurementSessionId(6)),
+            measurement.deduplicationKey,
+        )
+    }
+
+    @Test
     fun `sync operation only allows valid state transitions`() {
         val operation = operation()
         val syncing = operation.start(Instant.parse("2026-07-21T10:01:00Z")).valueOrNull()!!

@@ -69,6 +69,24 @@ data class HeartRateMeasurement private constructor(
             measuredAt != null
 
     companion object {
+        fun createManualMeasurement(
+            id: HeartRateMeasurementId,
+            sessionId: HeartRateMeasurementSessionId,
+            deviceId: DeviceId?,
+            bpm: Int,
+            measuredAt: Instant,
+            parserVersion: ParserVersion?,
+        ): DomainResult<HeartRateMeasurement> = create(
+            id = id,
+            source = HeartRateSource.MANUAL_MEASUREMENT,
+            bpm = bpm,
+            measuredAt = measuredAt,
+            validity = DataValidity.VALID,
+            deviceId = deviceId,
+            parserVersion = parserVersion,
+            deduplicationKey = HeartRateDeduplicationKey.MeasurementSession(sessionId),
+        )
+
         fun create(
             id: HeartRateMeasurementId,
             source: HeartRateSource,

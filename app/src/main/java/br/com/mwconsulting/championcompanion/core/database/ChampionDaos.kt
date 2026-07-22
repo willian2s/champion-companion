@@ -96,6 +96,12 @@ interface HeartRateDao {
     @Query("SELECT measurement.* FROM heart_rate_measurements measurement LEFT JOIN health_sync_operations sync ON sync.aggregateId = measurement.id AND sync.recordType = 'HEART_RATE' WHERE measurement.source = 'WATCH_D1_HISTORY' AND measurement.validity = 'VALID' AND measurement.measuredAtEpochMillis IS NOT NULL AND (sync.id IS NULL OR sync.state IN ('PENDING', 'FAILED')) ORDER BY measurement.measuredAtEpochMillis")
     suspend fun findValidPendingForSync(): List<HeartRateMeasurementEntity>
 
+    @Query("SELECT * FROM heart_rate_measurements WHERE validity = 'VALID' AND measuredAtEpochMillis IS NOT NULL ORDER BY measuredAtEpochMillis DESC, id DESC LIMIT 1")
+    fun observeLatestValidMeasurement(): Flow<HeartRateMeasurementEntity?>
+
+    @Query("SELECT * FROM heart_rate_measurements WHERE source = 'MANUAL_MEASUREMENT' AND validity = 'VALID' AND measuredAtEpochMillis IS NOT NULL ORDER BY measuredAtEpochMillis DESC, id DESC LIMIT :limit")
+    fun observeRecentValidManualMeasurements(limit: Int): Flow<List<HeartRateMeasurementEntity>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(measurement: HeartRateMeasurementEntity)
 }
