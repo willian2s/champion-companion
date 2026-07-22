@@ -5,6 +5,7 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleResult
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
 import java.time.ZonedDateTime
 import javax.inject.Inject
@@ -15,10 +16,32 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class DeviceConnectionBootstrap @Inject constructor(
     private val connectionManager: ChampionConnectionManager,
 ) {
+    suspend fun connectAssociatedDevice(
+        device: ChampionDiscoveredDevice,
+        dateTime: ZonedDateTime = ZonedDateTime.now(),
+        timeout: Duration = DevicePocHandshakeA1.defaultTimeout,
+        fallbackScanRequest: ChampionScanRequest = ChampionScanRequest(timeout = 5.seconds),
+    ): ChampionBleResult<DeviceConnectionBootstrapResult> {
+        val directResult = connectAndHandshake(device = device, dateTime = dateTime, timeout = timeout)
+        if (directResult is ChampionBleResult.Success) return directResult
+
+        val directError = (directResult as ChampionBleResult.Failure).error
+        if (!directError.shouldFallbackToAssociatedScan()) return directResult
+
+        val resolvedCandidate = when (val scanResult = connectionManager.scan(fallbackScanRequest)) {
+            is ChampionBleResult.Failure -> return ChampionBleResult.Failure(scanResult.error)
+            is ChampionBleResult.Success -> scanResult.value.firstOrNull { it.transportKey == device.transportKey }
+                ?: return ChampionBleResult.Failure(ChampionBleError.DeviceNotFound)
+        }
+
+        return connectAndHandshake(device = resolvedCandidate, dateTime = dateTime, timeout = timeout)
+    }
+
     suspend fun connectAndHandshake(
         device: ChampionDiscoveredDevice,
         dateTime: ZonedDateTime = ZonedDateTime.now(),
@@ -98,5 +121,14 @@ class DeviceConnectionBootstrap @Inject constructor(
         } finally {
             observationJob.cancel()
         }
+    }
+
+    private fun ChampionBleError.shouldFallbackToAssociatedScan(): Boolean = when (this) {
+        ChampionBleError.DeviceNotFound,
+        is ChampionBleError.ConnectionFailed,
+        is ChampionBleError.UnexpectedDisconnect,
+        -> true
+
+        else -> false
     }
 }

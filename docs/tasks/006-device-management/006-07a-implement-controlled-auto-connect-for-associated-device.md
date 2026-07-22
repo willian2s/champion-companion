@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -104,3 +104,29 @@ Usuário já espera comportamento do MotionLog: ao abrir app com dispositivo con
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- `DeviceManagementIntent.Load` passou a representar entrada visivel da feature. Cada chamada abre uma nova janela de entrada e permite no maximo uma tentativa automatica do dispositivo associado.
+- `DeviceManagementViewModel` agora verifica pre-requisitos em `Load`; se permissoes ou Bluetooth nao estiverem prontos, atualiza estado seguro (`PermissionsRequired` ou `BluetoothDisabled`) sem emitir prompt automatico.
+- Quando pre-requisitos ja estao OK e existe associacao primaria, a `ViewModel` dispara auto-conexao limitada via `connectAssociatedDevice(automatic = true)`.
+- `DeviceConnectionBootstrap.connectAssociatedDevice(...)` tenta primeiro conexao direta pelo `platformIdentifier`; se isso nao bastar por `DeviceNotFound`, `ConnectionFailed` ou `UnexpectedDisconnect`, faz scan curto unico de 5 segundos e conecta apenas se reencontrar exatamente mesmo `transportKey` associado.
+- `autoConnectInFlight` mantem estado distinto de resolucao do dispositivo lembrado usando `SEARCHING_REMEMBERED_DEVICE`, sem cair em scan amplo recorrente.
+- Falha de auto-conexao nao troca associacao, nao reabre prompt e nao entra em loop; novo auto-connect so ocorre em nova entrada visivel futura (`Load`).
+
+## Evidencia Final
+
+- Gatilho exato: `DeviceManagementIntent.Load` em `DeviceManagementViewModel.onFeatureEntry()` incrementa `currentEntryId`, refresca pre-requisitos e tenta auto-conectar no maximo uma vez para essa entrada.
+- Confirmacao de ausencia de loop/prompt automatico: `lastAutoConnectAttemptEntryId` bloqueia repeticao na mesma entrada e `handlePrerequisiteFailure(..., emitResolutionEvents = false)` impede `RequestPermissions` ou `OpenBluetoothSettings` automáticos durante auto-connect.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- `BUILD SUCCESSFUL` com configuration cache reutilizado.

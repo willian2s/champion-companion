@@ -16,7 +16,6 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCancellation
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDeviceFilter
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionMissingPrerequisite
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionOperationType
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -40,9 +39,11 @@ class AndroidChampionBleScanner @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutex = Mutex()
     private val mutableIsScanning = MutableStateFlow(false)
+    private val mutableScanResults = MutableStateFlow<List<ChampionDiscoveredDevice>>(emptyList())
     private var activeScan: ActiveScan? = null
 
     override val isScanning: StateFlow<Boolean> = mutableIsScanning.asStateFlow()
+    override val scanResults: StateFlow<List<ChampionDiscoveredDevice>> = mutableScanResults.asStateFlow()
 
     override suspend fun scan(request: br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest): ChampionBleResult<List<ChampionDiscoveredDevice>> {
         val readiness = ChampionBlePrerequisites.forScan(environment.snapshot())
@@ -63,18 +64,15 @@ class AndroidChampionBleScanner @Inject constructor(
                 completion = completion,
                 timeoutJob = scope.launch {
                     kotlinx.coroutines.delay(request.timeout)
+                    val discovered = mutex.withLock { activeScan?.discovered?.values?.toList().orEmpty() }
                     finishActiveScanSafely(
-                        result = ChampionBleResult.Failure(
-                            ChampionBleError.Timeout(
-                                operation = ChampionOperationType.SCAN,
-                                after = request.timeout,
-                            ),
-                        ),
+                        result = ChampionBleResult.Success(discovered),
                     )
                 },
             )
             activeScan = state
             mutableIsScanning.value = true
+            mutableScanResults.value = emptyList()
             platformScanner.start()
             state
         }
@@ -167,9 +165,7 @@ class AndroidChampionBleScanner @Inject constructor(
             mutex.withLock {
                 val current = activeScan ?: return@withLock
                 current.discovered[ChampionDeviceFilter.deduplicationKey(device)] = device
-                finishActiveScanUnlocked(
-                    result = ChampionBleResult.Success(current.discovered.values.toList()),
-                )
+                mutableScanResults.value = current.discovered.values.toList()
             }
         }
     }

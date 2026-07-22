@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -98,3 +98,28 @@ Scanner atual retorna primeiro Champion encontrado. Feature final precisa listar
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- `ChampionBleScanner` passou a expor `scanResults` efemeros via `StateFlow`, permitindo acumular candidatos Champion durante janela unica de scan sem persistencia.
+- `AndroidChampionBleScanner` deixou de encerrar no primeiro achado; agora deduplica por chave segura de transporte, atualiza lista incrementalmente e so conclui por timeout, erro ou cancelamento.
+- `DeviceManagementViewModel` passou a observar `scanResults`, refletindo candidatos enquanto scan esta em andamento, preservando selecao valida e mantendo conexao apenas por acao explicita.
+- Cancelamento de scan agora encerra janela de discovery sem transformar cancelamento do usuario em erro de UI.
+- Scans simultaneos seguem bloqueados pelo scanner e pela `ViewModel` via `activeOperation`.
+
+## Evidencia Final
+
+- Comportamento de scan/lista: `AddDevice` inicia scan manual, UI recebe lista efemera deduplicada durante janela de 12 segundos, usuario pode cancelar scan e selecionar candidato sem conectar automaticamente.
+- Confirmacao BLE fisica: nenhuma operacao BLE fisica foi executada nesta task; trabalho restrito a implementacao e build local.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- `BUILD SUCCESSFUL` com configuration cache reutilizado.

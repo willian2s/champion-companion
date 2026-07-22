@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -107,3 +107,29 @@ Conexão funcional exige `TransportReady` mais A1 confirmado ou assumido conform
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- `DeviceManagementViewModel` manteve conexao manual de candidato selecionado e de dispositivo lembrado somente por intents explicitas `ConnectSelectedCandidate` e `ConnectAssociatedDevice`; `init` continua sem auto-connect.
+- Bootstrap funcional continua centralizado em `DeviceConnectionBootstrap`, que so retorna sucesso apos `ChampionConnectionManager.connect(...)` atingir `TransportReady` e `DevicePocHandshakeA1` concluir como `HANDSHAKE_CONFIRMED` ou `HANDSHAKE_ASSUMED`.
+- Persistencia apos sucesso funcional foi fechada em ponto unico via `DeviceRepository.associateDeviceAndUpdateLastSuccessfulConnection(...)`, usado apenas depois de `connectAndHandshake(...)` retornar sucesso.
+- Falhas antes desse ponto nao chamam persistencia, portanto nao substituem associacao existente nem atualizam `lastSuccessfulConnection`.
+- Retry manual continua finito e orientado por `lastConnectIntent` + `retryAction`, repetindo somente reconexao do associado ou reconexao do candidato selecionado conforme ultimo erro.
+- Disconnect inesperado continua chegando por `ChampionBleState.Failed`, que a `ViewModel` converte em estado seguro retryable com erro sanitizado.
+
+## Evidencia Final
+
+- Ponto exato de persistencia da associacao e ultima conexao: dentro do ramo de sucesso de `connectionBootstrap.connectAndHandshake(candidate)` em `DeviceManagementViewModel.persistAssociation(...)`, agora por chamada transacional unica `associateDeviceAndUpdateLastSuccessfulConnection(...)`.
+- Confirmacao de ausencia de auto-connect/loop: `DeviceManagementViewModel.init` apenas observa repository, estado de transporte e `scanResults`; nao chama `scan`, `connect` nem `connectAndHandshake` automaticamente.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- `BUILD SUCCESSFUL` com configuration cache reutilizado.

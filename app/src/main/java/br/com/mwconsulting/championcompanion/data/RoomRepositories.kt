@@ -3,6 +3,7 @@ package br.com.mwconsulting.championcompanion.data
 import androidx.room3.withWriteTransaction
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
 import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
+import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
@@ -81,6 +82,21 @@ class RoomRepositories @Inject constructor(
             ),
         )
         val mapped = persisted.toDomain(associatedAtEpochMillis = device.associatedAt.toEpochMilli())
+            ?: return@write RepositoryResult.UnexpectedState
+        RepositoryResult.Success(mapped)
+    }
+
+    override suspend fun associateDeviceAndUpdateLastSuccessfulConnection(
+        device: Device,
+        connectedAt: Instant,
+    ): RepositoryResult<Device> = write {
+        val associatedAtEpochMillis = device.associatedAt.toEpochMilli()
+        val persisted = upsertAssociatedDevice(
+            device = device,
+            associatedAtEpochMillis = associatedAtEpochMillis,
+            connectedAtEpochMillis = connectedAt.toEpochMilli(),
+        ) ?: return@write RepositoryResult.UnexpectedState
+        val mapped = persisted.toDomain(associatedAtEpochMillis = associatedAtEpochMillis)
             ?: return@write RepositoryResult.UnexpectedState
         RepositoryResult.Success(mapped)
     }
@@ -291,6 +307,40 @@ class RoomRepositories @Inject constructor(
         }
         val ids = (expired.map { it.id } + overLimit).distinct()
         RepositoryResult.Success(if (ids.isEmpty()) 0 else payloadDao.deleteByIds(ids))
+    }
+
+    private suspend fun upsertAssociatedDevice(
+        device: Device,
+        associatedAtEpochMillis: Long,
+        connectedAtEpochMillis: Long? = null,
+    ): DeviceEntity = with(database) {
+        val deviceDao = deviceDao()
+        val associationDao = deviceAssociationDao()
+        val existing = deviceDao.findByPlatformIdentifier(device.platformIdentifier)
+        val entity = device.toEntity()
+        val persisted = if (existing == null) {
+            val inserted = entity.copy(lastSuccessfulConnectionAtEpochMillis = connectedAtEpochMillis ?: entity.lastSuccessfulConnectionAtEpochMillis)
+            deviceDao.insert(inserted)
+            inserted
+        } else {
+            val merged = entity.copy(
+                id = existing.id,
+                lastSuccessfulConnectionAtEpochMillis = connectedAtEpochMillis
+                    ?: entity.lastSuccessfulConnectionAtEpochMillis
+                    ?: existing.lastSuccessfulConnectionAtEpochMillis,
+                lastImportedAtEpochMillis = entity.lastImportedAtEpochMillis ?: existing.lastImportedAtEpochMillis,
+                importParserVersion = entity.importParserVersion ?: existing.importParserVersion,
+            )
+            deviceDao.update(merged)
+            merged
+        }
+        associationDao.upsert(
+            persisted.toAssociationEntity(
+                associatedAtEpochMillis = associatedAtEpochMillis,
+                updatedAtEpochMillis = associatedAtEpochMillis,
+            ),
+        )
+        persisted
     }
 
     private suspend fun transitionSync(id: HealthSyncOperationId, expected: List<String>, next: String, at: Instant?, error: String?, increment: Int = 0): RepositoryResult<Unit> = write {

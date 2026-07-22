@@ -51,6 +51,9 @@ class DeviceManagementViewModel @Inject constructor(
     private var currentTransportState: ChampionBleState = ChampionBleState.Disconnected
     private var lastConnectIntent: DeviceManagementIntent? = null
     private var functionalConnectionEstablished = false
+    private var autoConnectInFlight = false
+    private var currentEntryId = 0L
+    private var lastAutoConnectAttemptEntryId: Long? = null
 
     override val state: StateFlow<DeviceManagementUiState> = mutableState.asStateFlow()
     val events: SharedFlow<DeviceManagementEvent> = mutableEvents.asSharedFlow()
@@ -63,6 +66,7 @@ class DeviceManagementViewModel @Inject constructor(
                     current.copy(associatedDevice = device?.toUiModel())
                 }
                 refreshIdleSurface()
+                attemptAutoConnectForCurrentEntry()
             }
         }
 
@@ -72,13 +76,19 @@ class DeviceManagementViewModel @Inject constructor(
                 handleTransportState(transportState)
             }
         }
+
+        viewModelScope.launch {
+            scanner.scanResults.collect { candidates ->
+                scanCandidates = candidates
+                updateCandidatesState(candidates)
+            }
+        }
     }
 
     override fun onIntent(intent: DeviceManagementIntent) {
         when (intent) {
-            DeviceManagementIntent.Load,
-            DeviceManagementIntent.RefreshPrerequisites,
-            -> refreshPrerequisites()
+            DeviceManagementIntent.Load -> onFeatureEntry()
+            DeviceManagementIntent.RefreshPrerequisites -> refreshPrerequisites()
 
             DeviceManagementIntent.AddDevice -> startScan()
             DeviceManagementIntent.Retry -> retry()
@@ -93,6 +103,16 @@ class DeviceManagementViewModel @Inject constructor(
             DeviceManagementIntent.OpenDiagnostics -> emitTransientEvent(DeviceManagementEvent.OpenDiagnostics)
             DeviceManagementIntent.ExportDiagnostics -> emitTransientEvent(DeviceManagementEvent.ShareDiagnostics)
         }
+    }
+
+    private fun onFeatureEntry() {
+        currentEntryId += 1
+        if (associatedDeviceDomain == null) {
+            refreshIdleSurface(clearError = true)
+            return
+        }
+        refreshPrerequisites()
+        attemptAutoConnectForCurrentEntry()
     }
 
     private fun refreshPrerequisites(emitResolutionEvents: Boolean = false) {
@@ -156,7 +176,7 @@ class DeviceManagementViewModel @Inject constructor(
             when (val result = connectionManager.scan(ChampionScanRequest(timeout = 12.seconds))) {
                 is ChampionBleResult.Success -> {
                     scanCandidates = result.value
-                    val selected = scanCandidates.firstOrNull()?.transportKey?.let(::DeviceManagementCandidateId)
+                    val selected = resolveSelectedCandidateId(scanCandidates)
                     mutableState.update { current ->
                         current.copy(
                             screenState = if (scanCandidates.isEmpty()) {
@@ -182,7 +202,14 @@ class DeviceManagementViewModel @Inject constructor(
                     }
                 }
 
-                is ChampionBleResult.Failure -> handleBleFailure(result.error)
+                is ChampionBleResult.Failure -> {
+                    if (result.error is ChampionBleError.OperationCancelled) {
+                        activeJob = null
+                        refreshIdleSurface(clearError = true)
+                    } else {
+                        handleBleFailure(result.error)
+                    }
+                }
             }
         }
     }
@@ -190,8 +217,6 @@ class DeviceManagementViewModel @Inject constructor(
     private fun cancelScan() {
         viewModelScope.launch {
             scanner.cancelScan(ChampionCancellationReason.USER_REQUESTED)
-            activeJob = null
-            refreshIdleSurface(clearError = scanCandidates.isNotEmpty())
         }
     }
 
@@ -215,6 +240,10 @@ class DeviceManagementViewModel @Inject constructor(
     }
 
     private fun connectAssociatedDevice() {
+        connectAssociatedDevice(automatic = false)
+    }
+
+    private fun connectAssociatedDevice(automatic: Boolean) {
         val associatedDevice = associatedDeviceDomain ?: return
         lastConnectIntent = DeviceManagementIntent.ConnectAssociatedDevice
         connect(
@@ -224,33 +253,53 @@ class DeviceManagementViewModel @Inject constructor(
                 localName = associatedDevice.name,
                 observedAt = Instant.now(),
             ),
+            automatic = automatic,
+            isAssociatedDevice = true,
         )
     }
 
-    private fun connect(candidate: ChampionDiscoveredDevice) {
+    private fun connect(
+        candidate: ChampionDiscoveredDevice,
+        automatic: Boolean = false,
+        isAssociatedDevice: Boolean = false,
+    ) {
         if (mutableState.value.activeOperation != null) return
         val readiness = ChampionBlePrerequisites.forConnect(bleEnvironment.snapshot())
         if (!readiness.isReady) {
-            handlePrerequisiteFailure(readiness.missing.first().error, readiness.missing.flatMap { it.permissions }.toSet())
+            handlePrerequisiteFailure(
+                error = readiness.missing.first().error,
+                permissions = readiness.missing.flatMap { it.permissions }.toSet(),
+                emitResolutionEvents = !automatic,
+            )
             return
         }
 
         activeJob?.cancel()
         activeJob = viewModelScope.launch {
             functionalConnectionEstablished = false
+            autoConnectInFlight = automatic
             mutableState.update {
                 it.copy(
                     screenState = DeviceManagementScreenState.Connecting,
                     activeOperation = DeviceManagementActiveOperation.CONNECTING,
-                    connectionState = DeviceManagementConnectionState.CONNECTING,
+                    connectionState = if (automatic && isAssociatedDevice) {
+                        DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE
+                    } else {
+                        DeviceManagementConnectionState.CONNECTING
+                    },
                     error = null,
                     retryAction = null,
                 )
             }
 
-            when (val result = connectionBootstrap.connectAndHandshake(candidate)) {
+            when (val result = if (isAssociatedDevice) {
+                connectionBootstrap.connectAssociatedDevice(candidate)
+            } else {
+                connectionBootstrap.connectAndHandshake(candidate)
+            }) {
                 is ChampionBleResult.Success -> {
                     functionalConnectionEstablished = true
+                    autoConnectInFlight = false
                     when (persistAssociation(candidate)) {
                         is RepositoryResult.Success -> {
                             mutableState.update {
@@ -272,7 +321,10 @@ class DeviceManagementViewModel @Inject constructor(
                     }
                 }
 
-                is ChampionBleResult.Failure -> handleBleFailure(result.error)
+                is ChampionBleResult.Failure -> {
+                    autoConnectInFlight = false
+                    handleBleFailure(result.error)
+                }
             }
         }
     }
@@ -323,9 +375,10 @@ class DeviceManagementViewModel @Inject constructor(
             }
         }
 
-        val associateResult = deviceRepository.associateDevice(associatedDevice)
-        if (associateResult !is RepositoryResult.Success) return associateResult
-        return deviceRepository.updateLastSuccessfulConnection(associateResult.value.id, now)
+        return deviceRepository.associateDeviceAndUpdateLastSuccessfulConnection(
+            device = associatedDevice,
+            connectedAt = now,
+        )
     }
 
     private fun disconnectDevice() {
@@ -344,6 +397,7 @@ class DeviceManagementViewModel @Inject constructor(
             when (val result = connectionManager.disconnect(ChampionDisconnectReason.USER_REQUESTED)) {
                 is ChampionBleResult.Success -> {
                     functionalConnectionEstablished = false
+                    autoConnectInFlight = false
                     mutableState.update {
                         it.copy(
                             screenState = if (associatedDeviceDomain != null) {
@@ -376,6 +430,7 @@ class DeviceManagementViewModel @Inject constructor(
             }
             connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
             functionalConnectionEstablished = false
+            autoConnectInFlight = false
             when (deviceRepository.forgetAssociatedDevice()) {
                 is RepositoryResult.Success -> {
                     associatedDeviceDomain = null
@@ -440,6 +495,7 @@ class DeviceManagementViewModel @Inject constructor(
         when (transportState) {
             ChampionBleState.Disconnected -> {
                 activeJob = null
+                autoConnectInFlight = false
                 if (!functionalConnectionEstablished && mutableState.value.activeOperation == DeviceManagementActiveOperation.CONNECTING) {
                     refreshIdleSurface()
                 }
@@ -448,8 +504,16 @@ class DeviceManagementViewModel @Inject constructor(
             is ChampionBleState.Scanning -> {
                 mutableState.update {
                     it.copy(
-                        connectionState = DeviceManagementConnectionState.SCANNING,
-                        screenState = DeviceManagementScreenState.Scanning,
+                        connectionState = if (autoConnectInFlight) {
+                            DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE
+                        } else {
+                            DeviceManagementConnectionState.SCANNING
+                        },
+                        screenState = if (autoConnectInFlight) {
+                            DeviceManagementScreenState.Connecting
+                        } else {
+                            DeviceManagementScreenState.Scanning
+                        },
                     )
                 }
             }
@@ -489,6 +553,7 @@ class DeviceManagementViewModel @Inject constructor(
 
             is ChampionBleState.Failed -> {
                 functionalConnectionEstablished = false
+                autoConnectInFlight = false
                 handleBleFailure(transportState.error)
             }
         }
@@ -497,17 +562,21 @@ class DeviceManagementViewModel @Inject constructor(
     private fun handlePrerequisiteFailure(
         error: ChampionBleError,
         permissions: Set<ChampionRuntimePermission>,
+        emitResolutionEvents: Boolean = true,
     ) {
         if (permissions.isNotEmpty()) {
             mutableState.update {
                 it.copy(
                     screenState = DeviceManagementScreenState.PermissionsRequired,
-                    activeOperation = DeviceManagementActiveOperation.REQUESTING_PERMISSIONS,
+                    activeOperation = if (emitResolutionEvents) DeviceManagementActiveOperation.REQUESTING_PERMISSIONS else null,
+                    connectionState = DeviceManagementConnectionState.DISCONNECTED,
                     error = error.toDeviceManagementError(),
                     retryAction = DeviceManagementRetryAction.RequestPermissions,
                 )
             }
-            emitEvent(DeviceManagementEvent.RequestPermissions(permissions.mapToUiPermissions()))
+            if (emitResolutionEvents) {
+                emitEvent(DeviceManagementEvent.RequestPermissions(permissions.mapToUiPermissions()))
+            }
             return
         }
         if (error == ChampionBleError.BluetoothDisabled) {
@@ -519,13 +588,21 @@ class DeviceManagementViewModel @Inject constructor(
                     retryAction = DeviceManagementRetryAction.EnableBluetooth,
                 )
             }
-            emitEvent(DeviceManagementEvent.OpenBluetoothSettings)
+            if (emitResolutionEvents) {
+                emitEvent(DeviceManagementEvent.OpenBluetoothSettings)
+            }
             return
         }
         handleBleFailure(error)
     }
 
     private fun handleBleFailure(error: ChampionBleError) {
+        if (error is ChampionBleError.OperationCancelled) {
+            activeJob = null
+            autoConnectInFlight = false
+            refreshIdleSurface(clearError = true)
+            return
+        }
         activeJob = null
         mutableState.update {
             it.copy(
@@ -543,6 +620,28 @@ class DeviceManagementViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    private fun attemptAutoConnectForCurrentEntry() {
+        if (currentEntryId == 0L) return
+        val associatedDevice = associatedDeviceDomain ?: return
+        if (mutableState.value.activeOperation != null) return
+        if (functionalConnectionEstablished) return
+        if (currentTransportState !is ChampionBleState.Disconnected && currentTransportState !is ChampionBleState.Failed) return
+        if (lastAutoConnectAttemptEntryId == currentEntryId) return
+
+        val readiness = ChampionBlePrerequisites.forConnect(bleEnvironment.snapshot())
+        if (!readiness.isReady) {
+            handlePrerequisiteFailure(
+                error = readiness.missing.first().error,
+                permissions = readiness.missing.flatMap { it.permissions }.toSet(),
+                emitResolutionEvents = false,
+            )
+            return
+        }
+
+        lastAutoConnectAttemptEntryId = currentEntryId
+        connectAssociatedDevice(automatic = true)
     }
 
     private fun handleRepositoryFailure(
@@ -574,15 +673,44 @@ class DeviceManagementViewModel @Inject constructor(
             else -> DeviceManagementScreenState.NoAssociatedDevice
         }
         mutableState.update {
+            val selectedCandidateId = resolveSelectedCandidateId(scanCandidates, it.selectedCandidateId)
             it.copy(
                 screenState = nextScreenState,
                 connectionState = DeviceManagementConnectionState.DISCONNECTED,
                 activeOperation = null,
                 error = if (clearError) null else it.error,
                 retryAction = if (clearError) null else it.retryAction,
-                candidates = scanCandidates.toUiCandidates(it.selectedCandidateId),
+                selectedCandidateId = selectedCandidateId,
+                candidates = scanCandidates.toUiCandidates(selectedCandidateId),
             )
         }
+    }
+
+    private fun updateCandidatesState(candidates: List<ChampionDiscoveredDevice>) {
+        val current = mutableState.value
+        val selectedCandidateId = resolveSelectedCandidateId(candidates, current.selectedCandidateId)
+        val shouldShowResults = current.activeOperation == DeviceManagementActiveOperation.SCANNING ||
+            current.screenState == DeviceManagementScreenState.ScanResults ||
+            current.screenState == DeviceManagementScreenState.DeviceNotFound
+
+        if (!shouldShowResults && candidates.isEmpty()) return
+
+        mutableState.update {
+            it.copy(
+                selectedCandidateId = selectedCandidateId,
+                candidates = candidates.toUiCandidates(selectedCandidateId),
+            )
+        }
+    }
+
+    private fun resolveSelectedCandidateId(
+        candidates: List<ChampionDiscoveredDevice>,
+        selectedCandidateId: DeviceManagementCandidateId? = mutableState.value.selectedCandidateId,
+    ): DeviceManagementCandidateId? {
+        if (selectedCandidateId != null && candidates.any { it.transportKey == selectedCandidateId.value }) {
+            return selectedCandidateId
+        }
+        return candidates.firstOrNull()?.transportKey?.let(::DeviceManagementCandidateId)
     }
 
     private fun emitEvent(event: DeviceManagementEvent) {
