@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -85,6 +85,23 @@ Após validação manual, documentos devem refletir estado real entregue e dívi
 ## Evidência Manual
 
 - Comandos e smoke final consolidados.
+
+## Fechamento Consolidado
+
+- `007-09` foi marcada como concluida por decisao explicita do usuario apos validacao fisica de conexao e sync manual no Galaxy S22 com Champion C001.
+- Gate registrado na fase:
+  - `./gradlew assembleDebug`
+  - `./gradlew assembleRelease`
+  - `./gradlew installDebug`
+- Smoke registrado:
+  - app abriu no aparelho;
+  - conexao com relogio funcionou;
+  - sincronizacao manual atualizou resumo diario na Home.
+- Riscos aceitos:
+  - roteiro manual completo de 35 passos nao foi documentado item a item;
+  - distancia e calorias estimadas permaneceram indisponiveis no fluxo observado;
+  - cenarios fisicos detalhados de erro e day rollover ficam como validacao/manual debt residual.
+- `git status --short` no fechamento registrou alteracoes documentais da fase em andamento, sem commit ou push automatico.
 
 ## Atualização Do Overview
 

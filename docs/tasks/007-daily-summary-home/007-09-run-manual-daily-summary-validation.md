@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22 por decisao do usuario, com gate obrigatorio concluido e smoke fisico registrado.
 
 ## Objetivo
 
@@ -86,14 +86,40 @@ Fase 07 depende de comportamento físico BLE para FEA1. Build verde não substit
 
 ## Evidência Manual
 
-- Resultado do roteiro de 35 passos.
-- Build/install usados.
-- Estado do dispositivo e app.
+- Gate executado neste trabalho:
+  - `./gradlew assembleDebug` - concluido anteriormente nesta fase e mantido verde.
+  - `./gradlew assembleRelease` - sucesso em 2026-07-22.
+  - `./gradlew installDebug` - sucesso em 2026-07-22 no `SM-S901E - 16`.
+- Smoke fisico executado pelo usuario no Galaxy S22 com Champion C001:
+  - app aberto no aparelho;
+  - conexao com relogio realizada com sucesso;
+  - sincronizacao manual de dados realizada com sucesso;
+  - resumo diario atualizado na Home apos sync.
+- Limitacoes e pendencias registradas:
+  - distancia estimada e calorias estimadas seguem indisponiveis no fluxo manual observado;
+  - indicio atual: ainda faltam dados pessoais suficientes ou validacao especifica do calculo/entrada de perfil para destravar esse trecho;
+  - roteiro fisico completo de 35 passos ainda nao foi executado integralmente neste trabalho;
+  - nao houve evidencia manual nova para cenarios de timeout, pacote invalido, cancelamento, total menor, total igual, Bluetooth desligado, permissao negada e mudanca de dia.
+
+## Resultado Do Smoke
+
+- Passou:
+  - conexao controlada com Champion C001;
+  - refresh manual/pull-to-refresh com atualizacao do resumo diario;
+  - instalacao debug no aparelho alvo.
+- Riscos aceitos no fechamento:
+  - cobertura integral do roteiro de 35 passos do overview nao foi registrada ponto a ponto;
+  - cenarios fisicos de erro e day rollover seguem sem evidencia manual detalhada neste trabalho;
+  - distancia/calorias permanecem indisponiveis no fluxo observado, tratadas como limitacao aceita para fechamento documental desta fase.
 
 ## Atualização Do Overview
 
-- Marcar `007-09` como concluída se gate e smoke passarem.
+- Marcar `007-09` como concluida.
 
 ## Validação Final
 
 - Confirmar ausência de Health Connect, D1, D3 e D4.
+
+## Estado Atual
+
+- Nenhuma evidencia de Health Connect, D1, D3 ou D4 apareceu na validacao manual parcial.

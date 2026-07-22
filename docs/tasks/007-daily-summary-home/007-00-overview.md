@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. Tasks `007-01` ate `007-07` concluidas.
+Concluida em 2026-07-22. Tasks `007-01` ate `007-10` fechadas, com riscos residuais documentados.
 
 ## Objetivo
 
@@ -185,6 +185,20 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - `observedDate` da Home agora é reavaliada ao voltar ao foreground, ao iniciar refresh e por timer local até a próxima meia-noite, sem criar sync automático.
 - Sucesso de sync alinha o dia observado ao `collectedAt` persistido, evitando misturar dia anterior e novo dia quando a leitura válida cruza meia-noite.
 
+## Achados De `007-09`
+
+- `assembleRelease` e `installDebug` passaram no trabalho de validacao manual; `installDebug` confirmou instalacao no `SM-S901E - 16`.
+- Smoke fisico parcial no Galaxy S22 com Champion C001 confirmou abertura do app, conexao com relogio e sincronizacao manual com atualizacao do resumo diario.
+- Distancia estimada e calorias estimadas permaneceram indisponiveis no fluxo observado; validacao aponta necessidade de conferir dados pessoais suficientes e/ou trecho de calculo na fase seguinte.
+- Roteiro manual completo de 35 passos ainda segue pendente para cenarios de erro, reducao/igualdade, Bluetooth desligado, permissoes e mudanca de dia.
+
+## Achados De `007-10`
+
+- Fase 07 foi encerrada documentalmente com gate obrigatorio registrado e smoke fisico aceito pelo usuario.
+- `007-09` foi considerada concluida por decisao explicita do usuario, mesmo com cobertura manual incompleta do roteiro detalhado.
+- Riscos residuais aceitos no fechamento: evidencia manual incompleta de cenarios de erro/day rollover e distancia/calorias ainda indisponiveis no fluxo observado.
+- Baseline factual foi atualizada para refletir Home funcional com pull-to-refresh e resumo diario local.
+
 ## Checklist
 
 - [x] `007-01` auditoria concluída
@@ -195,8 +209,8 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - [x] `007-06` HomeViewModel criado
 - [x] `007-07` UI pull-to-refresh criada
 - [x] `007-08` progresso, retry e day rollover integrados
-- [ ] `007-09` validação manual executada
-- [ ] `007-10` fase fechada
+- [x] `007-09` validação manual executada
+- [x] `007-10` fase fechada
 
 ## Comandos Mínimos
 
@@ -277,6 +291,12 @@ Galaxy S22 com Champion C001:
 - Última sync só muda após pacote válido e persistência.
 - Barras e refresh encerram em todos os caminhos.
 - Gate obrigatório e smoke manual registrados.
+
+## Riscos Aceitos No Fechamento
+
+- Evidencia manual do roteiro de 35 passos nao foi registrada item a item.
+- Distancia e calorias estimadas permaneceram indisponiveis no fluxo fisico observado.
+- Validacao fisica detalhada de timeout, payload invalido, cancelamento e mudanca de dia permanece adiada.
 
 ## Instruções De Atualização Do Checklist
 

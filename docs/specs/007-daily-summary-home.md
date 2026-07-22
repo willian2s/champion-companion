@@ -685,6 +685,17 @@ Testes pequenos recomendados junto das tasks:
 
 Fase 07 conclui quando Home funcional sincroniza passos do Champion C001 por pull-to-refresh, aceita somente FEA1 fresco da tentativa atual, consolida acumulado sem redução, persiste resumo local e metadados de importação, mantém dados visíveis durante refresh, preserva limites de privacidade/arquitetura, compila debug/release, instala no Galaxy S22 e passa smoke manual físico.
 
+## Encerramento Da Fase 07
+
+- Fechamento documental registrado em 2026-07-22.
+- Gate executado e registrado: `assembleDebug`, `assembleRelease`, `installDebug`.
+- Smoke físico aceito no fechamento: abertura do app, conexão com Champion C001 e sincronização manual com atualização do resumo diário na Home.
+- Sem evidência de Health Connect, D1, D3 ou D4 no resultado entregue.
+- Riscos aceitos no fechamento:
+  - roteiro manual completo não foi registrado item a item;
+  - cenários físicos detalhados de erro e mudança de dia seguem sem evidência manual completa;
+  - distância e calorias estimadas permaneceram indisponíveis no fluxo observado, preservando comportamento seguro sem inventar valores.
+
 ## Matriz De Rastreabilidade
 
 | Requisito | Tasks |
