@@ -32,12 +32,16 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 
 - Home ainda mostra `Painel em preparação`.
 - `HomeFeatureContract.kt` não possui estado real.
+- `HomeScreen.kt` ainda depende diretamente de `DeviceManagementViewModel` obtido via `ViewModelProvider(activity)`.
 - Fase 06 entregou associação, conexão manual, auto-conexão controlada, retry, disconnect, forget e diagnóstico seguro.
 - ADR-007 permite auto-connect controlado do associado, mas não permite sync automático.
 - Parser FEA1 existe como `DevicePocFea1Steps`, ainda técnico.
 - `DailySummaryRepository.save()` faz upsert simples e não protege valor maior contra leitura menor.
 - `DeviceImportMetadata.lastImportedAt` existe, mas não há operação de atualização por import real.
 - `AppPreferences` não tem `dailyStepsGoal`.
+- `AppPreferencesStore` implementa contrato de preferências, mas ainda não existe binding Hilt explícito para `AppPreferencesRepository`.
+- `UserProfileDao` já observa perfil e pesos, mas não existe contrato/repository mínimo para métricas pessoais da Home.
+- `ChampionConnectionManager.currentSession()` e `ChampionNotificationHub` já suportam reuso de sessão e subscription temporária, mas `DeviceConnectionBootstrap` ainda não reaproveita sessão ativa por conta própria.
 
 ## Limites
 
@@ -118,9 +122,17 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/preferences/AppPreferencesStore.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/preferences/PreferencesModule.kt`
 
+## Achados De `007-01`
+
+- Auto-connect atual conecta e atualiza `lastSuccessfulConnectionAt`, mas não espera FEA1 fresco, não persiste resumo diário e não atualiza `lastImportedAt`.
+- `DailySummaryDao` e schema Room v2 já suportam chave natural de resumo diário sem migration imediata.
+- Reuso de sessão para sync manual deverá ser decidido fora do bootstrap atual, usando `ChampionConnectionManager.currentSession()` antes de nova conexão.
+- Lacuna principal de DI fica em `AppPreferencesRepository` e em futuro contrato mínimo de métricas pessoais.
+- Risco principal de persistência continua em `RoomRepositories.save()`, que faz replace simples e pode reduzir passos.
+
 ## Checklist
 
-- [ ] `007-01` auditoria concluída
+- [x] `007-01` auditoria concluída
 - [ ] `007-02` contratos e UI state definidos
 - [ ] `007-03` parser FEA1 promovido e coordinator criado
 - [ ] `007-04` consolidação atômica implementada

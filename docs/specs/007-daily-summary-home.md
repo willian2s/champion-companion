@@ -36,8 +36,9 @@ Documentos autoritativos:
 - `DailySummaryRepository.save()` faz upsert simples e pode substituir valor maior por menor.
 - `DailySummaryDao` possui consulta por chave natural e `observeBetween`.
 - `DeviceRepository` não possui operação explícita para atualizar `DeviceImportMetadata` após import.
-- `AppPreferencesStore` não possui meta diária de passos e não está bindado como `AppPreferencesRepository` em Hilt.
+- `AppPreferencesStore` implementa `AppPreferencesRepository`, mas `AppPreferences` ainda não possui meta diária de passos e Hilt ainda não expõe binding explícito do contrato.
 - `UserProfileDao` e `WeightMeasurementEntity` existem, mas não há contrato de repository para consulta mínima de dados pessoais.
+- `ChampionConnectionManager.currentSession()` já permite reuso de sessão e `ChampionNotificationHub` já suporta subscriptions temporárias, porém `DeviceConnectionBootstrap` ainda não reutiliza sessão ativa por conta própria.
 - Room está em versão 2 por associação de dispositivo. Schema atual já tem `daily_summaries` e campos de metadados de importação em `devices`.
 
 ## Objetivo
