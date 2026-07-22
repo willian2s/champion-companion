@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -91,6 +91,30 @@ Home atual usa `DeviceManagementViewModel` apenas para status do relógio e não
 ## Evidência Manual
 
 - Descrever combinações de estado suportadas.
+
+## Evidência Manual
+
+- `HomeViewModel` foi criado em `feature/home/HomeViewModel.kt` como `@HiltViewModel` e implementa `HomeFeatureContract`.
+- ViewModel combina:
+  - resumo do dia observado;
+  - dispositivo associado;
+  - meta diária;
+  - sessões pendentes recuperáveis;
+  - estado BLE atual;
+  - estado de refresh interno.
+- Nenhum sync automático foi iniciado no `init`; `Load` só reavalia `observedDate` e snapshot do ambiente BLE.
+- `Refresh` e `Retry` chamam mesmo pipeline e ignoram concorrência via `Mutex` + guarda de `isRefreshing`.
+- Durante refresh, resumo anterior continua visível porque `summary` vem sempre do flow do repository e não é zerado ao iniciar operação.
+- Combinações de estado suportadas:
+  - `Loading`: estado inicial antes da primeira combinação de flows;
+  - `Ready`: resumo existente, com ou sem refresh em andamento;
+  - `Empty`: sem resumo, com dispositivo e pré-requisitos OK;
+  - `DeviceRequired`: sem resumo e sem relógio associado;
+  - `PermissionsRequired`: pré-requisitos de permissão ausentes e sem resumo pronto;
+  - `BluetoothDisabled`: Bluetooth desligado e sem resumo pronto;
+  - `RefreshFailed`: erro seguro após tentativa explícita, preservando resumo anterior quando houver.
+- `RepositoryModule` agora também faz binding de `DailyStepsSyncCoordinator` para `ChampionDailyStepsSyncCoordinator`.
+- Nenhum teste novo foi adicionado ou executado nesta task por orientação explícita do usuário para não investir em testes agora.
 
 ## Atualização Do Overview
 

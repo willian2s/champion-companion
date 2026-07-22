@@ -38,8 +38,10 @@ Documentos autoritativos:
 - `DeviceRepository` não possui operação explícita para atualizar `DeviceImportMetadata` após import.
 - `RepositoryContracts.kt` já reserva contratos-alvo para `DailyStepsSyncCoordinator`, `PersonalMetricsRepository`, `mergeWatchDailySummary(...)` e `updateImportMetadata(...)`; coordinator agora retorna leitura FEA1 fresca consolidável, ainda sem persistência final.
 - `RoomRepositories` agora implementa `mergeWatchDailySummary(...)` com regra de máximo e atualização transacional de `lastImportedAt`, enquanto `save()` antigo continua existindo para outros fluxos legados.
-- `AppPreferencesStore` implementa `AppPreferencesRepository`, mas `AppPreferences` ainda não possui meta diária de passos e Hilt ainda não expõe binding explícito do contrato.
-- `UserProfileDao` e `WeightMeasurementEntity` existem, mas não há contrato de repository para consulta mínima de dados pessoais.
+- `AppPreferences` agora possui `dailyStepsGoal` com default compatível de `8000`, e Hilt já expõe `AppPreferencesRepository` via `AppPreferencesStore`.
+- `UserProfileDao` e `WeightMeasurementEntity` agora alimentam `PersonalMetricsRepository` mínimo com altura atual, último peso e passada manual ainda indisponível nesta fase.
+- `DailySummaryPolicy` agora centraliza sanitização da meta, progresso e estimativas locais com `null` quando faltarem dados pessoais válidos.
+- `HomeViewModel` agora observa resumo do dia, dispositivo, meta, sessões pendentes e BLE, controla refresh explícito sem concorrência e não dispara sync automático no `init`.
 - `ChampionConnectionManager.currentSession()` já permite reuso de sessão e `ChampionNotificationHub` já suporta subscriptions temporárias, porém `DeviceConnectionBootstrap` ainda não reutiliza sessão ativa por conta própria.
 - `ChampionDailyStepsSyncCoordinator` já observa FEA1 fresco com timeout explícito e sem persistência própria, reaproveitando sessão ativa compatível antes de reconectar.
 - Room está em versão 2 por associação de dispositivo. Schema atual já tem `daily_summaries` e campos de metadados de importação em `devices`.

@@ -112,6 +112,61 @@ data class DailySummaryKey(
     val localDate: LocalDate,
 )
 
+data class DailyGoalProgress(
+    val goal: Int,
+    val progress: Float,
+)
+
+data class DailySummaryEstimates(
+    val strideLengthMeters: Double?,
+    val distanceMeters: Double?,
+    val caloriesKilocalories: Double?,
+)
+
+object DailySummaryPolicy {
+    private const val estimatedStrideFromHeightFactor = 0.415
+    private const val caloriesPerKilogramPerKilometer = 0.55
+
+    fun sanitizeDailyStepsGoal(goal: Int): Int = if (goal > 0) goal else DEFAULT_DAILY_STEPS_GOAL
+
+    fun progress(steps: Long, goal: Int): DailyGoalProgress {
+        val safeGoal = sanitizeDailyStepsGoal(goal)
+        val safeSteps = maxOf(0L, steps)
+        val ratio = (safeSteps.toDouble() / safeGoal.toDouble()).coerceAtMost(1.0)
+        return DailyGoalProgress(
+            goal = safeGoal,
+            progress = ratio.toFloat(),
+        )
+    }
+
+    fun estimate(steps: Long, metrics: PersonalMetricsSnapshot): DailySummaryEstimates {
+        val safeSteps = maxOf(0L, steps)
+        val strideLengthMeters = resolveStrideLengthMeters(metrics)
+        val distanceMeters = strideLengthMeters?.let { safeSteps * it }
+            ?.takeIf { it.isFinite() && it > 0.0 }
+        val caloriesKilocalories = metrics.weightKilograms
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?.let { weightKg ->
+                distanceMeters?.let { meters -> weightKg * (meters / 1_000.0) * caloriesPerKilogramPerKilometer }
+            }
+            ?.takeIf { it.isFinite() && it > 0.0 }
+
+        return DailySummaryEstimates(
+            strideLengthMeters = strideLengthMeters,
+            distanceMeters = distanceMeters,
+            caloriesKilocalories = caloriesKilocalories,
+        )
+    }
+
+    private fun resolveStrideLengthMeters(metrics: PersonalMetricsSnapshot): Double? =
+        metrics.manualStrideLengthMeters
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?: metrics.heightCentimeters
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?.let { (it / 100.0) * estimatedStrideFromHeightFactor }
+                ?.takeIf { it.isFinite() && it > 0.0 }
+}
+
 @ConsistentCopyVisibility
 data class DailySummary private constructor(
     val id: DailySummaryId,

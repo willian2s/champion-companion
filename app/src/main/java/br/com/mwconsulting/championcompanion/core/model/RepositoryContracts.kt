@@ -136,8 +136,7 @@ interface DiagnosticPayloadRepository {
 
 interface AppPreferencesRepository {
     fun observe(): Flow<AppPreferences>
-    fun observeDailyStepsGoal(): Flow<Int> = observe().map { DEFAULT_DAILY_STEPS_GOAL }
+    fun observeDailyStepsGoal(): Flow<Int>
     suspend fun update(preferences: AppPreferences): RepositoryResult<Unit>
-    suspend fun updateDailyStepsGoal(goal: Int): RepositoryResult<Unit> =
-        if (goal > 0) RepositoryResult.UnexpectedState else RepositoryResult.UnexpectedState
+    suspend fun updateDailyStepsGoal(goal: Int): RepositoryResult<Unit>
 }

@@ -26,6 +26,8 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
@@ -42,6 +44,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
@@ -53,11 +56,31 @@ class RoomRepositories @Inject constructor(
     private val database: ChampionDatabase,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : DeviceRepository, DailySummaryRepository, HeartRateRepository, WorkoutActivityRepository,
-    TreadmillCalibrationRepository, AppWorkoutSessionRepository, HealthSyncRepository, DiagnosticPayloadRepository {
+    TreadmillCalibrationRepository, AppWorkoutSessionRepository, HealthSyncRepository, DiagnosticPayloadRepository,
+    PersonalMetricsRepository {
     private val ids = UuidV7Generator()
 
     override fun observeAssociatedDevice(): Flow<Device?> = database.deviceAssociationDao().observeAssociated()
         .map { it?.toDomain() }
+        .flowOn(ioDispatcher)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeSnapshot(): Flow<PersonalMetricsSnapshot> = database.userProfileDao().observeCurrent()
+        .transformLatest { profile ->
+            if (profile == null) {
+                emit(PersonalMetricsSnapshot())
+                return@transformLatest
+            }
+            database.userProfileDao().observeLatestWeight(profile.id)
+                .map { weight ->
+                    PersonalMetricsSnapshot(
+                        heightCentimeters = profile.heightCentimeters,
+                        weightKilograms = weight?.toKilogramsOrNull(),
+                        manualStrideLengthMeters = null,
+                    )
+                }
+                .collect { emit(it) }
+        }
         .flowOn(ioDispatcher)
 
     override suspend fun associateDevice(device: Device): RepositoryResult<Device> = write {
@@ -424,6 +447,12 @@ class RoomRepositories @Inject constructor(
     ) {
         is DomainResult.Success -> created.value
         is DomainResult.Failure -> null
+    }
+
+    private fun br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity.toKilogramsOrNull(): Double? = when (unit) {
+        "KILOGRAMS" -> value.takeIf { it.isFinite() && it > 0.0 }
+        "POUNDS" -> (value * 0.45359237).takeIf { value.isFinite() && value > 0.0 }
+        else -> null
     }
 
     private suspend fun transitionSync(id: HealthSyncOperationId, expected: List<String>, next: String, at: Instant?, error: String?, increment: Int = 0): RepositoryResult<Unit> = write {

@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -95,11 +95,24 @@ A Home atual exibe `Painel em preparação`. Esta task entrega superfície visua
 
 ## Evidência Manual
 
-- Registrar inspeção visual local ou screenshot para PR se necessário.
+- UI implementada em `HomeScreen.kt` com `PullToRefreshBox`, conteúdo rolável, barra linear indeterminada, estados vazio/pronto/refreshing/erro e alternativa acessível via ação customizada para leitor de tela.
+- `./gradlew assembleDebug` executado com sucesso neste trabalho.
+- Inspeção visual local permanece pendente para `007-09`.
 
 ## Atualização Do Overview
 
 - Marcar `007-07` como concluída.
+
+## Resultado Entregue
+
+- `HomeScreen.kt` deixou de depender de `DeviceManagementViewModel` e passou a coletar `HomeViewModel`.
+- Placeholder `Painel em preparação` foi removido.
+- Home agora usa conteúdo rolável em todos os estados, inclusive vazio.
+- Pull-to-refresh virou ação principal de atualização.
+- Barra linear indeterminada e texto de etapa aparecem durante refresh.
+- Resumo anterior permanece visível durante refresh e erro.
+- Retry secundário aparece apenas em erro.
+- Estado vazio orienta gesto e expõe ação acessível sem botão permanente de sync no estado normal.
 
 ## Validação Final
 

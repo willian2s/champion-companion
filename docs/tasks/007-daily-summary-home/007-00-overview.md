@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada. Nenhuma task de implementação concluída ainda.
+Em andamento. Tasks `007-01` ate `007-07` concluidas.
 
 ## Objetivo
 
@@ -153,15 +153,39 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - `DeviceImportMetadata.lastImportedAt` e `importParserVersion` agora têm implementação real de atualização em `RoomRepositories`, separadas de `lastSuccessfulConnectionAt`.
 - Nenhuma migration/schema nova foi necessária para cumprir merge atômico da fase.
 
+## Achados De `007-05`
+
+- `AppPreferences` agora inclui `dailyStepsGoal` com default compatível de `8000`.
+- `AppPreferencesStore` passou a sanitizar meta inválida no decode/encode e expor atualização específica da meta.
+- Hilt agora expõe `AppPreferencesRepository` e `PersonalMetricsRepository` explicitamente.
+- Consulta mínima de métricas pessoais ficou disponível em `RoomRepositories`: altura atual, último peso e passada manual indisponível (`null`) nesta fase.
+- Política de progresso e estimativas ficou centralizada em `DailySummaryPolicy`, sem inventar altura, passada, peso, distância ou calorias.
+
+## Achados De `007-06`
+
+- `HomeViewModel` agora é autoridade de estado da Home e do refresh.
+- Nenhum sync automático foi iniciado no `init`; refresh continua exclusivamente explícito.
+- `HomeViewModel` combina resumo do dia, dispositivo associado, meta, sessões pendentes, estado BLE e refresh local sem depender de estado paralelo no Composable.
+- `RepositoryModule` agora faz binding explícito de `DailyStepsSyncCoordinator` para `ChampionDailyStepsSyncCoordinator`.
+- Refresh concorrente é ignorado e resumo anterior continua visível durante a operação.
+
+## Achados De `007-07`
+
+- `HomeScreen.kt` agora coleta `HomeViewModel` e remove dependência direta de `DeviceManagementViewModel`.
+- Placeholder da Home foi substituído por conteúdo rolável com `PullToRefreshBox`.
+- Home exibe barra linear indeterminada durante refresh, mensagem de etapa, resumo diário, origem, última atualização e status do relógio.
+- Estado vazio aceita pull-to-refresh, mostra instrução de uso e expõe ação acessível para atualizar sem introduzir botão permanente de sync no estado normal.
+- Erro seguro mantém resumo anterior visível e oferece `Tentar novamente` apenas no estado de erro.
+
 ## Checklist
 
 - [x] `007-01` auditoria concluída
 - [x] `007-02` contratos e UI state definidos
 - [x] `007-03` parser FEA1 promovido e coordinator criado
 - [x] `007-04` consolidação atômica implementada
-- [ ] `007-05` meta e estimativas implementadas
-- [ ] `007-06` HomeViewModel criado
-- [ ] `007-07` UI pull-to-refresh criada
+- [x] `007-05` meta e estimativas implementadas
+- [x] `007-06` HomeViewModel criado
+- [x] `007-07` UI pull-to-refresh criada
 - [ ] `007-08` progresso, retry e day rollover integrados
 - [ ] `007-09` validação manual executada
 - [ ] `007-10` fase fechada

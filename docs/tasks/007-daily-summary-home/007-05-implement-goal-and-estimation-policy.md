@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -94,6 +94,24 @@ Home precisa mostrar meta, progresso e estimativas. Perfil completo e edição d
 ## Evidência Manual
 
 - Documentar defaults e comportamento sem perfil.
+
+## Evidência Manual
+
+- `AppPreferences.dailyStepsGoal` foi adicionado com default `8000`.
+- `AppPreferencesCodec.decode(...)` agora mantém compatibilidade com preferências antigas: ausência ou valor inválido decodifica como `8000`.
+- `PreferencesModule` agora expõe binding Hilt explícito de `AppPreferencesRepository` via `AppPreferencesStore`.
+- `RepositoryModule` agora expõe `PersonalMetricsRepository` a partir de `RoomRepositories`.
+- `RoomRepositories.observeSnapshot()` agora oferece consulta mínima de métricas pessoais com:
+  - altura do `UserProfile` atual;
+  - último peso conhecido, convertendo `POUNDS` para quilogramas quando necessário;
+  - passada manual ainda `null` nesta fase.
+- `DailySummaryPolicy.progress(...)` protege contra divisão por zero ao sanitizar meta inválida para `8000`.
+- `DailySummaryPolicy.estimate(...)` segue a spec:
+  - prioridade: passada manual válida futura, senão passada estimada por altura, senão indisponível;
+  - distância = `steps * strideLengthMeters`;
+  - calorias = `weightKg * (distanceMeters / 1000) * 0.55`;
+  - sem altura/passada/peso válidos, resultado fica `null` e não inventa zero real.
+- Nenhum teste novo foi adicionado ou executado nesta task por orientação explícita do usuário para não investir em testes agora.
 
 ## Atualização Do Overview
 
