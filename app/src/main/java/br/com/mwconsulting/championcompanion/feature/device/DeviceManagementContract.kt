@@ -8,6 +8,7 @@ interface DeviceManagementFeatureContract : UiStateStore<DeviceManagementUiState
 
 sealed interface DeviceManagementIntent {
     data object Load : DeviceManagementIntent
+    data object ExitVisibleScreen : DeviceManagementIntent
     data object AddDevice : DeviceManagementIntent
     data object Retry : DeviceManagementIntent
     data object CancelScan : DeviceManagementIntent

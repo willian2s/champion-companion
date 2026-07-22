@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -100,3 +100,27 @@ Disconnect e esquecimento têm semânticas diferentes. Disconnect encerra sessã
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- `DeviceManagementViewModel` ganhou intent de saida da tela visivel e passou a marcar feature como ativa/inativa explicitamente, bloqueando auto-connect fora da tela e executando cleanup por `ChampionDisconnectReason.CLEANUP` ao sair com scan ou sessao BLE em andamento.
+- Cleanup de lifecycle agora cancela `activeJob`, zera flags efemeras de conexao e encerra sessao/scan sem tratar conexao BLE como permanente quando a feature sai de composicao; `FORGETTING` segue ate fim para nao interromper remocao local segura da associacao.
+- Fluxo de esquecer continua preservando historico: tentativa de disconnect de cleanup permanece melhor-esforco e nao bloqueia `deviceRepository.forgetAssociatedDevice()`, que limpa apenas associacao persistida e estado efemero da UI.
+- `DeviceScreen` passou a emitir intent de saida em `onDispose`, garantindo comportamento explicito ao navegar para fora da tela, e tambem bloqueia selecao/conexao de candidatos enquanto outra operacao incompatível estiver em andamento, inclusive durante forget.
+
+## Evidencia Final
+
+- Fluxo de cleanup: ao sair da composicao da tela, a feature envia `ExitVisibleScreen`; a ViewModel cancela job ativo, impede nova auto-conexao fora da tela e chama `ChampionConnectionManager.disconnect(CLEANUP)` sempre que scan ou sessao ainda estiverem vivos. Se o usuario estiver esquecendo dispositivo, a remocao local continua ate concluir e o cleanup extra nao interfere.
+- Confirmacao de preservacao de historico ao esquecer: `forgetDevice()` continua chamando apenas `DeviceRepository.forgetAssociatedDevice()`, limpando `associatedDevice`, `selectedCandidateId` e `candidates` da UI sem apagar `DeviceEntity` nem historico persistido.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- `BUILD SUCCESSFUL` com configuration cache reutilizado.

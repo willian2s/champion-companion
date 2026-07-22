@@ -96,7 +96,10 @@ fun DeviceScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            deviceManagementViewModel.onIntent(DeviceManagementIntent.ExitVisibleScreen)
+        }
     }
 
     LaunchedEffect(deviceManagementViewModel) {
@@ -338,6 +341,7 @@ private fun DeviceManagementScreen(
                 ScanResultsSection(
                     candidates = state.candidates,
                     isScanning = state.screenState == DeviceManagementScreenState.Scanning,
+                    isBusy = state.activeOperation != null && state.activeOperation != DeviceManagementActiveOperation.SCANNING,
                     selectedCandidate = selectedCandidate,
                     onSelectCandidate = onSelectCandidate,
                     onCancelScan = onCancelScan,
@@ -436,6 +440,7 @@ private fun AssociatedDeviceSection(
 private fun ScanResultsSection(
     candidates: List<DeviceManagementScanCandidate>,
     isScanning: Boolean,
+    isBusy: Boolean,
     selectedCandidate: DeviceManagementScanCandidate?,
     onSelectCandidate: (DeviceManagementCandidateId) -> Unit,
     onCancelScan: () -> Unit,
@@ -468,6 +473,7 @@ private fun ScanResultsSection(
                 candidates.forEach { candidate ->
                     CandidateRow(
                         candidate = candidate,
+                        enabled = !isBusy,
                         onClick = { onSelectCandidate(candidate.candidateId) },
                     )
                 }
@@ -476,7 +482,7 @@ private fun ScanResultsSection(
                         label = "Conectar dispositivo selecionado",
                         onClick = onConnectSelectedCandidate,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isScanning,
+                        enabled = !isScanning && !isBusy,
                     )
                 }
             }
@@ -487,6 +493,7 @@ private fun ScanResultsSection(
 @Composable
 private fun CandidateRow(
     candidate: DeviceManagementScanCandidate,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     HealthCard(
@@ -498,7 +505,7 @@ private fun CandidateRow(
         },
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .semantics {
                 contentDescription = buildString {
                     append(candidate.displayName)

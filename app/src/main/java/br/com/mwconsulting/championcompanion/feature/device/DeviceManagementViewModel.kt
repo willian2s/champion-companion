@@ -54,6 +54,7 @@ class DeviceManagementViewModel @Inject constructor(
     private var autoConnectInFlight = false
     private var currentEntryId = 0L
     private var lastAutoConnectAttemptEntryId: Long? = null
+    private var isFeatureVisible = false
 
     override val state: StateFlow<DeviceManagementUiState> = mutableState.asStateFlow()
     val events: SharedFlow<DeviceManagementEvent> = mutableEvents.asSharedFlow()
@@ -88,6 +89,7 @@ class DeviceManagementViewModel @Inject constructor(
     override fun onIntent(intent: DeviceManagementIntent) {
         when (intent) {
             DeviceManagementIntent.Load -> onFeatureEntry()
+            DeviceManagementIntent.ExitVisibleScreen -> onFeatureExit()
             DeviceManagementIntent.RefreshPrerequisites -> refreshPrerequisites()
 
             DeviceManagementIntent.AddDevice -> startScan()
@@ -106,6 +108,7 @@ class DeviceManagementViewModel @Inject constructor(
     }
 
     private fun onFeatureEntry() {
+        isFeatureVisible = true
         currentEntryId += 1
         if (associatedDeviceDomain == null) {
             refreshIdleSurface(clearError = true)
@@ -113,6 +116,27 @@ class DeviceManagementViewModel @Inject constructor(
         }
         refreshPrerequisites()
         attemptAutoConnectForCurrentEntry()
+    }
+
+    private fun onFeatureExit() {
+        isFeatureVisible = false
+        autoConnectInFlight = false
+
+        if (mutableState.value.activeOperation == DeviceManagementActiveOperation.FORGETTING) {
+            return
+        }
+
+        activeJob?.cancel()
+        activeJob = null
+        functionalConnectionEstablished = false
+
+        if (currentTransportState is ChampionBleState.Disconnected || currentTransportState is ChampionBleState.Failed) {
+            return
+        }
+
+        viewModelScope.launch {
+            connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
+        }
     }
 
     private fun refreshPrerequisites(emitResolutionEvents: Boolean = false) {
@@ -628,6 +652,7 @@ class DeviceManagementViewModel @Inject constructor(
 
     private fun attemptAutoConnectForCurrentEntry() {
         if (currentEntryId == 0L) return
+        if (!isFeatureVisible) return
         val associatedDevice = associatedDeviceDomain ?: return
         if (mutableState.value.activeOperation != null) return
         if (functionalConnectionEstablished) return
