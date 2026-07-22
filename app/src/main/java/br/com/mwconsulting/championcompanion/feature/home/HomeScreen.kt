@@ -60,9 +60,10 @@ import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
+import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementIntent
+import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementViewModel
 import java.text.NumberFormat
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -79,26 +80,43 @@ fun HomeScreen(
             ViewModelProvider(activity)[HomeViewModel::class.java]
         }
     },
+    deviceManagementViewModel: DeviceManagementViewModel = run {
+        val activity = checkNotNull(LocalActivity.current) as ComponentActivity
+        remember(activity) {
+            ViewModelProvider(activity)[DeviceManagementViewModel::class.java]
+        }
+    },
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by homeViewModel.state.collectAsState()
 
-    LaunchedEffect(homeViewModel) {
+    LaunchedEffect(homeViewModel, deviceManagementViewModel) {
         homeViewModel.onIntent(HomeIntent.Load)
+        deviceManagementViewModel.onIntent(DeviceManagementIntent.Load)
+        deviceManagementViewModel.onIntent(DeviceManagementIntent.RefreshPrerequisites)
     }
 
-    DisposableEffect(lifecycleOwner, homeViewModel) {
+    DisposableEffect(lifecycleOwner, homeViewModel, deviceManagementViewModel) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START,
-                Lifecycle.Event.ON_RESUME,
-                -> homeViewModel.onIntent(HomeIntent.Load)
+                Lifecycle.Event.ON_START -> {
+                    homeViewModel.onIntent(HomeIntent.Load)
+                    deviceManagementViewModel.onIntent(DeviceManagementIntent.Load)
+                }
+
+                Lifecycle.Event.ON_RESUME -> {
+                    homeViewModel.onIntent(HomeIntent.Load)
+                    deviceManagementViewModel.onIntent(DeviceManagementIntent.RefreshPrerequisites)
+                }
 
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            deviceManagementViewModel.onIntent(DeviceManagementIntent.ExitVisibleScreen)
+        }
     }
 
     Surface(
@@ -131,7 +149,7 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
                 ) {
                     HomeTopBar(
-                        title = state.observedDate.toHomeTitle(),
+                        title = "Hoje",
                         status = state.watch.toHomeWatchStatus(),
                         onOpenDevice = onOpenDevice,
                         onOpenProfile = onOpenProfile,
@@ -263,39 +281,11 @@ private fun HomeSummaryContent(
                     .fillMaxWidth()
                     .padding(top = ChampionSpacing.medium),
             )
-            Column(
+            Text(
+                text = "Puxe para baixo para atualizar dados do relogio.",
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
-                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-            ) {
-                HomeInfoChip(label = "Origem", value = summary.sourceLabel)
-                HomeInfoChip(label = "Atualizado", value = formatDateTime(summary.updatedAt))
-                HomeInfoChip(
-                    label = "Ultima sync",
-                    value = watch.lastImportedAt?.let(::formatDateTime) ?: "Sem sincronizacao",
-                )
-                Text(
-                    text = "Puxe para baixo para atualizar dados do relogio.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            MetricCard(
-                label = "Passos",
-                value = formatSteps(summary.steps),
-                supportingText = "Hoje",
-                modifier = Modifier.weight(1f),
-            )
-            MetricCard(
-                label = "Meta",
-                value = formatGoal(summary.dailyGoal),
-                supportingText = formatPercent(summary.progress),
-                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
 
@@ -314,18 +304,6 @@ private fun HomeSummaryContent(
                 value = formatCalories(summary.estimatedCaloriesKilocalories),
                 supportingText = estimateSupport(summary.estimatedCaloriesKilocalories),
                 modifier = Modifier.weight(1f),
-            )
-        }
-
-        HealthCard(
-            title = "Relogio",
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            HomeKeyValueRow(label = "Status", value = watch.toHomeWatchStatus().label)
-            HomeKeyValueRow(label = "Dispositivo", value = watch.deviceName ?: "Nao associado")
-            HomeKeyValueRow(
-                label = "Ultima conexao",
-                value = watch.lastSuccessfulConnectionAt?.let(::formatDateTime) ?: "Sem conexao registrada",
             )
         }
 
@@ -349,6 +327,10 @@ private fun HomeSummaryContent(
                 }
             }
         }
+
+        HomeMetadataFooter(
+            lastImportedAt = watch.lastImportedAt,
+        )
     }
 }
 
@@ -360,7 +342,6 @@ private fun HomeRefreshStatus(
     val message = when {
         refresh.isRefreshing -> refresh.refreshStage.toStatusMessage()
         refresh.error != null -> "Nao foi possivel atualizar os dados."
-        refresh.lastSuccessfulRefreshAt != null -> "Dados atualizados em ${formatTime(refresh.lastSuccessfulRefreshAt)}"
         else -> null
     } ?: return
 
@@ -406,39 +387,15 @@ private fun HomeRefreshHint(onRefresh: () -> Unit) {
 }
 
 @Composable
-private fun HomeInfoChip(label: String, value: String) {
-    Box(
-        modifier = Modifier
-            .clip(ChampionShapeExtraLarge)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = ChampionSpacing.medium, vertical = ChampionSpacing.small),
-    ) {
-        Text(
-            text = "$label: $value",
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
-
-@Composable
-private fun HomeKeyValueRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = ChampionSpacing.medium),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-        )
-    }
+private fun HomeMetadataFooter(
+    lastImportedAt: Instant?,
+) {
+    Text(
+        text = "Ultima sync: ${lastImportedAt?.let(::formatDateTime) ?: "Sem sincronizacao"}",
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
@@ -565,18 +522,6 @@ private fun HomeWatchSnapshot.toHomeWatchStatus(): HomeWatchStatus = when (conne
     HomeWatchConnectionState.Disconnected,
     HomeWatchConnectionState.Unknown,
     -> HomeWatchStatus.Pending
-}
-
-private fun LocalDate.toHomeTitle(): String {
-    val today = LocalDate.now()
-    return if (this == today) {
-        "Hoje"
-    } else {
-        format(
-            DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-                .withLocale(Locale.getDefault()),
-        )
-    }
 }
 
 private fun HomeRefreshStage?.toStatusMessage(): String = when (this) {
