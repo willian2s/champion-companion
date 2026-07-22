@@ -667,6 +667,12 @@ flowchart LR
 
 Home deve mostrar ultimo BPM persistido e horario. Home nao inicia BLE, nao mede, nao usa estado tecnico da PoC e nao bloqueia resumo diario quando nao houver medicao.
 
+Implementação inicial registrada em `008-08`:
+
+- `HomeViewModel` agora observa `observeLatestValidMeasurement()` e a Home mostra card próprio de última frequência cardíaca com valor e horário.
+- Refresh diário passou a respeitar `ForegroundBleOperationGate`, retornando erro seguro quando medição manual estiver ativa.
+- Home continua sem iniciar BLE para BPM e sem ler estado técnico da PoC.
+
 ## Historico Simples
 
 Saude pode mostrar lista simples de recentes manuais, por exemplo:

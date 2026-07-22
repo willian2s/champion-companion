@@ -12,6 +12,7 @@ data class HomeUiState(
     val surfaceState: HomeSurfaceState = HomeSurfaceState.Loading,
     val observedDate: LocalDate = LocalDate.now(),
     val summary: HomeDailySummaryModel? = null,
+    val latestHeartRate: HomeLatestHeartRateModel? = null,
     val watch: HomeWatchSnapshot = HomeWatchSnapshot(),
     val pendingActivities: List<HomePendingActivityModel> = emptyList(),
     val refresh: HomeRefreshState = HomeRefreshState(),
@@ -105,6 +106,11 @@ data class HomeDailySummaryModel(
     val estimatedCaloriesKilocalories: Double?,
     val sourceLabel: String,
     val updatedAt: Instant,
+)
+
+data class HomeLatestHeartRateModel(
+    val bpm: Int,
+    val measuredAt: Instant,
 )
 
 data class HomePendingActivityModel(

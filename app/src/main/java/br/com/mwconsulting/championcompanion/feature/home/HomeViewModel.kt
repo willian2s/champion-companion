@@ -20,6 +20,13 @@ import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationAcquireResult
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationPermit
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
+import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
@@ -55,6 +62,8 @@ class HomeViewModel @Inject constructor(
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
     private val dailyStepsSyncCoordinator: DailyStepsSyncCoordinator,
+    private val foregroundBleOperationGate: ForegroundBleOperationGate,
+    private val heartRateRepository: HeartRateRepository,
     private val connectionManager: ChampionConnectionManager,
     private val bleEnvironment: AndroidBleEnvironment,
 ) : ViewModel(), HomeFeatureContract {
@@ -72,12 +81,14 @@ class HomeViewModel @Inject constructor(
         val contentFlow = combine(
             observedDate,
             summaryFlow,
+            heartRateRepository.observeLatestValidMeasurement(),
             deviceRepository.observeAssociatedDevice(),
             appPreferencesRepository.observeDailyStepsGoal(),
-        ) { date, summary, device, goal ->
+        ) { date, summary, latestHeartRate, device, goal ->
             HomeObservedContent(
                 observedDate = date,
                 summary = summary,
+                latestHeartRate = latestHeartRate,
                 device = device,
                 dailyGoal = goal,
             )
@@ -94,6 +105,7 @@ class HomeViewModel @Inject constructor(
                     surfaceState = deriveSurfaceState(content.summary, content.device, bleState, refresh),
                     observedDate = content.observedDate,
                     summary = content.summary?.toHomeDailySummaryModel(content.device, content.dailyGoal),
+                    latestHeartRate = content.latestHeartRate?.toHomeLatestHeartRateModel(),
                     watch = content.device.toHomeWatchSnapshot(bleState),
                     pendingActivities = pending.map { it.toPendingActivityModel() },
                     refresh = refresh,
@@ -128,6 +140,7 @@ class HomeViewModel @Inject constructor(
         if (!refreshMutex.tryLock()) return
 
         val previousSuccess = refreshState.value.lastSuccessfulRefreshAt
+        var gatePermit: ForegroundBleOperationPermit? = null
         try {
             if (refreshState.value.isRefreshing) return
             refreshObservedDate()
@@ -159,6 +172,29 @@ class HomeViewModel @Inject constructor(
                 refreshAttemptId = ids.next().toString(),
                 startedAt = startedAt,
             )
+            when (
+                val gateResult = foregroundBleOperationGate.tryAcquire(
+                    ForegroundBleOperationRequest(
+                        owner = ForegroundBleOperationOwner.DAILY_STEPS_REFRESH,
+                        operationId = attempt.refreshAttemptId,
+                        requestedAt = startedAt,
+                    ),
+                )
+            ) {
+                is ForegroundBleOperationAcquireResult.Acquired -> gatePermit = gateResult.permit
+                is ForegroundBleOperationAcquireResult.Rejected -> {
+                    refreshState.value = HomeRefreshState(
+                        error = HomeRefreshError(
+                            category = HomeRefreshErrorCategory.BLE_OPERATION_IN_PROGRESS,
+                            message = "Uma medição manual está em andamento na tela Saúde.",
+                            isRetryable = true,
+                        ),
+                        lastSuccessfulRefreshAt = previousSuccess,
+                    )
+                    return
+                }
+            }
+
             refreshState.value = HomeRefreshState(
                 activeOperation = HomeRefreshOperation(
                     attempt = attempt.toHomeRefreshAttempt(),
@@ -255,6 +291,7 @@ class HomeViewModel @Inject constructor(
                 }
             }
         } finally {
+            gatePermit?.let { foregroundBleOperationGate.release(it) }
             refreshObservedDate()
             refreshState.update { current -> current.copy(activeOperation = null) }
             refreshMutex.unlock()
@@ -331,6 +368,9 @@ class HomeViewModel @Inject constructor(
             updatedAt = updatedAt,
         )
     }
+
+    private fun HeartRateMeasurement.toHomeLatestHeartRateModel(): HomeLatestHeartRateModel? =
+        measuredAt?.let { HomeLatestHeartRateModel(bpm = bpm, measuredAt = it) }
 
     private fun AppWorkoutSession.toPendingActivityModel(): HomePendingActivityModel = HomePendingActivityModel(
         id = id.value.toString(),
@@ -434,6 +474,7 @@ class HomeViewModel @Inject constructor(
     private data class HomeObservedContent(
         val observedDate: LocalDate,
         val summary: DailySummary?,
+        val latestHeartRate: HeartRateMeasurement?,
         val device: Device?,
         val dailyGoal: Int,
     )

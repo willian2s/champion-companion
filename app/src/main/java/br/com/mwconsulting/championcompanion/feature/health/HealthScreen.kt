@@ -3,6 +3,7 @@ package br.com.mwconsulting.championcompanion.feature.health
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,6 +71,7 @@ fun HealthScreen(
     },
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    val view = LocalView.current
     val state by healthViewModel.state.collectAsState()
     var showExitConfirmation by rememberSaveable { mutableStateOf(false) }
 
@@ -96,6 +98,14 @@ fun HealthScreen(
 
     BackHandler(enabled = state.surfaceState.isMeasurementInFlight()) {
         showExitConfirmation = true
+    }
+
+    DisposableEffect(view, state.surfaceState.isMeasurementInFlight()) {
+        val previousKeepScreenOn = view.keepScreenOn
+        view.keepScreenOn = state.surfaceState.isMeasurementInFlight()
+        onDispose {
+            view.keepScreenOn = previousKeepScreenOn
+        }
     }
 
     if (showExitConfirmation) {

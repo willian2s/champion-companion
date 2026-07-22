@@ -2,7 +2,16 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-22.
+
+## Resultado
+
+- `HomeViewModel` passou a observar a última medição válida persistida e expô-la na Home sem iniciar BLE para BPM.
+- `HomeScreen` ganhou card de última frequência cardíaca com valor e horário ou estado `Sem medições`, independente da presença de resumo diário.
+- `HomeViewModel` agora usa `ForegroundBleOperationGate` no refresh diário e retorna erro seguro `BLE_OPERATION_IN_PROGRESS` quando a medição manual já é dona da operação foreground.
+- `HealthScreen` agora mantém a tela acordada durante a medição ativa.
+- `ChampionNavigation` passou a pedir confirmação ao sair da aba Saúde durante medição em andamento.
+- `DeviceManagementViewModel` agora evita connect e auto-connect enquanto houver medição manual ativa no gate compartilhado.
 
 ## Objetivo
 
@@ -106,6 +115,11 @@ Integrar ultima medicao persistida na Home e fechar concerns de lifecycle da Sau
 
 - Resumo do comportamento de lifecycle e do bloco de BPM da Home.
 
+- Home mostra um card dedicado de última frequência cardíaca, alimentado apenas por dado persistido no repository.
+- Tela Saúde mantém `keepScreenOn` enquanto `HealthSurfaceState` estiver em estado ativo de medição.
+- Ao tentar sair da aba Saúde durante medição, a navegação raiz exibe confirmação; ao confirmar, a sessão é cancelada e a navegação prossegue.
+- Ao ir para background, a tela Saúde continua enviando cancelamento ao `HealthViewModel`, sem persistir parcial.
+
 ## Atualizacao Do Overview
 
 - Marcar `008-08` como concluida.
@@ -114,3 +128,5 @@ Integrar ultima medicao persistida na Home e fechar concerns de lifecycle da Sau
 ## Validacao Final
 
 - Confirmar que Home nao le estado tecnico da PoC.
+
+- Confirmado: Home consome apenas `HeartRateRepository.observeLatestValidMeasurement()` e não lê estado técnico da PoC nem inicia BLE para BPM.

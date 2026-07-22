@@ -190,6 +190,11 @@ private fun HomeSurface(
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    HomeLatestHeartRateCard(
+        latestHeartRate = state.latestHeartRate,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
     state.summary?.let { summary ->
         HomeSummaryContent(
             summary = summary,
@@ -332,6 +337,20 @@ private fun HomeSummaryContent(
             lastImportedAt = watch.lastImportedAt,
         )
     }
+}
+
+@Composable
+private fun HomeLatestHeartRateCard(
+    latestHeartRate: HomeLatestHeartRateModel?,
+    modifier: Modifier = Modifier,
+) {
+    MetricCard(
+        label = "Última frequência cardíaca",
+        value = latestHeartRate?.let { "${it.bpm} BPM" } ?: "Sem medições",
+        supportingText = latestHeartRate?.let { formatMeasurementTimestamp(it.measuredAt) }
+            ?: "Disponível após a primeira medição manual",
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -569,6 +588,9 @@ private fun formatTime(instant: Instant): String =
         .withLocale(Locale.getDefault())
         .withZone(ZoneId.systemDefault())
         .format(instant)
+
+private fun formatMeasurementTimestamp(instant: Instant): String =
+    "Registrada em ${formatDateTime(instant)}"
 
 private fun numberFormat(): NumberFormat = NumberFormat.getIntegerInstance(Locale.getDefault())
 

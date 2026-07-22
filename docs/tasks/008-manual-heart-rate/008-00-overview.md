@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06` e `008-07` concluidas em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07` e `008-08` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -108,6 +108,15 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Última medição e lista simples de recentes ficaram visíveis na própria tela Saúde, sem acesso direto a BLE, DAO ou repository pela Compose.
 - `BackHandler` e diálogo de confirmação passaram a proteger saída durante sessão ativa sem introduzir start automático.
 
+## Achados De `008-08`
+
+- `HomeViewModel` agora observa `HeartRateRepository.observeLatestValidMeasurement()` e expõe último BPM persistido na Home sem iniciar BLE nem consultar estado técnico da PoC.
+- `HomeScreen` ganhou card próprio para última frequência cardíaca, visível mesmo sem resumo diário, com valor e horário ou estado `Sem medições`.
+- `HomeViewModel` agora usa `ForegroundBleOperationGate` antes do refresh diário e converte conflito com medição manual em erro seguro `BLE_OPERATION_IN_PROGRESS`.
+- `HealthScreen` agora mantém tela acordada durante sessão ativa por `view.keepScreenOn` e continua cancelando ao background.
+- `ChampionNavigation` passou a interceptar saída da aba Saúde durante sessão ativa, exibindo confirmação antes de navegar para outro destino.
+- `DeviceManagementViewModel` agora evita auto-connect e connect manual enquanto `MANUAL_HEART_RATE` estiver ativo no gate compartilhado, reduzindo concorrência de foreground BLE.
+
 ## Estado Herdado
 
 - ADR-007 permite auto-connect controlado do dispositivo associado, mas isso nao autoriza medicao automatica.
@@ -210,7 +219,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-05` persistencia final, deduplicacao e queries implementadas
 - [x] `008-06` `HealthViewModel` criado
 - [x] `008-07` UI da Saude criada
-- [ ] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
+- [x] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
 - [ ] `008-09` gate reduzido e smoke fisico executados
 - [ ] `008-10` fechamento, baseline e divida consolidados
 
