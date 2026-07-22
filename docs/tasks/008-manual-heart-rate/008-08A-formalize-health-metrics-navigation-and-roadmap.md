@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-22.
 
 ## Objetivo
 
@@ -66,6 +66,14 @@ Formalizar mudança arquitetural da área de Saúde antes de alterar interface f
 - definir contratos de rotas e estrutura das telas;
 - atualizar matriz de rastreabilidade;
 - manter `008-08` concluida e preservada.
+
+## Resultado
+
+- ADR-009 criada para formalizar Saúde como hub de métricas com rotas específicas e estrutura comum de telas.
+- Roadmap atualizado sem renumerar fases, alinhando Fase 08, Fase 09, Fase 12, Fase 15 e Fase 16 à nova direção.
+- Contratos de rotas aprovados para implementação futura: `AppDestination.Health`, `AppDestination.HealthHeartRate`, `AppDestination.HealthWeight`, `AppDestination.HealthSteps` e `AppDestination.HealthDistance`.
+- Spec, input e overview da Fase 08 ficaram alinhados à decisão arquitetural e ao roadmap atualizado.
+- `008-08` permaneceu concluída e preservada.
 
 ## Conteudo Obrigatorio Da ADR
 
@@ -156,6 +164,21 @@ Atualizacao obrigatoria deve registrar:
 - matrix de rastreabilidade da Fase 08 fica atualizada.
 - nenhuma UI funcional e implementada nesta task.
 
+## Achados
+
+- Próximo número de ADR disponível era `009`.
+- Fases reais do roadmap envolvidas na extensão são:
+  - Fase 08 — Frequência cardíaca manual;
+  - Fase 09 — Histórico D1 e sincronização integral de BPM;
+  - Fase 12 — Health Connect nativo;
+  - Fase 15 — Calendário e histórico consolidado;
+  - Fase 16 — Perfil e cálculos pessoais.
+- Navegação atual segue ADR-005 com destinos serializáveis e sem parâmetros. Formalização preserva esse modelo.
+- Fontes de dados persistidos já existentes bastam para shells iniciais:
+  - frequência cardíaca por `HeartRateRepository`;
+  - peso por `PersonalMetricsRepository.observeSnapshot()`;
+  - passos e distância por `DailySummaryRepository`.
+
 ## Testes Pequenos Aplicaveis
 
 - Nenhum. Task documental/arquitetural.
@@ -167,15 +190,24 @@ Atualizacao obrigatoria deve registrar:
 
 ## Evidencia Manual
 
-- registrar numero da ADR criada;
-- registrar quais fases reais do roadmap foram atualizadas;
-- registrar contratos finais de rotas e nomes aprovados.
+- ADR criada: `ADR-009`.
+- Fases reais do roadmap atualizadas: 8, 9, 12, 15 e 16.
+- Contratos finais de rotas aprovados:
+  - `AppDestination.Health`
+  - `AppDestination.HealthHeartRate`
+  - `AppDestination.HealthWeight`
+  - `AppDestination.HealthSteps`
+  - `AppDestination.HealthDistance`
 
 ## Atualizacao Do Overview
 
 - Marcar `008-08A` como concluida quando ADR, roadmap e spec estiverem alinhados.
 - Confirmar dependencia de `008-08B` em `008-08A`.
 
+- Overview atualizado com rotas aprovadas, ADR-009 e roadmap alinhado.
+
 ## Validacao Final
 
 - Confirmar que nenhuma implementacao funcional de UI aconteceu nesta task.
+
+- Confirmado: task permaneceu estritamente documental e arquitetural.

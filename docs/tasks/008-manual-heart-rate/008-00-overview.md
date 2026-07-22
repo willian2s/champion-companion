@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07` e `008-08` concluidas em 2026-07-22; `008-08A`, `008-08B`, `008-09` e `008-10` seguem pendentes. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão será executada por `008-08A` e `008-08B`, sem reabrir a task original.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07`, `008-08` e `008-08A` concluidas em 2026-07-22; `008-08B`, `008-09` e `008-10` seguem pendentes. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão segue por `008-08A` e `008-08B`, sem reabrir a task original.
 
 ## Objetivo
 
@@ -127,7 +127,9 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `HomeViewModel.kt` ja observa `DailySummaryRepository.observeSummaryForDate(...)`, `HeartRateRepository.observeLatestValidMeasurement()` e `PersonalMetricsRepository`, confirmando que passos, distancia estimada e ultimo BPM persistido ja possuem fontes seguras existentes para reuso.
 - `PersonalMetricsRepository.observeSnapshot()` em `RoomRepositories.kt` ja deriva ultimo peso persistido por `UserProfileDao.observeLatestWeight(...)`, o que viabiliza shell inicial de peso sem nova persistencia.
 - `DailySummary` e `HomeViewModel` confirmam que distancia atual disponivel nesta fase continua sendo estimativa local derivada do resumo diario; quando faltam dados pessoais, valor permanece ausente sem inventar numero.
-- Extensao aprovada exige ADR futura e atualizacao futura do roadmap antes da implementacao visual, porque altera arquitetura duradoura de navegacao e ownership visual da area Saude.
+- Extensao aprovada exigiu formalizacao arquitetural antes da implementacao visual, porque altera arquitetura duradoura de navegacao e ownership visual da area Saude.
+- `008-08A` define rotas finais planejadas para implementacao: `AppDestination.Health`, `AppDestination.HealthHeartRate`, `AppDestination.HealthWeight`, `AppDestination.HealthSteps` e `AppDestination.HealthDistance`.
+- `008-08A` tambem formaliza ADR-009 e atualizacao do roadmap nas fases 8, 9, 12, 15 e 16.
 
 ## Estado Herdado
 
@@ -145,7 +147,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Sem stream D0 ou sinal F002 persistidos.
 - Sem D1.
 - Sem foreground service.
-- Nesta execucao de planejamento: sem alterar roadmap, sem criar ADR e sem reabrir `008-08`.
+- `008-08A` pode alterar roadmap e criar ADR, mas continua sem reabrir `008-08`.
 
 ## Lista De Tasks
 
@@ -256,7 +258,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-06` `HealthViewModel` criado
 - [x] `008-07` UI da Saude criada
 - [x] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
-- [ ] `008-08A` formalizacao arquitetural, ADR futura e roadmap futuro alinhados
+- [x] `008-08A` formalizacao arquitetural, ADR-009 e roadmap alinhados
 - [ ] `008-08B` hub de Saude e shells das telas de metricas implementados
 - [ ] `008-09` gate reduzido e smoke fisico executados
 - [ ] `008-10` fechamento, baseline e divida consolidados

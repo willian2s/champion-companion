@@ -766,7 +766,15 @@ Regras obrigatórias para extensão:
 - manter owner da medição manual no escopo apropriado;
 - permitir voltar para Saúde após concluir a medição.
 
-Como `AppDestination` hoje contém apenas destinos sem parâmetros e `Health` ainda é rota única, `008-08A` deve definir contratos finais para sub-rotas de métricas antes de `008-08B` editar UI/navegação.
+Contratos de rotas aprovados em `008-08A`:
+
+- `AppDestination.Health`
+- `AppDestination.HealthHeartRate`
+- `AppDestination.HealthWeight`
+- `AppDestination.HealthSteps`
+- `AppDestination.HealthDistance`
+
+Essas rotas devem permanecer parameter-free e serializáveis, preservando ADR-005 e back stack manual atual.
 
 ## Tela De Frequencia Cardiaca
 
@@ -858,7 +866,7 @@ Componentes compartilhados podem existir apenas se reduzirem duplicação real e
 
 ## Responsabilidades Futuras
 
-Responsabilidades planejadas por fase, a serem formalizadas em `008-08A` com roadmap e ADR:
+Responsabilidades formalizadas por `008-08A` em ADR-009 e roadmap:
 
 - Fase 08: hub inicial de Saúde, tela específica de frequência cardíaca, medição manual já entregue, shells de peso/passos/distância e valores atuais vindos de dados já persistidos, sem gráficos e históricos completos.
 - Fase 09: ação `Buscar dados do relógio`, D1, histórico de BPM, gráfico de frequência cardíaca e agregações de frequência cardíaca.
@@ -1022,7 +1030,7 @@ Testes pequenos recomendados junto das tasks:
 - graficos e agregacoes ficam para Fase 09/15;
 - testes Compose amplos ficam para Fase 21;
 - se surgir evidencia nova sobre media real do fluxo manual, revisar protocolo e spec em fase futura.
-- hub de Saúde, rotas de métricas e shells de gráfico/histórico exigem ADR e atualização de roadmap em `008-08A` antes da implementação visual em `008-08B`.
+- ADR-009 formaliza hub de Saúde, rotas de métricas e fronteiras de dados antes da implementação visual em `008-08B`.
 
 ## Criterios De Aceite
 
@@ -1072,7 +1080,7 @@ Testes pequenos recomendados junto das tasks:
 
 Fase 08 conclui quando:
 
-- extensao documental `008-08A` formalizar ADR futura, contratos de rotas, matriz de rastreabilidade e atualização posterior do roadmap;
+- extensao documental `008-08A` formalizar ADR-009, contratos de rotas, matriz de rastreabilidade e atualização do roadmap;
 - `008-08B` transformar Saúde em hub inicial de métricas com cards para frequência cardíaca, peso, passos e distância;
 - medição manual de 60 segundos continuar funcional por ação explícita na tela específica de frequência cardíaca, sem duplicar coordinator nem protocolo;
 - Home continuar observando último BPM persistido sem iniciar BLE para isso;
@@ -1092,7 +1100,7 @@ Fase 08 conclui quando:
 | ViewModel owner e lifecycle de produto | `008-06` |
 | UI da Saude e acessibilidade | `008-07` |
 | Home, lifecycle final, confirmacao de saida, screen awake | `008-08` |
-| Formalizacao arquitetural, ADR futura, roadmap futuro e contratos de rotas | `008-08A` |
+| Formalizacao arquitetural, ADR-009, roadmap e contratos de rotas | `008-08A` |
 | Hub de Saúde, rotas de métricas e shells de detalhe | `008-08B` |
 | Gate reduzido e smoke fisico da extensao | `008-09` |
 | Fechamento, baseline e divida | `008-10` |

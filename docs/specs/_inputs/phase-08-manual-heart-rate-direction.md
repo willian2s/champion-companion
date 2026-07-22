@@ -209,11 +209,19 @@ Distância nesta extensão:
 
 A extensão exige formalização arquitetural antes da implementação visual.
 
-`008-08A` deve planejar e executar depois:
+`008-08A` formalizou:
 
-- criação obrigatória de ADR usando próximo número disponível;
-- atualização do roadmap com responsabilidades reais de Fase 08, Fase 09, fase de Perfil, fase de Calendário/Histórico e Fase 12;
+- ADR-009 para hub de Saúde e telas de métricas;
+- atualização do roadmap com responsabilidades reais de Fase 08, Fase 09, Fase 15, Fase 16 e Fase 12;
 - alinhamento da spec, rotas, estrutura das telas e matriz de rastreabilidade.
+
+Contratos de rotas aprovados nesta formalização:
+
+- `AppDestination.Health`
+- `AppDestination.HealthHeartRate`
+- `AppDestination.HealthWeight`
+- `AppDestination.HealthSteps`
+- `AppDestination.HealthDistance`
 
 `008-08B` só pode começar depois de:
 
@@ -227,8 +235,8 @@ A extensão exige formalização arquitetural antes da implementação visual.
 - D1 continua fora da Fase 08 e permanece responsabilidade da Fase 09;
 - ação futura de buscar dados do relógio pertence à Fase 09;
 - gráfico e histórico completo de frequência cardíaca pertencem à Fase 09;
-- edição e gerenciamento de peso permanecem para fase de Perfil;
-- gráficos e histórico de passos/distância permanecem para fase de Calendário/Histórico;
+- edição e gerenciamento de peso permanecem para Fase 16;
+- gráficos e histórico de passos/distância permanecem para Fase 15;
 - Health Connect permanece fora da Fase 08 e segue para Fase 12.
 
 ## Princípio central

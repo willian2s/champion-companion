@@ -1185,10 +1185,14 @@ Exibir:
 
 ## Objetivo
 
-Portar a medição manual.
+Portar a medição manual e iniciar a área Saúde como hub de métricas persistidas.
 
 ## Tarefas
 
+- transformar Saúde em hub inicial de métricas;
+- criar navegação de Saúde para detalhes de frequência cardíaca, peso, passos e distância;
+- criar cards de resumo com valor atual, unidade, data/hora, origem/estimativa e estado sem dados;
+- mover ownership visual da medição manual para tela específica de frequência cardíaca;
 - criar fluxo;
 - conectar;
 - iniciar D0;
@@ -1198,11 +1202,32 @@ Portar a medição manual.
 - cancelar;
 - finalizar;
 - usar valor final;
-- calcular média quando necessário;
 - salvar;
 - tratar erro;
 - tratar desconexão;
-- impedir simultaneidade.
+- impedir simultaneidade;
+- criar shells das telas de peso, passos e distância usando dados já persistidos;
+- reservar seções próprias de gráfico e histórico sem implementação funcional completa.
+
+## Interface
+
+Saúde passa a exibir:
+
+- card de última frequência cardíaca;
+- card de último peso;
+- card de passos;
+- card de distância;
+- navegação para tela específica de cada métrica.
+
+Tela de frequência cardíaca passa a concentrar:
+
+- valor atual;
+- ação de medir frequência cardíaca;
+- feedback da sessão manual;
+- histórico manual simples já suportado;
+- slots futuros para gráfico, histórico completo e ação de buscar dados do relógio.
+
+Peso, passos e distância nesta fase exibem apenas shells iniciais com valor atual e estados vazios seguros para gráfico/histórico.
 
 ## Critérios de aceite
 
@@ -1210,7 +1235,11 @@ Portar a medição manual.
 - resultado persiste;
 - cancelada não conclui;
 - stream é encerrado;
-- não existem duas medições.
+- não existem duas medições;
+- Saúde funciona como hub inicial sem iniciar BLE pela rota raiz;
+- frequência cardíaca possui tela específica como owner visual da medição manual;
+- peso, passos e distância possuem telas shell sem dados simulados;
+- gráficos e históricos completos ainda não são exigidos nesta fase.
 
 ---
 
@@ -1240,6 +1269,7 @@ Health Connect
 
 ## Tarefas
 
+- integrar ação `Buscar dados do relógio` na tela específica de frequência cardíaca;
 - portar D1;
 - portar parser;
 - interpretar timestamps;
@@ -1253,7 +1283,9 @@ Health Connect
 - permitir cancelamento;
 - tratar timeout;
 - permitir retry;
-- manter falhas pendentes.
+- manter falhas pendentes;
+- consolidar medições manuais e automáticas de BPM;
+- fornecer agregações para frequência cardíaca.
 
 ## Registros válidos
 
@@ -1286,6 +1318,7 @@ Os registros deverão ser enviados em lotes adequados.
 
 ## Interface
 
+- integrar botão `Sincronizar BPM` ou ação equivalente à tela específica de frequência cardíaca;
 - histórico diário;
 - semanal;
 - mensal;
@@ -1652,7 +1685,8 @@ Usar a distância calibrada.
 - atualização funciona;
 - erros aparecem;
 - nenhuma rota;
-- sincronização controlada.
+- sincronização controlada;
+- integração Health Connect não substitui Room/repositories locais como fonte visual primária da área Saúde.
 
 ## Gate C
 
@@ -1835,7 +1869,12 @@ Centralizar dados por dia.
 - peso;
 - sincronizações;
 - navegação;
-- estados vazios.
+- estados vazios;
+- gráficos de passos;
+- histórico de passos;
+- gráficos de distância;
+- histórico de distância;
+- navegação temporal das métricas diárias.
 
 ## Critérios de aceite
 
@@ -1874,7 +1913,8 @@ Manter dados usados nas estimativas.
 - recalcular estimativas;
 - sincronização manual;
 - identificar estimativas;
-- personalizar passada.
+- personalizar passada;
+- edição e gerenciamento de peso na tela específica da métrica e/ou fluxo equivalente de perfil.
 
 ## Critérios de aceite
 
