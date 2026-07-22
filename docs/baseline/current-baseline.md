@@ -1,43 +1,43 @@
-# Baseline Atual
+# Baseline Atual do Projeto
 
-## Produto E Fase
+## Produto e fase
 
-Champion Companion e aplicativo Android nativo do relogio Champion C001, escrito em Kotlin e Jetpack Compose.
+Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.
 
-Baseline atual inclui fundacao Android, design system proprio, dominio e persistencia iniciais com Room/DataStore, e nucleo BLE nativo reutilizavel validado na Fase 04. Escopo ainda nao inclui handshake A1 funcional, fluxos funcionais D0/D1/D3/D4, Health Connect, GPS/localizacao, foreground service, background BLE, auto-connect, nem tela funcional completa de dispositivo. Separacao entre transporte, protocolo, dominio e UI continua obrigatoria.
+Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05 e feature utilizável de gerenciamento do Champion C001 concluída na Fase 06. Escopo atual já inclui handshake A1 funcional, associação persistida separada da sessão BLE efêmera, scan manual, conexão manual, auto-conexão controlada do dispositivo associado, disconnect, retry, esquecimento sem apagar histórico, diagnóstico seguro e exportação sanitizada. Escopo ainda não inclui D1/D3/D4 funcionais, Home com passos persistidos, BPM de produção, Health Connect, GPS/localização, foreground service, background BLE permanente ou auto-connect agressivo/amplo. Separação entre transporte, protocolo, domínio e UI continua obrigatória.
 
-## Ambiente E Validacao
+## Ambiente e validação
 
-Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use somente o Gradle Wrapper do repositorio. Validacao automatizada atual usa `lint`, `assembleDebug` e `assembleRelease`; validacoes no Galaxy S22 via ADB seguem fluxo manual quando necessario.
+Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. O Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use exclusivamente o wrapper do repositório. Validação automatizada atual usa `lint`, `assembleDebug` e `assembleRelease`; fechamento da Fase 06 também registrou `installDebug` e smoke test manual no Galaxy S22 com Champion C001.
 
 ```bash
 ./gradlew lint
 ./gradlew assembleDebug
 ./gradlew assembleRelease
+./gradlew installDebug
 ./gradlew lint assembleDebug assembleRelease
 ```
 
-## Base De Codigo
+## Base de código
 
-Ha um modulo Android, `app`. Codigo-fonte: `app/src/main/java/br/com/mwconsulting/championcompanion`. `app` concentra estado global. Infra inclui `core.common`, `core.error`, `core.logging`, `core.navigation`, `core.preferences`, `core.database` e `core.bluetooth`. `core.bluetooth/android` concentra fronteira unica com APIs Android BLE. `core.model` guarda contratos e dominio. `data/` implementa persistencia via Room e repositories. `feature/` contem `home`, `health`, `calendar`, `exercises`, `device`, `profile` e `settings`; `feature/device` ainda nao oferece fluxo BLE funcional completo. Recursos: `app/src/main/res`; testes: `app/src/test` e `app/src/androidTest`.
+Há um módulo Android, `app`. Código-fonte: `app/src/main/java/br/com/mwconsulting/championcompanion`. `app` concentra estado global. Infra inclui `core.common`, `core.error`, `core.logging`, `core/navigation`, `core/preferences`, `core/database` e `core.bluetooth`. `core.bluetooth/android` concentra fronteira única com APIs Android BLE. `core.model` guarda contratos e domínio. `data/` implementa persistência via Room e repositories. `feature/` possui `home`, `health`, `calendar`, `exercises`, `device`, `profile` e `settings`; `feature/device` agora oferece fluxo funcional de gerenciamento de dispositivo via `DeviceManagementViewModel` e `DeviceScreen`, enquanto PoC técnica debug permanece separada. Recursos: `app/src/main/res`; testes: `app/src/test` e `app/src/androidTest`.
 
-Compose constroi UI. Hilt faz injecao. Coroutines e `StateFlow` modelam estado. Kotlin Serialization representa rotas. Navegacao contem sete destinos iniciais com back stack manual. Room 3 e DataStore ja estao ativos. Nucleo BLE oferece scanner, fila GATT serial por sessao, discovery, capability registry, subscriptions obrigatorias e `TransportReady`, sem tratar transporte como handshake concluido. Erros devem virar estado UI seguro; detalhes tecnicos ficam no Logcat de debug.
+Compose constrói UI; Hilt faz injeção; Coroutines e `StateFlow` modelam estado; Kotlin Serialization representa rotas. Navegação contém sete destinos iniciais com back stack manual. Room 3 e DataStore já estão ativos. Núcleo BLE oferece scanner, fila GATT serial por sessão, discovery, capability registry, subscriptions obrigatórias e `TransportReady`, e a feature final de dispositivo promove handshake A1, persistência de associação dedicada, reconnect manual e auto-connect controlado do associado sem background permanente. Erros devem virar estado UI seguro; detalhes técnicos ficam no Logcat de debug.
 
 ## Variantes
 
 - `debug`: `br.com.mwconsulting.championcompanion.dev`, `Champion Companion Dev`, `1.0-dev`
 - `release`: `br.com.mwconsulting.championcompanion`, `Champion Companion`, `1.0`
 
-Release ainda nao recebe assinatura de producao.
+Release ainda não recebe assinatura de produção.
 
-## Privacidade E Fontes
+## Privacidade e fontes
 
-Logs estruturados usam `android.util.Log` apenas para diagnostico em debug. Nao registrar payload BLE, bytes crus, hexadecimal, MAC, coordenadas/rotas, tokens, credenciais, identificadores pessoais ou dados de saude. Release deve manter logs diagnosticos inativos ou sem detalhes.
+Logs estruturados usam `android.util.Log` apenas para diagnóstico em debug. Não registrar payload BLE, bytes crus, hexadecimal, MAC, coordenadas/rotas, tokens, credenciais, identificadores pessoais ou dados de saúde. Release deve manter logs diagnósticos inativos ou sem detalhes.
 
-## Fontes Autoritativas
+## Fontes autoritativas
 
 - Requisitos: `docs/specs/`
-- Direcao de produto: `docs/roadmap/`
-- Decisoes: `docs/decisions/`
+- Direção de produto: `docs/roadmap/`
+- Decisões: `docs/decisions/`
 - Protocolos: `docs/protocol/`
-- Baseline de referencia detalhada: `docs/core/current-project-baseline.md`

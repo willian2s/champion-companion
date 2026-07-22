@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `006-01`, `006-03`, `006-04` e `006-05` concluidas em 2026-07-21; `006-06`, `006-07`, `006-07A`, `006-08`, `006-09`, `006-10` e `006-11` concluidas em 2026-07-22; resta `006-12`.
+Concluida em 2026-07-22. `006-01`, `006-03`, `006-04` e `006-05` concluiram em 2026-07-21; `006-06`, `006-07`, `006-07A`, `006-08`, `006-09`, `006-10`, `006-11` e `006-12` concluiram em 2026-07-22.
 
 ## Objetivo
 
@@ -30,7 +30,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - `docs/protocol/workouts-d3-d4.md`
 - `docs/protocol/diagnostics-d8-a8.md`
 - `docs/roadmap/champion-companion-roadmap.md`
-- `docs/core/current-project-baseline.md` apenas como referência inicial; pode estar desatualizado.
+- `docs/baseline/current-baseline.md` apenas como referência inicial; pode estar desatualizado.
 
 ## Estado Real Herdado Da Fase 05
 
@@ -88,21 +88,21 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 
 ## Dependências
 
-| Task | Depende De |
-| --- | --- |
-| `006-01` | leitura inicial completa |
-| `006-02` | `006-01` |
-| `006-03` | `006-01`, `006-02` |
-| `006-04` | `006-02` |
-| `006-05` | `006-03`, `006-04` |
-| `006-06` | `006-05` |
-| `006-07` | `006-05`, `006-06` |
-| `006-07A` | `006-05`, `006-06`, `006-07` |
-| `006-08` | `006-05`, `006-06`, `006-07`, `006-07A` |
-| `006-09` | `006-07`, `006-08` |
-| `006-10` | `006-05`, `006-08` |
-| `006-11` | `006-03` a `006-10`, `006-07A` |
-| `006-12` | `006-11` |
+| Task      | Depende De                              |
+| --------- | --------------------------------------- |
+| `006-01`  | leitura inicial completa                |
+| `006-02`  | `006-01`                                |
+| `006-03`  | `006-01`, `006-02`                      |
+| `006-04`  | `006-02`                                |
+| `006-05`  | `006-03`, `006-04`                      |
+| `006-06`  | `006-05`                                |
+| `006-07`  | `006-05`, `006-06`                      |
+| `006-07A` | `006-05`, `006-06`, `006-07`            |
+| `006-08`  | `006-05`, `006-06`, `006-07`, `006-07A` |
+| `006-09`  | `006-07`, `006-08`                      |
+| `006-10`  | `006-05`, `006-08`                      |
+| `006-11`  | `006-03` a `006-10`, `006-07A`          |
+| `006-12`  | `006-11`                                |
 
 ## Tasks Paralelizáveis
 
@@ -151,7 +151,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - [x] `006-09` disconnect, esquecer e lifecycle implementados
 - [x] `006-10` diagnóstico e exportação integrados
 - [x] `006-11` build, install e smoke manual executados
-- [ ] `006-12` fechamento, dívida e baseline planejada concluídos
+- [x] `006-12` fechamento, dívida e baseline planejada concluídos
 
 ## Comandos Mínimos De Build
 
@@ -206,7 +206,19 @@ Galaxy S22 com Champion C001:
 - Migration Room `1 -> 2` foi promovida via auto-migration para criar `device_associations`; seguir observando se próximas evoluções da associação exigirão backfill explícito.
 - Evolucao do scanner para lista efemera continua com timeout unico e deduplicacao por chave de transporte; cenarios mais ricos de RSSI/nomes duplicados seguem como risco conhecido da spec.
 - PR desta mudanca deve incluir screenshot da nova tela de dispositivo.
-- Atualizar `docs/core/current-project-baseline.md` no fechamento da Fase 06, não antes.
+- Atualizar `docs/baseline/current-baseline.md` no fechamento da Fase 06, não antes.
+
+## Fechamento Da Fase
+
+- Status final: Fase 06 concluida.
+- Release agora mostra feature real de dispositivo com scan manual, conexao funcional com A1, associacao persistida, auto-connect controlado, disconnect, retry, esquecimento, diagnostico seguro e exportacao sanitizada.
+- Build/debug: `assembleDebug` foi executado repetidamente ao longo das tasks de implementacao e permaneceu verde no fechamento incremental da fase.
+- Build/release e instalacao: `assembleRelease` e `installDebug` foram registrados na validacao manual consolidada desta fase e nao foram rerodados em `006-11` por orientacao explicita do usuario para evitar execucao desnecessaria apos correcao dos achados.
+- Smoke test manual: confirmado pelo usuario no Galaxy S22 com Champion C001 para permissoes, scan, conexao, retorno a tela, dispositivo lembrado, auto-connect controlado, disconnect, reconnect, Bluetooth desligado/ligado com retry, esquecer, nova associacao, diagnostico e exportacao.
+- Regressao introduzida e resolvida durante a fase: exportacao do relatorio final inicialmente falhava por caminho nao permitido no `FileProvider`; correcao aplicada ao reutilizar diretorio `poc-reports` ja autorizado.
+- Riscos aceitos no fechamento: falha antiga em `ChampionBleConnectionManagerTest`, flakes ignorados em `DevicePocCoordinatorTest`, campanha ampla de testes e cobertura visual adiadas para Fase 21, diagnostico avancado adiado para Fase 19.
+- ADRs avaliadas: nenhuma ADR nova foi necessaria neste fechamento; separacao entre persistencia local e contratos de dominio segue coberta por `ADR-003`, e auto-conexao controlada do associado segue coberta por `ADR-007`.
+- Baseline factual foi atualizada nesta task para refletir entrega real da Fase 06.
 
 ## Critérios Gerais De Conclusão
 

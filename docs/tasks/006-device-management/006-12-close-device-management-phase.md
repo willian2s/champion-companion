@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ Fechamento deve registrar estado real, não presumido. Baseline pode estar desat
 - `docs/specs/006-device-management.md`
 - `docs/tasks/006-device-management/006-00-overview.md`
 - todas as tasks `006-01` a `006-11`
-- `docs/core/current-project-baseline.md`
+- `docs/baseline/current-baseline.md`
 - ADRs vigentes em `docs/decisions/`
 - `docs/tasks/005-native-ble-poc/005-00-overview.md`
 
@@ -38,7 +38,7 @@ Fechamento deve registrar estado real, não presumido. Baseline pode estar desat
 - `docs/tasks/006-device-management/006-00-overview.md`
 - `docs/tasks/006-device-management/006-12-close-device-management-phase.md`
 - `docs/specs/006-device-management.md`
-- `docs/core/current-project-baseline.md` somente nesta task final, se a implementação real da Fase 06 já estiver concluída e exigir alinhamento factual
+- `docs/baseline/current-baseline.md` somente nesta task final, se a implementação real da Fase 06 já estiver concluída e exigir alinhamento factual
 - novo ADR em `docs/decisions/` somente se decisão arquitetural duradoura foi efetivamente tomada e não coberta
 
 ## Arquivos Proibidos
@@ -113,3 +113,40 @@ Fechamento deve registrar estado real, não presumido. Baseline pode estar desat
 - Mostrar `git status --short` no fechamento.
 - Não fazer commit.
 - Não fazer push.
+
+## Execucao
+
+- Checklist de `006-01` a `006-11` foi consolidado e confirmou todas as tasks anteriores como concluidas com evidencia documental registrada nas proprias tasks e no overview.
+- `docs/baseline/current-baseline.md` foi atualizado nesta task final porque estava desatualizado desde o estado anterior a Fase 06 e ja nao refletia a feature real entregue.
+- `docs/specs/006-device-management.md` recebeu registro factual de fechamento da fase para alinhar especificacao com comportamento entregue e validado.
+- Nenhuma ADR nova foi criada neste fechamento porque decisoes duradouras relevantes ja estavam cobertas por `ADR-003` para limites de persistencia local e `ADR-007` para auto-conexao controlada do dispositivo associado.
+
+## Evidencia Final
+
+- Lista final de comandos e resultados registrados na fase:
+  - `./gradlew assembleDebug`: verde em multiplas tasks de implementacao e validacao incremental, incluindo fechamento de `006-07`, `006-08`, `006-09` e `006-10`.
+  - `./gradlew assembleRelease`: registrado como executado na validacao manual consolidada informada pelo usuario em `006-11`.
+  - `./gradlew installDebug`: registrado como executado na validacao manual consolidada informada pelo usuario em `006-11`.
+- Resultado do smoke test: confirmado pelo usuario no Galaxy S22 com Champion C001 para todas as etapas previstas em `006-11`, sem regressao pendente aberta ao final da fase.
+- Falhas conhecidas e riscos aceitos:
+  - falha antiga em `ChampionBleConnectionManagerTest` permanece fora do escopo desta fase;
+  - flakes ignorados em `DevicePocCoordinatorTest` permanecem adiados;
+  - campanha ampla de testes Compose/instrumentados e expansao de fakes BLE seguem para Fase 21;
+  - diagnostico avancado segue para Fase 19.
+- Regressao introduzida e encerrada durante a fase: falha de exportacao por caminho nao autorizado no `FileProvider`, corrigida antes do fechamento.
+- Confirmacao operacional: nenhum commit foi feito nesta task; nenhum push foi feito nesta task.
+
+## Validacao Final
+
+- Resultado final de `git status --short`:
+
+```text
+ M docs/baseline/current-baseline.md
+ M docs/specs/006-device-management.md
+ M docs/tasks/006-device-management/006-00-overview.md
+ M docs/tasks/006-device-management/006-12-close-device-management-phase.md
+```
+
+- Estado acima corresponde apenas as atualizacoes documentais esperadas desta task final.
+- Commit nao realizado.
+- Push nao realizado.

@@ -18,7 +18,7 @@ Documentos autoritativos:
 - `docs/tasks/003-domain-and-persistence-foundation/003-00-overview.md`
 - `docs/protocol/*.md`
 - `docs/roadmap/champion-companion-roadmap.md`
-- `docs/core/current-project-baseline.md` apenas como referência; pode estar desatualizado após Fase 05.
+- `docs/baseline/current-baseline.md` apenas como referência; pode estar desatualizado após Fase 05.
 
 ## Estado Atual Após Fase 05
 
@@ -32,11 +32,23 @@ Documentos autoritativos:
 - Hilt já fornece bindings BLE em `ChampionBleModule`.
 - `DeviceRepository` só expõe `observeAssociatedDevice()`.
 - `DeviceEntity` existe, mas mistura identidade histórica do dispositivo com associação por `associatedAtEpochMillis` obrigatório.
-- Baseline em `docs/core/current-project-baseline.md` não deve ser alterada durante planejamento; atualização dela entra no fechamento da Fase 06.
+- Baseline em `docs/baseline/current-baseline.md` não deve ser alterada durante planejamento; atualização dela entra no fechamento da Fase 06.
 
 ## Objetivo
 
 Entregar tela de dispositivo utilizável para listar dispositivos encontrados, selecionar Champion C001, conectar com handshake A1, salvar associação, exibir dispositivo lembrado, tentar auto-conexão controlada do dispositivo associado ao abrir app ou tela quando pré-requisitos já estiverem satisfeitos, desconectar, tentar novamente, esquecer, abrir diagnóstico e exportar relatório sanitizado.
+
+## Fechamento Da Fase
+
+Fechamento factual registrado em 2026-07-22:
+
+- `006-01` a `006-12` concluídas.
+- `DeviceScreen` release deixou de ser placeholder e passou a usar `DeviceManagementViewModel` como fronteira única de estado e intents.
+- Associação persistida foi separada da sessão BLE efêmera por tabela dedicada, preservando histórico ao esquecer.
+- Auto-conexão controlada do dispositivo associado foi entregue com tentativa única por entrada visível da feature e sem prompt automático de permissão.
+- Diagnóstico seguro e exportação sanitizada ficaram disponíveis por ação explícita do usuário.
+- Validação manual da fase foi confirmada no Galaxy S22 com Champion C001, incluindo permissões, scan, conexão, retorno à tela, reconnect, Bluetooth desligado/ligado com retry, esquecer, nova associação, diagnóstico e exportação.
+- Dívidas antigas de testes automatizados permanecem adiadas para Fase 21 e não bloquearam fechamento da fase.
 
 ## Requisitos Funcionais
 
@@ -588,7 +600,7 @@ Permitido nesta fase:
 - Scanner atual retorna ao primeiro Champion; evolução para lista deve ser mínima e pode não cobrir todos cenários de RSSI/nome duplicado.
 - Diagnóstico avançado fica para Fase 19.
 - Testes amplos ficam para Fase 21.
-- Baseline `docs/core/current-project-baseline.md` deve ser atualizada no fechamento da Fase 06.
+- Baseline `docs/baseline/current-baseline.md` deve ser atualizada no fechamento da Fase 06.
 
 ## Critérios De Aceite
 
