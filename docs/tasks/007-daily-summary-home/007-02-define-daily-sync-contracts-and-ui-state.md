@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -90,6 +90,33 @@ Home precisa de estado único e testável. UI não deve manter estado paralelo d
 ## Evidência Manual
 
 - Resumo do contrato criado e decisões de nomes.
+
+## Resumo Do Contrato Criado
+
+- `HomeFeatureContract.kt`
+  - `HomeUiState` virou estado composto real com `surfaceState`, `observedDate`, `summary`, `watch`, `pendingActivities` e `refresh`.
+  - `HomeIntent` ganhou `Load`, `Refresh`, `Retry`, `DismissError` e `OpenDevice`.
+  - `HomeRefreshState` concentra equivalentes de `isRefreshing`, `refreshStage`, `refreshError` e `lastSuccessfulRefreshAt`.
+  - `HomeRefreshStage` ficou em `Preparing`, `Connecting`, `WaitingForSteps`, `Persisting`.
+  - `HomeRefreshAttempt` modela `refreshAttemptId`, `sessionId` e `startedAt`.
+  - `HomeRefreshError` e `HomeRefreshErrorCategory` definem erro seguro da Home.
+
+- `RepositoryContracts.kt`
+  - `DailySummaryRepository` ganhou `observeSummaryForDate()` e `mergeWatchDailySummary(input)`.
+  - `DeviceRepository` ganhou `updateImportMetadata(deviceId, importedAt, parserVersion)`.
+  - `PersonalMetricsRepository` foi definido como contrato mínimo para altura/peso/passada manual.
+  - `DailyStepsSyncCoordinator` foi definido com `refresh(request)`.
+  - `DailySyncAttempt`, `FreshPacketCandidate` e `DailyStepsRefreshRequest` modelam contrato mínimo de pacote fresco e tentativa atual.
+  - `AppPreferencesRepository` ganhou contrato provisório de `observeDailyStepsGoal()` e `updateDailyStepsGoal()` sem ainda alterar `AppPreferences` nesta task.
+
+- `DomainTime.kt`
+  - `LocalDateResolver.resolve(instant, zoneId)` e `Instant.toLocalDateIn(zoneId)` definem helper testável para `Instant + ZoneId -> LocalDate`.
+
+## Decisões De Nome
+
+- Usei `surfaceState` para separar estado principal da tela de `refresh`.
+- Usei `HomeRefreshOperation` para evitar booleano paralelo e derivar `isRefreshing` de presença da operação.
+- Usei `DailySyncAttempt` no domínio/repository e `HomeRefreshAttempt` na camada de Home para manter contratos mínimos independentes.
 
 ## Atualização Do Overview
 

@@ -130,10 +130,17 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - Lacuna principal de DI fica em `AppPreferencesRepository` e em futuro contrato mínimo de métricas pessoais.
 - Risco principal de persistência continua em `RoomRepositories.save()`, que faz replace simples e pode reduzir passos.
 
+## Achados De `007-02`
+
+- `HomeUiState` agora ficou formalizado com `surfaceState` separado de `refresh`.
+- Contrato de refresh agora tem tentativa explícita com `refreshAttemptId`, `sessionId` e `startedAt`.
+- Contratos futuros mínimos ficaram reservados em `RepositoryContracts.kt`: `mergeWatchDailySummary`, `updateImportMetadata`, `PersonalMetricsRepository` e `DailyStepsSyncCoordinator`.
+- Helper testável de data local ficou centralizado em `LocalDateResolver` e `Instant.toLocalDateIn(zoneId)`.
+
 ## Checklist
 
 - [x] `007-01` auditoria concluída
-- [ ] `007-02` contratos e UI state definidos
+- [x] `007-02` contratos e UI state definidos
 - [ ] `007-03` parser FEA1 promovido e coordinator criado
 - [ ] `007-04` consolidação atômica implementada
 - [ ] `007-05` meta e estimativas implementadas

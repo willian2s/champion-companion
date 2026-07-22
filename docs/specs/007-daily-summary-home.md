@@ -27,7 +27,7 @@ Documentos autoritativos:
 ## Estado Real Após Fase 06
 
 - `HomeScreen.kt` mostra cabeçalho, status do relógio, atalho de perfil e placeholder.
-- `HomeFeatureContract.kt` contém apenas `data object HomeUiState`.
+- `HomeFeatureContract.kt` agora define `HomeUiState`, `HomeIntent`, `HomeRefreshState`, `HomeRefreshStage` e erro seguro da Home, mas ainda sem `HomeViewModel` ou UI funcional.
 - `DeviceManagementViewModel` controla associação, scan, conexão, retry, disconnect, forget e auto-connect controlado.
 - `DeviceConnectionBootstrap` conecta dispositivo associado, faz fallback por scan curto direcionado e executa A1.
 - `ChampionConnectionManager` mantém uma sessão ativa, configura subscriptions default e expõe `currentSession()`.
@@ -36,6 +36,7 @@ Documentos autoritativos:
 - `DailySummaryRepository.save()` faz upsert simples e pode substituir valor maior por menor.
 - `DailySummaryDao` possui consulta por chave natural e `observeBetween`.
 - `DeviceRepository` não possui operação explícita para atualizar `DeviceImportMetadata` após import.
+- `RepositoryContracts.kt` já reserva contratos-alvo para `DailyStepsSyncCoordinator`, `PersonalMetricsRepository`, `mergeWatchDailySummary(...)` e `updateImportMetadata(...)`, ainda sem implementação.
 - `AppPreferencesStore` implementa `AppPreferencesRepository`, mas `AppPreferences` ainda não possui meta diária de passos e Hilt ainda não expõe binding explícito do contrato.
 - `UserProfileDao` e `WeightMeasurementEntity` existem, mas não há contrato de repository para consulta mínima de dados pessoais.
 - `ChampionConnectionManager.currentSession()` já permite reuso de sessão e `ChampionNotificationHub` já suporta subscriptions temporárias, porém `DeviceConnectionBootstrap` ainda não reutiliza sessão ativa por conta própria.
