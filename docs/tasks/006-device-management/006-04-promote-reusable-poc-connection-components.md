@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-21.
 
 ## Objetivo
 
@@ -100,3 +100,10 @@ PoC técnica funciona, mas seus componentes estão acoplados ao fluxo técnico. 
 ## Validação Final
 
 - Documentar comando e resultado.
+
+## Execução
+
+- Componentes promovidos: `DeviceConnectionBootstrap`, `DeviceConnectionProtocolState`, `DeviceConnectionSafeError`, `DeviceDiagnosticsSnapshot` e `DeviceDiagnosticsReportExporter`.
+- `DevicePocCoordinator` passou a delegar bootstrap funcional `connect -> TransportReady -> A1` para componente reutilizável sem duplicar lógica de handshake.
+- `DevicePocReportExporter` passou a reutilizar exporter genérico de diagnósticos; tela técnica PoC continuou separada e não foi convertida em tela final.
+- Validação executada: `./gradlew assembleDebug` e `./gradlew app:testDebugUnitTest --tests "*DatabaseMappersTest" --tests "*DeviceDiagnosticsSnapshotTest"`.

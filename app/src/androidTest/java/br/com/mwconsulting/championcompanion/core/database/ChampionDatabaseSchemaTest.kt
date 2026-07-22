@@ -9,7 +9,7 @@ import org.junit.Test
 
 class ChampionDatabaseSchemaTest {
     @Test
-    fun createsEmptyVersionOneDatabaseWithSQLiteDriver() = runBlocking {
+    fun createsEmptyVersionTwoDatabaseWithSQLiteDriver() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.inMemoryDatabaseBuilder(context, ChampionDatabase::class.java)
             .setDriver(AndroidSQLiteDriver())

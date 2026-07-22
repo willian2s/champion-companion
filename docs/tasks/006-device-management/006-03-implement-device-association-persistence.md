@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-21.
 
 ## Objetivo
 
@@ -110,3 +110,10 @@ Estratégia definida: entidade própria de associação em Room. `DeviceEntity` 
 ## Validação Final
 
 - Se teste informativo falhar por dívida anterior, documentar e não bloquear salvo regressão direta.
+
+## Execução
+
+- `DeviceAssociationEntity` singleton adicionada em Room V2 com FK para `devices` e schema exportado em `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/2.json`.
+- `DeviceRepository` agora observa associação por tabela dedicada e expõe associar/substituir, atualizar última conexão, atualizar metadados, esquecer e localizar por identificador.
+- `Device.create(...)` deixou de acoplar timestamps históricos ao `associatedAt`, permitindo re-associação sem invalidar importações antigas.
+- Validação executada: `./gradlew assembleDebug` e `./gradlew app:testDebugUnitTest --tests "*DatabaseMappersTest" --tests "*DeviceDiagnosticsSnapshotTest"`.

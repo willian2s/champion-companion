@@ -7,6 +7,7 @@ import androidx.room3.ColumnTypeConverter
 import androidx.room3.Entity
 import androidx.room3.ForeignKey
 import androidx.room3.Index
+import androidx.room3.AutoMigration
 import androidx.room3.PrimaryKey
 import androidx.room3.Query
 import androidx.room3.RoomDatabase
@@ -29,6 +30,23 @@ data class DeviceEntity(
     val lastSuccessfulConnectionAtEpochMillis: Long?,
     val lastImportedAtEpochMillis: Long?,
     val importParserVersion: String?,
+)
+
+@Entity(
+    tableName = "device_associations",
+    foreignKeys = [ForeignKey(
+        entity = DeviceEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["deviceId"],
+        onDelete = ForeignKey.RESTRICT,
+    )],
+    indices = [Index(value = ["deviceId"], unique = true)],
+)
+data class DeviceAssociationEntity(
+    @PrimaryKey val id: String,
+    val deviceId: String,
+    val associatedAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
 )
 
 @Entity(tableName = "user_profiles")
@@ -381,6 +399,7 @@ class ChampionDatabaseConverters {
 @Database(
     entities = [
         DeviceEntity::class,
+        DeviceAssociationEntity::class,
         UserProfileEntity::class,
         WeightMeasurementEntity::class,
         DailySummaryEntity::class,
@@ -395,13 +414,15 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 1,
+    version = 2,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
     exportSchema = true,
 )
 @ColumnTypeConverters(ChampionDatabaseConverters::class)
 abstract class ChampionDatabase : RoomDatabase() {
     abstract fun schemaDao(): SchemaDao
     abstract fun deviceDao(): DeviceDao
+    abstract fun deviceAssociationDao(): DeviceAssociationDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun dailySummaryDao(): DailySummaryDao
     abstract fun heartRateDao(): HeartRateDao

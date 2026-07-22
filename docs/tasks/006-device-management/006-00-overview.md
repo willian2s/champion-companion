@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `006-01` concluida em 2026-07-21; demais tasks seguem pendentes.
+Em andamento. `006-01`, `006-03` e `006-04` concluidas em 2026-07-21; demais tasks seguem pendentes.
 
 ## Objetivo
 
@@ -137,8 +137,8 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 
 - [x] `006-01` auditoria e estratégia de associação concluídas
 - [x] `006-02` contratos e UI state definidos
-- [ ] `006-03` persistência de associação implementada
-- [ ] `006-04` componentes reutilizáveis da PoC promovidos
+- [x] `006-03` persistência de associação implementada
+- [x] `006-04` componentes reutilizáveis da PoC promovidos
 - [ ] `006-05` ViewModel de gerenciamento criada
 - [ ] `006-06` discovery e seleção implementados
 - [ ] `006-07` conexão do dispositivo lembrado e retry implementados
@@ -196,6 +196,7 @@ Galaxy S22 com Champion C001:
 - Expandir fakes BLE e testes Compose na Fase 21.
 - Cobrir estados visuais com campanha instrumentada na Fase 21.
 - Diagnóstico avançado fica para Fase 19.
+- Migration Room `1 -> 2` foi promovida via auto-migration para criar `device_associations`; seguir observando se próximas evoluções da associação exigirão backfill explícito.
 - Atualizar `docs/core/current-project-baseline.md` no fechamento da Fase 06, não antes.
 
 ## Critérios Gerais De Conclusão
