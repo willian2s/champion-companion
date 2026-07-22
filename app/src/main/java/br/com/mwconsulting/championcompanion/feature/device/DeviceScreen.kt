@@ -272,8 +272,7 @@ private fun DeviceManagementScreen(
             ) {
                 Text(
                     text = state.screenState.label(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 state.activeOperation?.let {
                     Text(
@@ -563,7 +562,7 @@ private fun ActionSection(
             DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE,
         )
 
-    HealthCard(title = "Acoes") {
+    HealthCard(title = "Ações") {
         Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
             PrimaryActionButton(
                 label = if (hasAssociatedDevice) "Buscar outro dispositivo" else "Buscar dispositivo",

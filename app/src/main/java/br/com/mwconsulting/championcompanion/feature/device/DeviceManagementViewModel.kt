@@ -119,9 +119,12 @@ class DeviceManagementViewModel @Inject constructor(
         val scanReadiness = ChampionBlePrerequisites.forScan(bleEnvironment.snapshot())
         val connectReadiness = ChampionBlePrerequisites.forConnect(bleEnvironment.snapshot())
         val missingPermission = (scanReadiness.missing + connectReadiness.missing).firstOrNull { it.permissions.isNotEmpty() }
+        val allMissingPermissions = (scanReadiness.missing + connectReadiness.missing)
+            .flatMap { it.permissions }
+            .toSet()
         when {
             missingPermission != null -> {
-                val permissions = missingPermission.permissions.mapToUiPermissions()
+                val permissions = allMissingPermissions.mapToUiPermissions()
                 mutableState.update {
                     it.copy(
                         screenState = DeviceManagementScreenState.PermissionsRequired,
@@ -666,7 +669,12 @@ class DeviceManagementViewModel @Inject constructor(
     }
 
     private fun refreshIdleSurface(clearError: Boolean = false) {
-        if (mutableState.value.activeOperation != null) return
+        if (
+            mutableState.value.activeOperation != null &&
+            mutableState.value.activeOperation != DeviceManagementActiveOperation.REQUESTING_PERMISSIONS
+        ) {
+            return
+        }
         if (
             currentTransportState !is ChampionBleState.Disconnected &&
             currentTransportState !is ChampionBleState.Failed &&
