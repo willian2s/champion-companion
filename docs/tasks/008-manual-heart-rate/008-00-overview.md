@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07`, `008-08`, `008-08A` e `008-08B` concluidas em 2026-07-22; `008-09` e `008-10` seguem pendentes. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão segue por `008-08A` e `008-08B`, sem reabrir a task original.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07`, `008-08`, `008-08A`, `008-08B` e `008-09` concluidas em 2026-07-22; `008-10` segue pendente. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão segue por `008-08A` e `008-08B`, sem reabrir a task original.
 
 ## Objetivo
 
@@ -142,6 +142,13 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Gráfico real, histórico completo, D1 e Health Connect continuam fora da implementação entregue.
 - Validação mínima executada em `008-08B`: `assembleDebug`, `assembleRelease` e `installDebug`, com instalação confirmada em `SM-S901E`.
 
+## Achados De `008-09`
+
+- Validação física da Fase 08 estendida foi aceita pelo usuário como já executada.
+- Gate mínimo permaneceu registrado por `assembleDebug`, `assembleRelease` e `installDebug` já executados no trabalho de `008-08B`.
+- Fechamento documental de `008-09` confirma, sem evidência contrária nesta conversa, ausência de D1, Health Connect, persistência de stream e dados simulados.
+- Nenhuma regressão adicional foi registrada nesta task.
+
 ## Estado Herdado
 
 - ADR-007 permite auto-connect controlado do dispositivo associado, mas isso nao autoriza medicao automatica.
@@ -271,7 +278,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
 - [x] `008-08A` formalizacao arquitetural, ADR-009 e roadmap alinhados
 - [x] `008-08B` hub de Saude e shells das telas de metricas implementados
-- [ ] `008-09` gate reduzido e smoke fisico executados
+- [x] `008-09` gate reduzido e smoke fisico executados
 - [ ] `008-10` fechamento, baseline e divida consolidados
 
 ## Comandos Minimos

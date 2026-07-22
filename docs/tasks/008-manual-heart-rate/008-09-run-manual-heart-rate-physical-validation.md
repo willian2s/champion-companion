@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-22.
 
 ## Objetivo
 
@@ -53,6 +53,13 @@ Fluxo manual de BPM e novo hub de Saude dependem de comportamento fisico do relo
 - Documentar falhas antigas nao relacionadas.
 - Corrigir regressao introduzida pela Fase 08.
 
+## Resultado
+
+- Gate obrigatório da fase foi executado e registrado.
+- Validação física da Fase 08 estendida foi considerada executada e aceita pelo usuário.
+- Hub de Saúde, navegação entre métricas e medição manual composta na tela específica de frequência cardíaca foram considerados validados juntos.
+- Não surgiu regressão impeditiva adicional a registrar nesta task.
+
 ## Fora Do Escopo
 
 - Campanha ampla de testes.
@@ -77,6 +84,12 @@ Fluxo manual de BPM e novo hub de Saude dependem de comportamento fisico do relo
 - Hub de Saude, navegacao de metricas e medicao manual movida/composita validados juntos.
 - Ausencia de Health Connect e ausencia de logs de BPM/F002 confirmadas.
 
+## Achados
+
+- `assembleDebug`, `assembleRelease` e `installDebug` já haviam sido executados no trabalho da `008-08B` e permaneceram válidos como gate mínimo desta validação.
+- Usuário confirmou que a validação física já foi executada, permitindo fechamento documental desta task sem reexecução do roteiro detalhado nesta conversa.
+- Nenhuma evidência nova sugere implementação de D1, Health Connect, persistência de stream ou dados simulados.
+
 ## Testes Pequenos Aplicaveis
 
 - Nenhum exclusivo desta task.
@@ -94,11 +107,28 @@ Fluxo manual de BPM e novo hub de Saude dependem de comportamento fisico do relo
 - Resultado dos comandos.
 - Resultado do smoke fisico item a item ou por agrupamento claro.
 
+- Resultado dos comandos já registrados no trabalho anterior imediato da fase:
+  - `./gradlew assembleDebug` ✅
+  - `./gradlew assembleRelease` ✅
+  - `./gradlew installDebug` ✅
+- Smoke físico aceito por confirmação do usuário para fechamento desta task.
+- Agrupamento aceito do smoke físico:
+  - abertura do hub de Saúde e visualização dos quatro cards;
+  - navegação para frequência cardíaca, peso, passos e distância;
+  - execução e conclusão da medição manual na tela específica de frequência cardíaca;
+  - retorno ao hub e atualização do card de frequência cardíaca;
+  - confirmação de estados vazios seguros para gráfico/histórico;
+  - confirmação de ausência de D1, Health Connect e dados simulados.
+
 ## Atualizacao Do Overview
 
 - Marcar `008-09` como concluida.
 - Consolidar comandos e riscos residuais aceitos.
 
+- Overview atualizado com checklist concluído de `008-09` e consolidação do gate mínimo já executado.
+
 ## Validacao Final
 
 - Confirmar ausencia de Health Connect, D1, persistencia de stream e dados simulados.
+
+- Confirmado para fechamento documental desta task.
