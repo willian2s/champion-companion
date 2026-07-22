@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `006-01`, `006-03` e `006-04` concluidas em 2026-07-21; demais tasks seguem pendentes.
+Em andamento. `006-01`, `006-03`, `006-04` e `006-05` concluidas em 2026-07-21; demais tasks seguem pendentes.
 
 ## Objetivo
 
@@ -139,7 +139,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - [x] `006-02` contratos e UI state definidos
 - [x] `006-03` persistência de associação implementada
 - [x] `006-04` componentes reutilizáveis da PoC promovidos
-- [ ] `006-05` ViewModel de gerenciamento criada
+- [x] `006-05` ViewModel de gerenciamento criada
 - [ ] `006-06` discovery e seleção implementados
 - [ ] `006-07` conexão do dispositivo lembrado e retry implementados
 - [ ] `006-08` tela utilizável implementada

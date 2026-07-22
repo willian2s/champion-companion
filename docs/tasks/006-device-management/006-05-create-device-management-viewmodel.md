@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-21.
 
 ## Objetivo
 
@@ -98,3 +98,31 @@ Telas não podem acessar Room nem BLE infra diretamente. ViewModel será frontei
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- `DeviceManagementViewModel` Hilt foi criado em `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementViewModel.kt` como fronteira da UI para estado, intents e eventos one-shot.
+- ViewModel observa `DeviceRepository.observeAssociatedDevice()` e `ChampionConnectionManager.state` no `init`, mas nao inicia scan nem conexao automaticamente.
+- Handlers implementados: refresh de prerequisitos, solicitar permissoes, iniciar/cancelar scan, selecionar candidato, conectar candidato selecionado, conectar dispositivo associado lembrado, retry, disconnect, forget com confirmacao, abrir diagnostico e exportar.
+- Persistencia apos conexao funcional bem-sucedida usa `DeviceRepository.associateDevice(...)` e `updateLastSuccessfulConnection(...)`.
+- Erros BLE sao mapeados para `DeviceManagementError` seguro; falhas de persistencia viram mensagem interna sanitizada.
+- `ChampionBleModule` recebeu binding minimo de `ChampionGattCallbackBridge` necessario para Hilt instanciar dependencias BLE usadas pela ViewModel.
+- Testes pequenos novos nao foram adicionados nesta task para evitar criar abstrações extras fora do escopo apenas para mockar `ChampionConnectionManager`; cobertura ampla segue adiada pela spec.
+
+## Evidencia Final
+
+- Eventos publicos da ViewModel: `RequestPermissions`, `OpenBluetoothSettings`, `ShowForgetConfirmation`, `OpenDiagnostics` e `ShareDiagnostics` via `SharedFlow` dedicado.
+- Confirmado: `init` somente observa repository/estado do manager; nao chama `scan`, `connect` nem `connectAndHandshake`.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- primeira execucao falhou por binding Hilt ausente de `ChampionGattCallbackBridge`, corrigido com provider minimo em `ChampionBleModule`;
+- segunda execucao concluiu com `BUILD SUCCESSFUL`.

@@ -56,6 +56,10 @@ object ChampionBleModule {
 
     @Provides
     @Singleton
+    fun provideChampionGattCallbackBridge(): ChampionGattCallbackBridge = ChampionGattCallbackBridge()
+
+    @Provides
+    @Singleton
     fun provideChampionConnectionManager(
         scanner: ChampionBleScanner,
         client: ChampionBleClient,
