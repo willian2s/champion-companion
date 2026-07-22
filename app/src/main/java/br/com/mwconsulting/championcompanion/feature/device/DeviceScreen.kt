@@ -7,6 +7,8 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -64,13 +66,12 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
-import androidx.activity.ComponentActivity
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun DeviceScreen(
     deviceManagementViewModel: DeviceManagementViewModel = run {
-        val activity = LocalContext.current as ComponentActivity
+        val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
             ViewModelProvider(activity)[DeviceManagementViewModel::class.java]
         }

@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.feature.home
 
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,7 +57,7 @@ fun HomeScreen(
     onOpenDevice: () -> Unit,
     onOpenProfile: () -> Unit,
     deviceManagementViewModel: DeviceManagementViewModel = run {
-        val activity = LocalContext.current as ComponentActivity
+        val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
             ViewModelProvider(activity)[DeviceManagementViewModel::class.java]
         }
