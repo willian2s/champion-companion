@@ -127,6 +127,7 @@ private fun ChampionNavDisplay(
                 when (destination) {
                     AppDestination.Home -> HomeScreen(
                         onOpenDevice = { backStack.navigateToTopLevel(AppDestination.Device) },
+                        onOpenProfile = { backStack.navigateToTopLevel(AppDestination.Profile) },
                     )
                     AppDestination.Health -> HealthScreen()
                     AppDestination.Calendar -> CalendarScreen()
