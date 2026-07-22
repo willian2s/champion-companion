@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada. Nenhuma task da Fase 06 foi executada ainda.
+Em andamento. `006-01` concluida em 2026-07-21; demais tasks seguem pendentes.
 
 ## Objetivo
 
@@ -132,7 +132,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 
 ## Checklist
 
-- [ ] `006-01` auditoria e estratégia de associação concluídas
+- [x] `006-01` auditoria e estratégia de associação concluídas
 - [ ] `006-02` contratos e UI state definidos
 - [ ] `006-03` persistência de associação implementada
 - [ ] `006-04` componentes reutilizáveis da PoC promovidos
