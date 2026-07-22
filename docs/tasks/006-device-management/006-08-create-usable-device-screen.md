@@ -20,6 +20,7 @@ Substituir placeholder release por tela utilizável de gerenciamento de disposit
 - `docs/tasks/006-device-management/006-05-create-device-management-viewmodel.md`
 - `docs/tasks/006-device-management/006-06-implement-discovery-and-device-selection.md`
 - `docs/tasks/006-device-management/006-07-implement-saved-device-connection-and-retry.md`
+- `docs/tasks/006-device-management/006-07a-implement-controlled-auto-connect-for-associated-device.md`
 - `docs/specs/002-design-system.md`
 
 ## Dependências
@@ -27,6 +28,7 @@ Substituir placeholder release por tela utilizável de gerenciamento de disposit
 - `006-05`
 - `006-06`
 - `006-07`
+- `006-07A`
 
 ## Entradas
 

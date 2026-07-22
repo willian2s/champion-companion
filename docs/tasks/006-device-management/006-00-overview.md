@@ -48,7 +48,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 ## Limites
 
 - Entregar funcionalidade de gerenciamento de dispositivo.
-- Não implementar Home, passos persistidos, distância, calorias, BPM de produção, D1, D3, D4, Health Connect, GPS, background BLE, foreground service, auto-connect, suporte a outros dispositivos ou exclusão de histórico.
+- Não implementar Home, passos persistidos, distância, calorias, BPM de produção, D1, D3, D4, Health Connect, GPS, background BLE permanente, foreground service, suporte a outros dispositivos ou exclusão de histórico.
 - Não criar task exclusiva de testes.
 - Testes novos só quando pequenos e diretamente necessários para regra crítica.
 - Falhas automatizadas anteriores e não relacionadas devem ser documentadas, não corrigidas por escopo amplo.
@@ -63,11 +63,12 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 6. `006-05-create-device-management-viewmodel.md`
 7. `006-06-implement-discovery-and-device-selection.md`
 8. `006-07-implement-saved-device-connection-and-retry.md`
-9. `006-08-create-usable-device-screen.md`
-10. `006-09-implement-disconnect-forget-and-lifecycle-cleanup.md`
-11. `006-10-integrate-safe-diagnostics-and-export.md`
-12. `006-11-run-manual-device-management-validation.md`
-13. `006-12-close-device-management-phase.md`
+9. `006-07a-implement-controlled-auto-connect-for-associated-device.md`
+10. `006-08-create-usable-device-screen.md`
+11. `006-09-implement-disconnect-forget-and-lifecycle-cleanup.md`
+12. `006-10-integrate-safe-diagnostics-and-export.md`
+13. `006-11-run-manual-device-management-validation.md`
+14. `006-12-close-device-management-phase.md`
 
 ## Ordem Recomendada
 
@@ -78,11 +79,12 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 5. `006-05`
 6. `006-06`
 7. `006-07`
-8. `006-08`
-9. `006-09`
-10. `006-10`
-11. `006-11`
-12. `006-12`
+8. `006-07A`
+9. `006-08`
+10. `006-09`
+11. `006-10`
+12. `006-11`
+13. `006-12`
 
 ## Dependências
 
@@ -95,16 +97,18 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 | `006-05` | `006-03`, `006-04` |
 | `006-06` | `006-05` |
 | `006-07` | `006-05`, `006-06` |
-| `006-08` | `006-05`, `006-06`, `006-07` |
+| `006-07A` | `006-05`, `006-06`, `006-07` |
+| `006-08` | `006-05`, `006-06`, `006-07`, `006-07A` |
 | `006-09` | `006-07`, `006-08` |
 | `006-10` | `006-05`, `006-08` |
-| `006-11` | `006-03` a `006-10` |
+| `006-11` | `006-03` a `006-10`, `006-07A` |
 | `006-12` | `006-11` |
 
 ## Tasks Paralelizáveis
 
 - `006-03` e `006-04` podem iniciar após `006-02`, se não editarem os mesmos contratos ao mesmo tempo.
 - `006-06` e parte visual de `006-08` podem paralelizar após `006-05`, mas `DeviceScreen.kt` deve ter owner único por sessão.
+- `006-07A` depende do fluxo de conexão lembrada já estável em `006-07`; evitar paralelizar ambos no mesmo owner de ViewModel.
 - `006-10` pode paralelizar com `006-08` após a UI state da ViewModel estar estável.
 - `006-11` e `006-12` são sequenciais.
 
@@ -142,6 +146,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - [x] `006-05` ViewModel de gerenciamento criada
 - [ ] `006-06` discovery e seleção implementados
 - [ ] `006-07` conexão do dispositivo lembrado e retry implementados
+- [ ] `006-07A` auto-conexão controlada do dispositivo associado implementada
 - [ ] `006-08` tela utilizável implementada
 - [ ] `006-09` disconnect, esquecer e lifecycle implementados
 - [ ] `006-10` diagnóstico e exportação integrados
@@ -177,17 +182,19 @@ Galaxy S22 com Champion C001:
 6. confirmar estado conectado;
 7. sair e voltar para a tela;
 8. confirmar dispositivo lembrado;
-9. desconectar;
-10. conectar novamente;
-11. desligar Bluetooth;
-12. verificar estado;
-13. ligar Bluetooth;
-14. tentar novamente;
-15. esquecer dispositivo;
-16. confirmar estado vazio;
-17. associar novamente;
-18. abrir diagnóstico;
-19. exportar relatório sanitizado.
+9. fechar e reabrir app;
+10. confirmar tentativa automática única de reconexão do dispositivo associado;
+11. desconectar;
+12. conectar novamente;
+13. desligar Bluetooth;
+14. verificar estado;
+15. ligar Bluetooth;
+16. tentar novamente;
+17. esquecer dispositivo;
+18. confirmar estado vazio;
+19. associar novamente;
+20. abrir diagnóstico;
+21. exportar relatório sanitizado.
 
 ## Dívida Técnica Adiada
 
@@ -202,12 +209,12 @@ Galaxy S22 com Champion C001:
 ## Critérios Gerais De Conclusão
 
 - Release mostra feature real de dispositivo.
-- Usuário controla scan e conexão.
+- Usuário controla scan e pode intervir na conexão; dispositivo associado pode auto-conectar de forma limitada ao abrir app ou tela.
 - Associação persiste separada da sessão BLE.
 - Conexão funcional inclui handshake A1.
 - Esquecer preserva histórico.
 - Diagnóstico/export são sanitizados.
-- Não há auto-connect, reconnect infinito nem BLE permanente.
+- Não há reconnect infinito nem BLE permanente.
 - Builds obrigatórios e smoke manual registrados.
 
 ## Instruções Para Atualização Do Checklist

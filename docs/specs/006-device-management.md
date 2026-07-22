@@ -36,7 +36,7 @@ Documentos autoritativos:
 
 ## Objetivo
 
-Entregar tela de dispositivo utilizável para listar dispositivos encontrados, selecionar Champion C001, conectar com handshake A1, salvar associação, exibir dispositivo lembrado, desconectar, tentar novamente, esquecer, abrir diagnóstico e exportar relatório sanitizado.
+Entregar tela de dispositivo utilizável para listar dispositivos encontrados, selecionar Champion C001, conectar com handshake A1, salvar associação, exibir dispositivo lembrado, tentar auto-conexão controlada do dispositivo associado ao abrir app ou tela quando pré-requisitos já estiverem satisfeitos, desconectar, tentar novamente, esquecer, abrir diagnóstico e exportar relatório sanitizado.
 
 ## Requisitos Funcionais
 
@@ -51,23 +51,27 @@ Entregar tela de dispositivo utilizável para listar dispositivos encontrados, s
 9. Salvar associação somente após conexão funcional bem-sucedida.
 10. Manter somente um dispositivo associado nesta fase.
 11. Exibir dispositivo lembrado após reinício, recriação de Activity e retorno à tela.
-12. Exibir nome, modelo e identificador seguro.
-13. Exibir estado real da conexão.
-14. Exibir última conexão bem-sucedida.
-15. Exibir última sincronização/importação somente quando existir.
-16. Permitir desconectar.
-17. Permitir retry manual conforme erro atual.
-18. Permitir esquecer com confirmação.
-19. Ao esquecer, remover associação sem apagar `devices` nem dados históricos.
-20. Refletir disconnect inesperado e Bluetooth desligado.
-21. Abrir diagnóstico seguro.
-22. Exportar relatório sanitizado por ação explícita.
+12. Ao abrir app ou tela de dispositivo com associação persistida e pré-requisitos já satisfeitos, tentar conectar automaticamente o dispositivo associado.
+13. Limitar auto-conexão a tentativa finita e única por entrada visível da feature.
+14. Não solicitar permissão runtime automaticamente durante auto-conexão.
+15. Exibir nome, modelo e identificador seguro.
+16. Exibir estado real da conexão.
+17. Exibir última conexão bem-sucedida.
+18. Exibir última sincronização/importação somente quando existir.
+19. Permitir desconectar.
+20. Permitir retry manual conforme erro atual.
+21. Permitir esquecer com confirmação.
+22. Ao esquecer, remover associação sem apagar `devices` nem dados históricos.
+23. Refletir disconnect inesperado e Bluetooth desligado.
+24. Abrir diagnóstico seguro.
+25. Exportar relatório sanitizado por ação explícita.
 
 ## Requisitos Não Funcionais
 
 - Não iniciar scan ao abrir a tela.
-- Não iniciar conexão ao abrir a tela.
-- Não fazer auto-connect.
+- Auto-connect só é permitido para dispositivo já associado e de forma controlada.
+- Não pedir permissão runtime automaticamente ao abrir a tela.
+- Não fazer auto-connect para dispositivo diferente do associado.
 - Não fazer reconexão infinita.
 - Não manter BLE permanente.
 - Não criar segundo scanner, segundo GATT client ou segundo connection manager fora de Hilt.
@@ -88,6 +92,7 @@ Incluído:
 - scan manual;
 - lista de candidatos;
 - conexão manual;
+- auto-conexão controlada do dispositivo associado;
 - handshake A1;
 - associação persistida;
 - disconnect, retry e esquecimento;
@@ -108,7 +113,7 @@ Fora da fase:
 - GPS;
 - background BLE;
 - foreground service;
-- auto-connect;
+- auto-connect amplo ou agressivo para qualquer Champion;
 - suporte a outros dispositivos;
 - exclusão de histórico ao esquecer;
 - campanha ampla de testes.
@@ -191,6 +196,7 @@ stateDiagram-v2
     Scanning --> DeviceNotFound: timeout/nenhum candidato
     ScanResults --> Connecting: usuário conecta
     Disconnected --> Connecting: usuário conecta lembrado
+    Disconnected --> Connecting: entrada da feature dispara auto-connect controlado
     Connecting --> PreparingConnection: transporte pronto
     PreparingConnection --> Connected: A1 ok/assumido
     Connecting --> ConnectionFailed
@@ -211,6 +217,17 @@ stateDiagram-v2
 5. Se faltar permissão, solicita após explicação.
 6. Se Bluetooth estiver desligado, mostra orientação e ação do sistema quando aplicável.
 7. Não inicia scan antes da ação.
+
+## Fluxo De Auto-Conexão Controlada
+
+1. App abre ou usuário entra na tela de dispositivo.
+2. ViewModel observa associação persistida.
+3. Se existir dispositivo associado e permissões/Bluetooth já estiverem OK, inicia uma tentativa automática única de conexão.
+4. Tentativa prioriza reconexão do `platformIdentifier` associado.
+5. Se resolução direta não bastar, pode executar scan curto e direcionado somente para o dispositivo associado.
+6. Se auto-conexão falhar, UI mostra estado seguro e permite retry manual.
+7. Se faltar permissão ou Bluetooth estiver desligado, não abre prompt automático de permissão; mostra estado apropriado.
+8. Não entra em loop entre recomposição, retorno de tela e falha.
 
 ## Fluxo De Scan
 
@@ -248,6 +265,7 @@ persistir associação/última conexão
 ```
 
 Não conectar outro Champion automaticamente se dispositivo lembrado não for encontrado.
+Auto-conexão usa mesmo pipeline funcional, apenas com gatilho de entrada da feature em vez de toque manual, respeitando limites de tentativa única e pré-requisitos já satisfeitos.
 
 ## Handshake
 
@@ -285,14 +303,15 @@ flowchart TD
 
 ## Conexão De Dispositivo Lembrado
 
-1. Mostrar dispositivo lembrado sem conectar.
-2. Usuário toca `Conectar`.
+1. Mostrar dispositivo lembrado.
+2. Ao abrir app/tela, se pré-requisitos já estiverem OK, iniciar tentativa automática única; usuário também pode tocar `Conectar` manualmente.
 3. Verificar permissões e Bluetooth.
 4. Usar `platformIdentifier` persistido como `transportKey` para resolver/conectar.
-5. Se resolução direta falhar, procurar o identificador lembrado por scan autorizado pela mesma ação.
+5. Se resolução direta falhar, procurar o identificador lembrado por scan curto e direcionado.
 6. Se não encontrar, mostrar `DeviceNotFound`.
 7. Não conectar a outro Champion automaticamente.
 8. Não entrar em loop.
+9. Não pedir permissão runtime automaticamente durante tentativa automática.
 
 ## Última Conexão
 
@@ -367,9 +386,11 @@ Regras:
 - ViewModel mantém ownership de estado da feature.
 - Hilt fornece dependencies.
 - Ao sair da tela, não iniciar operação nova.
+- Ao entrar na tela com dispositivo associado, tentativa automática única é permitida quando pré-requisitos já estiverem satisfeitos.
+- Recriação de tela não pode gerar loop de tentativas; política de deduplicação por entrada deve ser explícita.
 - Sem foreground service, sessão BLE não deve ser tratada como permanente.
 - Comportamento ao sair durante conexão deve ser explícito: cancelar operação ou manter até conclusão enquanto ViewModel vive, sem auto-reconnect.
-- Processo recriado mostra dispositivo lembrado, mas conexão efêmera volta a desconectada.
+- Processo recriado mostra dispositivo lembrado e pode tentar auto-conectar novamente quando feature voltar ativa, sem scans agressivos ou loops.
 
 ## Permissões
 
@@ -378,6 +399,7 @@ Regras:
 - `BLUETOOTH_SCAN` preserva `neverForLocation`.
 - Android 11- usa permissões legadas já modeladas.
 - Solicitar runtime permission somente após ação.
+- Auto-conexão não solicita runtime permission automaticamente; apenas falha em estado seguro e orienta ação do usuário.
 - Negação não entra em loop.
 - Tela continua navegável.
 
@@ -574,9 +596,11 @@ Permitido nesta fase:
 - Feature usa Hilt e ViewModel.
 - Composable não constrói infraestrutura BLE.
 - Scan inicia só por ação do usuário.
+- Dispositivo associado pode auto-conectar ao abrir app/tela quando pré-requisitos já estiverem satisfeitos.
 - Dispositivos Champion são listados.
 - Champion C001 pode ser selecionado.
 - Conexão e handshake ocorrem após ação explícita.
+- Conexão e handshake também podem ocorrer por auto-conexão controlada do dispositivo associado.
 - Dispositivo é lembrado após sucesso funcional.
 - Associação sobrevive a reinício.
 - Estado reflete transporte real e disconnect inesperado.
@@ -589,7 +613,6 @@ Permitido nesta fase:
 - Falhas não bloqueiam navegação.
 - Diagnóstico seguro está acessível.
 - Exportação segue sanitizada.
-- Não há auto-connect ao abrir.
 - Não há reconexão infinita.
 - Não há D1, D3, D4 ou Health Connect.
 - `assembleDebug`, `assembleRelease` e `installDebug` executados e registrados.
@@ -620,10 +643,11 @@ Fase 06 conclui quando a feature de dispositivo é utilizável em release, usa o
 | Contratos e UI state | `006-02`, `006-05` |
 | Hilt, ViewModel e sem BLE no Composable | `006-04`, `006-05`, `006-08` |
 | Scan manual e lista de candidatos | `006-06` |
-| Seleção e conexão | `006-06`, `006-07` |
+| Seleção e conexão | `006-06`, `006-07`, `006-07A` |
+| Auto-conexão controlada do associado | `006-07A`, `006-08`, `006-09` |
 | Handshake A1 reutilizado | `006-04`, `006-07` |
 | Associação após sucesso | `006-03`, `006-07` |
-| Dispositivo lembrado | `006-03`, `006-07`, `006-08` |
+| Dispositivo lembrado | `006-03`, `006-07`, `006-07A`, `006-08` |
 | Última conexão e última sincronização | `006-03`, `006-07`, `006-08` |
 | Disconnect, retry e lifecycle | `006-07`, `006-09` |
 | Esquecimento | `006-03`, `006-09` |
