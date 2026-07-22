@@ -1113,6 +1113,16 @@ Fase 08 conclui quando:
 - gráficos reais, históricos completos, D1 e Health Connect permanecerem fora da Fase 08;
 - debug/release compilarem, `installDebug` for registrado e fluxo crítico estendido passar por validação física no Galaxy S22 com Champion C001.
 
+## Encerramento Da Fase 08
+
+- Fechamento documental registrado em 2026-07-22.
+- `008-08` permanece concluída e preservada como entrega original de Home + lifecycle + último BPM persistido.
+- `008-08A` e `008-08B` formalizam e implementam extensão posterior da área Saúde sem reabrir a task original.
+- Gate consolidado da fase: `assembleDebug`, `assembleRelease`, `installDebug`.
+- Comando informativo adicional executado durante implementação: `testDebugUnitTest` focado em `HealthViewModelTest`.
+- Validação física da fase estendida foi aceita pelo usuário para hub de Saúde, navegação de métricas, medição manual na tela específica de frequência cardíaca e estados vazios seguros.
+- Sem evidência de D1, Health Connect, persistência de stream D0 ou persistência de sinal F002 na entrega final da fase.
+
 ## Matriz De Rastreabilidade
 
 | Requisito | Tasks |

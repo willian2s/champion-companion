@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07`, `008-08`, `008-08A`, `008-08B` e `008-09` concluidas em 2026-07-22; `008-10` segue pendente. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão segue por `008-08A` e `008-08B`, sem reabrir a task original.
+Concluída em 2026-07-22. Tasks `008-01` até `008-10` fechadas. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde; a extensão foi executada por `008-08A` e `008-08B`, sem reabrir a task original.
 
 ## Objetivo
 
@@ -149,6 +149,14 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Fechamento documental de `008-09` confirma, sem evidência contrária nesta conversa, ausência de D1, Health Connect, persistência de stream e dados simulados.
 - Nenhuma regressão adicional foi registrada nesta task.
 
+## Achados De `008-10`
+
+- Fase 08 foi encerrada documentalmente com spec, overview e baseline factual alinhados ao estado real final.
+- Histórico de `008-08` foi preservado como entrega original concluída, enquanto `008-08A` e `008-08B` ficaram registrados como extensão formal posterior.
+- Gate mínimo consolidado no fechamento: `assembleDebug`, `assembleRelease` e `installDebug`.
+- Smoke físico consolidado no fechamento por aceitação explícita do usuário.
+- Sem evidência de Health Connect, D1, persistência de stream D0 ou persistência de sinal F002 no resultado final entregue.
+
 ## Estado Herdado
 
 - ADR-007 permite auto-connect controlado do dispositivo associado, mas isso nao autoriza medicao automatica.
@@ -279,7 +287,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-08A` formalizacao arquitetural, ADR-009 e roadmap alinhados
 - [x] `008-08B` hub de Saude e shells das telas de metricas implementados
 - [x] `008-09` gate reduzido e smoke fisico executados
-- [ ] `008-10` fechamento, baseline e divida consolidados
+- [x] `008-10` fechamento, baseline e divida consolidados
 
 ## Comandos Minimos
 
@@ -351,8 +359,16 @@ Galaxy S22 com Champion C001:
 - Background cancela medicao sem parcial persistido.
 - Gate obrigatorio e smoke fisico registrados.
 
-## Instrucoes De Atualizacao
+## Riscos Aceitos No Fechamento
 
-- Cada task atualiza proprio `Status` e item correspondente neste overview no mesmo trabalho.
-- Se task bloquear, registrar bloqueio no proprio arquivo e manter checklist pendente.
-- `008-10` consolida checklist, resultados dos comandos, riscos aceitos, validacao manual e baseline factual.
+- Roteiro manual detalhado de 20 passos da extensão não foi reexecutado item a item nesta conversa; fechamento usa validação física já executada e aceita pelo usuário.
+- Screenshots das telas de Saúde e métricas permanecem pendentes para eventual PR visual, conforme `AGENTS.md`.
+- Histórico completo e gráfico real permanecem deliberadamente fora da Fase 08 e seguirão para fases futuras já formalizadas.
+
+## Encerramento Da Fase 08
+
+- Fechamento documental registrado em 2026-07-22.
+- Gate consolidado: `assembleDebug`, `assembleRelease`, `installDebug`.
+- Smoke físico aceito para hub de Saúde, navegação de métricas e medição manual composta na tela específica de frequência cardíaca.
+- `008-08` permaneceu concluída e preservada; `008-08A` e `008-08B` ficaram registradas como extensão formal posterior.
+- Próximas responsabilidades permanecem distribuídas como formalizado: D1/BPM histórico na Fase 09, Health Connect na Fase 12, histórico/calendário na Fase 15 e gerenciamento de peso/perfil na Fase 16.
