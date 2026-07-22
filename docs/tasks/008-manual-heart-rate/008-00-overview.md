@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04` e `008-05` concluidas em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05` e `008-06` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -90,6 +90,15 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Testes pequenos cobrem factory manual, round-trip de mapper e queries criticas de ultima medicao valida e recentes manuais.
 - Schema atual v2 bastou; nenhuma migration foi necessaria.
 
+## Achados De `008-06`
+
+- `HealthViewModel` agora é `@HiltViewModel` e owner do fluxo de produto da tela Saúde, sem mover detalhes técnicos para Compose.
+- ViewModel observa dispositivo associado, última medição válida e recentes manuais direto dos repositories e combina tudo em `HealthUiState` único.
+- `StartMeasurement` continua explícito; `Load` não inicia medição e morte de processo restaura `Idle` com histórico persistido vindo do repository.
+- Resultado `Completed` do coordinator agora passa por persistência no ViewModel antes de fechar sessão como concluída; falha de storage vira erro seguro `STORAGE_FAILED`.
+- `CancelMeasurement`, `ConfirmExitMeasurement` e novo intent `AppMovedToBackground` cancelam sessão sem persistir parcial.
+- Testes pequenos cobrem ausência de auto-start em `Load`, persistência do resultado válido, cancelamento em background sem persistência e conflito de gate virando erro seguro.
+
 ## Estado Herdado
 
 - ADR-007 permite auto-connect controlado do dispositivo associado, mas isso nao autoriza medicao automatica.
@@ -160,6 +169,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthScreen.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthViewModel.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeScreen.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeFeatureContract.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeViewModel.kt`
@@ -189,7 +199,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
 - [x] `008-04` coordinator manual implementado
 - [x] `008-05` persistencia final, deduplicacao e queries implementadas
-- [ ] `008-06` `HealthViewModel` criado
+- [x] `008-06` `HealthViewModel` criado
 - [ ] `008-07` UI da Saude criada
 - [ ] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
 - [ ] `008-09` gate reduzido e smoke fisico executados

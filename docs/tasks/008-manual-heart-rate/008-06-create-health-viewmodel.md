@@ -2,7 +2,16 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-22.
+
+## Resultado
+
+- `HealthViewModel` foi criado como `@HiltViewModel` e agora é owner do fluxo de produto da tela Saúde.
+- ViewModel observa dispositivo associado, última medição válida e recentes manuais pelos repositories, sem iniciar medição no `init` nem no intent `Load`.
+- Resultado válido emitido pelo coordinator agora passa por persistência no ViewModel e só então fecha em `Completed`; falha no salvamento vira erro seguro `STORAGE_FAILED`.
+- `CancelMeasurement`, `ConfirmExitMeasurement` e `AppMovedToBackground` cancelam medição sem persistir parcial.
+- `HealthFeatureContract` ganhou intent explícito para background, mantendo Compose desacoplado de detalhes técnicos da medição.
+- Testes pequenos cobrem `Load` sem auto-start, persistência do resultado válido, cancelamento em background sem persistência e conflito de gate como erro seguro.
 
 ## Objetivo
 
@@ -100,6 +109,10 @@ Criar `HealthViewModel` como owner do fluxo manual de frequencia cardiaca, do es
 
 - Descrever combinacoes de estado suportadas e pipeline de persistencia.
 
+- Combinações de estado suportadas no ViewModel: `Idle`, `Preparing`, `Connecting`, `Starting`, `Measuring`, `Stopping`, `Completed`, `Cancelled` e `Failed`.
+- Pipeline de persistência: `StartMeasurement` explícito -> estado do coordinator -> `Completed` com `finalResult` -> `saveManualMeasurement(...)` no repository -> `Completed` final ou `Failed(STORAGE_FAILED)`.
+- `Load` não inicia medição. `AppMovedToBackground` cancela sessão ativa e preserva apenas histórico já persistido.
+
 ## Atualizacao Do Overview
 
 - Marcar `008-06` como concluida.
@@ -107,3 +120,5 @@ Criar `HealthViewModel` como owner do fluxo manual de frequencia cardiaca, do es
 ## Validacao Final
 
 - Confirmar que Composable nao precisa conhecer detalhes tecnicos da medicao.
+
+- Confirmado: Composable continua consumindo `HealthUiState` e emitindo `HealthIntent`, sem acesso a BLE, Room, DAO, gate ou persistência.

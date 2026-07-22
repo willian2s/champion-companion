@@ -29,6 +29,7 @@ sealed interface HealthIntent {
     data object Retry : HealthIntent
     data object DismissError : HealthIntent
     data object ConfirmExitMeasurement : HealthIntent
+    data object AppMovedToBackground : HealthIntent
     data object OpenDevice : HealthIntent
 }
 

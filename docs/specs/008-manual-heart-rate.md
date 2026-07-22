@@ -596,6 +596,12 @@ Schema atual aparenta atender Fase 08. Preferir nao alterar `ChampionDatabase.ve
 - Ao ir para background, medicao cancela, tenta stop quando seguro e nao persiste parcial.
 - Morte do processo restaura app em `Idle` com historico persistido apenas.
 
+Implementação inicial registrada em `008-06`:
+
+- `HealthViewModel` agora observa dispositivo associado, última medição válida e recentes manuais via repository.
+- `HealthIntent.Load` continua sem auto-start; `HealthIntent.AppMovedToBackground` cancela medição ativa sem persistir parcial.
+- Persistência do resultado final válido agora acontece no `HealthViewModel` após `HealthSurfaceState.Completed` do coordinator, e falha de storage volta para `Failed` com erro seguro.
+
 ## Tela Saude
 
 ```mermaid
