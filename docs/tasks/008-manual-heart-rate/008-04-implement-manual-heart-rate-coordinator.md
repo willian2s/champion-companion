@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -94,6 +94,18 @@ Implementar coordinator de produto da medicao manual, separado da UI e reaprovei
 - Callback tardio e ignorado.
 - Conflito com operacao BLE foreground vira erro seguro.
 
+## Achados
+
+- `ChampionManualHeartRateCoordinator` foi implementado em `feature/health` como coordinator de produto sem dependencias de Compose.
+- `InMemoryForegroundBleOperationGate` agora concretiza aquisicao atomica e liberacao por permit em `core/model`, com escopo singleton via Hilt.
+- `ChampionManualHeartRateCoordinator` reusa `ChampionConnectionManager.currentSession()` quando `transportKey` do associado coincide; caso contrario usa `DeviceConnectionBootstrap.connectAssociatedDevice(...)`.
+- Coordinator sempre executa handshake via `DeviceConnectionBootstrap.executeHandshake(...)` antes do `D0 01`, mesmo em sessao reutilizada.
+- `F002_NOTIFY` e garantido por `ensureSubscribed(...)` antes do start e depois observado via collector logico dedicado.
+- Progresso e timeout usam `MonotonicClock` + ticker interno, sem depender de Compose nem de `Instant.now()` para duracao.
+- Resultado final e exposto apenas por `HealthSurfaceState.Completed`; coordinator nao persiste nada e nao toca DAO/Room.
+- Cleanup independe do resultado do stop: jobs/callbacks sao cancelados e gate e liberado em `finally`.
+- Nenhuma ADR nova foi criada nesta task; gate compartilhado implementado ainda cabe nos limites das ADR-007/008 e da spec atual.
+
 ## Testes Pequenos Aplicaveis
 
 - callback tardio ignorado;
@@ -111,6 +123,17 @@ Implementar coordinator de produto da medicao manual, separado da UI e reaprovei
 ## Evidencia Manual
 
 - Resumo do fluxo do coordinator, ownership do gate e regras de cleanup.
+- Fluxo final implementado:
+  - `startMeasurement()` tenta adquirir `ForegroundBleOperationGate`
+  - reusa sessao ativa compativel ou conecta associado
+  - executa handshake
+  - garante `F002_NOTIFY`
+  - registra inicio civil + monotonic
+  - envia `D0 01`
+  - coleta D0/F002 com guards por `bleSessionId + manualMeasurementSessionId`
+  - calcula `progress` e `remaining` por ticker monotonic
+  - tenta `D0 00` quando seguro em conclusao/cancelamento/erro
+  - cancela collectors e libera gate em `finally`
 
 ## Atualizacao Do Overview
 
@@ -120,3 +143,4 @@ Implementar coordinator de produto da medicao manual, separado da UI e reaprovei
 ## Validacao Final
 
 - Confirmar que coordinator nao depende de Compose nem persiste diretamente em DAO.
+- Confirmado: coordinator depende apenas de contratos BLE/model, nao importa Compose e nao acessa DAO/Room.

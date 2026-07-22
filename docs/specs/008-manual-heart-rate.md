@@ -197,6 +197,12 @@ Auditoria de `008-01` confirmou risco real por implementacao atual:
 
 Portanto gate foreground compartilhado nao e opcional de UX; e requisito tecnico para evitar teardown cruzado de sessao BLE entre Home, Dispositivo e medicao manual.
 
+Implementacao inicial registrada em `008-04`:
+
+- `InMemoryForegroundBleOperationGate` usa aquisicao atomica por `Mutex` e owner ativo em `StateFlow`;
+- `ChampionManualHeartRateCoordinator` adquire `MANUAL_HEART_RATE` no inicio e libera permit em `finally`;
+- conflito atual retorna erro seguro `BLE_OPERATION_IN_PROGRESS` para fluxo manual.
+
 ## Conexao E Handshake
 
 1. Validar dispositivo associado.
@@ -207,6 +213,8 @@ Portanto gate foreground compartilhado nao e opcional de UX; e requisito tecnico
 6. Garantir handshake valido.
 7. Garantir `F002_NOTIFY` subscribed.
 8. So entao iniciar medicao.
+
+Implementacao de `008-04` reusa `currentSession()` compativel e, em todos casos, reexecuta `DeviceConnectionBootstrap.executeHandshake(...)` antes do start para garantir protocolo valido sem depender de estado efemero externo.
 
 Nao:
 
@@ -511,6 +519,8 @@ flowchart TD
 ```
 
 Cleanup independe do resultado do stop.
+
+Implementacao de `008-04` materializou essa regra: `ChampionManualHeartRateCoordinator` tenta `D0 00` quando `D0 01` ja foi enviado e sessao ainda e ativa, mas sempre cancela jobs/collectors e libera gate mesmo com falha de stop.
 
 ## Persistencia
 

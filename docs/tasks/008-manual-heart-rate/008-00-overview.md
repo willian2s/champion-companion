@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02` e `008-03` concluidas em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01`, `008-02`, `008-03` e `008-04` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -71,6 +71,15 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - PoC debug permaneceu funcional por delegacao: `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator` agora sao adapters finos de compatibilidade.
 - Nao restou duplicacao de builder `D0 01`, builder `D0 00`, parser D0, parser F002, buffer limitado ou heuristica do estimador.
 - Suite pequena de regressao tecnica foi mantida na PoC e ganhou cobertura explicita para pacote D0 sem BPM valido.
+
+## Achados De `008-04`
+
+- `ChampionManualHeartRateCoordinator` agora controla fluxo de produto da medicao manual sem copiar `DevicePocCoordinator` inteiro.
+- `InMemoryForegroundBleOperationGate` foi implementado e ligado por Hilt como gate foreground compartilhado.
+- Coordinator reusa sessao ativa compativel, executa handshake, garante `F002_NOTIFY`, envia `D0 01`, acompanha progresso monotonic e tenta `D0 00` quando seguro.
+- Resultado final continua efemero no coordinator; persistencia segue para `008-05`/`008-06`.
+- Testes pequenos agora cobrem gate, callback tardio ignorado, stop falho sem bloquear cleanup e timeout sem reaproveitar valor antigo.
+- Nenhuma ADR nova foi necessaria neste ponto; gate atual permanece compatível com ADR-007 e ADR-008.
 
 ## Estado Herdado
 
@@ -168,7 +177,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-01` auditoria de estado real, MotionLog e regra da media concluida
 - [x] `008-02` contratos, state machine e gate BLE definidos
 - [x] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
-- [ ] `008-04` coordinator manual implementado
+- [x] `008-04` coordinator manual implementado
 - [ ] `008-05` persistencia final, deduplicacao e queries implementadas
 - [ ] `008-06` `HealthViewModel` criado
 - [ ] `008-07` UI da Saude criada
