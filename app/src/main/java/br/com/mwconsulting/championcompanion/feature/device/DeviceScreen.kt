@@ -1,81 +1,247 @@
 package br.com.mwconsulting.championcompanion.feature.device
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleError
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBlePrerequisites
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleReadiness
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleState
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCapabilitySnapshot
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDisconnectReason
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionRuntimePermission
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionStoredDiscoveryCapabilityResolver
-import br.com.mwconsulting.championcompanion.core.bluetooth.toSafeMessage
-import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidChampionBleClient
-import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidChampionBleScanner
-import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidGattDiscoveryMapper
-import br.com.mwconsulting.championcompanion.core.bluetooth.android.DefaultAndroidBleEnvironment
-import br.com.mwconsulting.championcompanion.core.bluetooth.android.DefaultAndroidGattFacade
-import java.time.Duration
+import androidx.lifecycle.ViewModelProvider
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionStatus
+import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionVisualState
+import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
+import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
+import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
+import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
+import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
+import br.com.mwconsulting.championcompanion.core.designsystem.PermissionBanner
+import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
+import br.com.mwconsulting.championcompanion.core.designsystem.SyncStatusBadge
+import br.com.mwconsulting.championcompanion.core.designsystem.SyncVisualState
 import java.time.Instant
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+import androidx.activity.ComponentActivity
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
-fun DeviceScreen() {
+fun DeviceScreen(
+    deviceManagementViewModel: DeviceManagementViewModel = run {
+        val activity = LocalContext.current as ComponentActivity
+        remember(activity) {
+            ViewModelProvider(activity)[DeviceManagementViewModel::class.java]
+        }
+    },
+) {
     val context = LocalContext.current
-    if (!context.isDebugBuild()) {
-        DeviceReleasePlaceholder()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val state by deviceManagementViewModel.state.collectAsState()
+    var showForgetConfirmation by remember { mutableStateOf(false) }
+    var showReplacementConfirmation by remember { mutableStateOf(false) }
+    var debugPocVisible by remember { mutableStateOf(false) }
+    var diagnosticsNotice by remember { mutableStateOf<String?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        deviceManagementViewModel.onIntent(DeviceManagementIntent.RefreshPrerequisites)
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> deviceManagementViewModel.onIntent(DeviceManagementIntent.Load)
+                Lifecycle.Event.ON_RESUME -> deviceManagementViewModel.onIntent(DeviceManagementIntent.RefreshPrerequisites)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(deviceManagementViewModel) {
+        deviceManagementViewModel.events.collectLatest { event ->
+            when (event) {
+                is DeviceManagementEvent.RequestPermissions -> {
+                    val permissions = event.permissions.toRuntimePermissionNames()
+                    if (permissions.isNotEmpty()) {
+                        permissionLauncher.launch(permissions.toTypedArray())
+                    }
+                }
+
+                DeviceManagementEvent.OpenBluetoothSettings -> {
+                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                }
+
+                DeviceManagementEvent.ShowForgetConfirmation -> {
+                    showForgetConfirmation = true
+                }
+
+                DeviceManagementEvent.OpenDiagnostics -> {
+                    diagnosticsNotice = "Diagnostico seguro entra na task 006-10."
+                }
+
+                DeviceManagementEvent.ShareDiagnostics -> {
+                    diagnosticsNotice = "Exportacao sanitizada entra na task 006-10."
+                }
+            }
+        }
+    }
+
+    if (debugPocVisible) {
+        DeviceManagementDebugPocScreen(
+            onBack = { debugPocVisible = false },
+        )
         return
     }
 
-    DeviceDebugEntrypoint()
+    DeviceManagementScreen(
+        state = state,
+        isDebugBuild = context.isDebugBuild(),
+        onAddDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.AddDevice) },
+        onRetry = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
+        onCancelScan = { deviceManagementViewModel.onIntent(DeviceManagementIntent.CancelScan) },
+        onSelectCandidate = { deviceManagementViewModel.onIntent(DeviceManagementIntent.SelectCandidate(it)) },
+        onConnectSelectedCandidate = {
+            if (state.associatedDevice != null) {
+                showReplacementConfirmation = true
+            } else {
+                deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectSelectedCandidate)
+            }
+        },
+        onConnectAssociatedDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectAssociatedDevice) },
+        onDisconnectDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DisconnectDevice) },
+        onForgetDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ForgetDevice) },
+        onDismissError = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DismissError) },
+        onRequestPermissions = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
+        onOpenBluetoothSettings = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
+        onOpenDiagnostics = { deviceManagementViewModel.onIntent(DeviceManagementIntent.OpenDiagnostics) },
+        onExportDiagnostics = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ExportDiagnostics) },
+        onOpenDebugPoc = { debugPocVisible = true },
+    )
+
+    if (showForgetConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showForgetConfirmation = false },
+            title = { Text("Esquecer dispositivo?") },
+            text = { Text("Associacao atual sera removida. Historico e dados ja salvos permanecem intactos.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showForgetConfirmation = false
+                        deviceManagementViewModel.onIntent(DeviceManagementIntent.ConfirmForgetDevice)
+                    },
+                ) {
+                    Text("Esquecer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showForgetConfirmation = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
+    }
+
+    if (showReplacementConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showReplacementConfirmation = false },
+            title = { Text("Substituir dispositivo associado?") },
+            text = { Text("Conexao bem-sucedida vai trocar associacao primaria pelo dispositivo selecionado.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showReplacementConfirmation = false
+                        deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectSelectedCandidate)
+                    },
+                ) {
+                    Text("Continuar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReplacementConfirmation = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
+    }
+
+    diagnosticsNotice?.let { message ->
+        AlertDialog(
+            onDismissRequest = { diagnosticsNotice = null },
+            title = { Text("Acao reservada") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { diagnosticsNotice = null }) {
+                    Text("Fechar")
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun DeviceReleasePlaceholder() {
+private fun DeviceManagementScreen(
+    state: DeviceManagementUiState,
+    isDebugBuild: Boolean,
+    onAddDevice: () -> Unit,
+    onRetry: () -> Unit,
+    onCancelScan: () -> Unit,
+    onSelectCandidate: (DeviceManagementCandidateId) -> Unit,
+    onConnectSelectedCandidate: () -> Unit,
+    onConnectAssociatedDevice: () -> Unit,
+    onDisconnectDevice: () -> Unit,
+    onForgetDevice: () -> Unit,
+    onDismissError: () -> Unit,
+    onRequestPermissions: () -> Unit,
+    onOpenBluetoothSettings: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
+    onExportDiagnostics: () -> Unit,
+    onOpenDebugPoc: () -> Unit,
+) {
+    val associatedDevice = state.associatedDevice
+    val selectedCandidate = state.candidates.firstOrNull { it.isSelected }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -83,555 +249,416 @@ private fun DeviceReleasePlaceholder() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "Dispositivo",
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            Spacer(modifier = Modifier.padding(top = 8.dp))
-            Text(
-                text = "Fluxo técnico BLE disponível apenas na variante de depuração nesta fase.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DeviceDebugEntrypoint() {
-    val context = LocalContext.current
-    val appContext = context.applicationContext
-    val environment = remember(appContext) { DefaultAndroidBleEnvironment(appContext) }
-    val coordinator = remember(appContext, environment) {
-        val discoveryMapper = AndroidGattDiscoveryMapper()
-        val gattFacade = DefaultAndroidGattFacade(appContext, discoveryMapper)
-        val client = AndroidChampionBleClient(gattFacade)
-        val scanner = AndroidChampionBleScanner(appContext, environment)
-        val resolver = ChampionStoredDiscoveryCapabilityResolver(client::discoverySnapshot)
-        val manager = ChampionConnectionManager(
-            scanner = scanner,
-            client = client,
-            capabilityResolver = resolver,
-            parentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-        )
-        DevicePocCoordinator(manager, Dispatchers.IO)
-    }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val scope = rememberCoroutineScope()
-    var refreshKey by remember { mutableIntStateOf(0) }
-    val state by coordinator.state.collectAsState()
-    val scanReadiness = remember(refreshKey) { ChampionBlePrerequisites.forScan(environment.snapshot()) }
-    val connectReadiness = remember(refreshKey) { ChampionBlePrerequisites.forConnect(environment.snapshot()) }
-    val missingRuntimePermissions = remember(scanReadiness, connectReadiness) {
-        (scanReadiness.missing + connectReadiness.missing)
-            .flatMap { it.permissions }
-            .toSet()
-            .toRuntimePermissionNames()
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-    ) {
-        refreshKey++
-    }
-    val now by produceState(initialValue = Instant.now(), state.heartRateStartedAt) {
-        while (true) {
-            value = Instant.now()
-            delay(1_000)
-        }
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                refreshKey++
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(scanReadiness.isReady, connectReadiness.isReady, state.pocState) {
-        if (state.pocState in setOf(
-                DevicePocState.Idle,
-                DevicePocState.PermissionsRequired,
-                DevicePocState.ReadyToScan,
-            )
-        ) {
-            if (scanReadiness.isReady && connectReadiness.isReady) {
-                coordinator.markReadyToScan()
-            } else {
-                coordinator.markPermissionsRequired()
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(
-            text = "PoC BLE técnica",
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        Text(
-            text = "Validação manual de permissões, scan, conexão, A1, FEA1, D0/F002 e seleção final. Sem automação de ciclo e sem dados sensíveis.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-
-        if (missingRuntimePermissions.isNotEmpty()) {
-            InfoCard(
-                title = "Permissões necessárias",
-                message = "Conceda permissões BLE somente após ação explícita para liberar scan e conexão técnica.",
-                actionLabel = "Conceder permissões",
-                onAction = { permissionLauncher.launch(missingRuntimePermissions.toTypedArray()) },
-            )
-        }
-
-        SectionCard(title = "Ações") {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = { permissionLauncher.launch(missingRuntimePermissions.toTypedArray()) },
-                    enabled = missingRuntimePermissions.isNotEmpty(),
-                ) {
-                    Text("Permissões")
-                }
-                OutlinedButton(
-                    onClick = { refreshKey++ },
-                ) {
-                    Text("Atualizar")
-                }
-                Button(
-                    onClick = {
-                        scope.launch {
-                            if (scanReadiness.isReady) {
-                                coordinator.markReadyToScan()
-                                coordinator.scan(
-                                    br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(5.seconds),
-                                )
-                            } else {
-                                coordinator.markPermissionsRequired()
-                            }
-                        }
-                    },
-                    enabled = scanReadiness.isReady && state.canStartScan(),
-                ) {
-                    Text("Iniciar scan")
-                }
-                Button(
-                    onClick = {
-                        val candidate = state.candidate ?: return@Button
-                        scope.launch { coordinator.connectAndBootstrap(candidate) }
-                    },
-                    enabled = connectReadiness.isReady && state.candidate != null && state.canConnect(),
-                ) {
-                    Text("Conectar")
-                }
-                Button(
-                    onClick = { scope.launch { coordinator.executeHandshake() } },
-                    enabled = state.pocState == DevicePocState.TransportReady,
-                ) {
-                    Text("Executar handshake")
-                }
-                Button(
-                    onClick = { scope.launch { coordinator.awaitSteps() } },
-                    enabled = state.pocState in setOf(
-                        DevicePocState.HandshakeConfirmed,
-                        DevicePocState.WaitingForSteps,
-                        DevicePocState.StepsObserved,
-                    ),
-                ) {
-                    Text("Aguardar passos")
-                }
-                Button(
-                    onClick = { scope.launch { coordinator.startHeartRateSession() } },
-                    enabled = state.pocState in setOf(
-                        DevicePocState.HandshakeConfirmed,
-                        DevicePocState.WaitingForSteps,
-                        DevicePocState.StepsObserved,
-                        DevicePocState.CycleCompleted,
-                    ),
-                ) {
-                    Text("Iniciar BPM")
-                }
-                Button(
-                    onClick = { scope.launch { coordinator.stopHeartRateSession() } },
-                    enabled = state.pocState in setOf(
-                        DevicePocState.StartingHeartRate,
-                        DevicePocState.MeasuringHeartRate,
-                        DevicePocState.StoppingHeartRate,
-                    ),
-                ) {
-                    Text("Parar BPM")
-                }
-                OutlinedButton(
-                    onClick = { scope.launch { coordinator.disconnect(ChampionDisconnectReason.USER_REQUESTED) } },
-                    enabled = state.transportState != ChampionBleState.Disconnected || state.activeSessionId != null,
-                ) {
-                    Text("Desconectar")
-                }
-                OutlinedButton(
-                    onClick = { scope.launch { coordinator.resetCycle() } },
-                ) {
-                    Text("Reiniciar ciclo")
-                }
-                OutlinedButton(
-                    onClick = {
-                        val report = DevicePocCycleReport.fromState(state, Instant.now())
-                        val exportedReport = DevicePocReportExporter.export(context, report)
-                        val shareIntent = DevicePocReportExporter.createShareIntent(exportedReport).apply {
-                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Relatório sanitizado da PoC BLE")
-                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
-                        }
-                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartilhar relatório sanitizado"))
-                    },
-                    enabled = state.pocState == DevicePocState.CycleCompleted || state.pocState is DevicePocState.Failed,
-                ) {
-                    Text("Exportar relatório")
-                }
-            }
-        }
-
-        SectionCard(title = "Estado do ambiente") {
-            PermissionStatusRow("Bluetooth LE suportado", if (scanReadiness.prerequisiteSnapshot.isBleSupported) "Sim" else "Não")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Bluetooth habilitado", if (scanReadiness.prerequisiteSnapshot.isBluetoothEnabled) "Sim" else "Não")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Scan pronto", if (scanReadiness.isReady) "Sim" else "Não")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Conexão pronta", if (connectReadiness.isReady) "Sim" else "Não")
-        }
-
-        SectionCard(title = "Permissões observadas") {
-            val snapshot = environment.snapshot().permissions
-            PermissionStatusRow("BLUETOOTH_SCAN", snapshot.bluetoothScanGranted.formatGranted())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("BLUETOOTH_CONNECT", snapshot.bluetoothConnectGranted.formatGranted())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("ACCESS_FINE_LOCATION", snapshot.fineLocationGranted.formatLegacyPermission(snapshot.sdkInt))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("BLUETOOTH (legado)", snapshot.bluetoothGranted.formatLegacyPermission(snapshot.sdkInt))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("BLUETOOTH_ADMIN (legado)", snapshot.bluetoothAdminGranted.formatLegacyPermission(snapshot.sdkInt))
-        }
-
-        SectionCard(title = "Bloqueios atuais") {
-            BlockingReasons(title = "Scan", readiness = scanReadiness)
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-            BlockingReasons(title = "Conexão", readiness = connectReadiness)
-        }
-
-        SectionCard(title = "Ciclo técnico") {
-            PermissionStatusRow("Estado PoC", state.pocState.label())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Estado transporte", state.transportState.label())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Sessão ativa", if (state.activeSessionId != null) "Sim" else "Não")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Handshake confirmado", if (state.pocState !is DevicePocState.Failed && state.pocState.isHandshakeConfirmedOrLater()) "Sim" else "Não")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Modo do handshake", state.handshakeOutcome().label())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Passos observados", if (state.hasObservedSteps) "Sim" else "Não")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Capability FEA1", capabilityState(state.isStepsCapabilityAvailable, state.isStepsCapabilityMissing))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Capability F002", capabilityState(state.isHeartRateCapabilityAvailable, state.isHeartRateCapabilityMissing))
-        }
-
-        SectionCard(title = "Dispositivo candidato") {
-            PermissionStatusRow("Nome", state.candidate?.name ?: "Nenhum")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Nome local", state.candidate?.localName ?: "Nenhum")
-        }
-
-        SectionCard(title = "Capabilities disponíveis") {
-            val capabilities = state.transportState.capabilitiesOrNull()
-            if (capabilities == null) {
-                Text("Ainda indisponíveis.", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                CapabilityChips(capabilities)
-            }
-        }
-
-        SectionCard(title = "Passos FEA1") {
-            PermissionStatusRow("Pacotes", state.stepsPacketCount.toString())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Último valor técnico", state.lastStepCount?.toString() ?: "Indisponível")
-        }
-
-        SectionCard(title = "Sessão D0/F002") {
-            PermissionStatusRow("Duração atual", state.currentDurationLabel(now))
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Pacotes D0", state.d0PacketCount.toString())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Último BPM D0", state.lastD0Bpm?.toString() ?: "Indisponível")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Pacotes F002", state.f002PacketCount.toString())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Amostras F002 em buffer", state.f002BufferedSampleCount.toString())
-        }
-
-        SectionCard(title = "Estimativa e valor final") {
-            PermissionStatusRow("BPM estimado F002", state.estimatedF002Bpm?.toString() ?: "Indisponível")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Qualidade F002", state.estimatedF002Quality?.label() ?: "Indisponível")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Score F002", state.estimatedF002QualityScore.toString())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Sample rate", state.estimatedF002SampleRateHz?.let { String.format("%.2f Hz", it) } ?: "Indisponível")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Picos F002", state.estimatedF002PeakCount.toString())
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Valor final", state.finalHeartRateBpm?.toString() ?: "Indisponível")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PermissionStatusRow("Fonte final", state.finalHeartRateSource.label())
-        }
-
-        SectionCard(title = "Erro sanitizado") {
-            val error = state.lastError
-            Text(
-                text = error?.toSafeMessage() ?: "Sem erro técnico atual.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (error != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Dispositivo", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    text = if (error.isRecoverable) "Recuperável" else "Não recuperável",
+                    text = "Gerencie scan, conexao, associacao e informacoes seguras do Champion C001.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun SectionCard(
-    title: String,
-    content: @Composable () -> Unit,
-) {
-    Card(
-        colors = CardDefaults.cardColors(),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
+            HealthCard(
+                title = "Resumo da conexao",
+                status = {
+                    ConnectionStatus(
+                        state = state.connectionState.toVisualState(),
+                    )
+                },
+            ) {
+                Text(
+                    text = state.screenState.label(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                state.activeOperation?.let {
+                    Text(
+                        text = "Operacao atual: ${it.label()}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+
+            when (state.screenState) {
+                DeviceManagementScreenState.Loading -> LoadingState(
+                    label = "Carregando dispositivo",
+                    message = "Preparando estado seguro da feature.",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                DeviceManagementScreenState.PermissionsRequired -> PermissionBanner(
+                    title = "Permissoes BLE necessarias",
+                    message = "Conceda permissoes para iniciar scan ou conectar dispositivo.",
+                    actionLabel = "Conceder permissoes",
+                    onAction = onRequestPermissions,
+                )
+
+                DeviceManagementScreenState.BluetoothDisabled -> PermissionBanner(
+                    title = "Bluetooth desligado",
+                    message = "Ative Bluetooth para procurar ou conectar Champion C001.",
+                    actionLabel = "Abrir Bluetooth",
+                    onAction = onOpenBluetoothSettings,
+                )
+
+                else -> Unit
+            }
+
+            state.error?.let { error ->
+                ErrorState(
+                    title = error.category.title(),
+                    message = error.message,
+                    actionLabel = if (error.isRecoverable) "Tentar novamente" else "Fechar",
+                    onAction = if (error.isRecoverable) onRetry else onDismissError,
+                )
+            }
+
+            if (associatedDevice != null) {
+                AssociatedDeviceSection(
+                    device = associatedDevice,
+                    connectionState = state.connectionState,
+                )
+            } else if (state.candidates.isEmpty() && state.screenState != DeviceManagementScreenState.Scanning) {
+                EmptyState(
+                    title = "Nenhum dispositivo associado",
+                    message = "Adicione seu Champion C001 para conectar manualmente e manter associacao segura.",
+                )
+            }
+
+            if (state.candidates.isNotEmpty() || state.screenState == DeviceManagementScreenState.Scanning) {
+                ScanResultsSection(
+                    candidates = state.candidates,
+                    isScanning = state.screenState == DeviceManagementScreenState.Scanning,
+                    selectedCandidate = selectedCandidate,
+                    onSelectCandidate = onSelectCandidate,
+                    onCancelScan = onCancelScan,
+                    onConnectSelectedCandidate = onConnectSelectedCandidate,
+                )
+            }
+
+            ActionSection(
+                state = state,
+                hasAssociatedDevice = associatedDevice != null,
+                hasSelectedCandidate = selectedCandidate != null,
+                onAddDevice = onAddDevice,
+                onRetry = onRetry,
+                onConnectAssociatedDevice = onConnectAssociatedDevice,
+                onDisconnectDevice = onDisconnectDevice,
+                onForgetDevice = onForgetDevice,
+                onOpenDiagnostics = onOpenDiagnostics,
+                onExportDiagnostics = onExportDiagnostics,
             )
-            content()
-        }
-    }
-}
 
-@Composable
-private fun InfoCard(
-    title: String,
-    message: String,
-    actionLabel: String,
-    onAction: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(text = title, style = MaterialTheme.typography.titleSmall)
-            Text(text = message, style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = onAction) {
-                Text(actionLabel)
+            if (isDebugBuild) {
+                HealthCard(title = "PoC tecnica debug") {
+                    Text(
+                        text = "Fluxo tecnico continua separado do gerenciamento principal e permanece disponivel apenas em debug.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = ChampionSpacing.medium),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        OutlinedButton(onClick = onOpenDebugPoc) {
+                            Text("Abrir PoC tecnica")
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PermissionStatusRow(
-    label: String,
-    value: String,
+private fun AssociatedDeviceSection(
+    device: DeviceManagementAssociatedDevice,
+    connectionState: DeviceManagementConnectionState,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    HealthCard(
+        title = "Dispositivo associado",
+        status = {
+            ConnectionStatus(state = connectionState.toVisualState())
+        },
+    ) {
+        Text(device.displayName, style = MaterialTheme.typography.titleLarge)
         Text(
-            text = label,
+            text = device.modelName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-    }
-}
-
-@Composable
-private fun BlockingReasons(
-    title: String,
-    readiness: ChampionBleReadiness,
-) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-    )
-    if (readiness.missing.isEmpty()) {
-        Text(
-            text = "Sem bloqueios.",
             style = MaterialTheme.typography.bodyMedium,
         )
-        return
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        readiness.missing.forEach { missing ->
-            Text(
-                text = "• ${missing.error.toSafeMessage()}",
-                style = MaterialTheme.typography.bodyMedium,
+        HorizontalDivider(modifier = Modifier.padding(vertical = ChampionSpacing.medium))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AssistChip(onClick = {}, enabled = false, label = { Text(device.safeIdentifier) })
+            device.firmware?.let { firmware ->
+                AssistChip(onClick = {}, enabled = false, label = { Text("FW $firmware") })
+            }
+            SyncStatusBadge(state = device.lastImportedAt.toSyncVisualState())
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = ChampionSpacing.medium),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            MetricCard(
+                label = "Ultima conexao",
+                value = device.lastSuccessfulConnectionAt.formatTimestamp("Nunca conectado"),
+                modifier = Modifier.weight(1f),
+            )
+            MetricCard(
+                label = "Ultima sincronizacao",
+                value = device.lastImportedAt.formatTimestamp("Ainda nao disponivel"),
+                modifier = Modifier.weight(1f),
             )
         }
     }
 }
 
 @Composable
-private fun CapabilityChips(capabilities: ChampionCapabilitySnapshot) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+private fun ScanResultsSection(
+    candidates: List<DeviceManagementScanCandidate>,
+    isScanning: Boolean,
+    selectedCandidate: DeviceManagementScanCandidate?,
+    onSelectCandidate: (DeviceManagementCandidateId) -> Unit,
+    onCancelScan: () -> Unit,
+    onConnectSelectedCandidate: () -> Unit,
+) {
+    HealthCard(title = if (isScanning) "Procurando dispositivos" else "Candidatos encontrados") {
+        if (isScanning) {
+            LoadingState(
+                label = "Scan em andamento",
+                message = "Resultados aparecem durante janela unica de busca.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                OutlinedButton(onClick = onCancelScan) {
+                    Text("Cancelar scan")
+                }
+            }
+        }
+
+        if (candidates.isEmpty() && !isScanning) {
+            EmptyState(
+                title = "Nenhum Champion encontrado",
+                message = "Inicie novo scan para procurar dispositivo compativel por perto.",
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                candidates.forEach { candidate ->
+                    CandidateRow(
+                        candidate = candidate,
+                        onClick = { onSelectCandidate(candidate.candidateId) },
+                    )
+                }
+                selectedCandidate?.let {
+                    PrimaryActionButton(
+                        label = "Conectar dispositivo selecionado",
+                        onClick = onConnectSelectedCandidate,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isScanning,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CandidateRow(
+    candidate: DeviceManagementScanCandidate,
+    onClick: () -> Unit,
+) {
+    HealthCard(
+        title = candidate.displayName,
+        status = {
+            if (candidate.isSelected) {
+                AssistChip(onClick = {}, enabled = false, label = { Text("Selecionado") })
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics {
+                contentDescription = buildString {
+                    append(candidate.displayName)
+                    append(", ")
+                    append(candidate.safeIdentifier)
+                    if (candidate.isSelected) append(", selecionado")
+                }
+            },
     ) {
-        capabilities.availableChannels.toList().sortedBy { it.name }.forEach { channel ->
-            AssistChip(
-                onClick = {},
-                enabled = false,
-                label = { Text(channel.name) },
+        Text(candidate.safeIdentifier, style = MaterialTheme.typography.bodyLarge)
+        candidate.signalLabel?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
     }
 }
 
-private fun Set<ChampionRuntimePermission>.toRuntimePermissionNames(): List<String> = when {
+@Composable
+private fun ActionSection(
+    state: DeviceManagementUiState,
+    hasAssociatedDevice: Boolean,
+    hasSelectedCandidate: Boolean,
+    onAddDevice: () -> Unit,
+    onRetry: () -> Unit,
+    onConnectAssociatedDevice: () -> Unit,
+    onDisconnectDevice: () -> Unit,
+    onForgetDevice: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
+    onExportDiagnostics: () -> Unit,
+) {
+    val canStartScan = state.activeOperation == null &&
+        state.screenState !in setOf(
+            DeviceManagementScreenState.Scanning,
+            DeviceManagementScreenState.Connecting,
+            DeviceManagementScreenState.PreparingConnection,
+            DeviceManagementScreenState.Disconnecting,
+            DeviceManagementScreenState.Forgetting,
+        )
+    val canConnectAssociated = hasAssociatedDevice &&
+        state.activeOperation == null &&
+        state.connectionState !in setOf(
+            DeviceManagementConnectionState.CONNECTED,
+            DeviceManagementConnectionState.CONNECTING,
+            DeviceManagementConnectionState.PREPARING_CONNECTION,
+            DeviceManagementConnectionState.DISCONNECTING,
+        )
+    val canDisconnect = hasAssociatedDevice &&
+        state.activeOperation == null &&
+        state.connectionState in setOf(
+            DeviceManagementConnectionState.CONNECTED,
+            DeviceManagementConnectionState.CONNECTING,
+            DeviceManagementConnectionState.PREPARING_CONNECTION,
+            DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE,
+        )
+
+    HealthCard(title = "Acoes") {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PrimaryActionButton(
+                label = if (hasAssociatedDevice) "Procurar outro dispositivo" else "Adicionar dispositivo",
+                onClick = onAddDevice,
+                enabled = canStartScan,
+            )
+            OutlinedButton(onClick = onRetry, enabled = state.retryAction != null && state.activeOperation == null) {
+                Text("Tentar novamente")
+            }
+            OutlinedButton(onClick = onConnectAssociatedDevice, enabled = canConnectAssociated) {
+                Text("Conectar associado")
+            }
+            OutlinedButton(onClick = onDisconnectDevice, enabled = canDisconnect) {
+                Text("Desconectar")
+            }
+            OutlinedButton(onClick = onForgetDevice, enabled = hasAssociatedDevice && state.activeOperation == null) {
+                Text("Esquecer")
+            }
+            OutlinedButton(onClick = onOpenDiagnostics, enabled = hasAssociatedDevice && state.activeOperation == null) {
+                Text("Diagnostico")
+            }
+            OutlinedButton(onClick = onExportDiagnostics, enabled = hasAssociatedDevice && state.activeOperation == null) {
+                Text("Exportar")
+            }
+        }
+
+        if (hasSelectedCandidate && !hasAssociatedDevice) {
+            Text(
+                text = "Selecione candidato e use botao de conexao na secao de resultados.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+private fun Set<DeviceManagementPermission>.toRuntimePermissionNames(): List<String> = when {
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> buildList<String> {
-        if (this@toRuntimePermissionNames.contains(ChampionRuntimePermission.BLUETOOTH_SCAN)) add(Manifest.permission.BLUETOOTH_SCAN)
-        if (this@toRuntimePermissionNames.contains(ChampionRuntimePermission.BLUETOOTH_CONNECT)) add(Manifest.permission.BLUETOOTH_CONNECT)
+        if (this@toRuntimePermissionNames.contains(DeviceManagementPermission.BLUETOOTH_SCAN)) add(Manifest.permission.BLUETOOTH_SCAN)
+        if (this@toRuntimePermissionNames.contains(DeviceManagementPermission.BLUETOOTH_CONNECT)) add(Manifest.permission.BLUETOOTH_CONNECT)
     }
 
     else -> buildList<String> {
-        if (this@toRuntimePermissionNames.contains(ChampionRuntimePermission.ACCESS_FINE_LOCATION)) add(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (this@toRuntimePermissionNames.contains(DeviceManagementPermission.ACCESS_FINE_LOCATION)) add(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 }.distinct()
 
 private fun android.content.Context.isDebugBuild(): Boolean =
     applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
-private fun Boolean.formatGranted(): String = if (this) "Concedida" else "Pendente"
-
-private fun Boolean.formatLegacyPermission(sdkInt: Int): String =
-    if (sdkInt >= Build.VERSION_CODES.S) {
-        "Não aplicável"
-    } else {
-        formatGranted()
-    }
-
-private fun DeviceUiState.canStartScan(): Boolean = pocState in setOf(
-    DevicePocState.ReadyToScan,
-    DevicePocState.DeviceFound,
-    DevicePocState.Idle,
-    DevicePocState.PermissionsRequired,
-)
-
-private fun DeviceUiState.canConnect(): Boolean = pocState in setOf(
-    DevicePocState.DeviceFound,
-    DevicePocState.ReadyToScan,
-)
-
-private fun DeviceUiState.currentDurationLabel(now: Instant): String {
-    val startedAt = heartRateStartedAt ?: return "Indisponível"
-    val duration = Duration.between(startedAt, now).coerceAtLeast(Duration.ZERO)
-    val totalSeconds = duration.seconds
-    return "%02d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+private fun DeviceManagementScreenState.label(): String = when (this) {
+    DeviceManagementScreenState.Loading -> "Carregando"
+    DeviceManagementScreenState.NoAssociatedDevice -> "Nenhum dispositivo associado"
+    DeviceManagementScreenState.PermissionsRequired -> "Permissoes necessarias"
+    DeviceManagementScreenState.BluetoothDisabled -> "Bluetooth desligado"
+    DeviceManagementScreenState.ReadyToScan -> "Pronto para scan"
+    DeviceManagementScreenState.Scanning -> "Procurando dispositivos"
+    DeviceManagementScreenState.ScanResults -> "Resultados de scan"
+    DeviceManagementScreenState.Connecting -> "Conectando"
+    DeviceManagementScreenState.PreparingConnection -> "Preparando conexao"
+    DeviceManagementScreenState.Connected -> "Conectado"
+    DeviceManagementScreenState.Disconnecting -> "Desconectando"
+    DeviceManagementScreenState.Disconnected -> "Desconectado"
+    DeviceManagementScreenState.DeviceNotFound -> "Dispositivo nao encontrado"
+    DeviceManagementScreenState.ConnectionFailed -> "Falha de conexao"
+    DeviceManagementScreenState.Forgetting -> "Esquecendo dispositivo"
+    DeviceManagementScreenState.Error -> "Erro"
 }
 
-private fun DevicePocState.label(): String = when (this) {
-    DevicePocState.Idle -> "Idle"
-    DevicePocState.PermissionsRequired -> "Permissões necessárias"
-    DevicePocState.ReadyToScan -> "Pronto para scan"
-    DevicePocState.Scanning -> "Scanning"
-    DevicePocState.DeviceFound -> "Dispositivo encontrado"
-    DevicePocState.Connecting -> "Conectando"
-    DevicePocState.TransportReady -> "TransportReady"
-    DevicePocState.Handshaking -> "Handshake em andamento"
-    DevicePocState.HandshakeConfirmed -> "Handshake confirmado"
-    DevicePocState.WaitingForSteps -> "Aguardando passos"
-    DevicePocState.StepsObserved -> "Passos observados"
-    DevicePocState.StartingHeartRate -> "Iniciando BPM"
-    DevicePocState.MeasuringHeartRate -> "Medindo BPM"
-    DevicePocState.StoppingHeartRate -> "Parando BPM"
-    DevicePocState.CycleCompleted -> "Ciclo concluído"
-    DevicePocState.Disconnecting -> "Desconectando"
-    is DevicePocState.Failed -> "Falha"
+private fun DeviceManagementActiveOperation.label(): String = when (this) {
+    DeviceManagementActiveOperation.REQUESTING_PERMISSIONS -> "Solicitando permissoes"
+    DeviceManagementActiveOperation.SCANNING -> "Executando scan"
+    DeviceManagementActiveOperation.CONNECTING -> "Conectando dispositivo"
+    DeviceManagementActiveOperation.DISCONNECTING -> "Desconectando dispositivo"
+    DeviceManagementActiveOperation.FORGETTING -> "Removendo associacao"
+    DeviceManagementActiveOperation.OPENING_DIAGNOSTICS -> "Abrindo diagnostico"
+    DeviceManagementActiveOperation.EXPORTING_DIAGNOSTICS -> "Exportando diagnostico"
 }
 
-private fun ChampionBleState.label(): String = when (this) {
-    ChampionBleState.Disconnected -> "Disconnected"
-    is ChampionBleState.Scanning -> "Scanning"
-    is ChampionBleState.Connecting -> "Connecting"
-    is ChampionBleState.DiscoveringServices -> "DiscoveringServices"
-    is ChampionBleState.ResolvingChannels -> "ResolvingChannels"
-    is ChampionBleState.ConfiguringSubscriptions -> "ConfiguringSubscriptions"
-    is ChampionBleState.TransportReady -> "TransportReady"
-    is ChampionBleState.Disconnecting -> "Disconnecting"
-    is ChampionBleState.Failed -> "Failed"
+private fun DeviceManagementErrorCategory.title(): String = when (this) {
+    DeviceManagementErrorCategory.PREREQUISITES -> "Ajuste necessario"
+    DeviceManagementErrorCategory.SCAN -> "Falha no scan"
+    DeviceManagementErrorCategory.CONNECTION -> "Falha na conexao"
+    DeviceManagementErrorCategory.HANDSHAKE -> "Falha na preparacao"
+    DeviceManagementErrorCategory.DISCONNECT -> "Falha ao desconectar"
+    DeviceManagementErrorCategory.FORGET -> "Falha ao esquecer dispositivo"
+    DeviceManagementErrorCategory.DIAGNOSTICS -> "Falha em diagnostico"
+    DeviceManagementErrorCategory.INTERNAL -> "Falha interna"
 }
 
-private fun DevicePocHeartRateSignalQuality.label(): String = when (this) {
-    DevicePocHeartRateSignalQuality.GOOD -> "Boa"
-    DevicePocHeartRateSignalQuality.MEDIUM -> "Média"
-    DevicePocHeartRateSignalQuality.LOW -> "Baixa"
+private fun DeviceManagementConnectionState.toVisualState(): ConnectionVisualState = when (this) {
+    DeviceManagementConnectionState.CONNECTED -> ConnectionVisualState.Connected
+    else -> ConnectionVisualState.Disconnected
 }
 
-private fun DevicePocHeartRateFinalSource.label(): String = when (this) {
-    DevicePocHeartRateFinalSource.D0_CURRENT -> "D0 atual"
-    DevicePocHeartRateFinalSource.F002_ESTIMATE -> "Estimativa F002"
-    DevicePocHeartRateFinalSource.UNAVAILABLE -> "Indisponível"
+private fun Instant?.toSyncVisualState(): SyncVisualState = if (this == null) {
+    SyncVisualState.Pending
+} else {
+    SyncVisualState.Success
 }
 
-private fun DevicePocHandshakeOutcome.label(): String = when (this) {
-    DevicePocHandshakeOutcome.UNCONFIRMED -> "Não confirmado"
-    DevicePocHandshakeOutcome.CONFIRMED -> "Confirmado por ACK"
-    DevicePocHandshakeOutcome.ASSUMED -> "Assumido sem ACK"
-}
-
-private fun capabilityState(isAvailable: Boolean, isMissing: Boolean): String = when {
-    isAvailable -> "Disponível"
-    isMissing -> "Ausente para esta etapa"
-    else -> "Ainda não observado"
-}
-
-private fun DeviceUiState.currentTransportCapabilitiesOrNull(): ChampionCapabilitySnapshot? = transportState.capabilitiesOrNull()
-
-private fun ChampionBleState.capabilitiesOrNull(): ChampionCapabilitySnapshot? = when (this) {
-    is ChampionBleState.ConfiguringSubscriptions -> capabilities
-    is ChampionBleState.TransportReady -> capabilities
-    else -> null
-}
-
-private fun DeviceUiState.handshakeOutcome(): DevicePocHandshakeOutcome = when {
-    pocState.isHandshakeConfirmedOrLater() && isHandshakeAssumed -> DevicePocHandshakeOutcome.ASSUMED
-    pocState.isHandshakeConfirmedOrLater() -> DevicePocHandshakeOutcome.CONFIRMED
-    else -> DevicePocHandshakeOutcome.UNCONFIRMED
+private fun Instant?.formatTimestamp(fallback: String): String {
+    if (this == null) return fallback
+    val formatter = DateTimeFormatter
+        .ofLocalizedDateTime(FormatStyle.MEDIUM)
+        .withLocale(Locale.getDefault())
+        .withZone(ZoneId.systemDefault())
+    return formatter.format(this)
 }

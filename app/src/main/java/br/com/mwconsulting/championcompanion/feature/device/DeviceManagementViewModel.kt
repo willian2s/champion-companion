@@ -175,6 +175,7 @@ class DeviceManagementViewModel @Inject constructor(
             }
             when (val result = connectionManager.scan(ChampionScanRequest(timeout = 12.seconds))) {
                 is ChampionBleResult.Success -> {
+                    activeJob = null
                     scanCandidates = result.value
                     val selected = resolveSelectedCandidateId(scanCandidates)
                     mutableState.update { current ->
@@ -187,7 +188,7 @@ class DeviceManagementViewModel @Inject constructor(
                             selectedCandidateId = selected,
                             candidates = scanCandidates.toUiCandidates(selected),
                             activeOperation = null,
-                            connectionState = DeviceManagementConnectionState.DISCONNECTED,
+                            connectionState = currentConnectionStateForIdleSurface(),
                             error = if (scanCandidates.isEmpty()) {
                                 ChampionBleError.DeviceNotFound.toDeviceManagementError()
                             } else {
@@ -205,7 +206,7 @@ class DeviceManagementViewModel @Inject constructor(
                 is ChampionBleResult.Failure -> {
                     if (result.error is ChampionBleError.OperationCancelled) {
                         activeJob = null
-                        refreshIdleSurface(clearError = true)
+                        restoreSurfaceAfterScanStop(clearError = true)
                     } else {
                         handleBleFailure(result.error)
                     }
@@ -666,8 +667,15 @@ class DeviceManagementViewModel @Inject constructor(
 
     private fun refreshIdleSurface(clearError: Boolean = false) {
         if (mutableState.value.activeOperation != null) return
-        if (currentTransportState !is ChampionBleState.Disconnected && currentTransportState !is ChampionBleState.Failed) return
+        if (
+            currentTransportState !is ChampionBleState.Disconnected &&
+            currentTransportState !is ChampionBleState.Failed &&
+            currentTransportState !is ChampionBleState.TransportReady
+        ) {
+            return
+        }
         val nextScreenState = when {
+            functionalConnectionEstablished && currentTransportState is ChampionBleState.TransportReady -> DeviceManagementScreenState.Connected
             scanCandidates.isNotEmpty() -> DeviceManagementScreenState.ScanResults
             associatedDeviceDomain != null -> DeviceManagementScreenState.Disconnected
             else -> DeviceManagementScreenState.NoAssociatedDevice
@@ -676,7 +684,7 @@ class DeviceManagementViewModel @Inject constructor(
             val selectedCandidateId = resolveSelectedCandidateId(scanCandidates, it.selectedCandidateId)
             it.copy(
                 screenState = nextScreenState,
-                connectionState = DeviceManagementConnectionState.DISCONNECTED,
+                connectionState = currentConnectionStateForIdleSurface(),
                 activeOperation = null,
                 error = if (clearError) null else it.error,
                 retryAction = if (clearError) null else it.retryAction,
@@ -684,6 +692,32 @@ class DeviceManagementViewModel @Inject constructor(
                 candidates = scanCandidates.toUiCandidates(selectedCandidateId),
             )
         }
+    }
+
+    private fun restoreSurfaceAfterScanStop(clearError: Boolean) {
+        val nextScreenState = when {
+            functionalConnectionEstablished && currentTransportState is ChampionBleState.TransportReady -> DeviceManagementScreenState.Connected
+            scanCandidates.isNotEmpty() -> DeviceManagementScreenState.ScanResults
+            associatedDeviceDomain != null -> DeviceManagementScreenState.Disconnected
+            else -> DeviceManagementScreenState.NoAssociatedDevice
+        }
+        val selectedCandidateId = resolveSelectedCandidateId(scanCandidates)
+        mutableState.update {
+            it.copy(
+                screenState = nextScreenState,
+                connectionState = currentConnectionStateForIdleSurface(),
+                activeOperation = null,
+                error = if (clearError) null else it.error,
+                retryAction = if (clearError) null else it.retryAction,
+                selectedCandidateId = selectedCandidateId,
+                candidates = scanCandidates.toUiCandidates(selectedCandidateId),
+            )
+        }
+    }
+
+    private fun currentConnectionStateForIdleSurface(): DeviceManagementConnectionState = when {
+        functionalConnectionEstablished && currentTransportState is ChampionBleState.TransportReady -> DeviceManagementConnectionState.CONNECTED
+        else -> DeviceManagementConnectionState.DISCONNECTED
     }
 
     private fun updateCandidatesState(candidates: List<ChampionDiscoveredDevice>) {

@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -107,3 +107,32 @@ Substituir placeholder release por tela utilizável de gerenciamento de disposit
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- `DeviceScreen` deixou de mostrar placeholder release e passou a renderizar tela funcional de gerenciamento usando `DeviceManagementViewModel` obtida do owner Hilt da Activity.
+- Tela principal agora observa `DeviceManagementUiState`, dispara `Load` por entrada visivel, refresca prerequisitos no `ON_RESUME` e coleta eventos para permissoes, Bluetooth e confirmacoes.
+- UI cobre estados de carregamento, permissoes, Bluetooth desligado, scan, resultados, dispositivo associado, conexao, erros e acoes principais com mensagens seguras.
+- Card do dispositivo associado mostra nome, modelo, identificador mascarado, estado de conexao, ultima conexao e ultima sincronizacao somente quando existente; quando nao existe importacao, tela mostra fallback explicito sem inventar timestamp.
+- Confirmacoes de esquecer e de possivel substituicao da associacao foram adicionadas na UI antes das intents correspondentes.
+- PoC tecnica debug saiu do fluxo principal e foi movida para `DeviceManagementDebugPocScreen`, acessivel apenas por acao secundaria em build debug.
+- Diagnostico e exportacao permanecem presentes como acoes da tela, com aviso controlado de integracao reservada para `006-10`.
+
+## Evidencia Final
+
+- Hierarquia principal da tela: resumo da conexao, banners de prerequisito, erro seguro, card do dispositivo associado, secao de candidatos/scan, secao de acoes e entrada separada para PoC debug.
+- Confirmado: tela final usa `DeviceManagementViewModel` como fronteira unica de estado e intents; nenhum Composable constroi scanner, client, resolver ou manager BLE.
+- Screenshot deve ser preparada no PR por se tratar de mudanca visual.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- primeira execucao falhou por imports Compose ViewModel ausentes no projeto e inferencia de tipo em helper de permissoes; wiring foi ajustado para `ViewModelProvider(activity)` com factory Hilt da Activity e helper corrigido;
+- segunda execucao concluiu com `BUILD SUCCESSFUL`.

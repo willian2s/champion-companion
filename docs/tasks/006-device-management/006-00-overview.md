@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `006-01`, `006-03`, `006-04` e `006-05` concluidas em 2026-07-21; `006-06`, `006-07` e `006-07A` concluidas em 2026-07-22; demais tasks seguem pendentes.
+Em andamento. `006-01`, `006-03`, `006-04` e `006-05` concluidas em 2026-07-21; `006-06`, `006-07`, `006-07A` e `006-08` concluidas em 2026-07-22; demais tasks seguem pendentes.
 
 ## Objetivo
 
@@ -147,7 +147,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - [x] `006-06` discovery e seleção implementados
 - [x] `006-07` conexão do dispositivo lembrado e retry implementados
 - [x] `006-07A` auto-conexão controlada do dispositivo associado implementada
-- [ ] `006-08` tela utilizável implementada
+- [x] `006-08` tela utilizável implementada
 - [ ] `006-09` disconnect, esquecer e lifecycle implementados
 - [ ] `006-10` diagnóstico e exportação integrados
 - [ ] `006-11` build, install e smoke manual executados
@@ -205,6 +205,7 @@ Galaxy S22 com Champion C001:
 - Diagnóstico avançado fica para Fase 19.
 - Migration Room `1 -> 2` foi promovida via auto-migration para criar `device_associations`; seguir observando se próximas evoluções da associação exigirão backfill explícito.
 - Evolucao do scanner para lista efemera continua com timeout unico e deduplicacao por chave de transporte; cenarios mais ricos de RSSI/nomes duplicados seguem como risco conhecido da spec.
+- PR desta mudanca deve incluir screenshot da nova tela de dispositivo.
 - Atualizar `docs/core/current-project-baseline.md` no fechamento da Fase 06, não antes.
 
 ## Critérios Gerais De Conclusão
