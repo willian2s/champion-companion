@@ -81,6 +81,8 @@ class RoomRepositories @Inject constructor(
                     PersonalMetricsSnapshot(
                         heightCentimeters = profile.heightCentimeters,
                         weightKilograms = weight?.toKilogramsOrNull(),
+                        latestWeightMeasuredAt = weight?.measuredAtEpochMillis?.let(Instant::ofEpochMilli),
+                        latestWeightOrigin = weight?.origin?.let { enumValueOfOrNull<DataOrigin>(it) },
                         manualStrideLengthMeters = null,
                     )
                 }
@@ -499,6 +501,9 @@ class RoomRepositories @Inject constructor(
         "POUNDS" -> (value * 0.45359237).takeIf { value.isFinite() && value > 0.0 }
         else -> null
     }
+
+    private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
+        runCatching { enumValueOf<T>(value) }.getOrNull()
 
     private suspend fun transitionSync(id: HealthSyncOperationId, expected: List<String>, next: String, at: Instant?, error: String?, increment: Int = 0): RepositoryResult<Unit> = write {
         val operation = database.healthSyncOperationDao().findById(id.value.toString())

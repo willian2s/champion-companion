@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-22.
 
 ## Dependencia
 
@@ -82,6 +82,15 @@ Depois de `008-08`, medição manual já existe, último BPM persistido já est�
 - manter ViewModels e repositories como fonte;
 - adicionar screenshots conforme `AGENTS.md`;
 - executar validacao minima.
+
+## Resultado
+
+- `HealthScreen` foi transformada em hub de métricas com quatro cards navegáveis.
+- Navegação ganhou rotas específicas parameter-free para frequência cardíaca, peso, passos e distância.
+- Tela de frequência cardíaca passou a concentrar visualmente o fluxo manual já existente, sem duplicar coordinator nem protocolo D0/F002.
+- Telas de peso, passos e distância foram criadas como shells usando apenas dados persistidos já existentes.
+- Todas as telas de detalhe receberam seção de gráfico e seção de histórico com estado vazio seguro quando necessário.
+- Nenhuma tela nova inicia BLE ao abrir.
 
 ## Tela De Frequencia Cardiaca Na `008-08B`
 
@@ -165,6 +174,16 @@ Nao devem incluir:
 - D1 continua fora da Fase 08.
 - Health Connect continua fora da Fase 08.
 
+## Achados
+
+- `AppDestination` passou a incluir `HealthHeartRate`, `HealthWeight`, `HealthSteps` e `HealthDistance`, preservando padrão serializável sem parâmetros da navegação atual.
+- `ChampionNavigation` agora mantém item `Saúde` selecionado em toda subtree de saúde e remove destinos de saúde ao trocar para outra área top-level.
+- `HealthViewModel` passou a agregar também último peso persistido, resumo diário atual e meta diária de passos, sem criar novas queries complexas.
+- `PersonalMetricsSnapshot` foi ampliado para expor data e origem do último peso já persistido, reutilizando dados existentes.
+- Peso continua exibido em quilogramas na camada de Saúde, coerente com snapshot já normalizado usado nas estimativas do app.
+- Distância continua identificada como estimativa local derivada de `DailySummary`, e permanece indisponível quando faltam dados pessoais suficientes.
+- Tela de frequência cardíaca reaproveita sessão manual existente e adiciona apenas shells visuais futuros para gráfico, histórico completo e busca no relógio.
+
 ## Testes E Validacao
 
 Validacao minima obrigatoria:
@@ -204,11 +223,22 @@ Validacao manual minima:
 - resultado dos comandos obrigatórios;
 - resumo do smoke manual reduzido.
 
+- Screenshots ficam pendentes para PR visual, conforme `AGENTS.md`.
+- Comandos executados nesta task:
+  - `./gradlew assembleDebug` ✅
+  - `./gradlew assembleRelease` ✅
+  - `./gradlew installDebug` ✅
+- `installDebug` concluiu com instalação em `SM-S901E` após nova tentativa no mesmo ambiente.
+
 ## Atualizacao Do Overview
 
 - Marcar `008-08B` como concluida quando hub e telas shell estiverem implementados.
 - Atualizar riscos residuais antes de `008-09`.
 
+- Overview atualizado com achados de implementação, checklist e riscos residuais.
+
 ## Validacao Final
 
 - Confirmar que medicao manual nao foi reimplementada do zero e que D1 continua ausente.
+
+- Confirmado: fluxo manual segue reutilizando `ChampionManualHeartRateCoordinator` e repositories existentes; D1 continua ausente.

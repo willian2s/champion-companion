@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07`, `008-08` e `008-08A` concluidas em 2026-07-22; `008-08B`, `008-09` e `008-10` seguem pendentes. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão segue por `008-08A` e `008-08B`, sem reabrir a task original.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06`, `008-07`, `008-08`, `008-08A` e `008-08B` concluidas em 2026-07-22; `008-09` e `008-10` seguem pendentes. Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área de Saúde. A extensão segue por `008-08A` e `008-08B`, sem reabrir a task original.
 
 ## Objetivo
 
@@ -130,6 +130,17 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Extensao aprovada exigiu formalizacao arquitetural antes da implementacao visual, porque altera arquitetura duradoura de navegacao e ownership visual da area Saude.
 - `008-08A` define rotas finais planejadas para implementacao: `AppDestination.Health`, `AppDestination.HealthHeartRate`, `AppDestination.HealthWeight`, `AppDestination.HealthSteps` e `AppDestination.HealthDistance`.
 - `008-08A` tambem formaliza ADR-009 e atualizacao do roadmap nas fases 8, 9, 12, 15 e 16.
+
+## Achados De `008-08B`
+
+- `HealthScreen.kt` deixou de ser superfície direta da medição manual e passou a atuar como hub de métricas com cards de frequência cardíaca, peso, passos e distância.
+- `HealthMetricDetailScreens.kt` concentra telas específicas de frequência cardíaca, peso, passos e distância, com estrutura comum de resumo atual, gráfico e histórico.
+- UI atual da medição manual foi composta dentro da tela específica de frequência cardíaca; não houve nova implementação de coordinator, D0 ou F002.
+- `ChampionNavigation.kt` agora navega para `HealthHeartRate`, `HealthWeight`, `HealthSteps` e `HealthDistance`, mantendo `Saúde` como item selecionado em toda subtree.
+- `HealthViewModel.kt` passou a observar `DailySummaryRepository`, `PersonalMetricsRepository` e `AppPreferencesRepository`, agregando peso, passos, distância e meta diária sem criar novas sincronizações.
+- `PersonalMetricsSnapshot` e `RoomRepositories.observeSnapshot()` passaram a expor timestamp e origem do último peso persistido, permitindo shell inicial de peso sem expansão de schema.
+- Gráfico real, histórico completo, D1 e Health Connect continuam fora da implementação entregue.
+- Validação mínima executada em `008-08B`: `assembleDebug`, `assembleRelease` e `installDebug`, com instalação confirmada em `SM-S901E`.
 
 ## Estado Herdado
 
@@ -259,7 +270,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-07` UI da Saude criada
 - [x] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
 - [x] `008-08A` formalizacao arquitetural, ADR-009 e roadmap alinhados
-- [ ] `008-08B` hub de Saude e shells das telas de metricas implementados
+- [x] `008-08B` hub de Saude e shells das telas de metricas implementados
 - [ ] `008-09` gate reduzido e smoke fisico executados
 - [ ] `008-10` fechamento, baseline e divida consolidados
 

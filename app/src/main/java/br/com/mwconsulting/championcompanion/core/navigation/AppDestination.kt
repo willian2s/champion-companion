@@ -16,6 +16,26 @@ sealed class AppDestination {
     }
 
     @Serializable
+    data object HealthHeartRate : AppDestination() {
+        override val route = "health/heart-rate"
+    }
+
+    @Serializable
+    data object HealthWeight : AppDestination() {
+        override val route = "health/weight"
+    }
+
+    @Serializable
+    data object HealthSteps : AppDestination() {
+        override val route = "health/steps"
+    }
+
+    @Serializable
+    data object HealthDistance : AppDestination() {
+        override val route = "health/distance"
+    }
+
+    @Serializable
     data object Calendar : AppDestination() {
         override val route = "calendar"
     }

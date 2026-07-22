@@ -62,6 +62,8 @@ interface PersonalMetricsRepository {
 data class PersonalMetricsSnapshot(
     val heightCentimeters: Double? = null,
     val weightKilograms: Double? = null,
+    val latestWeightMeasuredAt: Instant? = null,
+    val latestWeightOrigin: DataOrigin? = null,
     val manualStrideLengthMeters: Double? = null,
 )
 

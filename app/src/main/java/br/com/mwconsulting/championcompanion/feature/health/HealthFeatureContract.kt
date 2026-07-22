@@ -1,6 +1,8 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
+import br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL
+import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.MonotonicTimestamp
 import java.time.Instant
@@ -18,8 +20,25 @@ data class HealthUiState(
     val surfaceState: HealthSurfaceState = HealthSurfaceState.Idle,
     val latestMeasurement: HeartRateMeasurement? = null,
     val recentMeasurements: List<HeartRateMeasurement> = emptyList(),
+    val latestWeight: HealthWeightSnapshot? = null,
+    val todaySummary: HealthDailySummarySnapshot? = null,
+    val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
+)
+
+data class HealthWeightSnapshot(
+    val kilograms: Double,
+    val measuredAt: Instant,
+    val origin: DataOrigin?,
+)
+
+data class HealthDailySummarySnapshot(
+    val steps: Long,
+    val estimatedDistanceMeters: Double?,
+    val updatedAt: Instant,
+    val source: DataOrigin,
+    val sourceLabel: String,
 )
 
 sealed interface HealthIntent {

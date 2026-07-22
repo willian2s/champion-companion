@@ -1,6 +1,9 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
 import androidx.lifecycle.ViewModel
+import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
+import br.com.mwconsulting.championcompanion.core.model.DailySummary
+import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
@@ -9,15 +12,19 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,15 +32,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
 private const val RECENT_MANUAL_MEASUREMENTS_LIMIT = 10
 private const val MANUAL_HEART_RATE_PARSER_VERSION = "manual-heart-rate-v1"
 
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class HealthViewModel internal constructor(
     private val heartRateRepository: HeartRateRepository,
     private val deviceRepository: DeviceRepository,
+    private val dailySummaryRepository: DailySummaryRepository,
+    private val personalMetricsRepository: PersonalMetricsRepository,
+    private val appPreferencesRepository: AppPreferencesRepository,
     private val manualHeartRateCoordinator: ManualHeartRateCoordinator,
     private val scope: CoroutineScope,
     private val ids: UuidV7Generator,
@@ -44,6 +56,10 @@ class HealthViewModel internal constructor(
     private val associatedDevice = MutableStateFlow<Device?>(null)
     private val latestMeasurement = MutableStateFlow<HeartRateMeasurement?>(null)
     private val recentMeasurements = MutableStateFlow<List<HeartRateMeasurement>>(emptyList())
+    private val personalMetrics = MutableStateFlow(PersonalMetricsSnapshot())
+    private val observedDate = MutableStateFlow(LocalDate.now())
+    private val todaySummary = MutableStateFlow<DailySummary?>(null)
+    private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
     private val persistedCompletedSessions = linkedSetOf<String>()
     private val persistingCompletedSessions = linkedSetOf<String>()
 
@@ -68,21 +84,54 @@ class HealthViewModel internal constructor(
             }
         }
         scope.launch {
+            personalMetricsRepository.observeSnapshot().collect { snapshot ->
+                personalMetrics.value = snapshot
+            }
+        }
+        scope.launch {
+            observedDate.flatMapLatest { date ->
+                dailySummaryRepository.observeSummaryForDate(date)
+            }.collect { summary ->
+                todaySummary.value = summary
+            }
+        }
+        scope.launch {
+            appPreferencesRepository.observeDailyStepsGoal().collect { goal ->
+                dailyStepsGoal.value = goal
+            }
+        }
+        scope.launch {
             manualHeartRateCoordinator.state.collect(::handleCoordinatorState)
         }
         scope.launch {
-            combine(
+            val coreState = combine(
                 surfaceState,
                 latestMeasurement,
                 recentMeasurements,
                 associatedDevice,
             ) { currentSurface, latest, recent, device ->
-                HealthUiState(
+                CoreHealthState(
                     surfaceState = currentSurface,
                     latestMeasurement = latest,
                     recentMeasurements = recent,
-                    hasAssociatedDevice = device != null,
-                    associatedDeviceName = device?.name,
+                    associatedDevice = device,
+                )
+            }
+            combine(
+                coreState,
+                personalMetrics,
+                todaySummary,
+                dailyStepsGoal,
+            ) { core, metrics, summary, goal ->
+                HealthUiState(
+                    surfaceState = core.surfaceState,
+                    latestMeasurement = core.latestMeasurement,
+                    recentMeasurements = core.recentMeasurements,
+                    latestWeight = metrics.toWeightSnapshot(),
+                    todaySummary = summary?.toHealthDailySummarySnapshot(core.associatedDevice),
+                    dailyStepsGoal = goal,
+                    hasAssociatedDevice = core.associatedDevice != null,
+                    associatedDeviceName = core.associatedDevice?.name,
                 )
             }.collect { mutableState.value = it }
         }
@@ -92,10 +141,16 @@ class HealthViewModel internal constructor(
     constructor(
         heartRateRepository: HeartRateRepository,
         deviceRepository: DeviceRepository,
+        dailySummaryRepository: DailySummaryRepository,
+        personalMetricsRepository: PersonalMetricsRepository,
+        appPreferencesRepository: AppPreferencesRepository,
         manualHeartRateCoordinator: ManualHeartRateCoordinator,
     ) : this(
         heartRateRepository = heartRateRepository,
         deviceRepository = deviceRepository,
+        dailySummaryRepository = dailySummaryRepository,
+        personalMetricsRepository = personalMetricsRepository,
+        appPreferencesRepository = appPreferencesRepository,
         manualHeartRateCoordinator = manualHeartRateCoordinator,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
@@ -106,7 +161,7 @@ class HealthViewModel internal constructor(
 
     override fun onIntent(intent: HealthIntent) {
         when (intent) {
-            HealthIntent.Load -> Unit
+            HealthIntent.Load -> observedDate.value = LocalDate.now()
             HealthIntent.StartMeasurement -> startMeasurement()
             HealthIntent.CancelMeasurement -> cancelMeasurement(ManualHeartRateCancellationReason.USER_REQUESTED)
             HealthIntent.Retry -> retryMeasurement()
@@ -299,5 +354,34 @@ class HealthViewModel internal constructor(
         category = HealthMeasurementErrorCategory.STORAGE_FAILED,
         message = "Não foi possível salvar a medição manual concluída.",
         isRetryable = true,
+    )
+
+    private fun PersonalMetricsSnapshot.toWeightSnapshot(): HealthWeightSnapshot? {
+        val kilograms = weightKilograms ?: return null
+        val measuredAt = latestWeightMeasuredAt ?: return null
+        return HealthWeightSnapshot(
+            kilograms = kilograms,
+            measuredAt = measuredAt,
+            origin = latestWeightOrigin,
+        )
+    }
+
+    private fun DailySummary.toHealthDailySummarySnapshot(device: Device?): HealthDailySummarySnapshot =
+        HealthDailySummarySnapshot(
+            steps = steps,
+            estimatedDistanceMeters = estimatedDistanceMeters,
+            updatedAt = updatedAt,
+            source = key.origin,
+            sourceLabel = when (key.origin) {
+                br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_DAILY_SUMMARY -> device?.name ?: "Relógio"
+                else -> "Resumo local"
+            },
+        )
+
+    private data class CoreHealthState(
+        val surfaceState: HealthSurfaceState,
+        val latestMeasurement: HeartRateMeasurement?,
+        val recentMeasurements: List<HeartRateMeasurement>,
+        val associatedDevice: Device?,
     )
 }

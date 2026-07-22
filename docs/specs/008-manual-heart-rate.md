@@ -718,6 +718,12 @@ Responsabilidades fora da rota raiz:
 - medição manual de BPM fica visualmente owner da tela específica de frequência cardíaca;
 - import D1, histórico rico, gráfico real e Health Connect permanecem fora da implementação imediata.
 
+Implementação inicial registrada em `008-08B`:
+
+- `HealthScreen` agora é hub com quatro cards navegáveis;
+- raiz de Saúde deixou de executar visualmente o fluxo manual;
+- detalhe de frequência cardíaca passou a concentrar sessão manual reutilizando estado já existente.
+
 ## Cards De Resumo
 
 Cards obrigatórios na tela principal de Saúde:
@@ -776,6 +782,12 @@ Contratos de rotas aprovados em `008-08A`:
 
 Essas rotas devem permanecer parameter-free e serializáveis, preservando ADR-005 e back stack manual atual.
 
+Implementação inicial registrada em `008-08B`:
+
+- `ChampionNavigation` agora reconhece subtree de Saúde;
+- item top-level `Saúde` permanece selecionado durante detalhes de métricas;
+- rotas de métricas foram adicionadas sem introduzir `NavController` nem argumentos parametrizados.
+
 ## Tela De Frequencia Cardiaca
 
 Tela específica de frequência cardíaca torna-se superfície visual da funcionalidade manual já entregue.
@@ -798,6 +810,13 @@ Regras obrigatórias:
 - raiz de Saúde não continua acoplada diretamente à execução da medição.
 
 Ação futura `Buscar dados do relógio` pode ter slot arquitetural reservado, mas continua fora da Fase 08 e não deve aparecer como ação funcional habilitada.
+
+Implementação inicial registrada em `008-08B`:
+
+- UI anterior de medição manual foi composta na tela específica de frequência cardíaca;
+- seção de gráfico ficou vazia com copy futura;
+- histórico manual simples continua disponível;
+- ação futura de buscar dados do relógio aparece apenas como texto informativo, não como ação funcional.
 
 ## Shells De Peso, Passos E Distancia
 
@@ -824,6 +843,12 @@ Distância na extensão `008-08B`:
 - preservar indicação de estimativa;
 - mostrar indisponível quando dados pessoais atuais não permitirem estimativa;
 - sem GPS, sem rota, sem nova coleta BLE.
+
+Implementação inicial registrada em `008-08B`:
+
+- peso usa último valor persistido já observado em `PersonalMetricsRepository`;
+- passos e distância usam `DailySummary` atual e meta diária existente;
+- shells de gráfico e histórico permanecem vazios e seguros.
 
 ## Padrao Das Telas De Metricas
 

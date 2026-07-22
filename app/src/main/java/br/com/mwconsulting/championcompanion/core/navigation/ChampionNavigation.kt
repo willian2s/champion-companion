@@ -40,9 +40,13 @@ import br.com.mwconsulting.championcompanion.feature.calendar.CalendarScreen
 import br.com.mwconsulting.championcompanion.feature.device.DeviceScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
+import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthScreen
+import br.com.mwconsulting.championcompanion.feature.health.HeartRateDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthSurfaceState
 import br.com.mwconsulting.championcompanion.feature.health.HealthViewModel
+import br.com.mwconsulting.championcompanion.feature.health.StepsDetailScreen
+import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
@@ -85,13 +89,20 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
 
     fun requestNavigation(destination: AppDestination) {
         if (
-            currentDestination == AppDestination.Health &&
-            destination != AppDestination.Health &&
+            currentDestination.isHealthMeasurementSurface() &&
+            destination != currentDestination &&
             healthState.surfaceState.isMeasurementInFlight()
         ) {
             pendingDestination = destination
         } else {
-            backStack.navigateToTopLevel(destination)
+            if (destination.isTopLevelDestination()) {
+                if (currentDestination.isHealthDestination()) {
+                    backStack.removeHealthDestinations()
+                }
+                backStack.navigateToTopLevel(destination)
+            } else {
+                backStack.navigateForward(destination)
+            }
         }
     }
 
@@ -105,7 +116,14 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                     onClick = {
                         pendingDestination = null
                         healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
-                        backStack.navigateToTopLevel(destination)
+                        if (destination.isTopLevelDestination()) {
+                            if (currentDestination.isHealthDestination()) {
+                                backStack.removeHealthDestinations()
+                            }
+                            backStack.navigateToTopLevel(destination)
+                        } else {
+                            backStack.navigateForward(destination)
+                        }
                     },
                 ) {
                     Text("Sair da Saúde")
@@ -126,7 +144,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 val navigationBarScope = this
                 primaryItems.forEach { item ->
                     NavigationBarItem(
-                        selected = currentDestination == item.destination,
+                        selected = if (item.destination == AppDestination.Health) {
+                            currentDestination.isHealthDestination()
+                        } else {
+                            currentDestination == item.destination
+                        },
                         onClick = { requestNavigation(item.destination) },
                         icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
@@ -196,7 +218,24 @@ private fun ChampionNavDisplay(
                         onOpenDevice = { backStack.navigateToTopLevel(AppDestination.Device) },
                         onOpenProfile = { backStack.navigateToTopLevel(AppDestination.Profile) },
                     )
-                    AppDestination.Health -> HealthScreen()
+                    AppDestination.Health -> HealthScreen(
+                        onOpenHeartRate = { backStack.navigateForward(AppDestination.HealthHeartRate) },
+                        onOpenWeight = { backStack.navigateForward(AppDestination.HealthWeight) },
+                        onOpenSteps = { backStack.navigateForward(AppDestination.HealthSteps) },
+                        onOpenDistance = { backStack.navigateForward(AppDestination.HealthDistance) },
+                    )
+                    AppDestination.HealthHeartRate -> HeartRateDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
+                    AppDestination.HealthWeight -> WeightDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
+                    AppDestination.HealthSteps -> StepsDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
+                    AppDestination.HealthDistance -> DistanceDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
                     AppDestination.Calendar -> CalendarScreen()
                     AppDestination.Exercises -> ExercisesScreen()
                     AppDestination.Device -> DeviceScreen()
@@ -213,4 +252,43 @@ private fun MutableList<AppDestination>.navigateToTopLevel(destination: AppDesti
 
     removeAll { it == destination }
     add(destination)
+}
+
+private fun MutableList<AppDestination>.navigateForward(destination: AppDestination) {
+    if (lastOrNull() == destination) return
+    add(destination)
+}
+
+private fun MutableList<AppDestination>.removeHealthDestinations() {
+    removeAll { it.isHealthDestination() }
+}
+
+private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
+    AppDestination.Health,
+    AppDestination.HealthHeartRate,
+    AppDestination.HealthWeight,
+    AppDestination.HealthSteps,
+    AppDestination.HealthDistance,
+    -> true
+
+    else -> false
+}
+
+private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppDestination.HealthHeartRate
+
+private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
+    AppDestination.Home,
+    AppDestination.Health,
+    AppDestination.Calendar,
+    AppDestination.Exercises,
+    AppDestination.Device,
+    AppDestination.Profile,
+    AppDestination.Settings,
+    -> true
+
+    AppDestination.HealthHeartRate,
+    AppDestination.HealthWeight,
+    AppDestination.HealthSteps,
+    AppDestination.HealthDistance,
+    -> false
 }

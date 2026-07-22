@@ -4,16 +4,23 @@ import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
+import br.com.mwconsulting.championcompanion.core.model.AppPreferences
+import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
+import br.com.mwconsulting.championcompanion.core.model.DailySummary
+import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -103,12 +110,18 @@ class HealthViewModelTest {
     ): Fixture {
         val deviceRepository = FakeDeviceRepository(associatedDevice)
         val heartRateRepository = FakeHeartRateRepository()
+        val dailySummaryRepository = FakeDailySummaryRepository()
+        val personalMetricsRepository = FakePersonalMetricsRepository()
+        val appPreferencesRepository = FakeAppPreferencesRepository()
         val coordinator = FakeManualHeartRateCoordinator(startError)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         return Fixture(
             viewModel = HealthViewModel(
                 heartRateRepository = heartRateRepository,
                 deviceRepository = deviceRepository,
+                dailySummaryRepository = dailySummaryRepository,
+                personalMetricsRepository = personalMetricsRepository,
+                appPreferencesRepository = appPreferencesRepository,
                 manualHeartRateCoordinator = coordinator,
                 scope = scope,
                 ids = UuidV7Generator(),
@@ -259,5 +272,25 @@ class HealthViewModelTest {
                 ),
             )
         }
+    }
+
+    private class FakeDailySummaryRepository : DailySummaryRepository {
+        override fun observeSummaries(from: LocalDate, to: LocalDate): Flow<List<DailySummary>> = MutableStateFlow(emptyList())
+
+        override suspend fun save(summary: DailySummary): RepositoryResult<Unit> = RepositoryResult.Success(Unit)
+    }
+
+    private class FakePersonalMetricsRepository : PersonalMetricsRepository {
+        override fun observeSnapshot(): Flow<PersonalMetricsSnapshot> = MutableStateFlow(PersonalMetricsSnapshot())
+    }
+
+    private class FakeAppPreferencesRepository : AppPreferencesRepository {
+        override fun observe(): Flow<AppPreferences> = MutableStateFlow(AppPreferences())
+
+        override fun observeDailyStepsGoal(): Flow<Int> = MutableStateFlow(8_000)
+
+        override suspend fun update(preferences: AppPreferences): RepositoryResult<Unit> = RepositoryResult.Success(Unit)
+
+        override suspend fun updateDailyStepsGoal(goal: Int): RepositoryResult<Unit> = RepositoryResult.Success(Unit)
     }
 }
