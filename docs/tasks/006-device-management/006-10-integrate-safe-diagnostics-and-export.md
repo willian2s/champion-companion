@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -96,3 +96,27 @@ Fase 05 possui relatório sanitizado da PoC. Fase 06 deve reutilizar a abordagem
 ## Validação Final
 
 - Registrar comando e resultado.
+
+## Execucao
+
+- Diagnostico final da feature passou a ser gerado a partir de `DeviceManagementUiState` combinado com snapshot seguro do ambiente Android, sem depender de Room, payload BLE, bytes crus, MAC ou dados de saude.
+- Foi criado `DeviceDiagnosticsReport` com JSON sanitizado contendo apenas versao do app, Android, suporte BLE, Bluetooth ativo, permissoes, estado da tela/conexao, contagem de candidatos, retry, categoria de erro e dispositivo associado com identificador mascarado.
+- `DeviceScreen` agora abre painel local de diagnostico seguro e exporta relatorio JSON somente por acao explicita do usuario, gravando em `cacheDir/device-reports/` e compartilhando via `FileProvider`.
+- Teste pequeno de sanitizacao cobre ausencia de nome pessoalizado, chave de transporte bruta e termos proibidos como `payload`, `bytes`, `hex`, `mac`, `bpm`, `steps` e coordenadas.
+
+## Evidencia Final
+
+- Amostra de campos exportados: `captured_at`, `app_version`, `android_api_level`, `handset_model`, `ble_supported`, `bluetooth_enabled`, `granted_permissions`, `missing_permissions`, `screen_state`, `connection_state`, `candidate_count`, `associated_device.safe_identifier`, `last_error_category`.
+- Confirmacao de campos proibidos ausentes: relatorio nao inclui nome do dispositivo associado, `platformIdentifier` cru, MAC completo, payload BLE, bytes, hex, senha, passos, BPM, stack trace ou coordenadas.
+
+## Validacao Final
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- `BUILD SUCCESSFUL` com configuration cache reutilizado.

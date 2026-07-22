@@ -1,8 +1,10 @@
 package br.com.mwconsulting.championcompanion.feature.device
 
 import android.Manifest
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,8 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -47,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalContext
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionStatus
 import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionVisualState
@@ -80,6 +83,7 @@ fun DeviceScreen(
     var showReplacementConfirmation by remember { mutableStateOf(false) }
     var debugPocVisible by remember { mutableStateOf(false) }
     var diagnosticsNotice by remember { mutableStateOf<String?>(null) }
+    var diagnosticsVisible by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) {
@@ -121,11 +125,19 @@ fun DeviceScreen(
                 }
 
                 DeviceManagementEvent.OpenDiagnostics -> {
-                    diagnosticsNotice = "Diagnóstico seguro entra na task 006-10."
+                    diagnosticsVisible = true
                 }
 
                 DeviceManagementEvent.ShareDiagnostics -> {
-                    diagnosticsNotice = "Exportação sanitizada entra na task 006-10."
+                    runCatching {
+                        val report = buildDeviceDiagnosticsReport(context, state)
+                        val exportedReport = DeviceDiagnosticsFeatureReportExporter.export(context, report)
+                        val shareIntent = DeviceDiagnosticsFeatureReportExporter
+                            .createShareIntent(exportedReport)
+                        context.startActivity(Intent.createChooser(shareIntent, "Compartilhar relatório"))
+                    }.onFailure {
+                        diagnosticsNotice = "Nao foi possivel exportar relatorio sanitizado."
+                    }
                 }
             }
         }
@@ -158,8 +170,17 @@ fun DeviceScreen(
         onDismissError = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DismissError) },
         onRequestPermissions = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
         onOpenBluetoothSettings = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
-        onOpenDiagnostics = { deviceManagementViewModel.onIntent(DeviceManagementIntent.OpenDiagnostics) },
-        onExportDiagnostics = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ExportDiagnostics) },
+        onOpenDiagnostics = { diagnosticsVisible = true },
+        onExportDiagnostics = {
+            runCatching {
+                val report = buildDeviceDiagnosticsReport(context, state)
+                val exportedReport = DeviceDiagnosticsFeatureReportExporter.export(context, report)
+                val shareIntent = DeviceDiagnosticsFeatureReportExporter.createShareIntent(exportedReport)
+                context.startActivity(Intent.createChooser(shareIntent, "Compartilhar relatório"))
+            }.onFailure {
+                diagnosticsNotice = "Nao foi possivel exportar relatorio sanitizado."
+            }
+        },
         onOpenDebugPoc = { debugPocVisible = true },
     )
 
@@ -209,6 +230,13 @@ fun DeviceScreen(
         )
     }
 
+    if (diagnosticsVisible) {
+        DeviceDiagnosticsDialog(
+            report = buildDeviceDiagnosticsReport(context, state),
+            onDismiss = { diagnosticsVisible = false },
+        )
+    }
+
     diagnosticsNotice?.let { message ->
         AlertDialog(
             onDismissRequest = { diagnosticsNotice = null },
@@ -221,6 +249,52 @@ fun DeviceScreen(
             },
         )
     }
+}
+
+@Composable
+private fun DeviceDiagnosticsDialog(
+    report: DeviceDiagnosticsReport,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Diagnóstico seguro") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            ) {
+                DeviceInfoRow(label = "Capturado em", value = report.capturedAt)
+                DeviceInfoRow(label = "Versão do app", value = report.appVersion)
+                DeviceInfoRow(label = "Android", value = "API ${report.androidApiLevel} (${report.androidRelease})")
+                DeviceInfoRow(label = "Aparelho", value = report.handsetModel)
+                DeviceInfoRow(label = "BLE suportado", value = report.bleSupported.yesNo())
+                DeviceInfoRow(label = "Bluetooth ativo", value = report.bluetoothEnabled.yesNo())
+                DeviceInfoRow(label = "Tela", value = report.screenState)
+                DeviceInfoRow(label = "Conexão", value = report.connectionState)
+                DeviceInfoRow(label = "Operação atual", value = report.activeOperation ?: "nenhuma")
+                DeviceInfoRow(label = "Retry", value = report.retryAction ?: "nenhum")
+                DeviceInfoRow(label = "Permissões concedidas", value = report.grantedPermissions.joinForUi())
+                DeviceInfoRow(label = "Permissões ausentes", value = report.missingPermissions.joinForUi())
+                DeviceInfoRow(label = "Candidatos visíveis", value = report.candidateCount.toString())
+                DeviceInfoRow(label = "Candidato selecionado", value = report.selectedCandidatePresent.yesNo())
+                report.associatedDevice?.let { device ->
+                    DeviceInfoRow(label = "Modelo associado", value = device.modelName)
+                    DeviceInfoRow(label = "Identificador seguro", value = device.safeIdentifier)
+                    DeviceInfoRow(label = "Associado em", value = device.associatedAt)
+                    DeviceInfoRow(label = "Última conexão", value = device.lastSuccessfulConnectionAt ?: "nunca")
+                    DeviceInfoRow(label = "Última sincronização", value = device.lastImportedAt ?: "ainda não disponível")
+                }
+                DeviceInfoRow(label = "Categoria do último erro", value = report.lastErrorCategory ?: "nenhuma")
+                DeviceInfoRow(label = "Erro recuperável", value = report.lastErrorRecoverable.yesNo())
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar")
+            }
+        },
+    )
 }
 
 @Composable
@@ -773,6 +847,46 @@ private fun DeviceManagementUiState.shouldShowErrorCard(): Boolean {
         else -> true
     }
 }
+
+private fun buildDeviceDiagnosticsReport(
+    context: android.content.Context,
+    state: DeviceManagementUiState,
+): DeviceDiagnosticsReport = DeviceDiagnosticsReport.from(
+    state = state,
+    environment = context.captureDeviceDiagnosticsEnvironment(),
+)
+
+private fun android.content.Context.captureDeviceDiagnosticsEnvironment(): DeviceDiagnosticsEnvironmentSnapshot {
+    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+    val allPermissions = linkedMapOf(
+        "BLUETOOTH_SCAN" to Manifest.permission.BLUETOOTH_SCAN,
+        "BLUETOOTH_CONNECT" to Manifest.permission.BLUETOOTH_CONNECT,
+        "ACCESS_FINE_LOCATION" to Manifest.permission.ACCESS_FINE_LOCATION,
+    )
+    val granted = allPermissions.filterValues { hasPermission(it) }.keys.toList()
+    val missing = allPermissions.filterValues { !hasPermission(it) }.keys.toList()
+    val bluetoothEnabled = runCatching {
+        val manager = getSystemService(BluetoothManager::class.java)
+        manager?.adapter?.isEnabled == true
+    }.getOrDefault(false)
+    return DeviceDiagnosticsEnvironmentSnapshot(
+        appVersion = packageInfo.versionName ?: "unknown",
+        androidApiLevel = Build.VERSION.SDK_INT,
+        androidRelease = Build.VERSION.RELEASE ?: "unknown",
+        handsetModel = listOfNotNull(Build.MANUFACTURER, Build.MODEL).joinToString(" ").ifBlank { "unknown" },
+        bleSupported = packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE),
+        bluetoothEnabled = bluetoothEnabled,
+        grantedPermissions = granted,
+        missingPermissions = missing,
+    )
+}
+
+private fun android.content.Context.hasPermission(permission: String): Boolean =
+    ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+private fun Boolean.yesNo(): String = if (this) "Sim" else "Nao"
+
+private fun List<String>.joinForUi(): String = if (isEmpty()) "nenhuma" else joinToString()
 
 private fun DeviceManagementConnectionState.toVisualState(): ConnectionVisualState = when (this) {
     DeviceManagementConnectionState.CONNECTED -> ConnectionVisualState.Connected

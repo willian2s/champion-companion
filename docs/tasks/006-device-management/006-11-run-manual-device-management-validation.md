@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -118,3 +118,22 @@ Fase 06 prioriza funcionalidade. Validação obrigatória é compilação debug/
 ## Validação Final
 
 - `git status --short`.
+
+## Execucao
+
+- Validacao manual completa da Fase 06 foi confirmada pelo usuario no Galaxy S22 com Champion C001, cobrindo todas as etapas previstas do smoke test e os ajustes corretivos necessarios durante a validacao.
+- Por orientacao explicita do usuario, nenhum comando adicional foi rerodado nesta task quando nao era extremamente necessario; esta task ficou restrita ao registro factual da validacao ja concluida.
+- Fluxos validados manualmente: permissoes, scan, encontro do Champion C001, conexao inicial, retorno para tela com dispositivo lembrado, desconectar, reconectar, Bluetooth desligado/ligado com retry, esquecer, retorno ao estado vazio, nova associacao, abertura do diagnostico seguro e exportacao de relatorio sanitizado.
+- Nenhuma regressao pendente foi deixada aberta apos os ajustes ja aplicados ao longo das tasks `006-08` a `006-10`.
+
+## Evidencia Final
+
+- Aparelho validado: Galaxy S22.
+- Dispositivo validado: Champion C001.
+- Resultado do smoke test: todas as etapas previstas em `006-11` foram executadas manualmente e concluidas com sucesso pelo usuario.
+- Exportacao: relatorio sanitizado confirmado visualmente apos correcao do caminho aceito pelo `FileProvider`.
+- Falhas conhecidas nao bloqueantes que permanecem fora de escopo desta task: dividas antigas de testes automatizados ja registradas no overview da fase.
+
+## Validacao Final
+
+- `./gradlew assembleDebug`, `./gradlew assembleRelease` e `./gradlew installDebug` nao foram rerodados nesta task por orientacao explicita do usuario para evitar execucao desnecessaria, considerando que validacao manual completa ja havia sido realizada e os problemas encontrados ja tinham sido corrigidos.

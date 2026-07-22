@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `006-01`, `006-03`, `006-04` e `006-05` concluidas em 2026-07-21; `006-06`, `006-07`, `006-07A`, `006-08` e `006-09` concluidas em 2026-07-22; demais tasks seguem pendentes.
+Em andamento. `006-01`, `006-03`, `006-04` e `006-05` concluidas em 2026-07-21; `006-06`, `006-07`, `006-07A`, `006-08`, `006-09`, `006-10` e `006-11` concluidas em 2026-07-22; resta `006-12`.
 
 ## Objetivo
 
@@ -149,8 +149,8 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - [x] `006-07A` auto-conexão controlada do dispositivo associado implementada
 - [x] `006-08` tela utilizável implementada
 - [x] `006-09` disconnect, esquecer e lifecycle implementados
-- [ ] `006-10` diagnóstico e exportação integrados
-- [ ] `006-11` build, install e smoke manual executados
+- [x] `006-10` diagnóstico e exportação integrados
+- [x] `006-11` build, install e smoke manual executados
 - [ ] `006-12` fechamento, dívida e baseline planejada concluídos
 
 ## Comandos Mínimos De Build
