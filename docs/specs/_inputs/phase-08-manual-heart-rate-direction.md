@@ -47,6 +47,190 @@ Permitir ao usuário:
 - tentar novamente após uma falha;
 - visualizar o último BPM na Home.
 
+## Emenda - Hub de Saúde e telas de métricas
+
+Mudança aprovada após a conclusão da task `008-08`.
+
+Fatos autoritativos desta emenda:
+
+- `008-08` permanece concluída e não deve ser reaberta;
+- integração do último BPM com Home e lifecycle já foi entregue por `008-08`;
+- nova direção nasce depois da conclusão da task original;
+- extensão formal da Fase 08 será executada por `008-08A` e `008-08B`;
+- `008-09` e `008-10` continuam existindo depois da extensão.
+
+Nova ordem obrigatória:
+
+```text
+008-08 concluída
+    ↓
+008-08A - formalização arquitetural e documental
+    ↓
+008-08B - hub de Saúde e telas de métricas
+    ↓
+008-09 - validação física
+    ↓
+008-10 - encerramento da fase
+```
+
+### Nova arquitetura da área Saúde
+
+A tela Saúde deixa de ser apenas a superfície da medição manual de BPM.
+
+Ela passa a ser hub agregador de métricas, com cards de resumo para no mínimo:
+
+- última medição de frequência cardíaca;
+- último peso;
+- passos;
+- distância.
+
+Cada card deve:
+
+- exibir valor atual disponível;
+- exibir unidade;
+- exibir data ou horário relevante;
+- indicar estado sem dados;
+- possuir área de toque acessível;
+- navegar para tela específica da métrica;
+- observar repositories ou estados persistidos existentes;
+- nunca inventar dados;
+- nunca iniciar BLE diretamente.
+
+Rotas conceituais esperadas:
+
+```text
+Saúde
+  ├── Frequência cardíaca
+  ├── Peso
+  ├── Passos
+  └── Distância
+```
+
+Nomes finais devem seguir padrão real de navegação do projeto.
+
+### Estrutura padrão das telas de métricas
+
+Cada tela específica de métrica deve seguir estrutura comum:
+
+```text
+Tela da métrica
+    ↓
+Card do valor atual e ações
+    ↓
+Gráfico
+    ↓
+Lista de histórico
+```
+
+Primeiro card obrigatório:
+
+- valor atual;
+- unidade;
+- data ou horário da leitura;
+- origem, quando relevante;
+- estado sem dados;
+- ações disponíveis para aquela métrica.
+
+Seção de gráfico nesta extensão:
+
+- sem gráfico funcional;
+- sem agregações novas;
+- sem dados fictícios;
+- com estado vazio ou indicação futura.
+
+Seção de histórico nesta extensão:
+
+- sem histórico completo para todas as métricas;
+- sem paginação;
+- sem calendário;
+- sem filtros diário, semanal ou mensal;
+- sem novas queries extensas apenas para preencher UI;
+- pode usar apenas dados já disponíveis quando repository atual suportar isso sem expansão relevante;
+- caso contrário, deve mostrar estado vazio ou indicação futura.
+
+### Frequência cardíaca
+
+Funcionalidade de medição manual já concluída na Fase 08 passa a pertencer à tela específica de frequência cardíaca.
+
+Nesta extensão, a tela de frequência cardíaca deve manter:
+
+- última medição persistida;
+- data e horário;
+- ação para iniciar medição manual;
+- fluxo de preparação;
+- conexão controlada;
+- medição D0/F002;
+- progresso;
+- cancelamento;
+- conclusão;
+- erro e retry;
+- histórico manual simples já implementado, caso exista.
+
+Regras:
+
+- não duplicar coordinator;
+- não duplicar ViewModel de medição manual sem necessidade real;
+- não criar nova implementação D0/F002;
+- tela raiz de Saúde não executa BLE;
+- tela de frequência cardíaca torna-se owner visual da medição manual.
+
+### Peso, passos e distância
+
+Peso nesta extensão:
+
+- usar somente último peso já persistido, quando disponível;
+- sem cadastro/edição completa;
+- sem integração com balança;
+- sem Health Connect;
+- sem gráfico funcional;
+- sem histórico completo.
+
+Passos nesta extensão:
+
+- reutilizar resumo diário persistido da Fase 07;
+- sem segunda sincronização FEA1;
+- sem mover pull-to-refresh da Home sem decisão explícita;
+- sem BLE ao abrir tela;
+- sem calendário;
+- sem agregações semanais ou mensais;
+- sem Health Connect.
+
+Distância nesta extensão:
+
+- reutilizar `DailySummary`;
+- preservar indicação de estimativa;
+- não inventar distância quando dados pessoais forem insuficientes;
+- sem nova coleta BLE;
+- sem GPS;
+- sem histórico completo;
+- sem Health Connect.
+
+### ADR e roadmap
+
+A extensão exige formalização arquitetural antes da implementação visual.
+
+`008-08A` deve planejar e executar depois:
+
+- criação obrigatória de ADR usando próximo número disponível;
+- atualização do roadmap com responsabilidades reais de Fase 08, Fase 09, fase de Perfil, fase de Calendário/Histórico e Fase 12;
+- alinhamento da spec, rotas, estrutura das telas e matriz de rastreabilidade.
+
+`008-08B` só pode começar depois de:
+
+- ADR criada;
+- roadmap atualizado;
+- rotas definidas;
+- spec alinhada.
+
+### Dependências futuras
+
+- D1 continua fora da Fase 08 e permanece responsabilidade da Fase 09;
+- ação futura de buscar dados do relógio pertence à Fase 09;
+- gráfico e histórico completo de frequência cardíaca pertencem à Fase 09;
+- edição e gerenciamento de peso permanecem para fase de Perfil;
+- gráficos e histórico de passos/distância permanecem para fase de Calendário/Histórico;
+- Health Connect permanece fora da Fase 08 e segue para Fase 12.
+
 ## Princípio central
 
 A medição somente pode ser iniciada por ação explícita do usuário.

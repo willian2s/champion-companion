@@ -673,6 +673,219 @@ Implementação inicial registrada em `008-08`:
 - Refresh diário passou a respeitar `ForegroundBleOperationGate`, retornando erro seguro quando medição manual estiver ativa.
 - Home continua sem iniciar BLE para BPM e sem ler estado técnico da PoC.
 
+## Extensao Pos 008-08
+
+Após a conclusão de `008-08`, foi aprovada extensão arquitetural da área Saúde sem reabrir task original. `008-08` permanece responsável pelo que entregou: integração do último BPM persistido na Home, regras de lifecycle da medição, confirmação de saída e respeito ao gate foreground existente.
+
+Extensão passa a ser executada por:
+
+- `008-08A` - formalização arquitetural e documental;
+- `008-08B` - implementação do hub de Saúde e shells das telas de métricas;
+- `008-09` - validação física do estado estendido;
+- `008-10` - encerramento final da fase.
+
+Nova ordem documental:
+
+```text
+008-01
+008-02
+008-03
+008-04
+008-05
+008-06
+008-07
+008-08
+008-08A
+008-08B
+008-09
+008-10
+```
+
+## Hub De Saude
+
+Saúde deixa de ser rota dedicada apenas à medição manual. A rota raiz de Saúde passa a ser hub agregador de métricas persistidas.
+
+Responsabilidades da rota raiz:
+
+- exibir cards de resumo para frequência cardíaca, peso, passos e distância;
+- observar repositories e estados persistidos já existentes;
+- navegar para telas específicas de cada métrica;
+- mostrar estados sem dados sem inventar valores;
+- não iniciar BLE diretamente.
+
+Responsabilidades fora da rota raiz:
+
+- medição manual de BPM fica visualmente owner da tela específica de frequência cardíaca;
+- import D1, histórico rico, gráfico real e Health Connect permanecem fora da implementação imediata.
+
+## Cards De Resumo
+
+Cards obrigatórios na tela principal de Saúde:
+
+- última medição de frequência cardíaca;
+- último peso;
+- passos;
+- distância.
+
+Cada card deve mostrar:
+
+- valor atual disponível;
+- unidade;
+- data ou horário relevante;
+- origem ou indicação de estimativa quando aplicável;
+- estado sem dados;
+- área de toque acessível.
+
+Fontes de dados atuais auditadas:
+
+- frequência cardíaca: `HeartRateRepository.observeLatestValidMeasurement()`;
+- peso: `PersonalMetricsRepository.observeSnapshot()` já deriva de `observeLatestWeight(...)`;
+- passos: `DailySummaryRepository.observeSummaryForDate(...)` via resumo diário persistido;
+- distância: `DailySummary.estimatedDistanceMeters`, preservando semântica de estimativa e ausência segura quando faltarem dados pessoais.
+
+## Navegacao
+
+Navegação continua seguindo ADR-005: `androidx.navigation3` com back stack manual e `AppDestination` serializável.
+
+Rotas conceituais esperadas:
+
+```text
+HealthScreen
+  -> Heart rate detail
+  -> Weight detail
+  -> Steps detail
+  -> Distance detail
+```
+
+Regras obrigatórias para extensão:
+
+- seguir contratos atuais de navegação do projeto;
+- preservar back navigation;
+- não criar `Activity` adicional;
+- não duplicar indevidamente ViewModels;
+- manter owner da medição manual no escopo apropriado;
+- permitir voltar para Saúde após concluir a medição.
+
+Como `AppDestination` hoje contém apenas destinos sem parâmetros e `Health` ainda é rota única, `008-08A` deve definir contratos finais para sub-rotas de métricas antes de `008-08B` editar UI/navegação.
+
+## Tela De Frequencia Cardiaca
+
+Tela específica de frequência cardíaca torna-se superfície visual da funcionalidade manual já entregue.
+
+Deve manter funcionalmente nesta fase:
+
+- última medição persistida;
+- data e horário;
+- ação `Medir frequência cardíaca`;
+- medição manual de 60 segundos;
+- preparação, conexão controlada, `D0 01`, `D0 00`, progresso, cancelamento, conclusão, erro e retry;
+- histórico manual simples já suportado.
+
+Regras obrigatórias:
+
+- não duplicar `ChampionManualHeartRateCoordinator`;
+- não criar nova implementação D0/F002;
+- não reescrever regra do resultado final;
+- compor ou mover UI existente da medição para tela detalhada;
+- raiz de Saúde não continua acoplada diretamente à execução da medição.
+
+Ação futura `Buscar dados do relógio` pode ter slot arquitetural reservado, mas continua fora da Fase 08 e não deve aparecer como ação funcional habilitada.
+
+## Shells De Peso, Passos E Distancia
+
+Peso na extensão `008-08B`:
+
+- usar último peso persistido quando existir;
+- mostrar unidade, data e origem quando disponível;
+- sem fluxo completo de cadastro/edição;
+- sem integração com balança;
+- sem Health Connect.
+
+Passos na extensão `008-08B`:
+
+- reutilizar resumo diário persistido da Fase 07;
+- mostrar passos do dia, meta, progresso, atualização e origem;
+- sem segunda sincronização FEA1;
+- sem BLE ao abrir tela;
+- sem calendário ou agregações novas.
+
+Distância na extensão `008-08B`:
+
+- reutilizar `DailySummary` atual;
+- mostrar valor quando existir;
+- preservar indicação de estimativa;
+- mostrar indisponível quando dados pessoais atuais não permitirem estimativa;
+- sem GPS, sem rota, sem nova coleta BLE.
+
+## Padrao Das Telas De Metricas
+
+Cada tela específica deve seguir estrutura comum:
+
+```text
+Card atual e ações
+    ↓
+Seção de gráfico
+    ↓
+Seção de histórico
+```
+
+Primeiro card obrigatório:
+
+- valor atual;
+- unidade;
+- data ou horário;
+- origem, quando relevante;
+- estado sem dados;
+- ações disponíveis.
+
+Seção de gráfico nesta extensão:
+
+- sem gráfico funcional;
+- sem agregações novas;
+- sem dados simulados;
+- com estado vazio ou copy de funcionalidade futura.
+
+Seção de histórico nesta extensão:
+
+- sem histórico completo para todas métricas;
+- sem paginação;
+- sem calendário;
+- sem filtros diário, semanal ou mensal;
+- usar apenas dados já disponíveis quando repository atual suportar sem expansão relevante;
+- caso contrário, mostrar estado vazio.
+
+Componentes compartilhados podem existir apenas se reduzirem duplicação real entre frequência cardíaca, peso, passos e distância. Não criar framework genérico de métricas.
+
+## Responsabilidades Futuras
+
+Responsabilidades planejadas por fase, a serem formalizadas em `008-08A` com roadmap e ADR:
+
+- Fase 08: hub inicial de Saúde, tela específica de frequência cardíaca, medição manual já entregue, shells de peso/passos/distância e valores atuais vindos de dados já persistidos, sem gráficos e históricos completos.
+- Fase 09: ação `Buscar dados do relógio`, D1, histórico de BPM, gráfico de frequência cardíaca e agregações de frequência cardíaca.
+- Fase 15 atual do roadmap: gráficos e histórico de passos/distância, navegação temporal e consolidação por calendário/histórico.
+- Fase 16 atual do roadmap: edição e gerenciamento de peso e demais dados pessoais.
+- Fase 12: Health Connect, sem assumir que ele vira fonte visual primária das telas.
+
+## Limites Da Extensao
+
+Extensão `008-08A`/`008-08B` não deve:
+
+- reabrir ou reescrever escopo de `008-08`;
+- implementar D1;
+- enviar comando D1;
+- criar parser D1;
+- implementar gráfico real;
+- implementar histórico completo de todas as métricas;
+- criar novas queries extensas só para preencher interface;
+- simular sincronização;
+- usar dados fictícios;
+- implementar Health Connect;
+- criar nova sincronização FEA1;
+- mover pull-to-refresh da Home sem decisão explícita;
+- alterar Room salvo necessidade inevitável comprovada.
+
+Gráficos reais e históricos completos não são requisito de conclusão da Fase 08.
+
 ## Historico Simples
 
 Saude pode mostrar lista simples de recentes manuais, por exemplo:
@@ -809,6 +1022,7 @@ Testes pequenos recomendados junto das tasks:
 - graficos e agregacoes ficam para Fase 09/15;
 - testes Compose amplos ficam para Fase 21;
 - se surgir evidencia nova sobre media real do fluxo manual, revisar protocolo e spec em fase futura.
+- hub de Saúde, rotas de métricas e shells de gráfico/histórico exigem ADR e atualização de roadmap em `008-08A` antes da implementação visual em `008-08B`.
 
 ## Criterios De Aceite
 
@@ -832,6 +1046,11 @@ Testes pequenos recomendados junto das tasks:
 - deduplicacao por sessao funciona;
 - ultima medicao aparece na Saude;
 - ultimo BPM aparece na Home;
+- Saúde raiz atua como hub de métricas sem iniciar BLE diretamente;
+- frequência cardíaca ganha rota/tela específica como owner visual da medição manual;
+- peso, passos e distância ganham telas shell com valor atual e estados vazios seguros;
+- gráfico real não faz parte da Fase 08;
+- histórico completo não faz parte da Fase 08;
 - sem Health Connect;
 - sem D1;
 - debug e release compilam;
@@ -851,7 +1070,15 @@ Testes pequenos recomendados junto das tasks:
 
 ## Definition Of Done
 
-Fase 08 conclui quando a tela Saude executa medicao manual de 60 segundos somente por acao explicita, reutiliza componentes promovidos da PoC, controla ownership BLE foreground sem concorrencia com refresh diario, persiste um unico resultado final valido localmente, exibe ultima medicao na Saude e ultimo BPM na Home, preserva limites de privacidade, compila debug/release, instala no Galaxy S22 e passa smoke manual fisico com Champion C001.
+Fase 08 conclui quando:
+
+- extensao documental `008-08A` formalizar ADR futura, contratos de rotas, matriz de rastreabilidade e atualização posterior do roadmap;
+- `008-08B` transformar Saúde em hub inicial de métricas com cards para frequência cardíaca, peso, passos e distância;
+- medição manual de 60 segundos continuar funcional por ação explícita na tela específica de frequência cardíaca, sem duplicar coordinator nem protocolo;
+- Home continuar observando último BPM persistido sem iniciar BLE para isso;
+- hub e telas de métricas usarem apenas dados persistidos já existentes ou estados vazios seguros;
+- gráficos reais, históricos completos, D1 e Health Connect permanecerem fora da Fase 08;
+- debug/release compilarem, `installDebug` for registrado e fluxo crítico estendido passar por validação física no Galaxy S22 com Champion C001.
 
 ## Matriz De Rastreabilidade
 
@@ -865,5 +1092,7 @@ Fase 08 conclui quando a tela Saude executa medicao manual de 60 segundos soment
 | ViewModel owner e lifecycle de produto | `008-06` |
 | UI da Saude e acessibilidade | `008-07` |
 | Home, lifecycle final, confirmacao de saida, screen awake | `008-08` |
-| Gate reduzido e smoke fisico | `008-09` |
+| Formalizacao arquitetural, ADR futura, roadmap futuro e contratos de rotas | `008-08A` |
+| Hub de Saúde, rotas de métricas e shells de detalhe | `008-08B` |
+| Gate reduzido e smoke fisico da extensao | `008-09` |
 | Fechamento, baseline e divida | `008-10` |

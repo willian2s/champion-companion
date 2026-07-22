@@ -6,26 +6,26 @@ Planejada.
 
 ## Objetivo
 
-Executar gate reduzido e smoke fisico da Fase 08 no Galaxy S22 com Champion C001.
+Executar gate reduzido e smoke fisico da Fase 08 estendida no Galaxy S22 com Champion C001.
 
 ## Contexto
 
-Fluxo manual de BPM depende de comportamento fisico do relogio e de lifecycle BLE real. Build verde nao substitui smoke manual.
+Fluxo manual de BPM e novo hub de Saude dependem de comportamento fisico do relogio, lifecycle BLE real e navegacao real entre cards e telas de metricas. Build verde nao substitui smoke manual.
 
 ## Documentos Obrigatorios
 
 - `AGENTS.md`
 - `docs/specs/008-manual-heart-rate.md`
 - `docs/tasks/008-manual-heart-rate/008-00-overview.md`
-- tasks `008-01` a `008-08`
+- tasks `008-01` a `008-08B`
 
 ## Dependencias
 
-- `008-08`
+- `008-08B`
 
 ## Entradas
 
-- App implementado ate `008-08`.
+- App implementado ate `008-08B`.
 - Galaxy S22.
 - Champion C001.
 
@@ -49,7 +49,7 @@ Fluxo manual de BPM depende de comportamento fisico do relogio e de lifecycle BL
 
 - Rodar comandos obrigatorios.
 - Rodar comandos informativos quando util.
-- Executar smoke fisico da Fase 08.
+- Executar smoke fisico da Fase 08 estendida.
 - Documentar falhas antigas nao relacionadas.
 - Corrigir regressao introduzida pela Fase 08.
 
@@ -65,7 +65,7 @@ Fluxo manual de BPM depende de comportamento fisico do relogio e de lifecycle BL
 2. Executar `./gradlew assembleRelease`.
 3. Executar `./gradlew installDebug`.
 4. Rodar informativos se cabivel: `./gradlew lint`, `./gradlew testDebugUnitTest`.
-5. Executar roteiro manual da spec e overview.
+5. Executar roteiro manual da spec e overview, incluindo hub de Saude e telas de metricas.
 6. Registrar resultado, falhas, evidencias e riscos aceitos.
 7. Atualizar overview.
 
@@ -74,6 +74,7 @@ Fluxo manual de BPM depende de comportamento fisico do relogio e de lifecycle BL
 - Gate obrigatorio registrado.
 - Smoke fisico registrado.
 - Regressao da Fase 08 corrigida ou bloqueio explicito documentado.
+- Hub de Saude, navegacao de metricas e medicao manual movida/composita validados juntos.
 - Ausencia de Health Connect e ausencia de logs de BPM/F002 confirmadas.
 
 ## Testes Pequenos Aplicaveis
@@ -100,4 +101,4 @@ Fluxo manual de BPM depende de comportamento fisico do relogio e de lifecycle BL
 
 ## Validacao Final
 
-- Confirmar ausencia de Health Connect, D1 e persistencia de stream.
+- Confirmar ausencia de Health Connect, D1, persistencia de stream e dados simulados.
