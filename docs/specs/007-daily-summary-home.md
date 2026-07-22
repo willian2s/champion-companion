@@ -37,6 +37,7 @@ Documentos autoritativos:
 - `DailySummaryDao` possui consulta por chave natural e `observeBetween`.
 - `DeviceRepository` não possui operação explícita para atualizar `DeviceImportMetadata` após import.
 - `RepositoryContracts.kt` já reserva contratos-alvo para `DailyStepsSyncCoordinator`, `PersonalMetricsRepository`, `mergeWatchDailySummary(...)` e `updateImportMetadata(...)`; coordinator agora retorna leitura FEA1 fresca consolidável, ainda sem persistência final.
+- `RoomRepositories` agora implementa `mergeWatchDailySummary(...)` com regra de máximo e atualização transacional de `lastImportedAt`, enquanto `save()` antigo continua existindo para outros fluxos legados.
 - `AppPreferencesStore` implementa `AppPreferencesRepository`, mas `AppPreferences` ainda não possui meta diária de passos e Hilt ainda não expõe binding explícito do contrato.
 - `UserProfileDao` e `WeightMeasurementEntity` existem, mas não há contrato de repository para consulta mínima de dados pessoais.
 - `ChampionConnectionManager.currentSession()` já permite reuso de sessão e `ChampionNotificationHub` já suporta subscriptions temporárias, porém `DeviceConnectionBootstrap` ainda não reutiliza sessão ativa por conta própria.

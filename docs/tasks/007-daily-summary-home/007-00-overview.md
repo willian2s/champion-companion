@@ -146,12 +146,19 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - Await de FEA1 agora foi modelado como observação temporária por tentativa, com timeout explícito e sem collector permanente salvando pacote espontâneo.
 - `ChampionDailyStepsSyncCoordinator` agora implementa contrato de `DailyStepsSyncCoordinator` e retorna leitura fresca com `localDate`, `steps`, `collectedAt` e `parserVersion`, sem antecipar persistência.
 
+## Achados De `007-04`
+
+- `RoomRepositories.mergeWatchDailySummary(input)` agora consolida resumo diário do relógio com regra de `max(existingSteps, incomingSteps)`.
+- Leitura igual ou menor preserva resumo existente; leitura maior substitui passos e estimativas.
+- `DeviceImportMetadata.lastImportedAt` e `importParserVersion` agora têm implementação real de atualização em `RoomRepositories`, separadas de `lastSuccessfulConnectionAt`.
+- Nenhuma migration/schema nova foi necessária para cumprir merge atômico da fase.
+
 ## Checklist
 
 - [x] `007-01` auditoria concluída
 - [x] `007-02` contratos e UI state definidos
 - [x] `007-03` parser FEA1 promovido e coordinator criado
-- [ ] `007-04` consolidação atômica implementada
+- [x] `007-04` consolidação atômica implementada
 - [ ] `007-05` meta e estimativas implementadas
 - [ ] `007-06` HomeViewModel criado
 - [ ] `007-07` UI pull-to-refresh criada

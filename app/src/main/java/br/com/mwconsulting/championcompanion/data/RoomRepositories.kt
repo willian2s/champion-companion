@@ -9,7 +9,9 @@ import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEn
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
+import br.com.mwconsulting.championcompanion.core.model.DailySummaryId
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
@@ -22,6 +24,8 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
+import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
+import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
@@ -117,6 +121,26 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(mapped)
     }
 
+    override suspend fun updateImportMetadata(
+        deviceId: DeviceId,
+        importedAt: Instant,
+        parserVersion: br.com.mwconsulting.championcompanion.core.model.ParserVersion,
+    ): RepositoryResult<Device> = write {
+        val existing = database.deviceDao().findById(deviceId.value.toString()) ?: return@write RepositoryResult.NotFound
+        val updated = existing.copy(
+            lastImportedAtEpochMillis = importedAt.toEpochMilli(),
+            importParserVersion = parserVersion.value,
+        )
+        database.deviceDao().update(updated)
+        val associatedAt = database.deviceAssociationDao().findById(PRIMARY_DEVICE_ASSOCIATION_ID)
+            ?.takeIf { it.deviceId == updated.id }
+            ?.associatedAtEpochMillis
+            ?: updated.associatedAtEpochMillis
+        val mapped = updated.toDomain(associatedAtEpochMillis = associatedAt)
+            ?: return@write RepositoryResult.UnexpectedState
+        RepositoryResult.Success(mapped)
+    }
+
     override suspend fun updateKnownMetadata(
         deviceId: DeviceId,
         name: String,
@@ -157,6 +181,45 @@ class RoomRepositories @Inject constructor(
         if (existing == null) database.dailySummaryDao().insert(entity)
         else database.dailySummaryDao().update(entity.copy(id = existing.id))
         RepositoryResult.Success(Unit)
+    }
+
+    override suspend fun mergeWatchDailySummary(input: MergeWatchDailySummaryInput): RepositoryResult<DailySummary> = write {
+        val deviceId = input.deviceId.value.toString()
+        val device = database.deviceDao().findById(deviceId) ?: return@write RepositoryResult.NotFound
+        val existing = database.dailySummaryDao().findByNaturalKey(
+            deviceId = deviceId,
+            origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
+            localDateIso = input.localDate.toString(),
+        )
+
+        val persistedSummary = if (existing == null) {
+            val created = createWatchDailySummary(input) ?: return@write RepositoryResult.UnexpectedState
+            database.dailySummaryDao().insert(created.toEntity())
+            created
+        } else {
+            val nextSummary = if (input.incomingSteps > existing.steps) {
+                val updated = existing.copy(
+                    steps = input.incomingSteps,
+                    estimatedDistanceMeters = input.estimatedDistanceMeters,
+                    estimatedCaloriesKilocalories = input.estimatedCaloriesKilocalories,
+                    collectedAtEpochMillis = input.collectedAt.toEpochMilli(),
+                    updatedAtEpochMillis = input.updatedAt.toEpochMilli(),
+                )
+                database.dailySummaryDao().update(updated)
+                updated.toDomain()
+            } else {
+                existing.toDomain()
+            }
+            nextSummary ?: return@write RepositoryResult.UnexpectedState
+        }
+
+        database.deviceDao().update(
+            device.copy(
+                lastImportedAtEpochMillis = input.updatedAt.toEpochMilli(),
+                importParserVersion = input.parserVersion.value,
+            ),
+        )
+        RepositoryResult.Success(persistedSummary)
     }
 
     override suspend fun import(measurements: List<HeartRateMeasurement>): RepositoryResult<Unit> = write {
@@ -341,6 +404,26 @@ class RoomRepositories @Inject constructor(
             ),
         )
         persisted
+    }
+
+    private fun createWatchDailySummary(input: MergeWatchDailySummaryInput): DailySummary? = when (
+        val created = DailySummary.create(
+            id = DailySummaryId(ids.next()),
+            key = br.com.mwconsulting.championcompanion.core.model.DailySummaryKey(
+                deviceId = input.deviceId,
+                origin = DataOrigin.WATCH_DAILY_SUMMARY,
+                localDate = input.localDate,
+            ),
+            steps = input.incomingSteps,
+            estimatedDistanceMeters = input.estimatedDistanceMeters,
+            estimatedCaloriesKilocalories = input.estimatedCaloriesKilocalories,
+            collectedAt = input.collectedAt,
+            updatedAt = input.updatedAt,
+            validity = br.com.mwconsulting.championcompanion.core.model.DataValidity.VALID,
+        )
+    ) {
+        is DomainResult.Success -> created.value
+        is DomainResult.Failure -> null
     }
 
     private suspend fun transitionSync(id: HealthSyncOperationId, expected: List<String>, next: String, at: Instant?, error: String?, increment: Int = 0): RepositoryResult<Unit> = write {

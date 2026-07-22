@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -95,7 +95,14 @@ Criar operação repository atômica para consolidar FEA1 acumulado em `DailySum
 
 ## Evidência Manual
 
-- Resumo dos testes pequenos executados ou motivo se não executados.
+- `DailySummaryRepository.mergeWatchDailySummary(input)` foi implementado em `RoomRepositories.kt` com `withWriteTransaction` já centralizado no helper `write { ... }`.
+- Para mesma chave natural (`deviceId`, `WATCH_DAILY_SUMMARY`, `localDate`), regra ficou:
+  - sem resumo: cria novo `DailySummary`;
+  - leitura maior: atualiza passos, estimativas, `collectedAt` e `updatedAt`;
+  - leitura igual ou menor: preserva resumo existente, não soma e não reduz.
+- `DeviceRepository.updateImportMetadata(...)` foi implementado para atualizar `lastImportedAt` e `importParserVersion` sem tocar `lastSuccessfulConnectionAt`.
+- `mergeWatchDailySummary(input)` atualiza `DeviceImportMetadata.lastImportedAt` e `importParserVersion` na mesma transação somente após resumo válido estar persistido/preservado com sucesso.
+- Nenhum teste novo foi adicionado ou executado nesta task por orientação explícita do usuário para não investir em testes agora.
 
 ## Atualização Do Overview
 
