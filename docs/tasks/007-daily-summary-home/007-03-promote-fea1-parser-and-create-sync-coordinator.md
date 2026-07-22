@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -96,7 +96,14 @@ Promover parser FEA1 para componente reutilizável único e criar coordinator de
 
 ## Evidência Manual
 
-- Descrever onde parser ficou e como PoC reutiliza.
+- Parser único ficou em `core/bluetooth/ChampionFea1StepsParser.kt`.
+- `feature/device/DevicePocFea1Steps.kt` deixou de ter lógica própria e passou a delegar para `ChampionFea1StepsParser.parse(...)`.
+- `feature/device/DevicePocCoordinator.kt` continua fluxo PoC, mas agora consome resultado do parser promovido.
+- Coordinator novo ficou em `feature/home/ChampionDailyStepsSyncCoordinator.kt`.
+- Coordinator reutiliza `ChampionConnectionManager.currentSession()` quando `transportKey` do associado coincide com sessão ativa; caso contrário usa `DeviceConnectionBootstrap.connectAssociatedDevice(...)`.
+- Await do FEA1 fica temporário por tentativa, usa timeout explícito, exige `packet.observedAt >= startedAt`, mesmo `sessionId` ativo e canal `FEA1_NOTIFY`, e não cria collector permanente de persistência.
+- Coordinator agora implementa `DailyStepsSyncCoordinator` e retorna `DailyStepsRefreshResult` com leitura fresca consolidável, ainda sem chamar persistência.
+- Nenhum teste novo foi mantido nesta task por orientação explícita do usuário para não investir em testes agora.
 
 ## Atualização Do Overview
 

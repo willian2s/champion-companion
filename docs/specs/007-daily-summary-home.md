@@ -32,14 +32,15 @@ Documentos autoritativos:
 - `DeviceConnectionBootstrap` conecta dispositivo associado, faz fallback por scan curto direcionado e executa A1.
 - `ChampionConnectionManager` mantém uma sessão ativa, configura subscriptions default e expõe `currentSession()`.
 - `ChampionNotificationHub` multiplexa notifications e fecha collectors no disconnect.
-- `DevicePocFea1Steps` parseia pacote FEA1 técnico, ainda restrito à feature de device.
+- `ChampionFea1StepsParser` agora centraliza parse FEA1 e `DevicePocFea1Steps` ficou apenas como delegação de compatibilidade para PoC.
 - `DailySummaryRepository.save()` faz upsert simples e pode substituir valor maior por menor.
 - `DailySummaryDao` possui consulta por chave natural e `observeBetween`.
 - `DeviceRepository` não possui operação explícita para atualizar `DeviceImportMetadata` após import.
-- `RepositoryContracts.kt` já reserva contratos-alvo para `DailyStepsSyncCoordinator`, `PersonalMetricsRepository`, `mergeWatchDailySummary(...)` e `updateImportMetadata(...)`, ainda sem implementação.
+- `RepositoryContracts.kt` já reserva contratos-alvo para `DailyStepsSyncCoordinator`, `PersonalMetricsRepository`, `mergeWatchDailySummary(...)` e `updateImportMetadata(...)`; coordinator agora retorna leitura FEA1 fresca consolidável, ainda sem persistência final.
 - `AppPreferencesStore` implementa `AppPreferencesRepository`, mas `AppPreferences` ainda não possui meta diária de passos e Hilt ainda não expõe binding explícito do contrato.
 - `UserProfileDao` e `WeightMeasurementEntity` existem, mas não há contrato de repository para consulta mínima de dados pessoais.
 - `ChampionConnectionManager.currentSession()` já permite reuso de sessão e `ChampionNotificationHub` já suporta subscriptions temporárias, porém `DeviceConnectionBootstrap` ainda não reutiliza sessão ativa por conta própria.
+- `ChampionDailyStepsSyncCoordinator` já observa FEA1 fresco com timeout explícito e sem persistência própria, reaproveitando sessão ativa compatível antes de reconectar.
 - Room está em versão 2 por associação de dispositivo. Schema atual já tem `daily_summaries` e campos de metadados de importação em `devices`.
 
 ## Objetivo

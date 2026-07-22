@@ -71,16 +71,17 @@ interface DailyStepsSyncCoordinator {
 data class DailyStepsRefreshRequest(
     val attempt: DailySyncAttempt,
     val associatedDeviceId: DeviceId,
+    val associatedDevicePlatformIdentifier: String,
     val zoneId: ZoneId,
 )
 
 data class DailySyncAttempt(
     val refreshAttemptId: String,
-    val sessionId: String,
+    val sessionId: String? = null,
     val startedAt: Instant,
 ) {
     fun accepts(packet: FreshPacketCandidate): Boolean =
-        packet.sessionId == sessionId && !packet.observedAt.isBefore(startedAt)
+        sessionId != null && packet.sessionId == sessionId && !packet.observedAt.isBefore(startedAt)
 }
 
 data class FreshPacketCandidate(
@@ -90,8 +91,11 @@ data class FreshPacketCandidate(
 )
 
 data class DailyStepsRefreshResult(
-    val summary: DailySummary,
-    val importedAt: Instant,
+    val attempt: DailySyncAttempt,
+    val deviceId: DeviceId,
+    val localDate: LocalDate,
+    val steps: Long,
+    val collectedAt: Instant,
     val parserVersion: ParserVersion,
 )
 

@@ -136,12 +136,21 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - Contrato de refresh agora tem tentativa explícita com `refreshAttemptId`, `sessionId` e `startedAt`.
 - Contratos futuros mínimos ficaram reservados em `RepositoryContracts.kt`: `mergeWatchDailySummary`, `updateImportMetadata`, `PersonalMetricsRepository` e `DailyStepsSyncCoordinator`.
 - Helper testável de data local ficou centralizado em `LocalDateResolver` e `Instant.toLocalDateIn(zoneId)`.
+- Contrato do coordinator foi refinado depois: `sessionId` da tentativa passou a ser opcional até sessão ativa existir, e request agora também carrega `associatedDevicePlatformIdentifier` para permitir reuso de sessão ou bootstrap sem lookup extra.
+
+## Achados De `007-03`
+
+- Parser FEA1 foi promovido para `core/bluetooth/ChampionFea1StepsParser.kt` e PoC passou a reutilizá-lo.
+- Coordinator concreto atual ficou em `feature/home/ChampionDailyStepsSyncCoordinator.kt`, ainda sem persistência final.
+- Reuso de sessão foi implementado no coordinator, não no bootstrap: sessão ativa com mesmo `transportKey` segue reutilizável; demais casos continuam pelo `DeviceConnectionBootstrap`.
+- Await de FEA1 agora foi modelado como observação temporária por tentativa, com timeout explícito e sem collector permanente salvando pacote espontâneo.
+- `ChampionDailyStepsSyncCoordinator` agora implementa contrato de `DailyStepsSyncCoordinator` e retorna leitura fresca com `localDate`, `steps`, `collectedAt` e `parserVersion`, sem antecipar persistência.
 
 ## Checklist
 
 - [x] `007-01` auditoria concluída
 - [x] `007-02` contratos e UI state definidos
-- [ ] `007-03` parser FEA1 promovido e coordinator criado
+- [x] `007-03` parser FEA1 promovido e coordinator criado
 - [ ] `007-04` consolidação atômica implementada
 - [ ] `007-05` meta e estimativas implementadas
 - [ ] `007-06` HomeViewModel criado
