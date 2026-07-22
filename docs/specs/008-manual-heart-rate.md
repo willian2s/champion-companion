@@ -36,9 +36,11 @@ Documentos autoritativos:
 - `DevicePocCoordinator` ja implementa state machine tecnica debug com D0/F002, guards por `activeSessionId` e `activeHeartRateSessionId`, e cleanup de jobs/buffer.
 - `DevicePocHeartRateSession` ja cria `D0 01`, `D0 00`, parseia D0 e parseia F002 little-endian com buffer limitado.
 - `DevicePocF002BpmEstimator` ja calcula estimativa F002, qualidade e selecao final `D0_CURRENT -> F002_ESTIMATE -> UNAVAILABLE`.
+- `ChampionDailyStepsSyncCoordinator` ja tenta reusar `currentSession()` compativel antes de reconectar, mas esse reuso ainda nao constitui gate global de ownership foreground.
 - `core/model/HeartRateAndSync.kt` ja possui `HeartRateSource.MANUAL_MEASUREMENT`, `HeartRateSource.MEASUREMENT_STREAM` e `HeartRateDeduplicationKey.MeasurementSession`.
 - `HeartRateRepository` ainda so expone `import()` e `findPendingSync()`. Nao ha API para persistir medicao manual final nem para observar ultima medicao ou recentes.
 - `ChampionDatabase` v2 e `heart_rate_measurements` ja contem `source`, `bpm`, `measuredAtEpochMillis`, `deviceId`, `parserVersion` e `deduplicationKey` unico. Auditoria atual nao mostrou necessidade de migration para Fase 08.
+- `DeviceConnectionBootstrap` ainda nao reutiliza sessao ativa por conta propria; fluxos de produto que quiserem reuso precisam decidir isso antes de chamar bootstrap ou evolui-lo de forma compartilhada.
 
 ## Objetivo
 
@@ -180,6 +182,14 @@ flowchart LR
 ```
 
 `ChampionConnectionManager` ja detem unica sessao BLE ativa. Fase 08 adiciona gate de produto acima dele para impedir que `MANUAL_HEART_RATE` e `DAILY_STEPS_REFRESH` controlem mesma sessao ao mesmo tempo.
+
+Auditoria de `008-01` confirmou risco real por implementacao atual:
+
+- `ChampionConnectionManager.connect()` chama `disconnect(CLEANUP)` antes de abrir nova sessao;
+- `ChampionDailyStepsSyncCoordinator` so usa `currentSession()` como cheque de reuso, sem ownership atomico;
+- `DeviceManagementViewModel` ainda pode disparar auto-connect controlado do associado ao entrar na tela.
+
+Portanto gate foreground compartilhado nao e opcional de UX; e requisito tecnico para evitar teardown cruzado de sessao BLE entre Home, Dispositivo e medicao manual.
 
 ## Conexao E Handshake
 

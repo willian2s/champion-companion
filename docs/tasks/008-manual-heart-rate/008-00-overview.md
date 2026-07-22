@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada. Nenhuma task da Fase 08 executada ainda.
+Em andamento. `008-01` concluida em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -44,6 +44,16 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `HeartRateSource.MANUAL_MEASUREMENT` e `HeartRateDeduplicationKey.MeasurementSession` ja existem no dominio.
 - `HeartRateRepository` ainda nao expone save/observe para medicao manual.
 - schema `heart_rate_measurements` atual ja parece suficiente para um unico resultado final por sessao.
+
+## Achados De `008-01`
+
+- `HealthScreen.kt` segue placeholder e `HealthFeatureContract.kt` ainda nao possui estado/intents reais de produto.
+- MotionLog manual da Saude confirmou politica final `ultimo D0 valido -> estimativa F002 -> null`; auditoria nao encontrou media nova no fechamento da sessao manual de 60s.
+- `DevicePocCoordinator`, `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator` ja concentram builder/parsers/buffer/estimador e cleanup tecnico reutilizavel, ainda presos ao escopo PoC debug.
+- `HeartRateSource.MANUAL_MEASUREMENT`, `HeartRateDeduplicationKey.MeasurementSession` e schema `heart_rate_measurements` v2 ja suportam resultado manual final sem migration.
+- `HeartRateRepository`, `HeartRateDao` e `RoomRepositories` ainda nao expoem save manual final, ultima medicao valida ou recentes manuais.
+- `ChampionConnectionManager` segue owner da unica sessao BLE ativa e `connect()` continua derrubando sessao atual antes de nova conexao.
+- `ChampionDailyStepsSyncCoordinator` reusa sessao ativa compativel, mas esse reuso nao e ownership atomico nem gate global; falta coordenacao cross-feature entre Home, Dispositivo e futura medicao manual.
 
 ## Estado Herdado
 
@@ -138,7 +148,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 
 ## Checklist
 
-- [ ] `008-01` auditoria de estado real, MotionLog e regra da media concluida
+- [x] `008-01` auditoria de estado real, MotionLog e regra da media concluida
 - [ ] `008-02` contratos, state machine e gate BLE definidos
 - [ ] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
 - [ ] `008-04` coordinator manual implementado
