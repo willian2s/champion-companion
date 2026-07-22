@@ -650,6 +650,13 @@ flowchart TD
 - historico preservado;
 - acesso para `Dispositivo` quando aplicavel.
 
+Implementação inicial registrada em `008-07`:
+
+- `HealthScreen` agora coleta `HealthViewModel` e renderiza todos estados de `HealthSurfaceState` sem iniciar medição automaticamente.
+- Sessão ativa mostra BPM em destaque, indicador discreto para valor estimado, tempo restante, progresso e qualidade de sinal.
+- Última medição e lista simples de recentes aparecem na tela Saúde com formatação local e copy segura em pt-BR.
+- Saída por back durante sessão ativa pede confirmação; ida para background delega cancelamento ao `HealthViewModel`.
+
 ## Home
 
 ```mermaid

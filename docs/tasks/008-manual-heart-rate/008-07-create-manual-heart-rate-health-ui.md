@@ -2,7 +2,16 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-22.
+
+## Resultado
+
+- `HealthScreen` deixou de ser placeholder e passou a coletar `HealthViewModel` como fonte única de estado da tela Saúde.
+- A UI agora cobre `Idle`, `Preparing`, `Connecting`, `Starting`, `Measuring`, `Stopping`, `Completed`, `Cancelled` e `Failed` sem mover detalhes de protocolo ou BLE para Compose.
+- Estado de medição exibe BPM grande, valor estimado quando aplicável, qualidade de sinal, tempo restante, progresso e CTA de cancelamento.
+- Estados `Completed`, `Cancelled` e `Failed` receberam feedback de produto em pt-BR, com ações de concluir, medir novamente, fechar aviso e tentar novamente.
+- A tela também mostra última medição e histórico simples de medições recentes fora da sessão ativa.
+- `BackHandler` com confirmação de saída e hook de lifecycle para `AppMovedToBackground` foram adicionados sem introduzir auto start.
 
 ## Objetivo
 
@@ -92,6 +101,16 @@ Fase 08 precisa superficie final de produto na Saude, mas sem mover protocol/BLE
 
 - Descrever estados visuais implementados e como cada um liga ao `HealthUiState`.
 
+- `HealthUiState.surfaceState` define bloco principal da tela:
+  - `Idle`: CTA principal e orientação para medição manual.
+  - `Preparing`, `Connecting`, `Starting`, `Measuring`, `Stopping`: card de progresso da sessão.
+  - `Completed`: confirmação de salvamento com resultado final.
+  - `Cancelled`: aviso de cancelamento sem persistência parcial.
+  - `Failed`: erro seguro com retry quando aplicável.
+- `HealthUiState.latestMeasurement` alimenta card da última medição.
+- `HealthUiState.recentMeasurements` alimenta lista simples de recentes.
+- `HealthUiState.hasAssociatedDevice` controla disponibilidade do CTA principal.
+
 ## Atualizacao Do Overview
 
 - Marcar `008-07` como concluida.
@@ -99,3 +118,5 @@ Fase 08 precisa superficie final de produto na Saude, mas sem mover protocol/BLE
 ## Validacao Final
 
 - Confirmar ausencia de auto start ao abrir a tela.
+
+- Confirmado: abrir a tela envia apenas `HealthIntent.Load`; a medição só começa após toque explícito em `Medir frequência cardíaca`.

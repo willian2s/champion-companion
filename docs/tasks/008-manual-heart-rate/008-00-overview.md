@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05` e `008-06` concluidas em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01`, `008-02`, `008-03`, `008-04`, `008-05`, `008-06` e `008-07` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -98,6 +98,15 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - Resultado `Completed` do coordinator agora passa por persistência no ViewModel antes de fechar sessão como concluída; falha de storage vira erro seguro `STORAGE_FAILED`.
 - `CancelMeasurement`, `ConfirmExitMeasurement` e novo intent `AppMovedToBackground` cancelam sessão sem persistir parcial.
 - Testes pequenos cobrem ausência de auto-start em `Load`, persistência do resultado válido, cancelamento em background sem persistência e conflito de gate virando erro seguro.
+
+## Achados De `008-07`
+
+- `HealthScreen` deixou de ser placeholder e agora coleta `HealthViewModel` diretamente, enviando `Load` sem auto-start e `AppMovedToBackground` ao sair para background.
+- UI passou a renderizar estados `Idle`, `Preparing`, `Connecting`, `Starting`, `Measuring`, `Stopping`, `Completed`, `Cancelled` e `Failed` a partir de `HealthSurfaceState`.
+- Sessão ativa mostra BPM grande, indicador discreto de valor estimado, qualidade do sinal, tempo restante, progresso e CTA de cancelamento.
+- `Completed`, `Cancelled` e `Failed` agora mostram feedback de produto com copy segura em pt-BR e ações compatíveis com retry, dismiss e nova medição.
+- Última medição e lista simples de recentes ficaram visíveis na própria tela Saúde, sem acesso direto a BLE, DAO ou repository pela Compose.
+- `BackHandler` e diálogo de confirmação passaram a proteger saída durante sessão ativa sem introduzir start automático.
 
 ## Estado Herdado
 
@@ -200,7 +209,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `008-04` coordinator manual implementado
 - [x] `008-05` persistencia final, deduplicacao e queries implementadas
 - [x] `008-06` `HealthViewModel` criado
-- [ ] `008-07` UI da Saude criada
+- [x] `008-07` UI da Saude criada
 - [ ] `008-08` Home, lifecycle, confirmacao de saida e integracao final implementados
 - [ ] `008-09` gate reduzido e smoke fisico executados
 - [ ] `008-10` fechamento, baseline e divida consolidados
