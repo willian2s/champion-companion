@@ -10,6 +10,8 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidBleEn
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshFailure
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshOutcome
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshRequest
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
@@ -20,16 +22,18 @@ import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
-import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.toLocalDateIn
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +42,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
@@ -95,13 +100,19 @@ class HomeViewModel @Inject constructor(
                 )
             }.collect { mutableState.value = it }
         }
+
+        viewModelScope.launch {
+            while (isActive) {
+                delay(millisUntilNextMidnight())
+                refreshObservedDate()
+            }
+        }
     }
 
     override fun onIntent(intent: HomeIntent) {
         when (intent) {
             HomeIntent.Load -> {
-                observedDate.value = LocalDate.now()
-                environment.value = bleEnvironment.snapshot()
+                refreshObservedDate()
             }
 
             HomeIntent.Refresh,
@@ -114,13 +125,12 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun refresh() {
-        if (refreshState.value.isRefreshing) return
-        refreshMutex.lock()
+        if (!refreshMutex.tryLock()) return
 
         val previousSuccess = refreshState.value.lastSuccessfulRefreshAt
         try {
-            observedDate.value = LocalDate.now()
-            environment.value = bleEnvironment.snapshot()
+            if (refreshState.value.isRefreshing) return
+            refreshObservedDate()
 
             val associatedDevice = deviceRepository.observeAssociatedDevice().first()
             if (associatedDevice == null) {
@@ -179,40 +189,10 @@ class HomeViewModel @Inject constructor(
                     zoneId = ZoneId.systemDefault(),
                 ),
             )) {
-                is RepositoryResult.Success -> result.value
-                is RepositoryResult.NotFound -> {
+                is DailyStepsRefreshOutcome.Success -> result.value
+                is DailyStepsRefreshOutcome.Failure -> {
                     refreshState.value = HomeRefreshState(
-                        error = HomeRefreshError(
-                            category = HomeRefreshErrorCategory.CONNECTION_FAILED,
-                            message = "Nao foi possivel localizar relogio associado.",
-                            isRetryable = true,
-                        ),
-                        lastSuccessfulRefreshAt = previousSuccess,
-                    )
-                    return
-                }
-
-                RepositoryResult.StorageUnavailable -> {
-                    refreshState.value = HomeRefreshState(
-                        error = HomeRefreshError(
-                            category = HomeRefreshErrorCategory.STORAGE,
-                            message = "Nao foi possivel atualizar resumo local.",
-                            isRetryable = true,
-                        ),
-                        lastSuccessfulRefreshAt = previousSuccess,
-                    )
-                    return
-                }
-
-                RepositoryResult.Conflict,
-                RepositoryResult.UnexpectedState,
-                -> {
-                    refreshState.value = HomeRefreshState(
-                        error = HomeRefreshError(
-                            category = HomeRefreshErrorCategory.INTERNAL,
-                            message = "Nao foi possivel concluir sincronizacao.",
-                            isRetryable = true,
-                        ),
+                        error = result.reason.toHomeRefreshError(),
                         lastSuccessfulRefreshAt = previousSuccess,
                     )
                     return
@@ -245,6 +225,7 @@ class HomeViewModel @Inject constructor(
                 )
             ) {
                 is RepositoryResult.Success -> {
+                    observedDate.value = refreshResult.collectedAt.toLocalDateIn(ZoneId.systemDefault())
                     refreshState.value = HomeRefreshState(lastSuccessfulRefreshAt = updatedAt)
                 }
 
@@ -274,6 +255,7 @@ class HomeViewModel @Inject constructor(
                 }
             }
         } finally {
+            refreshObservedDate()
             refreshState.update { current -> current.copy(activeOperation = null) }
             refreshMutex.unlock()
         }
@@ -389,12 +371,65 @@ class HomeViewModel @Inject constructor(
         )
     }
 
+    private fun DailyStepsRefreshFailure.toHomeRefreshError(): HomeRefreshError = when (this) {
+        DailyStepsRefreshFailure.DEVICE_NOT_FOUND -> HomeRefreshError(
+            category = HomeRefreshErrorCategory.CONNECTION_FAILED,
+            message = "Nao foi possivel localizar relogio associado.",
+            isRetryable = true,
+        )
+
+        DailyStepsRefreshFailure.CONNECTION_FAILED -> HomeRefreshError(
+            category = HomeRefreshErrorCategory.CONNECTION_FAILED,
+            message = "Nao foi possivel conectar ou manter sessao com relogio.",
+            isRetryable = true,
+        )
+
+        DailyStepsRefreshFailure.TIMEOUT -> HomeRefreshError(
+            category = HomeRefreshErrorCategory.TIMEOUT,
+            message = "Tempo limite atingido aguardando dados do relogio.",
+            isRetryable = true,
+        )
+
+        DailyStepsRefreshFailure.INVALID_PACKET -> HomeRefreshError(
+            category = HomeRefreshErrorCategory.INVALID_PACKET,
+            message = "O relogio respondeu com pacote invalido para esta sincronizacao.",
+            isRetryable = true,
+        )
+
+        DailyStepsRefreshFailure.CANCELLED -> HomeRefreshError(
+            category = HomeRefreshErrorCategory.CANCELLED,
+            message = "Sincronizacao cancelada antes de concluir leitura valida.",
+            isRetryable = true,
+        )
+
+        DailyStepsRefreshFailure.INTERNAL -> HomeRefreshError(
+            category = HomeRefreshErrorCategory.INTERNAL,
+            message = "Nao foi possivel concluir sincronizacao.",
+            isRetryable = true,
+        )
+    }
+
     private fun br.com.mwconsulting.championcompanion.core.model.DailySyncAttempt.toHomeRefreshAttempt(): HomeRefreshAttempt =
         HomeRefreshAttempt(
             refreshAttemptId = refreshAttemptId,
             sessionId = sessionId,
             startedAt = startedAt,
         )
+
+    private fun refreshObservedDate() {
+        observedDate.value = Instant.now().toLocalDateIn(ZoneId.systemDefault())
+        environment.value = bleEnvironment.snapshot()
+    }
+
+    private fun millisUntilNextMidnight(now: Instant = Instant.now(), zoneId: ZoneId = ZoneId.systemDefault()): Long {
+        val nextMidnight = now
+            .atZone(zoneId)
+            .toLocalDate()
+            .plusDays(1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+        return Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1_000L)
+    }
 
     private data class HomeObservedContent(
         val observedDate: LocalDate,

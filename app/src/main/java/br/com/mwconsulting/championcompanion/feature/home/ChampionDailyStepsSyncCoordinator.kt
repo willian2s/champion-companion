@@ -10,12 +10,13 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionOperationTyp
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionSessionId
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshFailure
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshOutcome
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshRequest
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshResult
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.DailySyncAttempt
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
-import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.toLocalDateIn
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
 import java.time.Instant
@@ -35,10 +36,12 @@ class ChampionDailyStepsSyncCoordinator @Inject constructor(
 ) : DailyStepsSyncCoordinator {
     private val refreshMutex = Mutex()
 
-    override suspend fun refresh(request: DailyStepsRefreshRequest): RepositoryResult<DailyStepsRefreshResult> {
+    override suspend fun refresh(request: DailyStepsRefreshRequest): DailyStepsRefreshOutcome {
         val parserVersion = when (val version = ParserVersion.create(ChampionFea1StepsParser.parserVersion)) {
             is br.com.mwconsulting.championcompanion.core.model.DomainResult.Success -> version.value
-            is br.com.mwconsulting.championcompanion.core.model.DomainResult.Failure -> return RepositoryResult.UnexpectedState
+            is br.com.mwconsulting.championcompanion.core.model.DomainResult.Failure -> return DailyStepsRefreshOutcome.Failure(
+                DailyStepsRefreshFailure.INTERNAL,
+            )
         }
         return when (
             val result = awaitFreshSteps(
@@ -51,8 +54,8 @@ class ChampionDailyStepsSyncCoordinator @Inject constructor(
                 attempt = request.attempt,
             )
         ) {
-            is ChampionBleResult.Failure -> result.error.toRepositoryFailure()
-            is ChampionBleResult.Success -> RepositoryResult.Success(
+            is ChampionBleResult.Failure -> DailyStepsRefreshOutcome.Failure(result.error.toRefreshFailure())
+            is ChampionBleResult.Success -> DailyStepsRefreshOutcome.Success(
                 DailyStepsRefreshResult(
                     attempt = result.value.attempt,
                     deviceId = request.associatedDeviceId,
@@ -162,9 +165,27 @@ class ChampionDailyStepsSyncCoordinator @Inject constructor(
         val collectedAt: Instant,
     )
 
-    private fun ChampionBleError.toRepositoryFailure(): RepositoryResult<DailyStepsRefreshResult> = when (this) {
-        ChampionBleError.DeviceNotFound -> RepositoryResult.NotFound
-        else -> RepositoryResult.UnexpectedState
+    private fun ChampionBleError.toRefreshFailure(): DailyStepsRefreshFailure = when (this) {
+        ChampionBleError.DeviceNotFound -> DailyStepsRefreshFailure.DEVICE_NOT_FOUND
+        is ChampionBleError.ConnectionFailed,
+        is ChampionBleError.UnexpectedDisconnect,
+        is ChampionBleError.DiscoveryFailed,
+        is ChampionBleError.SubscriptionFailed,
+        is ChampionBleError.MissingOptionalChannel,
+        is ChampionBleError.MissingRequiredChannel,
+        is ChampionBleError.MissingRequiredService,
+        is ChampionBleError.OperationRejected,
+        is ChampionBleError.CallbackFailure,
+        -> DailyStepsRefreshFailure.CONNECTION_FAILED
+
+        is ChampionBleError.Timeout -> DailyStepsRefreshFailure.TIMEOUT
+        is ChampionBleError.InvalidPayload -> DailyStepsRefreshFailure.INVALID_PACKET
+        is ChampionBleError.OperationCancelled,
+        ChampionBleError.CleanupInProgress,
+        is ChampionBleError.QueueClosed,
+        -> DailyStepsRefreshFailure.CANCELLED
+
+        else -> DailyStepsRefreshFailure.INTERNAL
     }
 
     private fun Throwable.isExpectedObserverShutdown(): Boolean =

@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -111,11 +111,23 @@ Após ViewModel, coordinator, merge e UI existirem, a fase precisa provar opera�
 
 ## Evidência Manual
 
-- Registrar cenários simulados/inspecionados e limitações.
+- Pipeline de `Refresh` e `Retry` permanece único na Home e chega ao mesmo `refresh()` do `HomeViewModel`.
+- Concorrência agora é ignorada sem fila usando `Mutex.tryLock()`, evitando segunda tentativa pendente após gesto duplo.
+- `HomeViewModel` reavalia `observedDate` em foreground, antes de novo refresh e por timer local até próxima meia-noite.
+- Coordinator agora devolve falha tipada para timeout, payload inválido, cancelamento, falha de conexão e dispositivo não encontrado, permitindo erro seguro mais preciso na Home.
+- `./gradlew assembleDebug` executado com sucesso neste trabalho.
 
 ## Atualização Do Overview
 
 - Marcar `007-08` como concluída.
+
+## Resultado Entregue
+
+- `HomeViewModel` ganhou refresh sem enfileiramento concorrente e cleanup garantido em `finally`.
+- Estado de erro da Home agora diferencia `TIMEOUT`, `INVALID_PACKET`, `CANCELLED` e `CONNECTION_FAILED` sem importar payload ou detalhe sensível.
+- `ChampionDailyStepsSyncCoordinator` passou a retornar outcome explícito de sync diário, preservando sucesso e motivo seguro de falha.
+- Mudança de dia agora reavalia a data observada ao voltar ao foreground, ao iniciar refresh e ao cruzar meia-noite com tela viva.
+- Sucesso de sync passa a alinhar `observedDate` com `collectedAt` do pacote fresco persistido.
 
 ## Validação Final
 

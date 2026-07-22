@@ -65,7 +65,21 @@ data class PersonalMetricsSnapshot(
 )
 
 interface DailyStepsSyncCoordinator {
-    suspend fun refresh(request: DailyStepsRefreshRequest): RepositoryResult<DailyStepsRefreshResult>
+    suspend fun refresh(request: DailyStepsRefreshRequest): DailyStepsRefreshOutcome
+}
+
+sealed interface DailyStepsRefreshOutcome {
+    data class Success(val value: DailyStepsRefreshResult) : DailyStepsRefreshOutcome
+    data class Failure(val reason: DailyStepsRefreshFailure) : DailyStepsRefreshOutcome
+}
+
+enum class DailyStepsRefreshFailure {
+    DEVICE_NOT_FOUND,
+    CONNECTION_FAILED,
+    TIMEOUT,
+    INVALID_PACKET,
+    CANCELLED,
+    INTERNAL,
 }
 
 data class DailyStepsRefreshRequest(

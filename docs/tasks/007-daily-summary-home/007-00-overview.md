@@ -177,6 +177,14 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - Estado vazio aceita pull-to-refresh, mostra instrução de uso e expõe ação acessível para atualizar sem introduzir botão permanente de sync no estado normal.
 - Erro seguro mantém resumo anterior visível e oferece `Tentar novamente` apenas no estado de erro.
 
+## Achados De `007-08`
+
+- `Refresh` e `Retry` seguem o mesmo pipeline no `HomeViewModel`, sem segunda tentativa enfileirada quando gesto concorrente ocorre.
+- `ChampionDailyStepsSyncCoordinator` agora retorna outcome explícito de sync, permitindo diferenciar timeout, payload inválido, cancelamento, conexão e dispositivo não encontrado.
+- Cleanup de refresh continua garantido em `finally`, com barra encerrando ao limpar `activeOperation` em qualquer caminho.
+- `observedDate` da Home agora é reavaliada ao voltar ao foreground, ao iniciar refresh e por timer local até a próxima meia-noite, sem criar sync automático.
+- Sucesso de sync alinha o dia observado ao `collectedAt` persistido, evitando misturar dia anterior e novo dia quando a leitura válida cruza meia-noite.
+
 ## Checklist
 
 - [x] `007-01` auditoria concluída
@@ -186,7 +194,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação e d�
 - [x] `007-05` meta e estimativas implementadas
 - [x] `007-06` HomeViewModel criado
 - [x] `007-07` UI pull-to-refresh criada
-- [ ] `007-08` progresso, retry e day rollover integrados
+- [x] `007-08` progresso, retry e day rollover integrados
 - [ ] `007-09` validação manual executada
 - [ ] `007-10` fase fechada
 
