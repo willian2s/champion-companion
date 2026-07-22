@@ -190,14 +190,10 @@ private fun HomeSurface(
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    HomeLatestHeartRateCard(
-        latestHeartRate = state.latestHeartRate,
-        modifier = Modifier.fillMaxWidth(),
-    )
-
     state.summary?.let { summary ->
         HomeSummaryContent(
             summary = summary,
+            latestHeartRate = state.latestHeartRate,
             watch = state.watch,
             pendingActivities = state.pendingActivities,
             modifier = Modifier.fillMaxWidth(),
@@ -207,27 +203,27 @@ private fun HomeSurface(
     when (state.surfaceState) {
         HomeSurfaceState.Loading -> LoadingState(
             label = "Carregando Home",
-            message = "Preparando resumo diario e status do relogio.",
+            message = "Preparando resumo diário e status do relógio.",
             modifier = Modifier.fillMaxWidth(),
         )
 
         HomeSurfaceState.Empty -> EmptyState(
             title = "Sem resumo de hoje",
-            message = "Puxe para baixo para sincronizar dados do relogio. Leitores de tela podem usar acao Atualizar dados do relogio.",
+            message = "Puxe para baixo para sincronizar os dados do relógio. Leitores de tela podem usar a ação Atualizar dados do relógio.",
             modifier = Modifier.fillMaxWidth(),
         )
 
         HomeSurfaceState.DeviceRequired -> ErrorState(
-            title = "Associe um relogio",
-            message = "Nenhum relogio principal foi associado. Abra Dispositivo para concluir configuracao.",
+            title = "Associe um relógio",
+            message = "Nenhum relógio principal foi associado. Abra Dispositivo para concluir a configuração.",
             actionLabel = "Abrir Dispositivo",
             onAction = onOpenDevice,
             modifier = Modifier.fillMaxWidth(),
         )
 
         HomeSurfaceState.PermissionsRequired -> ErrorState(
-            title = "Permissoes necessarias",
-            message = "Permissoes de Bluetooth sao necessarias para atualizar resumo diario.",
+            title = "Permissões necessárias",
+            message = "Permissões de Bluetooth são necessárias para atualizar o resumo diário.",
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -239,7 +235,7 @@ private fun HomeSurface(
 
         HomeSurfaceState.RefreshFailed -> state.refresh.error?.let { error ->
             ErrorState(
-                title = "Nao foi possivel atualizar dados",
+                title = "Não foi possível atualizar os dados",
                 message = error.message,
                 actionLabel = if (error.isRetryable) "Tentar novamente" else null,
                 onAction = if (error.isRetryable) onRetry else null,
@@ -253,11 +249,19 @@ private fun HomeSurface(
     if (state.surfaceState == HomeSurfaceState.Empty && state.summary == null) {
         HomeRefreshHint(onRefresh = onRefresh)
     }
+
+    if (state.summary == null) {
+        HomeLatestHeartRateCard(
+            latestHeartRate = state.latestHeartRate,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 @Composable
 private fun HomeSummaryContent(
     summary: HomeDailySummaryModel,
+    latestHeartRate: HomeLatestHeartRateModel?,
     watch: HomeWatchSnapshot,
     pendingActivities: List<HomePendingActivityModel>,
     modifier: Modifier = Modifier,
@@ -267,7 +271,7 @@ private fun HomeSummaryContent(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
     ) {
         HealthCard(
-            title = "Resumo diario",
+            title = "Resumo diário",
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
@@ -287,12 +291,17 @@ private fun HomeSummaryContent(
                     .padding(top = ChampionSpacing.medium),
             )
             Text(
-                text = "Puxe para baixo para atualizar dados do relogio.",
+                text = "Puxe para baixo para atualizar os dados do relógio.",
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+
+        HomeLatestHeartRateCard(
+            latestHeartRate = latestHeartRate,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -360,7 +369,7 @@ private fun HomeRefreshStatus(
 ) {
     val message = when {
         refresh.isRefreshing -> refresh.refreshStage.toStatusMessage()
-        refresh.error != null -> "Nao foi possivel atualizar os dados."
+        refresh.error != null -> "Não foi possível atualizar os dados."
         else -> null
     } ?: return
 
@@ -388,11 +397,11 @@ private fun HomeRefreshHint(onRefresh: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
             Text(
-                text = "Atualizacao manual",
+                text = "Atualização manual",
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = "Puxe para baixo para sincronizar resumo diario. Se usar leitor de tela, acione Atualizar dados do relogio nas acoes disponiveis.",
+                text = "Puxe para baixo para sincronizar o resumo diário. Se usar leitor de tela, acione Atualizar dados do relógio nas ações disponíveis.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -410,7 +419,7 @@ private fun HomeMetadataFooter(
     lastImportedAt: Instant?,
 ) {
     Text(
-        text = "Ultima sync: ${lastImportedAt?.let(::formatDateTime) ?: "Sem sincronizacao"}",
+        text = "Última sincronização: ${lastImportedAt?.let(::formatDateTime) ?: "Sem sincronização"}",
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
@@ -469,7 +478,7 @@ private fun WatchStatusButton(
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick)
             .semantics {
-                contentDescription = "Abrir Dispositivo. Status do relogio: ${status.label}"
+                contentDescription = "Abrir Dispositivo. Status do relógio: ${status.label}"
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -520,7 +529,7 @@ private enum class HomeWatchStatus(
     Connecting("Conectando"),
     Pending("Pendente"),
     BluetoothDisabled("Bluetooth desligado"),
-    PermissionsRequired("Permissoes pendentes"),
+    PermissionsRequired("Permissões pendentes"),
 }
 
 @Composable
@@ -544,11 +553,11 @@ private fun HomeWatchSnapshot.toHomeWatchStatus(): HomeWatchStatus = when (conne
 }
 
 private fun HomeRefreshStage?.toStatusMessage(): String = when (this) {
-    HomeRefreshStage.Preparing -> "Preparando sincronizacao..."
-    HomeRefreshStage.Connecting -> "Conectando ao relogio..."
-    HomeRefreshStage.WaitingForSteps -> "Aguardando dados do relogio..."
+    HomeRefreshStage.Preparing -> "Preparando sincronização..."
+    HomeRefreshStage.Connecting -> "Conectando ao relógio..."
+    HomeRefreshStage.WaitingForSteps -> "Aguardando os dados do relógio..."
     HomeRefreshStage.Persisting -> "Atualizando resumo..."
-    null -> "Sincronizando dados do relogio"
+    null -> "Sincronizando os dados do relógio"
 }
 
 private fun formatSteps(steps: Long): String = numberFormat().format(steps)
@@ -561,13 +570,13 @@ private fun formatPercent(progress: Float): String {
 }
 
 private fun formatDistance(distanceMeters: Double?): String {
-    if (distanceMeters == null) return "Indisponivel"
+    if (distanceMeters == null) return "Indisponível"
     val kilometers = distanceMeters / 1000.0
     return "${decimalFormat().format(kilometers)} km"
 }
 
 private fun formatCalories(calories: Double?): String {
-    if (calories == null) return "Indisponivel"
+    if (calories == null) return "Indisponível"
     return "${decimalFormat().format(calories)} kcal"
 }
 

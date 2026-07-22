@@ -150,7 +150,7 @@ class HomeViewModel @Inject constructor(
                 refreshState.value = HomeRefreshState(
                     error = HomeRefreshError(
                         category = HomeRefreshErrorCategory.NO_ASSOCIATED_DEVICE,
-                        message = "Nenhum relogio associado para sincronizar.",
+                        message = "Nenhum relógio associado foi encontrado para sincronizar.",
                         isRetryable = false,
                     ),
                     lastSuccessfulRefreshAt = previousSuccess,
@@ -269,7 +269,7 @@ class HomeViewModel @Inject constructor(
                     refreshState.value = HomeRefreshState(
                         error = HomeRefreshError(
                             category = HomeRefreshErrorCategory.STORAGE,
-                            message = "Nao foi possivel persistir resumo do dia.",
+                            message = "Não foi possível salvar o resumo do dia.",
                             isRetryable = true,
                         ),
                         lastSuccessfulRefreshAt = previousSuccess,
@@ -283,7 +283,7 @@ class HomeViewModel @Inject constructor(
                     refreshState.value = HomeRefreshState(
                         error = HomeRefreshError(
                             category = HomeRefreshErrorCategory.INTERNAL,
-                            message = "Nao foi possivel consolidar resumo do dia.",
+                            message = "Não foi possível consolidar o resumo do dia.",
                             isRetryable = true,
                         ),
                         lastSuccessfulRefreshAt = previousSuccess,
@@ -362,7 +362,7 @@ class HomeViewModel @Inject constructor(
             estimatedDistanceMeters = estimatedDistanceMeters,
             estimatedCaloriesKilocalories = estimatedCaloriesKilocalories,
             sourceLabel = when (key.origin) {
-                DataOrigin.WATCH_DAILY_SUMMARY -> device?.name ?: "Relogio"
+                DataOrigin.WATCH_DAILY_SUMMARY -> device?.name ?: "Relógio"
                 else -> "Resumo local"
             },
             updatedAt = updatedAt,
@@ -390,7 +390,7 @@ class HomeViewModel @Inject constructor(
     private fun ChampionBleError.toHomeRefreshError(): HomeRefreshError = when (this) {
         ChampionBleError.BluetoothDisabled -> HomeRefreshError(
             category = HomeRefreshErrorCategory.BLUETOOTH_DISABLED,
-            message = "Ative o Bluetooth para atualizar dados do relogio.",
+            message = "Ative o Bluetooth para atualizar os dados do relógio.",
             isRetryable = true,
         )
 
@@ -400,13 +400,13 @@ class HomeViewModel @Inject constructor(
         ChampionBleError.LocationPermissionRequired,
         -> HomeRefreshError(
             category = HomeRefreshErrorCategory.PERMISSIONS_REQUIRED,
-            message = "Permissoes de Bluetooth sao necessarias para atualizar dados.",
+            message = "Permissões de Bluetooth são necessárias para atualizar os dados.",
             isRetryable = true,
         )
 
         else -> HomeRefreshError(
             category = HomeRefreshErrorCategory.INTERNAL,
-            message = "Nao foi possivel preparar sincronizacao.",
+            message = "Não foi possível preparar a sincronização.",
             isRetryable = true,
         )
     }
@@ -414,37 +414,37 @@ class HomeViewModel @Inject constructor(
     private fun DailyStepsRefreshFailure.toHomeRefreshError(): HomeRefreshError = when (this) {
         DailyStepsRefreshFailure.DEVICE_NOT_FOUND -> HomeRefreshError(
             category = HomeRefreshErrorCategory.CONNECTION_FAILED,
-            message = "Nao foi possivel localizar relogio associado.",
+            message = "Não foi possível localizar o relógio associado.",
             isRetryable = true,
         )
 
         DailyStepsRefreshFailure.CONNECTION_FAILED -> HomeRefreshError(
             category = HomeRefreshErrorCategory.CONNECTION_FAILED,
-            message = "Nao foi possivel conectar ou manter sessao com relogio.",
+            message = "Não foi possível conectar nem manter a sessão com o relógio.",
             isRetryable = true,
         )
 
         DailyStepsRefreshFailure.TIMEOUT -> HomeRefreshError(
             category = HomeRefreshErrorCategory.TIMEOUT,
-            message = "Tempo limite atingido aguardando dados do relogio.",
+            message = "O tempo limite foi atingido enquanto aguardávamos os dados do relógio.",
             isRetryable = true,
         )
 
         DailyStepsRefreshFailure.INVALID_PACKET -> HomeRefreshError(
             category = HomeRefreshErrorCategory.INVALID_PACKET,
-            message = "O relogio respondeu com pacote invalido para esta sincronizacao.",
+            message = "O relógio respondeu com um pacote inválido para esta sincronização.",
             isRetryable = true,
         )
 
         DailyStepsRefreshFailure.CANCELLED -> HomeRefreshError(
             category = HomeRefreshErrorCategory.CANCELLED,
-            message = "Sincronizacao cancelada antes de concluir leitura valida.",
+            message = "A sincronização foi cancelada antes de concluir uma leitura válida.",
             isRetryable = true,
         )
 
         DailyStepsRefreshFailure.INTERNAL -> HomeRefreshError(
             category = HomeRefreshErrorCategory.INTERNAL,
-            message = "Nao foi possivel concluir sincronizacao.",
+            message = "Não foi possível concluir a sincronização.",
             isRetryable = true,
         )
     }
