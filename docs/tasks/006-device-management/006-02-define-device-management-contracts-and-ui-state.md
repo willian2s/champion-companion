@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-21.
 
 ## Objetivo
 
@@ -95,3 +95,90 @@ Fase 06 precisa separar estados persistidos, candidatos efêmeros, sessão BLE e
 
 - Registrar comando executado e resultado.
 - Registrar falhas como regressão se causadas pela task.
+
+## Implementação Executada
+
+### Arquivos Alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementUiState.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementMappings.kt`
+
+### Estados E Contratos Criados
+
+1. Contrato final separado da PoC.
+   - `DeviceManagementFeatureContract` exposto como contrato de estado + `onIntent(...)`.
+   - `DeviceManagementIntent` cobre loading, adicionar dispositivo, retry, cancelamento de scan, selecao, conectar, desconectar, esquecer, abrir diagnostico e exportar.
+   - `DeviceManagementEvent` cobre efeitos one-shot de permissao, Bluetooth, confirmacao de esquecimento, diagnostico e compartilhamento.
+
+2. UI state final da feature.
+   - `DeviceManagementUiState` passou a concentrar:
+     - `screenState` primario;
+     - `associatedDevice` persistido visivel;
+     - `selectedCandidateId`;
+     - `candidates` efemeros;
+     - `connectionState`;
+     - `activeOperation`;
+     - `error` seguro;
+     - `retryAction`.
+
+3. Estados obrigatorios da spec representados.
+   - `Loading`
+   - `NoAssociatedDevice`
+   - `PermissionsRequired`
+   - `BluetoothDisabled`
+   - `ReadyToScan`
+   - `Scanning`
+   - `ScanResults`
+   - `Connecting`
+   - `PreparingConnection`
+   - `Connected`
+   - `Disconnecting`
+   - `Disconnected`
+   - `DeviceNotFound`
+   - `ConnectionFailed`
+   - `Forgetting`
+   - `Error`
+
+4. Modelos de apresentacao criados.
+   - `DeviceManagementAssociatedDevice`
+   - `DeviceManagementScanCandidate`
+   - `DeviceManagementError`
+   - `DeviceManagementRetryAction`
+   - `DeviceManagementPermission`
+
+5. Separacao de estados exigida pela task.
+   - associado: `associatedDevice`
+   - candidato encontrado: `candidates`
+   - candidato selecionado: `selectedCandidateId`
+   - conexao atual: `connectionState`
+   - operacao em andamento: `activeOperation`
+
+6. Adaptadores leves para BLE core.
+   - `DeviceManagementMappings.kt` traduz `ChampionBleState` para `DeviceManagementConnectionState`.
+   - `ChampionBleError` agora pode ser mapeado para `DeviceManagementError` e `DeviceManagementRetryAction` sem expor tipos Android BLE.
+
+### Preservacao Da PoC
+
+- `DeviceFeatureContract.kt` nao foi alterado.
+- `DeviceUiState` tecnico da PoC foi preservado.
+- Nenhum comportamento de scan, conexao ou handshake foi executado por esta task.
+
+### Validação Executada
+
+Comando executado:
+
+```bash
+./gradlew assembleDebug
+```
+
+Resultado final:
+
+- primeira execucao falhou por erro local de compilacao em nome de enum (`Disconnected` vs `DISCONNECTED`);
+- regressao corrigida na mesma task;
+- segunda execucao concluiu com `BUILD SUCCESSFUL`.
+
+### Evidência Final
+
+- Estado final da feature foi definido sem tocar `DeviceScreen.kt`, `DevicePocCoordinator.kt`, `core/bluetooth/**`, `core/database/**` ou `data/**`.
+- Nenhum scan ou conexao real foi executado.

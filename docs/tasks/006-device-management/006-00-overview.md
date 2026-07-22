@@ -114,6 +114,9 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 - `docs/tasks/006-device-management/006-00-overview.md`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceScreen.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementUiState.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementMappings.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DevicePocCoordinator.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DevicePocHandshakeA1.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DevicePocReportExporter.kt`
@@ -133,7 +136,7 @@ Controlar escopo, ordem, dependências, checklist, validação manual e dívida 
 ## Checklist
 
 - [x] `006-01` auditoria e estratégia de associação concluídas
-- [ ] `006-02` contratos e UI state definidos
+- [x] `006-02` contratos e UI state definidos
 - [ ] `006-03` persistência de associação implementada
 - [ ] `006-04` componentes reutilizáveis da PoC promovidos
 - [ ] `006-05` ViewModel de gerenciamento criada
