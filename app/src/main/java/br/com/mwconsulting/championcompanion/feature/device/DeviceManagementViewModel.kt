@@ -366,7 +366,7 @@ class DeviceManagementViewModel @Inject constructor(
                 id = existing.id,
                 platformIdentifier = existing.platformIdentifier,
                 name = candidate.displayName(),
-                associatedAt = now,
+                associatedAt = existing.associatedAt,
                 model = existing.model,
                 firmware = existing.firmware,
                 lastSuccessfulConnectionAt = now,
