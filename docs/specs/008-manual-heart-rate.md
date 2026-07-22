@@ -169,6 +169,12 @@ Componentes tecnicos existentes na PoC devem ser promovidos para implementacoes 
 - classificacao de qualidade;
 - selecao final do BPM.
 
+Promocao factual registrada em `008-03`:
+
+- `core/bluetooth/ChampionManualHeartRateProtocol.kt` centraliza `D0 01`, `D0 00`, parser D0, parser F002 e buffer limitado;
+- `core/bluetooth/ChampionF002BpmEstimator.kt` centraliza estimador F002, qualidade e selecao final;
+- PoC debug continua consumindo mesma implementacao por adapters finos em `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator`.
+
 PoC debug continua no projeto, mas passa a reutilizar componentes promovidos. Nao manter componente tecnico duplicado para produto e PoC.
 
 ## Ownership Da Operacao BLE

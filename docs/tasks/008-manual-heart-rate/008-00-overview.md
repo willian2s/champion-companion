@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01` e `008-02` concluidas em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01`, `008-02` e `008-03` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -63,6 +63,14 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `HeartRateRepository` agora tem contratos-alvo para save manual final, ultima medicao valida e recentes manuais, sem tocar DAO/Room nesta task.
 - `DomainTime.kt` agora expoe `MonotonicClock` testavel e helpers puros de progresso/restante para medicao de 60s.
 - `HomeFeatureContract.kt` ficou alinhado ao gate ao reservar erro `BLE_OPERATION_IN_PROGRESS` para conflito seguro com refresh diario.
+
+## Achados De `008-03`
+
+- Protocolo tecnico manual D0/F002 foi promovido para `core/bluetooth/ChampionManualHeartRateProtocol.kt`.
+- Estimador, qualidade e selecao final foram promovidos para `core/bluetooth/ChampionF002BpmEstimator.kt`.
+- PoC debug permaneceu funcional por delegacao: `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator` agora sao adapters finos de compatibilidade.
+- Nao restou duplicacao de builder `D0 01`, builder `D0 00`, parser D0, parser F002, buffer limitado ou heuristica do estimador.
+- Suite pequena de regressao tecnica foi mantida na PoC e ganhou cobertura explicita para pacote D0 sem BPM valido.
 
 ## Estado Herdado
 
@@ -159,7 +167,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 
 - [x] `008-01` auditoria de estado real, MotionLog e regra da media concluida
 - [x] `008-02` contratos, state machine e gate BLE definidos
-- [ ] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
+- [x] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
 - [ ] `008-04` coordinator manual implementado
 - [ ] `008-05` persistencia final, deduplicacao e queries implementadas
 - [ ] `008-06` `HealthViewModel` criado

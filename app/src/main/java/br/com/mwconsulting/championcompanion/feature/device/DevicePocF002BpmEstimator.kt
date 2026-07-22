@@ -1,22 +1,10 @@
 package br.com.mwconsulting.championcompanion.feature.device
 
-import kotlin.math.max
-import kotlin.math.roundToInt
-import kotlin.math.sqrt
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionF002BpmEstimator
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionHeartRateFinalSource
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionHeartRateSignalQuality
 
 internal object DevicePocF002BpmEstimator {
-    private const val MIN_POSITIVE_SAMPLES = 250
-    private const val MIN_VALID_INTERVALS = 3
-    private const val MIN_BPM = 35
-    private const val MAX_BPM = 220
-    private const val THRESHOLD_STD_MULTIPLIER = 0.35
-    private const val MIN_PEAK_GAP_SECONDS = 0.4
-    private const val MIN_INTERVAL_SECONDS = 0.4
-    private const val MAX_INTERVAL_SECONDS = 1.6
-    private const val BASELINE_WINDOW_SECONDS = 0.75
-    private const val SMOOTHING_WINDOW_SECONDS = 0.18
-    private const val INITIAL_DISCARD_SECONDS = 6.0
-
     data class Estimate(
         val bpm: Int,
         val quality: DevicePocHeartRateSignalQuality,
@@ -49,247 +37,71 @@ internal object DevicePocF002BpmEstimator {
     fun inspect(
         samples: List<Int>,
         durationSeconds: Double,
-    ): Inspection {
-        if (durationSeconds <= 0.0) {
-            return Inspection(
-                estimate = null,
-                positiveSampleCount = samples.count { it > 0 },
-                trimmedSampleCount = 0,
-                sampleRateHz = null,
-                peakCount = 0,
-                validIntervalCount = 0,
-                dynamicRange = 0,
-                intervalCv = 0.0,
-                quality = DevicePocHeartRateSignalQuality.LOW,
-                qualityScore = 50,
-            )
-        }
-
-        val positiveSamples = samples.filter { it > 0 }
-        if (positiveSamples.size < MIN_POSITIVE_SAMPLES) {
-            return qualityOnlyInspection(
-                positiveSampleCount = positiveSamples.size,
-                durationSeconds = durationSeconds,
-            )
-        }
-
-        val sampleRateHz = positiveSamples.size / durationSeconds
-        if (sampleRateHz <= 0.0) {
-            return qualityOnlyInspection(
-                positiveSampleCount = positiveSamples.size,
-                durationSeconds = durationSeconds,
-            )
-        }
-
-        val discardCount = minOf(
-            (positiveSamples.size * 0.25).toInt(),
-            (sampleRateHz * INITIAL_DISCARD_SECONDS).toInt(),
-        )
-        val trimmedSamples = positiveSamples.drop(discardCount)
-        if (trimmedSamples.size < MIN_POSITIVE_SAMPLES) {
-            return qualityOnlyInspection(
-                positiveSampleCount = positiveSamples.size,
-                durationSeconds = durationSeconds,
-                sampleRateHz = sampleRateHz,
-                trimmedSampleCount = trimmedSamples.size,
-            )
-        }
-
-        val baselineWindow = windowSize(sampleRateHz, BASELINE_WINDOW_SECONDS)
-        val smoothingWindow = windowSize(sampleRateHz, SMOOTHING_WINDOW_SECONDS)
-        val normalized = trimmedSamples.mapIndexed { index, sample ->
-            sample - movingAverageInt(trimmedSamples, index, baselineWindow)
-        }
-        val smoothed = normalized.indices.map { index ->
-            movingAverageDouble(normalized, index, smoothingWindow)
-        }
-        val threshold = mean(smoothed) + (standardDeviation(smoothed) * THRESHOLD_STD_MULTIPLIER)
-        val minPeakDistance = max(1, (sampleRateHz * MIN_PEAK_GAP_SECONDS).roundToInt())
-        val peaks = detectPeaks(smoothed, threshold, minPeakDistance)
-        val intervals = peaks.zipWithNext { left, right ->
-            (right - left) / sampleRateHz
-        }.filter { it in MIN_INTERVAL_SECONDS..MAX_INTERVAL_SECONDS }
-
-        val bpm = if (intervals.size >= MIN_VALID_INTERVALS) {
-            val candidate = (60.0 / median(intervals)).roundToInt()
-            candidate.takeIf { it in MIN_BPM..MAX_BPM }
-        } else {
-            null
-        }
-        val dynamicRange = if (smoothed.isEmpty()) 0 else (smoothed.max() - smoothed.min()).roundToInt()
-        val intervalCv = if (intervals.size >= 2) coefficientOfVariation(intervals) else 0.0
-        val qualityScore = qualityScore(
-            bpm = bpm,
-            positiveSampleCount = positiveSamples.size,
-            durationSeconds = durationSeconds,
-            peakCount = peaks.size,
-            intervalCv = intervalCv,
-            dynamicRange = dynamicRange,
-        )
-        val quality = qualityFor(qualityScore)
-        val estimate = bpm?.let {
-            Estimate(
-                bpm = it,
-                quality = quality,
-                qualityScore = qualityScore,
-                sampleRateHz = sampleRateHz,
-                peakCount = peaks.size,
-                validIntervalCount = intervals.size,
-                dynamicRange = dynamicRange,
-                intervalCv = intervalCv,
-            )
-        }
-        return Inspection(
-            estimate = estimate,
-            positiveSampleCount = positiveSamples.size,
-            trimmedSampleCount = trimmedSamples.size,
-            sampleRateHz = sampleRateHz,
-            peakCount = peaks.size,
-            validIntervalCount = intervals.size,
-            dynamicRange = dynamicRange,
-            intervalCv = intervalCv,
-            quality = quality,
-            qualityScore = qualityScore,
-        )
-    }
+    ): Inspection = ChampionF002BpmEstimator.inspect(samples, durationSeconds).toDeviceInspection()
 
     fun selectFinalBpm(
         currentD0Bpm: Int?,
         estimate: Estimate?,
-    ): FinalSelection = when {
-        currentD0Bpm in MIN_BPM..MAX_BPM -> FinalSelection(currentD0Bpm, DevicePocHeartRateFinalSource.D0_CURRENT)
-        estimate != null -> FinalSelection(estimate.bpm, DevicePocHeartRateFinalSource.F002_ESTIMATE)
-        else -> FinalSelection(null, DevicePocHeartRateFinalSource.UNAVAILABLE)
+    ): FinalSelection = ChampionF002BpmEstimator.selectFinalBpm(
+        currentD0Bpm = currentD0Bpm,
+        estimate = estimate?.toChampionEstimate(),
+    ).toDeviceFinalSelection()
+
+    private fun Estimate.toChampionEstimate(): ChampionF002BpmEstimator.Estimate = ChampionF002BpmEstimator.Estimate(
+        bpm = bpm,
+        quality = quality.toChampionQuality(),
+        qualityScore = qualityScore,
+        sampleRateHz = sampleRateHz,
+        peakCount = peakCount,
+        validIntervalCount = validIntervalCount,
+        dynamicRange = dynamicRange,
+        intervalCv = intervalCv,
+    )
+
+    private fun ChampionF002BpmEstimator.Inspection.toDeviceInspection(): Inspection = Inspection(
+        estimate = estimate?.toDeviceEstimate(),
+        positiveSampleCount = positiveSampleCount,
+        trimmedSampleCount = trimmedSampleCount,
+        sampleRateHz = sampleRateHz,
+        peakCount = peakCount,
+        validIntervalCount = validIntervalCount,
+        dynamicRange = dynamicRange,
+        intervalCv = intervalCv,
+        quality = quality.toDeviceQuality(),
+        qualityScore = qualityScore,
+    )
+
+    private fun ChampionF002BpmEstimator.Estimate.toDeviceEstimate(): Estimate = Estimate(
+        bpm = bpm,
+        quality = quality.toDeviceQuality(),
+        qualityScore = qualityScore,
+        sampleRateHz = sampleRateHz,
+        peakCount = peakCount,
+        validIntervalCount = validIntervalCount,
+        dynamicRange = dynamicRange,
+        intervalCv = intervalCv,
+    )
+
+    private fun ChampionF002BpmEstimator.FinalSelection.toDeviceFinalSelection(): FinalSelection = FinalSelection(
+        bpm = bpm,
+        source = source.toDeviceFinalSource(),
+    )
+
+    private fun DevicePocHeartRateSignalQuality.toChampionQuality(): ChampionHeartRateSignalQuality = when (this) {
+        DevicePocHeartRateSignalQuality.GOOD -> ChampionHeartRateSignalQuality.GOOD
+        DevicePocHeartRateSignalQuality.MEDIUM -> ChampionHeartRateSignalQuality.MEDIUM
+        DevicePocHeartRateSignalQuality.LOW -> ChampionHeartRateSignalQuality.LOW
     }
 
-    private fun qualityOnlyInspection(
-        positiveSampleCount: Int,
-        durationSeconds: Double,
-        sampleRateHz: Double? = null,
-        trimmedSampleCount: Int = 0,
-    ): Inspection {
-        val qualityScore = qualityScore(
-            bpm = null,
-            positiveSampleCount = positiveSampleCount,
-            durationSeconds = durationSeconds,
-            peakCount = 0,
-            intervalCv = 0.0,
-            dynamicRange = 0,
-        )
-        return Inspection(
-            estimate = null,
-            positiveSampleCount = positiveSampleCount,
-            trimmedSampleCount = trimmedSampleCount,
-            sampleRateHz = sampleRateHz,
-            peakCount = 0,
-            validIntervalCount = 0,
-            dynamicRange = 0,
-            intervalCv = 0.0,
-            quality = qualityFor(qualityScore),
-            qualityScore = qualityScore,
-        )
+    private fun ChampionHeartRateSignalQuality.toDeviceQuality(): DevicePocHeartRateSignalQuality = when (this) {
+        ChampionHeartRateSignalQuality.GOOD -> DevicePocHeartRateSignalQuality.GOOD
+        ChampionHeartRateSignalQuality.MEDIUM -> DevicePocHeartRateSignalQuality.MEDIUM
+        ChampionHeartRateSignalQuality.LOW -> DevicePocHeartRateSignalQuality.LOW
     }
 
-    private fun qualityScore(
-        bpm: Int?,
-        positiveSampleCount: Int,
-        durationSeconds: Double,
-        peakCount: Int,
-        intervalCv: Double,
-        dynamicRange: Int,
-    ): Int {
-        var score = 100
-        if (bpm == null) score -= 50
-        if (positiveSampleCount < 2_500) score -= 25
-        if (durationSeconds < 20.0) score -= 20
-        if (peakCount < 12) score -= 20
-        score -= when {
-            intervalCv > 0.28 -> 30
-            intervalCv > 0.18 -> 15
-            else -> 0
-        }
-        if (dynamicRange < 250) score -= 15
-        return score.coerceIn(0, 100)
-    }
-
-    private fun qualityFor(score: Int): DevicePocHeartRateSignalQuality = when {
-        score >= 75 -> DevicePocHeartRateSignalQuality.GOOD
-        score >= 45 -> DevicePocHeartRateSignalQuality.MEDIUM
-        else -> DevicePocHeartRateSignalQuality.LOW
-    }
-
-    private fun windowSize(sampleRateHz: Double, windowSeconds: Double): Int =
-        max(3, (sampleRateHz * windowSeconds).roundToInt())
-
-    private fun movingAverageInt(values: List<Int>, index: Int, windowSize: Int): Double {
-        val halfWindow = windowSize / 2
-        val start = max(0, index - halfWindow)
-        val end = minOf(values.lastIndex, index + halfWindow)
-        var total = 0.0
-        for (currentIndex in start..end) {
-            total += values[currentIndex]
-        }
-        return total / (end - start + 1)
-    }
-
-    private fun movingAverageDouble(values: List<Double>, index: Int, windowSize: Int): Double {
-        val halfWindow = windowSize / 2
-        val start = max(0, index - halfWindow)
-        val end = minOf(values.lastIndex, index + halfWindow)
-        var total = 0.0
-        for (currentIndex in start..end) {
-            total += values[currentIndex]
-        }
-        return total / (end - start + 1)
-    }
-
-    private fun detectPeaks(
-        signal: List<Double>,
-        threshold: Double,
-        minDistance: Int,
-    ): List<Int> {
-        if (signal.size < 3) return emptyList()
-        val peaks = mutableListOf<Int>()
-        var lastPeakIndex = -minDistance
-        for (index in 1 until signal.lastIndex) {
-            val current = signal[index]
-            if (current <= threshold) continue
-            if (current < signal[index - 1] || current < signal[index + 1]) continue
-            if (index - lastPeakIndex < minDistance) {
-                if (peaks.isNotEmpty() && current > signal[peaks.last()]) {
-                    peaks[peaks.lastIndex] = index
-                    lastPeakIndex = index
-                }
-                continue
-            }
-            peaks += index
-            lastPeakIndex = index
-        }
-        return peaks
-    }
-
-    private fun mean(values: List<Double>): Double = values.sum() / values.size
-
-    private fun standardDeviation(values: List<Double>): Double {
-        if (values.isEmpty()) return 0.0
-        val mean = mean(values)
-        val variance = values.sumOf { (it - mean) * (it - mean) } / values.size
-        return sqrt(variance)
-    }
-
-    private fun coefficientOfVariation(values: List<Double>): Double {
-        val mean = mean(values)
-        if (mean == 0.0) return 0.0
-        return standardDeviation(values) / mean
-    }
-
-    private fun median(values: List<Double>): Double {
-        val sorted = values.sorted()
-        val middle = sorted.size / 2
-        return if (sorted.size % 2 == 0) {
-            (sorted[middle - 1] + sorted[middle]) / 2.0
-        } else {
-            sorted[middle]
-        }
+    private fun ChampionHeartRateFinalSource.toDeviceFinalSource(): DevicePocHeartRateFinalSource = when (this) {
+        ChampionHeartRateFinalSource.D0_CURRENT -> DevicePocHeartRateFinalSource.D0_CURRENT
+        ChampionHeartRateFinalSource.F002_ESTIMATE -> DevicePocHeartRateFinalSource.F002_ESTIMATE
+        ChampionHeartRateFinalSource.UNAVAILABLE -> DevicePocHeartRateFinalSource.UNAVAILABLE
     }
 }

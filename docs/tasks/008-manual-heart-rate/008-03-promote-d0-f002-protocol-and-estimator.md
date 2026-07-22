@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluida em 2026-07-22.
 
 ## Objetivo
 
@@ -83,6 +83,18 @@ Hoje `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator` vivem na feature 
 - Existe um unico estimador F002 e unica regra de selecao final.
 - PoC continua compilando ao reutilizar componentes promovidos.
 
+## Achados
+
+- Componentes promovidos para `core/bluetooth`:
+  - `ChampionManualHeartRateProtocol`
+  - `ChampionF002BpmEstimator`
+  - `ChampionHeartRateSignalQuality`
+  - `ChampionHeartRateFinalSource`
+- `DevicePocHeartRateSession` virou adapter fino para `ChampionManualHeartRateProtocol` e preservou apenas tipos de compatibilidade da PoC.
+- `DevicePocF002BpmEstimator` virou adapter fino para `ChampionF002BpmEstimator`, com mapeamento entre enums/core e enums atuais da PoC (`DevicePocHeartRateSignalQuality`, `DevicePocHeartRateFinalSource`).
+- `DevicePocCoordinator` continuou compilando sem nova logica tecnica local, porque PoC segue consumindo adapters que delegam aos componentes promovidos.
+- Testes existentes de PoC continuam protegendo payloads D0, parser D0, parser F002, buffer limitado e selecao final; foi adicionado caso explicito para D0 invalido sem BPM aceito.
+
 ## Testes Pequenos Aplicaveis
 
 - payload `D0 01`;
@@ -103,6 +115,14 @@ Hoje `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator` vivem na feature 
 ## Evidencia Manual
 
 - Lista dos componentes promovidos e de onde PoC passou a delegar.
+- Delegacoes finais:
+  - `DevicePocHeartRateSession.createStartCommand()` -> `ChampionManualHeartRateProtocol.createStartCommand()`
+  - `DevicePocHeartRateSession.createStopCommand()` -> `ChampionManualHeartRateProtocol.createStopCommand()`
+  - `DevicePocHeartRateSession.parseLiveBpm()` -> `ChampionManualHeartRateProtocol.parseLiveBpm()`
+  - `DevicePocHeartRateSession.parseF002Samples()` -> `ChampionManualHeartRateProtocol.parseF002Samples()`
+  - `DevicePocHeartRateSession.appendLimitedBuffer()` -> `ChampionManualHeartRateProtocol.appendLimitedBuffer()`
+  - `DevicePocF002BpmEstimator.inspect()` -> `ChampionF002BpmEstimator.inspect()`
+  - `DevicePocF002BpmEstimator.selectFinalBpm()` -> `ChampionF002BpmEstimator.selectFinalBpm()`
 
 ## Atualizacao Do Overview
 
@@ -111,3 +131,4 @@ Hoje `DevicePocHeartRateSession` e `DevicePocF002BpmEstimator` vivem na feature 
 ## Validacao Final
 
 - Confirmar que nao sobraram duas implementacoes tecnicas paralelas.
+- Confirmado: logica unica de comandos D0, parser D0, parser F002, buffer e estimador ficou em `core/bluetooth`; arquivos `DevicePoc*` restantes atuam apenas como adapters de compatibilidade da PoC.
