@@ -225,6 +225,13 @@ Regras:
 - cancelamento e erro liberam owner;
 - callback tardio nunca readquire gate.
 
+Contrato minimo definido em `008-02`:
+
+- `ForegroundBleOperationOwner` com `DAILY_STEPS_REFRESH` e `MANUAL_HEART_RATE`;
+- `ForegroundBleOperationRequest` com owner, `operationId` e `requestedAt`;
+- `ForegroundBleOperationAcquireResult.Acquired` ou `.Rejected(activeOperation)`;
+- `ForegroundBleOperationPermit` para ownership liberado explicitamente em `finally`.
+
 Se implementacao introduzir contrato duradouro nao coberto por ADR, criar ADR na task responsavel.
 
 ## Contrato D0
@@ -346,6 +353,12 @@ Fonte de tempo:
 
 - relogio monotonic para `elapsed`, `remaining`, `progress` e fim automatico;
 - `Instant` para `measuredAt`, exibicao e persistencia.
+
+Contrato minimo definido em `008-02`:
+
+- `MonotonicClock.now(): MonotonicTimestamp`;
+- `MonotonicClock.elapsedSince(startedAt)`;
+- helpers puros `remainingSince(...)` e `progressSince(...)`.
 
 Nao calcular duracao apenas com `Instant.now()`.
 
@@ -535,6 +548,8 @@ Campos planejados:
 - `saveManualMeasurement(...)`
 - `observeLatestValidMeasurement()`
 - `observeRecentManualMeasurements(limit)`
+
+Contrato minimo reservado em `008-02` usa `SaveManualHeartRateMeasurementInput` com `measurementId`, `sessionId`, `deviceId`, `bpm`, `measuredAt` e `parserVersion`.
 
 Regras:
 

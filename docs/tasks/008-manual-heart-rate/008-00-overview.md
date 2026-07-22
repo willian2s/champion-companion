@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento. `008-01` concluida em 2026-07-22; demais tasks ainda pendentes.
+Em andamento. `008-01` e `008-02` concluidas em 2026-07-22; demais tasks ainda pendentes.
 
 ## Objetivo
 
@@ -54,6 +54,15 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `HeartRateRepository`, `HeartRateDao` e `RoomRepositories` ainda nao expoem save manual final, ultima medicao valida ou recentes manuais.
 - `ChampionConnectionManager` segue owner da unica sessao BLE ativa e `connect()` continua derrubando sessao atual antes de nova conexao.
 - `ChampionDailyStepsSyncCoordinator` reusa sessao ativa compativel, mas esse reuso nao e ownership atomico nem gate global; falta coordenacao cross-feature entre Home, Dispositivo e futura medicao manual.
+
+## Achados De `008-02`
+
+- `HealthFeatureContract.kt` agora formaliza state machine de produto sem booleans contraditorios, usando `HealthSurfaceState` e `ManualHeartRateSessionState`.
+- Contrato de medicao manual passou a exigir sessao explicita com `manualMeasurementSessionId`, `bleSessionId`, `startedAt`, `monotonicStartedAt`, `progress`, `remaining`, leitura atual, qualidade, resultado final e erro seguro.
+- `RepositoryContracts.kt` agora reserva gate foreground compartilhado por `ForegroundBleOperationGate`, com owners `DAILY_STEPS_REFRESH` e `MANUAL_HEART_RATE`, aquisicao por `tryAcquire(...)` e liberacao por `release(...)`.
+- `HeartRateRepository` agora tem contratos-alvo para save manual final, ultima medicao valida e recentes manuais, sem tocar DAO/Room nesta task.
+- `DomainTime.kt` agora expoe `MonotonicClock` testavel e helpers puros de progresso/restante para medicao de 60s.
+- `HomeFeatureContract.kt` ficou alinhado ao gate ao reservar erro `BLE_OPERATION_IN_PROGRESS` para conflito seguro com refresh diario.
 
 ## Estado Herdado
 
@@ -149,7 +158,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 ## Checklist
 
 - [x] `008-01` auditoria de estado real, MotionLog e regra da media concluida
-- [ ] `008-02` contratos, state machine e gate BLE definidos
+- [x] `008-02` contratos, state machine e gate BLE definidos
 - [ ] `008-03` D0/F002 promovidos para componentes reutilizaveis unicos
 - [ ] `008-04` coordinator manual implementado
 - [ ] `008-05` persistencia final, deduplicacao e queries implementadas
