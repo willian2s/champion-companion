@@ -2,7 +2,11 @@ package br.com.mwconsulting.championcompanion.core.model
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+const val DEFAULT_DAILY_STEPS_GOAL = 8_000
 
 sealed interface RepositoryResult<out T> {
     data class Success<T>(val value: T) : RepositoryResult<T>
@@ -20,6 +24,11 @@ interface DeviceRepository {
         connectedAt: Instant,
     ): RepositoryResult<Device>
     suspend fun updateLastSuccessfulConnection(deviceId: DeviceId, connectedAt: Instant): RepositoryResult<Device>
+    suspend fun updateImportMetadata(
+        deviceId: DeviceId,
+        importedAt: Instant,
+        parserVersion: ParserVersion,
+    ): RepositoryResult<Device> = RepositoryResult.UnexpectedState
     suspend fun updateKnownMetadata(deviceId: DeviceId, name: String, firmware: String?): RepositoryResult<Device>
     suspend fun forgetAssociatedDevice(): RepositoryResult<Unit>
     suspend fun findByPlatformIdentifier(platformIdentifier: String): RepositoryResult<Device>
@@ -27,8 +36,82 @@ interface DeviceRepository {
 
 interface DailySummaryRepository {
     fun observeSummaries(from: LocalDate, to: LocalDate): Flow<List<DailySummary>>
+    fun observeSummaryForDate(localDate: LocalDate): Flow<DailySummary?> =
+        observeSummaries(localDate, localDate).map { it.firstOrNull() }
     suspend fun save(summary: DailySummary): RepositoryResult<Unit>
+    suspend fun mergeWatchDailySummary(input: MergeWatchDailySummaryInput): RepositoryResult<DailySummary> =
+        RepositoryResult.UnexpectedState
 }
+
+data class MergeWatchDailySummaryInput(
+    val deviceId: DeviceId,
+    val localDate: LocalDate,
+    val incomingSteps: Long,
+    val collectedAt: Instant,
+    val updatedAt: Instant,
+    val estimatedDistanceMeters: Double?,
+    val estimatedCaloriesKilocalories: Double?,
+    val parserVersion: ParserVersion,
+)
+
+interface PersonalMetricsRepository {
+    fun observeSnapshot(): Flow<PersonalMetricsSnapshot>
+}
+
+data class PersonalMetricsSnapshot(
+    val heightCentimeters: Double? = null,
+    val weightKilograms: Double? = null,
+    val manualStrideLengthMeters: Double? = null,
+)
+
+interface DailyStepsSyncCoordinator {
+    suspend fun refresh(request: DailyStepsRefreshRequest): DailyStepsRefreshOutcome
+}
+
+sealed interface DailyStepsRefreshOutcome {
+    data class Success(val value: DailyStepsRefreshResult) : DailyStepsRefreshOutcome
+    data class Failure(val reason: DailyStepsRefreshFailure) : DailyStepsRefreshOutcome
+}
+
+enum class DailyStepsRefreshFailure {
+    DEVICE_NOT_FOUND,
+    CONNECTION_FAILED,
+    TIMEOUT,
+    INVALID_PACKET,
+    CANCELLED,
+    INTERNAL,
+}
+
+data class DailyStepsRefreshRequest(
+    val attempt: DailySyncAttempt,
+    val associatedDeviceId: DeviceId,
+    val associatedDevicePlatformIdentifier: String,
+    val zoneId: ZoneId,
+)
+
+data class DailySyncAttempt(
+    val refreshAttemptId: String,
+    val sessionId: String? = null,
+    val startedAt: Instant,
+) {
+    fun accepts(packet: FreshPacketCandidate): Boolean =
+        sessionId != null && packet.sessionId == sessionId && !packet.observedAt.isBefore(startedAt)
+}
+
+data class FreshPacketCandidate(
+    val sessionId: String,
+    val observedAt: Instant,
+    val channelName: String,
+)
+
+data class DailyStepsRefreshResult(
+    val attempt: DailySyncAttempt,
+    val deviceId: DeviceId,
+    val localDate: LocalDate,
+    val steps: Long,
+    val collectedAt: Instant,
+    val parserVersion: ParserVersion,
+)
 
 interface HeartRateRepository {
     suspend fun import(measurements: List<HeartRateMeasurement>): RepositoryResult<Unit>
@@ -67,5 +150,7 @@ interface DiagnosticPayloadRepository {
 
 interface AppPreferencesRepository {
     fun observe(): Flow<AppPreferences>
+    fun observeDailyStepsGoal(): Flow<Int>
     suspend fun update(preferences: AppPreferences): RepositoryResult<Unit>
+    suspend fun updateDailyStepsGoal(goal: Int): RepositoryResult<Unit>
 }

@@ -6,6 +6,7 @@ data class AppPreferences(
     val useDynamicColors: Boolean = true,
     val healthSyncEnabled: Boolean = false,
     val diagnosticCaptureEnabled: Boolean = false,
+    val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
 )
 
 enum class ThemePreference {

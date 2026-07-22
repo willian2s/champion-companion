@@ -54,6 +54,9 @@ interface UserProfileDao {
     @Query("SELECT * FROM user_profiles ORDER BY updatedAtEpochMillis DESC LIMIT 1")
     fun observeCurrent(): Flow<UserProfileEntity?>
 
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC LIMIT 1")
+    fun observeLatestWeight(profileId: String): Flow<WeightMeasurementEntity?>
+
     @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC")
     fun observeWeights(profileId: String): Flow<List<WeightMeasurementEntity>>
 

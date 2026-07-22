@@ -56,3 +56,9 @@ object WatchTimeResolver {
         }
     }
 }
+
+object LocalDateResolver {
+    fun resolve(instant: Instant, zoneId: ZoneId): LocalDate = instant.atZone(zoneId).toLocalDate()
+}
+
+fun Instant.toLocalDateIn(zoneId: ZoneId): LocalDate = LocalDateResolver.resolve(this, zoneId)

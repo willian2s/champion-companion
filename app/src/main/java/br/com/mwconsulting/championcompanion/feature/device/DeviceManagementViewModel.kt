@@ -120,22 +120,15 @@ class DeviceManagementViewModel @Inject constructor(
 
     private fun onFeatureExit() {
         isFeatureVisible = false
-        autoConnectInFlight = false
 
-        if (mutableState.value.activeOperation == DeviceManagementActiveOperation.FORGETTING) {
-            return
-        }
-
-        activeJob?.cancel()
-        activeJob = null
-        functionalConnectionEstablished = false
-
-        if (currentTransportState is ChampionBleState.Disconnected || currentTransportState is ChampionBleState.Failed) {
-            return
-        }
-
-        viewModelScope.launch {
-            connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
+        if (mutableState.value.activeOperation in setOf(
+                DeviceManagementActiveOperation.REQUESTING_PERMISSIONS,
+                DeviceManagementActiveOperation.SCANNING,
+            )
+        ) {
+            activeJob?.cancel()
+            activeJob = null
+            autoConnectInFlight = false
         }
     }
 
