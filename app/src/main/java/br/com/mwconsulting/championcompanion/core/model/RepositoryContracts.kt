@@ -14,6 +14,15 @@ sealed interface RepositoryResult<out T> {
 
 interface DeviceRepository {
     fun observeAssociatedDevice(): Flow<Device?>
+    suspend fun associateDevice(device: Device): RepositoryResult<Device>
+    suspend fun associateDeviceAndUpdateLastSuccessfulConnection(
+        device: Device,
+        connectedAt: Instant,
+    ): RepositoryResult<Device>
+    suspend fun updateLastSuccessfulConnection(deviceId: DeviceId, connectedAt: Instant): RepositoryResult<Device>
+    suspend fun updateKnownMetadata(deviceId: DeviceId, name: String, firmware: String?): RepositoryResult<Device>
+    suspend fun forgetAssociatedDevice(): RepositoryResult<Unit>
+    suspend fun findByPlatformIdentifier(platformIdentifier: String): RepositoryResult<Device>
 }
 
 interface DailySummaryRepository {

@@ -19,6 +19,7 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionUuidCatalog
 import br.com.mwconsulting.championcompanion.core.bluetooth.SafeGattDetail
 import java.time.Instant
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+@Singleton
 class AndroidChampionBleClient @Inject constructor(
     private val gattFacade: AndroidGattFacade,
     private val callbackBridge: ChampionGattCallbackBridge = ChampionGattCallbackBridge(),

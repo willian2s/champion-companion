@@ -1,7 +1,9 @@
 package br.com.mwconsulting.championcompanion.data
 
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
+import br.com.mwconsulting.championcompanion.core.database.AssociatedDeviceRecord
 import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
+import br.com.mwconsulting.championcompanion.core.database.DeviceAssociationEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
@@ -80,7 +82,26 @@ internal fun Device.toEntity() = DeviceEntity(
     importParserVersion = importMetadata.parserVersion?.value,
 )
 
-internal fun DeviceEntity.toDomain(): Device? {
+internal fun Device.toAssociationEntity(
+    updatedAtEpochMillis: Long = associatedAt.toEpochMilli(),
+) = DeviceAssociationEntity(
+    id = PRIMARY_DEVICE_ASSOCIATION_ID,
+    deviceId = id.value.toString(),
+    associatedAtEpochMillis = associatedAt.toEpochMilli(),
+    updatedAtEpochMillis = updatedAtEpochMillis,
+)
+
+internal fun DeviceEntity.toAssociationEntity(
+    associatedAtEpochMillis: Long = this.associatedAtEpochMillis,
+    updatedAtEpochMillis: Long = associatedAtEpochMillis,
+) = DeviceAssociationEntity(
+    id = PRIMARY_DEVICE_ASSOCIATION_ID,
+    deviceId = id,
+    associatedAtEpochMillis = associatedAtEpochMillis,
+    updatedAtEpochMillis = updatedAtEpochMillis,
+)
+
+internal fun DeviceEntity.toDomain(associatedAtEpochMillis: Long = this.associatedAtEpochMillis): Device? {
     val deviceId = uuid(id)?.let(::DeviceId) ?: return null
     return Device.create(
         id = deviceId, platformIdentifier = platformIdentifier, name = name, model = DeviceModel.valueOf(model.name),
@@ -89,6 +110,20 @@ internal fun DeviceEntity.toDomain(): Device? {
         importMetadata = DeviceImportMetadata(lastImportedAtEpochMillis?.let(Instant::ofEpochMilli), importParserVersion?.let(::parserVersion)),
     ).successOrNull()
 }
+
+internal fun AssociatedDeviceRecord.toDomain(): Device? = DeviceEntity(
+    id = id,
+    platformIdentifier = platformIdentifier,
+    name = name,
+    model = model,
+    firmware = firmware,
+    associatedAtEpochMillis = associatedAtEpochMillis,
+    lastSuccessfulConnectionAtEpochMillis = lastSuccessfulConnectionAtEpochMillis,
+    lastImportedAtEpochMillis = lastImportedAtEpochMillis,
+    importParserVersion = importParserVersion,
+).toDomain(associatedAtEpochMillis = associatedAtEpochMillis)
+
+internal const val PRIMARY_DEVICE_ASSOCIATION_ID: String = "primary"
 
 internal fun DailySummary.toEntity() = DailySummaryEntity(
     id.value.toString(), key.deviceId?.value?.toString(), key.origin.name, key.localDate.toString(), steps,

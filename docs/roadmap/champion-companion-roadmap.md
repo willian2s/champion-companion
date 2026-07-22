@@ -189,7 +189,14 @@ O histórico local deverá continuar acessível sem internet.
 
 ## 5.3 Sincronização controlada
 
-O aplicativo não deverá iniciar consultas BLE ou sincronizações automaticamente ao abrir.
+O aplicativo não deverá iniciar scans, importações ou sincronizações automaticamente ao abrir.
+
+Exceção permitida: tentativa controlada de auto-conexão do dispositivo já associado, desde que:
+
+- não dispare prompt automático de permissão;
+- não importe D1, D3 ou D4 automaticamente;
+- não entre em loop de retry;
+- não mantenha BLE permanente.
 
 As ações deverão ser iniciadas pelo usuário, especialmente:
 
@@ -1111,6 +1118,7 @@ Transformar a prova de conceito em uma feature utilizável.
 - exibir conexão;
 - exibir última conexão;
 - exibir última sincronização;
+- tentar auto-conectar dispositivo associado ao abrir app ou tela quando pré-requisitos já estiverem satisfeitos;
 - conectar;
 - desconectar;
 - esquecer;
@@ -1122,8 +1130,9 @@ Transformar a prova de conceito em uma feature utilizável.
 ## Critérios de aceite
 
 - dispositivo lembrado;
+- auto-conexão do associado é limitada e previsível;
 - conexão não é agressiva;
-- usuário controla conexão;
+- usuário controla scan e pode intervir na conexão;
 - falhas não bloqueiam;
 - UI reflete estado real.
 

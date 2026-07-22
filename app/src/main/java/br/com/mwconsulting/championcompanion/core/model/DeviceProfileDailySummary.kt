@@ -36,9 +36,7 @@ data class Device private constructor(
         ): DomainResult<Device> {
             if (DomainValidation.requiredText(platformIdentifier) is DomainResult.Failure ||
                 DomainValidation.requiredText(name) is DomainResult.Failure ||
-                (firmware != null && DomainValidation.requiredText(firmware) is DomainResult.Failure) ||
-                (lastSuccessfulConnectionAt != null && lastSuccessfulConnectionAt.isBefore(associatedAt)) ||
-                (importMetadata.lastImportedAt != null && importMetadata.lastImportedAt.isBefore(associatedAt))
+                (firmware != null && DomainValidation.requiredText(firmware) is DomainResult.Failure)
             ) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }

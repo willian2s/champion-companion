@@ -15,14 +15,38 @@ interface DeviceDao {
     @Query("SELECT * FROM devices WHERE platformIdentifier = :platformIdentifier")
     suspend fun findByPlatformIdentifier(platformIdentifier: String): DeviceEntity?
 
-    @Query("SELECT * FROM devices ORDER BY associatedAtEpochMillis DESC LIMIT 1")
-    fun observeAssociated(): Flow<DeviceEntity?>
-
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(device: DeviceEntity)
 
     @Update
     suspend fun update(device: DeviceEntity): Int
+}
+
+data class AssociatedDeviceRecord(
+    val id: String,
+    val platformIdentifier: String,
+    val name: String,
+    val model: StoredDeviceModel,
+    val firmware: String?,
+    val associatedAtEpochMillis: Long,
+    val lastSuccessfulConnectionAtEpochMillis: Long?,
+    val lastImportedAtEpochMillis: Long?,
+    val importParserVersion: String?,
+)
+
+@Dao
+interface DeviceAssociationDao {
+    @Query("SELECT d.id, d.platformIdentifier, d.name, d.model, d.firmware, a.associatedAtEpochMillis, d.lastSuccessfulConnectionAtEpochMillis, d.lastImportedAtEpochMillis, d.importParserVersion FROM device_associations a INNER JOIN devices d ON d.id = a.deviceId WHERE a.id = 'primary' LIMIT 1")
+    fun observeAssociated(): Flow<AssociatedDeviceRecord?>
+
+    @Query("SELECT * FROM device_associations WHERE id = :id")
+    suspend fun findById(id: String): DeviceAssociationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(association: DeviceAssociationEntity)
+
+    @Query("DELETE FROM device_associations WHERE id = :id")
+    suspend fun deleteById(id: String): Int
 }
 
 @Dao

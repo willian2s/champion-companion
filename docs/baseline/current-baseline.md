@@ -4,11 +4,11 @@
 
 Champion Companion e aplicativo Android nativo do relogio Champion C001, escrito em Kotlin e Jetpack Compose.
 
-A Fase 1 estabelece fundacao atual do projeto. Escopo nao inclui BLE, Room, Health Connect, GPS/localizacao, servicos, parsers ou dominio funcional. Fases futuras devem preservar separacao entre transporte, protocolo, dominio e UI definida no roadmap.
+Baseline atual inclui fundacao Android, design system proprio, dominio e persistencia iniciais com Room/DataStore, e nucleo BLE nativo reutilizavel validado na Fase 04. Escopo ainda nao inclui handshake A1 funcional, fluxos funcionais D0/D1/D3/D4, Health Connect, GPS/localizacao, foreground service, background BLE, auto-connect, nem tela funcional completa de dispositivo. Separacao entre transporte, protocolo, dominio e UI continua obrigatoria.
 
 ## Ambiente E Validacao
 
-Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use somente o Gradle Wrapper do repositorio. Validacao fisica desta fase usa Galaxy S22 via ADB com fluxo manual quando necessario.
+Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use somente o Gradle Wrapper do repositorio. Validacao automatizada atual usa `lint`, `assembleDebug` e `assembleRelease`; validacoes no Galaxy S22 via ADB seguem fluxo manual quando necessario.
 
 ```bash
 ./gradlew lint
@@ -19,16 +19,9 @@ Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. Gradle pode exec
 
 ## Base De Codigo
 
-Ha um modulo Android, `app`.
+Ha um modulo Android, `app`. Codigo-fonte: `app/src/main/java/br/com/mwconsulting/championcompanion`. `app` concentra estado global. Infra inclui `core.common`, `core.error`, `core.logging`, `core.navigation`, `core.preferences`, `core.database` e `core.bluetooth`. `core.bluetooth/android` concentra fronteira unica com APIs Android BLE. `core.model` guarda contratos e dominio. `data/` implementa persistencia via Room e repositories. `feature/` contem `home`, `health`, `calendar`, `exercises`, `device`, `profile` e `settings`; `feature/device` ainda nao oferece fluxo BLE funcional completo. Recursos: `app/src/main/res`; testes: `app/src/test` e `app/src/androidTest`.
 
-- Codigo-fonte: `app/src/main/java/br/com/mwconsulting/championcompanion`
-- Recursos: `app/src/main/res`
-- Testes JVM: `app/src/test`
-- Testes instrumentados: `app/src/androidTest`
-
-`app` concentra estado global. `core.common`, `core.error`, `core.logging` e `core.navigation` sao infraestrutura. `feature/` contem `home`, `health`, `calendar`, `exercises`, `device`, `profile` e `settings`.
-
-Compose constroi UI. Hilt faz injecao. Coroutines e `StateFlow` modelam estado. Kotlin Serialization representa rotas. Navegacao contem somente sete destinos iniciais. Erros devem virar estado UI seguro; detalhes tecnicos ficam no Logcat de debug.
+Compose constroi UI. Hilt faz injecao. Coroutines e `StateFlow` modelam estado. Kotlin Serialization representa rotas. Navegacao contem sete destinos iniciais com back stack manual. Room 3 e DataStore ja estao ativos. Nucleo BLE oferece scanner, fila GATT serial por sessao, discovery, capability registry, subscriptions obrigatorias e `TransportReady`, sem tratar transporte como handshake concluido. Erros devem virar estado UI seguro; detalhes tecnicos ficam no Logcat de debug.
 
 ## Variantes
 
@@ -37,9 +30,9 @@ Compose constroi UI. Hilt faz injecao. Coroutines e `StateFlow` modelam estado. 
 
 Release ainda nao recebe assinatura de producao.
 
-## Privacidade E Logs
+## Privacidade E Fontes
 
-Logs estruturados usam `android.util.Log` apenas para diagnostico em debug. Nao registrar payload BLE, coordenadas ou rotas, tokens, credenciais, identificadores pessoais ou dados de saude. Release deve manter logs diagnosticos inativos ou sem detalhes.
+Logs estruturados usam `android.util.Log` apenas para diagnostico em debug. Nao registrar payload BLE, bytes crus, hexadecimal, MAC, coordenadas/rotas, tokens, credenciais, identificadores pessoais ou dados de saude. Release deve manter logs diagnosticos inativos ou sem detalhes.
 
 ## Fontes Autoritativas
 

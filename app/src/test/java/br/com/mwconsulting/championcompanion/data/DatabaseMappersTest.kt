@@ -48,6 +48,27 @@ class DatabaseMappersTest {
     }
 
     @Test
+    fun `device mapper accepts reassociation after older historical import`() {
+        val firstAssociation = Instant.parse("2026-07-20T12:00:00Z")
+        val reassociatedAt = Instant.parse("2026-07-21T12:00:00Z")
+        val device = Device.create(
+            id = DeviceId(UuidV7Generator(Clock.fixed(reassociatedAt, ZoneOffset.UTC), Random(2)).next()),
+            platformIdentifier = "platform-id",
+            name = "Champion C001",
+            associatedAt = firstAssociation,
+            importMetadata = br.com.mwconsulting.championcompanion.core.model.DeviceImportMetadata(
+                lastImportedAt = firstAssociation.plusSeconds(30),
+                parserVersion = ParserVersion.create("d1-v1").valueOrNull(),
+            ),
+        ).valueOrNull()!!
+
+        val mapped = device.toEntity().toDomain(associatedAtEpochMillis = reassociatedAt.toEpochMilli())
+
+        assertEquals(reassociatedAt, mapped?.associatedAt)
+        assertEquals(firstAssociation.plusSeconds(30), mapped?.importMetadata?.lastImportedAt)
+    }
+
+    @Test
     fun `daily summary mapper preserves natural key and optional metrics`() {
         val generator = generator()
         val summary = DailySummary.create(

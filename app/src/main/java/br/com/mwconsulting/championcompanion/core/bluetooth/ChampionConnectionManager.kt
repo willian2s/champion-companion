@@ -64,10 +64,19 @@ class ChampionConnectionManager(
     suspend fun scan(request: ChampionScanRequest): ChampionBleResult<List<ChampionDiscoveredDevice>> {
         mutableState.value = ChampionBleState.Scanning(request)
         val result = scanner.scan(request)
+        val transport = mutex.withLock { activeTransport }
         if (result is ChampionBleResult.Failure) {
-            mutableState.value = ChampionBleState.Failed(null, result.error)
-        } else if (activeTransport == null) {
-            mutableState.value = ChampionBleState.Disconnected
+            mutableState.value = when {
+                transport != null -> ChampionBleState.TransportReady(transport.session, transport.capabilities.snapshot)
+                result.error is ChampionBleError.OperationCancelled -> ChampionBleState.Disconnected
+                else -> ChampionBleState.Failed(null, result.error)
+            }
+        } else {
+            mutableState.value = if (transport == null) {
+                ChampionBleState.Disconnected
+            } else {
+                ChampionBleState.TransportReady(transport.session, transport.capabilities.snapshot)
+            }
         }
         return result
     }
