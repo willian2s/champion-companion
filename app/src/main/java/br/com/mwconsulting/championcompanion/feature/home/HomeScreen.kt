@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -201,8 +202,8 @@ private enum class HomeWatchStatus(
 
 @Composable
 private fun HomeWatchStatus.color() = when (this) {
-    HomeWatchStatus.Connected -> MaterialTheme.colorScheme.primary
-    HomeWatchStatus.Pending -> MaterialTheme.colorScheme.tertiary
+    HomeWatchStatus.Connected -> Color(0xFF22C55E)
+    HomeWatchStatus.Pending -> Color(0xFFFACC15)
 }
 
 private fun HomeWatchStatus.subtitle(deviceName: String?): String = when (this) {
