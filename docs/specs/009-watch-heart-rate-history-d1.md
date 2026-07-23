@@ -103,6 +103,11 @@ Atualizacao de `009-09`:
 - grafico usa `Canvas` local com alternativa textual por ponto e historico consolidado agrupado por dia, cobrindo `Hoje`, `7 dias` e `30 dias`.
 - refinamento visual posterior ja aplicado: secao de grafico agora prioriza cabecalho grande de faixa BPM, seletor compacto por periodo e linhas horizontais visuais inspiradas nas referencias Google Health, ainda tratadas apenas como guias visuais sem semantica clinica fixa.
 
+Atualizacao de `009-10`:
+
+- validacao local da fase foi confirmada como executada.
+- como esta atualizacao nao trouxe novos bytes ou comportamentos fisicos detalhados para protocolo, `docs/protocol/history-d1.md` permaneceu sem ajuste nesta passagem documental.
+
 ## Objetivo
 
 Permitir ao usuario:

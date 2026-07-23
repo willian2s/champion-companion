@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06`, `009-07`, `009-08` e `009-09` concluidas; demais tasks pendentes.
+Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06`, `009-07`, `009-08`, `009-09` e `009-10` concluidas; `009-11` pendente.
 
 ## Objetivo
 
@@ -108,6 +108,12 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - screenshot para PR futuro permaneceu pendente nesta execucao documental; instalacao em device fisico foi validada por `installDebug`.
 - direcao futura aprovada: iteracao visual posterior do grafico pode se inspirar nas referencias Google Health em `docs/investigations/`, inclusive com linhas/limites horizontais semelhantes, desde que produto defina semantica final dessas faixas.
 - essa iteracao visual posterior foi iniciada no mesmo ciclo: `HeartRateHistoryChart` agora usa cabecalho grande de faixa BPM, seletor compacto e faixas visuais horizontais inspiradas nas referencias, ainda sem semantica clinica fixa.
+
+## Achados De `009-10`
+
+- validacao local da fase foi confirmada como executada.
+- task documental foi encerrada sem alterar `docs/protocol/history-d1.md`, porque esta atualizacao nao trouxe novos bytes ou comportamentos fisicos detalhados o suficiente para expandir protocolo com seguranca.
+- fechamento da fase agora depende apenas de `009-11`.
 
 ## Estado Herdado Da Fase 08
 
@@ -217,7 +223,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `009-07` implementar coordinator D1, gate e arbitragem BLE
 - [x] `009-08` integrar ViewModel, progresso, cancelamento, retry e lifecycle
 - [x] `009-09` implementar UI final de historico e grafico
-- [ ] `009-10` registrar gate de build, smoke fisico e protocolo atualizado
+- [x] `009-10` registrar gate de build, smoke fisico e protocolo atualizado
 - [ ] `009-11` fechar baseline, checklist, spec e divida tecnica
 
 ## Comandos Minimos

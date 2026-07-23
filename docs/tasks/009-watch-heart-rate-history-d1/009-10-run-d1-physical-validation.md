@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -90,6 +90,17 @@ Fase 09 depende de observacao fisica porque D1 e BLE multipacote com lacunas ain
 - saida dos comandos obrigatorios;
 - screenshots e observacoes do smoke fisico;
 - update de `docs/protocol/history-d1.md` com achados confirmados.
+
+## Implementacao Executada
+
+- validacao local da task foi executada e aceita.
+- task foi encerrada com base na confirmacao do smoke local e dos testes realizados nesta fase.
+- nenhum novo achado de baixo nivel para `docs/protocol/history-d1.md` foi detalhado nesta atualizacao documental; portanto protocolo permaneceu sem alteracao aqui para evitar inventar confirmacoes fisicas nao descritas.
+
+## Evidencias Coletadas Nesta Execucao
+
+- confirmacao do usuario de que os testes locais foram feitos.
+- status documental da task atualizado para concluida.
 
 ## Atualizacao Do Overview
 

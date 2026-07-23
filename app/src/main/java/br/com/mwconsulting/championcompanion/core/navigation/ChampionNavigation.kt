@@ -311,16 +311,16 @@ private fun ChampionNavDisplay(
                 onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
             )
             AppDestination.HealthHeartRate -> HeartRateDetailScreen(
-                onNavigateBack = onBackRequested,
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
             )
             AppDestination.HealthWeight -> WeightDetailScreen(
-                onNavigateBack = onBackRequested,
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
             )
             AppDestination.HealthSteps -> StepsDetailScreen(
-                onNavigateBack = onBackRequested,
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
             )
             AppDestination.HealthDistance -> DistanceDetailScreen(
-                onNavigateBack = onBackRequested,
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
             )
             AppDestination.Calendar -> CalendarScreen()
             AppDestination.Exercises -> ExercisesScreen()
