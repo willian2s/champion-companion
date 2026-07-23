@@ -101,6 +101,7 @@ Atualizacao de `009-09`:
 - `HeartRateDetailScreen` agora compoe `HeartRateOverviewCard`, `HeartRateHistoryChartSection`, `HeartRateHistoryChart` e `HeartRateHistoryList` para fechar superficie D1 sem biblioteca externa de grafico.
 - primeiro card agora mostra ultimo BPM, origem amigavel, acoes `Medir frequencia cardiaca` + `Buscar dados do relogio`, progresso/estado D1 e metadata da ultima importacao.
 - grafico usa `Canvas` local com alternativa textual por ponto e historico consolidado agrupado por dia, cobrindo `Hoje`, `7 dias` e `30 dias`.
+- refinamento visual posterior ja aplicado: secao de grafico agora prioriza cabecalho grande de faixa BPM, seletor compacto por periodo e linhas horizontais visuais inspiradas nas referencias Google Health, ainda tratadas apenas como guias visuais sem semantica clinica fixa.
 
 ## Objetivo
 
@@ -645,6 +646,8 @@ Somente medicoes validas. Nada persistido.
 - `Hoje`: pontos reais por horario.
 - `7 dias` e `30 dias`: buckets diarios com media principal; minimo e maximo quando simples.
 - sem biblioteca nova de grafico por padrao; preferir Compose Canvas ou componente local pequeno.
+- refinamento visual futuro pode seguir linguagem das referencias em `docs/investigations/google-health-hr-diario.jpeg`, `google-health-hr-semanal.jpeg` e `google-health-hr-mensal.jpeg`, desde que preserve dados reais do app e acessibilidade textual.
+- limites/faixas horizontais equivalentes aos vistos nas referencias podem ser usados em iteracao futura como guias visuais do grafico, mas exigem definicao explicita de produto antes de receber semantica clinica ou nomes fixos.
 
 Contrato reservado em `009-03`:
 

@@ -106,6 +106,8 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - grafico funcional agora usa `Canvas` local sem biblioteca externa e expone alternativa textual dos pontos, alem de agregacoes do periodo selecionado.
 - historico consolidado agora lista medicoes manuais e D1 agrupadas por dia na propria tela de frequencia cardiaca.
 - screenshot para PR futuro permaneceu pendente nesta execucao documental; instalacao em device fisico foi validada por `installDebug`.
+- direcao futura aprovada: iteracao visual posterior do grafico pode se inspirar nas referencias Google Health em `docs/investigations/`, inclusive com linhas/limites horizontais semelhantes, desde que produto defina semantica final dessas faixas.
+- essa iteracao visual posterior foi iniciada no mesmo ciclo: `HeartRateHistoryChart` agora usa cabecalho grande de faixa BPM, seletor compacto e faixas visuais horizontais inspiradas nas referencias, ainda sem semantica clinica fixa.
 
 ## Estado Herdado Da Fase 08
 

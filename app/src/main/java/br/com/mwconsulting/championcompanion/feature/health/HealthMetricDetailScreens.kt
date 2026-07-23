@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -60,7 +61,6 @@ import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportSummary
-import br.com.mwconsulting.championcompanion.core.model.HeartRateChartPoint
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryEntry
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
@@ -71,8 +71,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+
+private const val HEART_RATE_HISTORY_PAGE_SIZE = 10
 
 @Composable
 fun HeartRateDetailScreen(
@@ -428,14 +431,14 @@ private fun HeartRateOverviewCard(
             )
         }
 
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
             PrimaryActionButton(
                 label = "Medir frequência cardíaca",
                 onClick = onStartMeasurement,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = state.hasAssociatedDevice && !isD1ImportInFlight,
             )
             OutlinedButton(
@@ -444,7 +447,7 @@ private fun HeartRateOverviewCard(
                     state.d1ImportState.isRetryableFailure() -> onRetryD1Import
                     else -> onStartD1Import
                 },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = state.hasAssociatedDevice && !isMeasurementInFlight,
             ) {
                 Text(
@@ -477,7 +480,6 @@ private fun HeartRateD1ImportPanel(
 ) {
     val session = state.sessionOrNull()
     val progress = session?.progress?.progressFraction
-    val importLabel = state.toUiTitle()
     val importMessage = state.toUiMessage()
 
     Column(
@@ -487,11 +489,6 @@ private fun HeartRateD1ImportPanel(
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        Text(
-            text = importLabel,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
         Text(
             text = importMessage,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -582,36 +579,12 @@ private fun HeartRateHistoryChartSection(
         )
 
         val aggregates = state.history.aggregates
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            MetricCard(
-                label = "Quantidade",
-                value = numberFormat().format(aggregates.measurementCount),
-                supportingText = periodToLabel(state.selectedHistoryPeriod),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricCard(
-                label = "Média",
-                value = aggregates.averageBpm?.let { "${it.roundToInt()} BPM" } ?: "--",
-                supportingText = "Somente medições válidas",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricCard(
-                label = "Mínimo",
-                value = aggregates.minimumBpm?.let { "$it BPM" } ?: "--",
-                supportingText = "Período selecionado",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricCard(
-                label = "Máximo",
-                value = aggregates.maximumBpm?.let { "$it BPM" } ?: "--",
-                supportingText = "Período selecionado",
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        HeartRateChartHeadline(
+            period = state.selectedHistoryPeriod,
+            aggregates = aggregates,
+            entryCount = state.history.entries.size,
+            pointsCount = state.history.chart.points.size,
+        )
 
         HeartRateHistoryChart(
             series = state.history.chart,
@@ -619,9 +592,44 @@ private fun HeartRateHistoryChartSection(
             modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
         )
 
-        HeartRateChartTextAlternative(
-            points = state.history.chart.points,
+        HeartRateChartAccessibleSummary(
+            measurementCount = state.history.entries.size,
+            pointCount = state.history.chart.points.size,
             period = state.selectedHistoryPeriod,
+        )
+    }
+}
+
+@Composable
+private fun HeartRateChartHeadline(
+    period: HeartRateHistoryPeriod,
+    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
+    entryCount: Int,
+    pointsCount: Int,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = periodHeadline(period),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = heartRateRangeHeadline(aggregates),
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = heartRateRangeSupportingText(aggregates, entryCount, pointsCount),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} medições válidas",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
@@ -631,51 +639,47 @@ private fun HistoryPeriodSelector(
     selected: HeartRateHistoryPeriod,
     onSelectPeriod: (HeartRateHistoryPeriod) -> Unit,
 ) {
-    FlowRow(
+    Row(
         modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
         horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
         HeartRateHistoryPeriod.entries.forEach { period ->
-            AssistChip(
+            val isSelected = period == selected
+            OutlinedButton(
                 onClick = { onSelectPeriod(period) },
-                label = { Text(periodToLabel(period)) },
-                enabled = period != selected,
+                modifier = Modifier.weight(1f),
             )
+            {
+                Text(
+                    text = compactPeriodToLabel(period),
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun HeartRateChartTextAlternative(
-    points: List<HeartRateChartPoint>,
+private fun HeartRateChartAccessibleSummary(
+    measurementCount: Int,
+    pointCount: Int,
     period: HeartRateHistoryPeriod,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-    ) {
-        Text(
-            text = "Leitura textual do gráfico",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        if (points.isEmpty()) {
-            Text(
-                text = "Nenhum ponto disponível para ${periodToLabel(period).lowercase(Locale.getDefault())}.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+    Text(
+        text = if (pointCount == 0) {
+            "Resumo acessível: nenhum ponto disponível para ${periodToLabel(period).lowercase(Locale.getDefault())}."
         } else {
-            points.forEach { point ->
-                Text(
-                    text = chartPointLabel(point, period),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
+            "Resumo acessível: ${numberFormat().format(measurementCount)} medições válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(Locale.getDefault())}."
+        },
+        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
@@ -688,7 +692,14 @@ private fun HeartRateHistoryList(
         return
     }
 
-    val groupedEntries = entries.groupBy { entry ->
+    val totalPages = ceil(entries.size / HEART_RATE_HISTORY_PAGE_SIZE.toDouble()).toInt().coerceAtLeast(1)
+    var currentPage by rememberSaveable(entries.size) { mutableStateOf(0) }
+    currentPage = currentPage.coerceIn(0, totalPages - 1)
+
+    val pageEntries = entries
+        .drop(currentPage * HEART_RATE_HISTORY_PAGE_SIZE)
+        .take(HEART_RATE_HISTORY_PAGE_SIZE)
+    val groupedEntries = pageEntries.groupBy { entry ->
         entry.measuredAt.atZone(ZoneId.systemDefault()).toLocalDate()
     }
 
@@ -696,6 +707,22 @@ private fun HeartRateHistoryList(
         modifier = Modifier.padding(top = ChampionSpacing.medium),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Página ${currentPage + 1} de $totalPages",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "${numberFormat().format(entries.size)} medições",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         groupedEntries.forEach { (date, grouped) ->
             Text(
                 text = formatHistoryDay(date),
@@ -728,6 +755,27 @@ private fun HeartRateHistoryList(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
+                }
+            }
+        }
+        if (totalPages > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            ) {
+                OutlinedButton(
+                    onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) },
+                    modifier = Modifier.weight(1f),
+                    enabled = currentPage > 0,
+                ) {
+                    Text("Anterior", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(
+                    onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) },
+                    modifier = Modifier.weight(1f),
+                    enabled = currentPage < totalPages - 1,
+                ) {
+                    Text("Próxima", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -1384,27 +1432,44 @@ private fun periodToLabel(period: HeartRateHistoryPeriod): String = when (period
     HeartRateHistoryPeriod.LAST_30_DAYS -> "30 dias"
 }
 
-private fun chartPointLabel(
-    point: HeartRateChartPoint,
-    period: HeartRateHistoryPeriod,
-): String {
-    val timestamp = if (period == HeartRateHistoryPeriod.TODAY) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-            .withLocale(Locale.getDefault())
-            .withZone(ZoneId.systemDefault())
-            .format(point.timestamp)
-    } else {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
-            .withLocale(Locale.getDefault())
-            .withZone(ZoneId.systemDefault())
-            .format(point.timestamp)
-    }
-    val range = if (point.minimumBpm != null && point.maximumBpm != null) {
-        " • mínimo ${point.minimumBpm} • máximo ${point.maximumBpm}"
-    } else {
-        ""
-    }
-    return "$timestamp • média ${point.bpm.roundToInt()} BPM • ${point.sampleCount} registro(s)$range"
+private fun compactPeriodToLabel(period: HeartRateHistoryPeriod): String = when (period) {
+    HeartRateHistoryPeriod.TODAY -> "D"
+    HeartRateHistoryPeriod.LAST_7_DAYS -> "S"
+    HeartRateHistoryPeriod.LAST_30_DAYS -> "M"
+}
+
+private fun periodHeadline(period: HeartRateHistoryPeriod): String = when (period) {
+    HeartRateHistoryPeriod.TODAY -> "Hoje"
+    HeartRateHistoryPeriod.LAST_7_DAYS -> buildRelativeDateRangeLabel(days = 7)
+    HeartRateHistoryPeriod.LAST_30_DAYS -> buildRelativeDateRangeLabel(days = 30)
+}
+
+private fun heartRateRangeHeadline(
+    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
+): String = if (aggregates.measurementCount == 0) {
+    "Sem dados"
+} else {
+    val min = aggregates.minimumBpm?.toString() ?: "--"
+    val max = aggregates.maximumBpm?.toString() ?: "--"
+    "$min a $max bpm"
+}
+
+private fun heartRateRangeSupportingText(
+    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
+    entryCount: Int,
+    pointsCount: Int,
+): String = if (aggregates.measurementCount == 0) {
+    "Use medição manual ou importação D1 para ver tendências no período selecionado."
+} else {
+    "${numberFormat().format(entryCount)} medições válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
+}
+
+private fun buildRelativeDateRangeLabel(days: Long): String {
+    val zoneId = ZoneId.systemDefault()
+    val end = LocalDate.now(zoneId)
+    val start = end.minusDays(days - 1)
+    val formatter = DateTimeFormatter.ofPattern("d 'de' MMM.", Locale.forLanguageTag("pt-BR"))
+    return "${start.format(formatter)}-${end.format(formatter)}"
 }
 
 internal fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toHealthOriginLabel(): String = when (this) {

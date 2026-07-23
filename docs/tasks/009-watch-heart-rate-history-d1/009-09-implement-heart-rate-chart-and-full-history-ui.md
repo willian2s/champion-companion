@@ -104,6 +104,13 @@ Com `HealthViewModel` e leitura local prontos, `HeartRateDetailScreen` deixa de 
 - `HeartRateHistoryList` agora mostra historico consolidado manual + D1 agrupado por dia e com origem amigavel.
 - `HeartRateHistoryChart.kt` foi criado com grafico local em `Canvas` para `Hoje`, `7 dias` e `30 dias`.
 - `HealthScreen.kt` agora resume melhor a tela de frequencia cardiaca com referencia a importacao D1 e ultima importacao bem-sucedida quando existir.
+- refinamento posterior aplicado na mesma task: grafico passou a seguir linguagem visual inspirada no Google Health, com cabecalho-resumo grande, seletor compacto `D/S/M`, eixos discretos e faixas horizontais visuais baseadas nas referencias aprovadas.
+
+## Direcao Visual Posterior Registrada
+
+- refinamento futuro do grafico pode seguir linguagem visual das referencias em `docs/investigations/google-health-hr-diario.jpeg`, `google-health-hr-semanal.jpeg` e `google-health-hr-mensal.jpeg`.
+- uso de limites/faixas horizontais inspirados nessas referencias foi considerado aceitavel para iteracao futura.
+- antes de implementar nomes ou semantica clinica para essas faixas, produto precisa definir se elas serao apenas guias visuais ou zonas interpretativas fixas.
 
 ## Evidencias Coletadas Nesta Execucao
 
