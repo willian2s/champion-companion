@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -98,6 +98,13 @@ Formalizar por documentacao duradoura que Fase 09 e owner de D1 local + fila `PE
 - roadmap ajustado;
 - protocolo alinhado quando aplicavel.
 
+## Evidencias Registradas
+
+- ADR criada em `docs/decisions/adr-010-d1-local-first-and-health-connect-phase-boundary.md`.
+- `docs/roadmap/champion-companion-roadmap.md` atualizado para manter Fase 09 local-first e explicitar Fase 12 como owner do provider real.
+- `docs/protocol/history-d1.md` atualizado para alinhar linguagem documental da fila `PENDING` com envio integral futuro.
+- `docs/specs/009-watch-heart-rate-history-d1.md` e `docs/tasks/009-watch-heart-rate-history-d1/009-00-overview.md` atualizados no mesmo trabalho.
+
 ## Atualizacao Do Overview
 
 - marcar `009-02` como concluida;
@@ -107,3 +114,9 @@ Formalizar por documentacao duradoura que Fase 09 e owner de D1 local + fila `PE
 ## Validacao Final
 
 - confirmar que task permaneceu estritamente documental e nao implementou cliente Health Connect.
+
+Confirmado nesta task:
+
+- nenhum arquivo `.kt` foi alterado;
+- nenhum cliente, permissao ou mapeador de Health Connect foi implementado;
+- mudancas ficaram restritas a ADR, roadmap, protocolo, spec e docs da Fase 09.

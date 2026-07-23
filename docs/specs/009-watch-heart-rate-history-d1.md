@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23.
+Planejada em 2026-07-23. Fronteira local-first formalizada em `009-02`.
 
 ## Contexto
 
@@ -114,6 +114,8 @@ Permitir ao usuario:
 
 ## Fronteira Health Connect
 
+ADR-010 formaliza esta fronteira como decisao arquitetural vigente da fase.
+
 Fase 09 e responsavel por:
 
 - importar D1;
@@ -133,6 +135,13 @@ Fase 09 nao e responsavel por:
 - lotes reais;
 - retry do provider;
 - marcar registros como `SYNCED`.
+
+Fase 12 e responsavel por:
+
+- processar backlog D1 `PENDING` criado localmente;
+- mapear para records reais do provider;
+- executar escrita idempotente;
+- manter falhas parciais pendentes ou failed sem desfazer dado local.
 
 ```mermaid
 flowchart LR
@@ -537,7 +546,7 @@ Impacto planejado:
 - migration Room `v2 -> v3`;
 - schema exportado novo;
 - modelo extensivel para D3/D4 no futuro;
-- ADR obrigatoria de `009-02` deve registrar fronteira local-first e pode tambem registrar essa base de metadata se a decisao ficar duradoura.
+- ADR-010 ja registra que `DeviceImportMetadata.lastImportedAt` nao pode ser reaproveitado como metadata D1 exclusiva; detalhamento do modelo definitivo segue para `009-03` e `009-05`.
 
 ## Consultas Por Periodo
 
@@ -883,6 +892,7 @@ Testes pequenos recomendados junto das tasks:
 Fase 09 fecha quando:
 
 - task documental inicial corrigir fronteira com Health Connect em ADR e roadmap;
+- ADR-010 e roadmap refletirem Fase 09 local-first e Fase 12 como owner do provider real;
 - `Buscar dados do relogio` estiver funcional na tela de frequencia cardiaca;
 - importacao D1 for local-first;
 - persistencia, deduplicacao e fila `PENDING` forem idempotentes;

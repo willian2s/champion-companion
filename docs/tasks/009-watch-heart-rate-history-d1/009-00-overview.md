@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento desde 2026-07-23. `009-01` concluida; demais tasks pendentes.
+Em andamento desde 2026-07-23. `009-01` e `009-02` concluidas; demais tasks pendentes.
 
 ## Objetivo
 
@@ -49,6 +49,13 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `HomeViewModel.kt`, `DeviceManagementViewModel.kt` e telas relacionadas continuam usando `Device.importMetadata.lastImportedAt` como metadado generico; esse campo nao representa ultima importacao D1.
 - `docs/protocol/history-d1.md` confirma limite real atual: `D1 01 00 00` consulta historico automatico do dia corrente, com timeout foreground de 15 segundos, conclusao por `totalPackets > 0 && packetIndex >= totalPackets`, sem data/timezone no payload e sem semantica confirmada para offsets `6-13` e `15-18`.
 - Fronteira correta confirmada: Fase 09 e local-first; Health Connect real fica para Fase 12, apesar do roadmap ainda divergente.
+
+## Achados De `009-02`
+
+- ADR-010 foi criada para registrar que Fase 09 e owner de D1 local-first e fila `PENDING`, enquanto Fase 12 e owner do provider Health Connect real.
+- roadmap foi corrigido sem renumerar fases: Fase 09 deixou de prometer permissao, provider e escrita real; Fase 12 passou a explicitar processamento do backlog D1 pendente.
+- `docs/protocol/history-d1.md` foi alinhado para refletir que regra de envio integral continua obrigatoria, mas implementacao real fica para Fase 12.
+- spec da Fase 09 ficou alinhada a ADR-010 e consolidou que `DeviceImportMetadata.lastImportedAt` nao pode ser tratado como metadata D1 exclusiva.
 
 ## Estado Herdado Da Fase 08
 
@@ -150,7 +157,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 ## Checklist
 
 - [x] `009-01` auditar protocolo D1, lacunas e fronteira Health Connect
-- [ ] `009-02` formalizar ADR, roadmap e alinhamento Fase 09/Fase 12
+- [x] `009-02` formalizar ADR, roadmap e alinhamento Fase 09/Fase 12
 - [ ] `009-03` definir contratos, metadata e state machine D1
 - [ ] `009-04` implementar comando D1, parser e collector multipart
 - [ ] `009-05` implementar persistencia, deduplicacao, fila `PENDING` e migration
@@ -221,6 +228,7 @@ Galaxy S22 com Champion C001:
 - `RoomRepositories.import(...)` cria `PENDING` apenas para D1 novo; `009-05` precisa decidir reparo idempotente de operacao ausente para registros existentes.
 - `ForegroundBleOperationGate` ainda nao conhece owner D1; `009-07` precisa expandir arbitragem sem quebrar manual heart rate nem refresh diario.
 - protocolo D1 continua com bytes desconhecidos e sem data no payload; `009-04` precisa manter parser conservador e contexto de tentativa congelado.
+- `009-03` agora depende explicitamente de contratos documentados em ADR-010 para metadata D1, state machine separada e fronteira definitiva com fila `PENDING`.
 
 ## Criterios Gerais
 
