@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -99,6 +99,14 @@ Depois de `009-05`, persistencia D1 e metadata especifica ja devem existir. Aind
 
 - resultados dos testes pequenos;
 - diff de DAO/repository mostrando consultas locais e buckets diarios.
+
+## Implementacao Executada
+
+- `HeartRateDao` ganhou `observeValidHistoryBetween(...)` para janela local e fontes consolidadas.
+- `RoomRepositories.observeHistory(...)` agora consulta apenas periodo necessario, consolida manual + D1 e monta `HeartRateHistorySnapshot` completo.
+- helper de janela local usa `[fromInclusive, untilExclusive)` para `TODAY`, `LAST_7_DAYS` e `LAST_30_DAYS`.
+- agregacoes e serie do grafico sao calculadas em memoria; `TODAY` usa pontos reais e periodos maiores usam buckets diarios sem sintetizar dias vazios.
+- `RoomRepositoriesHeartRateHistoryQueriesTest.kt` cobre limites de periodo, consolidacao, agregacoes e buckets diarios.
 
 ## Atualizacao Do Overview
 

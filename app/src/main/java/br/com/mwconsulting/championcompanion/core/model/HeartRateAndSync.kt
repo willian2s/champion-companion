@@ -197,6 +197,15 @@ enum class HeartRateHistoryPeriod {
     TODAY,
     LAST_7_DAYS,
     LAST_30_DAYS,
+
+    ;
+
+    val windowDays: Long
+        get() = when (this) {
+            TODAY -> 1L
+            LAST_7_DAYS -> 7L
+            LAST_30_DAYS -> 30L
+        }
 }
 
 data class HeartRateHistoryQuery(

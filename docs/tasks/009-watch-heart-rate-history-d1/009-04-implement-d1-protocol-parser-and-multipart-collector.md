@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -109,6 +109,12 @@ Codigo atual ja possui transporte BLE, fila GATT, `ChampionNotificationHub`, `Ch
 
 - resultados de testes pequenos;
 - diff do protocolo D1 com referencias cruzadas aos offsets confirmados.
+
+## Implementacao Executada
+
+- `ChampionD1HistoryProtocol.kt` criado com `createHistoryCommand()`, `parsePayload()`, `parsePacket()`, `resolveMeasuredAt()`, `toMeasurement()` e `MultipartCollector`.
+- `ChampionBleTimeouts.kt` ganhou `d1History` em 15 segundos.
+- `ChampionD1HistoryProtocolTest.kt` cobre builder, parser, little-endian, timestamp, fora de ordem, lacunas, timeout parcial, timeout vazio e callback tardio ignorado.
 
 ## Atualizacao Do Overview
 

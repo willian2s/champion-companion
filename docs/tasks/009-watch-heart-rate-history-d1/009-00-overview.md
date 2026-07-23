@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento desde 2026-07-23. `009-01` e `009-02` concluidas; demais tasks pendentes.
+Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05` e `009-06` concluidas; demais tasks pendentes.
 
 ## Objetivo
 
@@ -64,6 +64,26 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `RepositoryContracts.kt` agora reserva `WATCH_D1_HISTORY` no gate foreground e contratos `importD1Measurements(...)`, `observeHistory(...)` e `observeD1ImportMetadata(...)`.
 - `HeartRateAndSync.kt` agora centraliza modelos duradouros de periodo, historico, agregacoes, grafico, progresso D1, resultado tipado, metadata e contagens de persistencia.
 - `009-04` e `009-05` passam a poder paralelizar com base em contratos ja fixados, desde que coordenem edicoes concorrentes em `RepositoryContracts.kt` e modelos compartilhados.
+
+## Achados De `009-04`
+
+- `ChampionD1HistoryProtocol.kt` agora implementa builder exato `D1 01 00 00`, parser conservador, resolucao `baseLocalDate + hour + minute + zoneId` e `MultipartCollector` stateful.
+- `MultipartCollector` aceita fora de ordem, conclui por `packetIndex >= totalPackets`, preserva timeout parcial, calcula lacunas e ignora callbacks tardios apos fim ou sessao invalida.
+- `ChampionBleTimeouts.kt` agora reserva `d1History = 15.seconds` para reuso por coordinator posterior.
+- `ChampionD1HistoryProtocolTest.kt` cobre builder, parse little-endian, ranges, timestamp, fora de ordem, lacunas, timeout parcial, timeout vazio e callback tardio ignorado.
+
+## Achados De `009-05`
+
+- `ChampionDatabase.kt` agora esta em `version = 3` com `AutoMigration(2, 3)` e schema exportado para metadata dedicada de importacao por `deviceId + importType`.
+- `RoomRepositories.importD1Measurements(...)` agora aplica politica `preserve-first`, retorna contagens tipadas e repara `HealthSyncOperation.PENDING` ausente para D1 ja existente.
+- `RoomRepositoriesD1ImportTest.kt` cobre idempotencia, conflito por mesmo timestamp e repair de pendente ausente; `ChampionDatabaseSchemaTest.kt` valida tabela nova no schema atual.
+
+## Achados De `009-06`
+
+- `HeartRateDao.observeValidHistoryBetween(...)` agora filtra historico local valido por janela `[from, until)` e fontes permitidas.
+- `RoomRepositories.observeHistory(...)` agora monta `HeartRateHistorySnapshot` consolidando apenas `MANUAL_MEASUREMENT` e `WATCH_D1_HISTORY`.
+- agregacoes `measurementCount`, `averageBpm`, `minimumBpm` e `maximumBpm` sao calculadas em memoria sobre registros validos do periodo.
+- grafico usa pontos reais para `TODAY` e buckets diarios para `LAST_7_DAYS` e `LAST_30_DAYS`, sem dias vazios sinteticos.
 
 ## Estado Herdado Da Fase 08
 
@@ -167,9 +187,9 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `009-01` auditar protocolo D1, lacunas e fronteira Health Connect
 - [x] `009-02` formalizar ADR, roadmap e alinhamento Fase 09/Fase 12
 - [x] `009-03` definir contratos, metadata e state machine D1
-- [ ] `009-04` implementar comando D1, parser e collector multipart
-- [ ] `009-05` implementar persistencia, deduplicacao, fila `PENDING` e migration
-- [ ] `009-06` implementar consultas, agregacoes e serie do grafico
+- [x] `009-04` implementar comando D1, parser e collector multipart
+- [x] `009-05` implementar persistencia, deduplicacao, fila `PENDING` e migration
+- [x] `009-06` implementar consultas, agregacoes e serie do grafico
 - [ ] `009-07` implementar coordinator D1, gate e arbitragem BLE
 - [ ] `009-08` integrar ViewModel, progresso, cancelamento, retry e lifecycle
 - [ ] `009-09` implementar UI final de historico e grafico

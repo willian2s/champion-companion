@@ -33,6 +33,33 @@ data class DeviceEntity(
 )
 
 @Entity(
+    tableName = "device_import_metadata",
+    foreignKeys = [ForeignKey(
+        entity = DeviceEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["deviceId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index(value = ["deviceId", "importType"], unique = true)],
+)
+data class DeviceImportMetadataEntity(
+    @PrimaryKey val id: String,
+    val deviceId: String,
+    val importType: String,
+    val lastAttemptAtEpochMillis: Long,
+    val lastSuccessAtEpochMillis: Long?,
+    val lastResult: String,
+    val parserVersion: String?,
+    val insertedCount: Int,
+    val duplicateCount: Int,
+    val conflictCount: Int,
+    val invalidCount: Int,
+    val missingIndexCount: Int,
+    val timedOut: Boolean,
+    val updatedAtEpochMillis: Long,
+)
+
+@Entity(
     tableName = "device_associations",
     foreignKeys = [ForeignKey(
         entity = DeviceEntity::class,
@@ -399,6 +426,7 @@ class ChampionDatabaseConverters {
 @Database(
     entities = [
         DeviceEntity::class,
+        DeviceImportMetadataEntity::class,
         DeviceAssociationEntity::class,
         UserProfileEntity::class,
         WeightMeasurementEntity::class,
@@ -414,14 +442,18 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    version = 3,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3),
+    ],
     exportSchema = true,
 )
 @ColumnTypeConverters(ChampionDatabaseConverters::class)
 abstract class ChampionDatabase : RoomDatabase() {
     abstract fun schemaDao(): SchemaDao
     abstract fun deviceDao(): DeviceDao
+    abstract fun deviceImportMetadataDao(): DeviceImportMetadataDao
     abstract fun deviceAssociationDao(): DeviceAssociationDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun dailySummaryDao(): DailySummaryDao

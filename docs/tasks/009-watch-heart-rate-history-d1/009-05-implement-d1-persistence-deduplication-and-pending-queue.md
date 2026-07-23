@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -109,6 +109,14 @@ Implementar persistencia local de D1 com deduplicacao persistente, contagens exp
 - schema exportado novo;
 - resultados de testes pequenos;
 - diff mostrando contagens e repair de pendente ausente.
+
+## Implementacao Executada
+
+- `ChampionDatabase.kt` foi elevado para `version = 3` com `AutoMigration(from = 2, to = 3)` e nova entidade `DeviceImportMetadataEntity`.
+- `ChampionDaos.kt` ganhou `DeviceImportMetadataDao` para leitura e upsert por `deviceId + importType`.
+- `DatabaseMappers.kt` agora converte metadata D1 dedicada entre Room e dominio.
+- `RoomRepositories.kt` agora implementa `importD1Measurements(...)`, `observeD1ImportMetadata(...)` e planner interno idempotente com repair de `PENDING` ausente.
+- `RoomRepositoriesD1ImportTest.kt` cobre idempotencia, conflito `preserve-first` e repair de pendente ausente; `ChampionDatabaseSchemaTest.kt` cobre tabela nova no schema v3.
 
 ## Atualizacao Do Overview
 

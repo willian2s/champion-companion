@@ -66,6 +66,24 @@ Atualizacao de `009-03`:
 - `core/model/RepositoryContracts.kt` agora reserva `importD1Measurements(...)`, `observeHistory(...)` e `observeD1ImportMetadata(...)`, alem de owner `WATCH_D1_HISTORY` no gate.
 - `core/model/HeartRateAndSync.kt` agora concentra modelos duradouros de periodo, historico, agregacoes, serie do grafico, progresso D1, resultado tipado, metadata e contagens de persistencia D1.
 
+Atualizacao de `009-04`:
+
+- `core/bluetooth/ChampionD1HistoryProtocol.kt` agora concentra `D1ImportContext`, `D1Packet`, `MultipartCollector` e `D1CollectionOutcome`.
+- comando foreground D1 foi fixado em `ChampionD1HistoryProtocol.createHistoryCommand()` com payload exato `D1 01 00 00`.
+- timeout dedicado `ChampionBleTimeouts.d1History` foi reservado em 15 segundos para collector e coordinator reutilizarem sem duplicar constante.
+
+Atualizacao de `009-05`:
+
+- `ChampionDatabase.kt` evoluiu para `version = 3` com `AutoMigration(from = 2, to = 3)` e nova tabela `device_import_metadata`.
+- `RoomRepositories.importD1Measurements(...)` agora executa lote idempotente com `insertedCount`, `duplicateCount`, `conflictCount`, `pendingCreatedCount` e `pendingExistingCount`.
+- metadata D1 agora fica dedicada por `deviceId + importType`, sem reutilizar `DeviceImportMetadata.lastImportedAt`.
+
+Atualizacao de `009-06`:
+
+- `HeartRateDao.observeValidHistoryBetween(...)` agora consulta historico local valido por janela e fontes consolidadas.
+- `RoomRepositories.observeHistory(...)` agora resolve janelas locais para `TODAY`, `LAST_7_DAYS` e `LAST_30_DAYS`, calcula agregacoes em memoria e monta `HeartRateChartSeries` sem dados sinteticos.
+- `TODAY` usa pontos reais intraday; `LAST_7_DAYS` e `LAST_30_DAYS` usam buckets diarios com media, minimo, maximo e contagem por dia.
+
 ## Objetivo
 
 Permitir ao usuario:
