@@ -15,7 +15,7 @@ Documentar importacao de treinos gravados no Champion C001: indice D3, download 
 - `../motionlog-app/src/lib/health-connect/watch-workout-sync.ts`
 - `../motionlog-app/src/models/watch-workout.ts`
 
-Salvo indicacao contraria, informacoes deste documento sao `Confirmado pelo codigo`. Nenhuma fixture D3/D4 de dispositivo fisico foi analisada nesta task.
+Salvo indicacao contraria, informacoes deste documento sao `Confirmado pelo codigo`. Validacao fisica da Fase 10 em Galaxy S22 com Champion C001 confirmou fluxo funcional de importacao D3/D4, sem divergencia bloqueadora adicional de protocolo nos cenarios exercitados.
 
 ## Regra Obrigatoria Para Champion Companion
 
@@ -158,7 +158,7 @@ MotionLog persiste importacao em `watch_workout_imports` e amostras em `watch_wo
 
 ## Lacunas Para `000-14`
 
-- Capturar fixtures D3/D4 reais: vazio, multipacote, CRC repetido, bloco completo, timeout, pacote fora de ordem e pacote duplicado.
+- Expandir fixtures D3/D4 reais versionadas: vazio, multipacote, CRC repetido, bloco completo, timeout, pacote fora de ordem e pacote duplicado.
 - Confirmar layouts preferido e legado D4, unidades de todos campos e significado de `sportCountRaw`, `pauseRaw` e assinatura `data`.
 - Confirmar se CRC D3 corresponde sempre ao CRC pacote 3 D4 e como tratar divergencia.
 - Confirmar semantica, payload e uso de D8; confirmar se A8 complementa D3/D4 em algum firmware.

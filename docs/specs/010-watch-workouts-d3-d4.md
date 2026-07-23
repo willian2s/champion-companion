@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23.
+Concluída em 2026-07-23.
 
 ## Contexto
 
@@ -97,6 +97,17 @@ Atualização de `010-10`:
 - `ExercisesScreen.kt` agora cancela importação ao entrar em `ON_STOP`, preservando tentativa explícita apenas em foreground visível e sem reinício automático no retorno.
 - `ChampionWatchWorkoutImportCoordinator.kt`, `ChampionManualHeartRateCoordinator.kt` e `ChampionD1HeartRateSyncCoordinator.kt` agora traduzem rejeição do gate foreground para mensagens seguras por owner ativo, incluindo `WATCH_WORKOUT_IMPORT`.
 - Retry e dismiss permanecem na `ExercisesViewModel` com nova tentativa limpa, novo `importAttemptId` e novo permit do gate após estados terminais.
+
+Atualização de `010-11` e `010-12`:
+
+- Validação física em Galaxy S22 com Champion C001 confirmou ausência de autoimportação, execução explícita de D3 e D4, importação correta de treinos e persistência local em `PENDING_REVIEW`.
+- Gate B da fase foi aceito com treino curto, treino longo ou multipart, deduplicação, cancelamento e retomada válidos no hardware real.
+- Não surgiram divergências físicas bloqueadoras que exigissem novo ajuste de protocolo nesta fase.
+
+Atualização de `010-13`:
+
+- Fase 10 foi encerrada documentalmente com baseline factual, protocolo, checklist e lacunas alinhados ao estado entregue.
+- Fronteira permanece explícita: importação termina em `PENDING_REVIEW`; revisão fica para Fase 11 e Health Connect real fica para Fase 12.
 
 Atualização posterior de alinhamento MotionLog:
 
@@ -1078,6 +1089,15 @@ Executar em Galaxy S22 com Champion C001:
 9. cancelar durante D4;
 10. tentar novamente e confirmar retomada.
 
+Resultado consolidado da fase:
+
+- validação física executada em Galaxy S22 com Champion C001;
+- ausência de importação automática confirmada;
+- D3 e D4 observados em execução real;
+- treino curto e treino longo ou multipart importados corretamente;
+- deduplicação, cancelamento e retomada confirmados;
+- nenhuma divergência física bloqueadora permaneceu aberta ao fim do Gate B.
+
 ## Gate B
 
 Validar ao menos:
@@ -1187,6 +1207,7 @@ Fase 10 conclui quando:
 - D3 e D4 funcionarem por ação explícita em Exercícios;
 - persistência local, deduplicação, reimportação e retomada por CRC estiverem concluídas;
 - UI de Exercícios substituir placeholder por fluxo read-only de importação e pendências;
+- validação física inicial e Gate B forem executados com Galaxy S22 + Champion C001 e treinos reais;
 - nenhuma revisão, calibração ou Health Connect for implementado;
 - Gate B físico for executado e registrado;
 - spec, overview, baseline factual e protocolo D3/D4 estiverem alinhados ao estado entregue.

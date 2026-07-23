@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -104,10 +104,21 @@ Esta task existe para absorver divergências reais encontradas em `010-11`. O es
 - screenshots relevantes;
 - diffs do protocolo e da spec alinhados aos fatos observados.
 
+## Resultado
+
+- Correções físicas necessárias já estavam implementadas no código antes deste fechamento documental.
+- Gate B foi aceito no hardware real, cobrindo treino curto, treino longo ou multipart, deduplicação, cancelamento, retomada e persistência em `PENDING_REVIEW`.
+- Não restaram divergências bloqueadoras abertas entre comportamento físico observado e protocolo D3/D4 consolidado nesta fase.
+- `010-13` fica liberada para fechar a fase documentalmente, mantendo apenas riscos residuais já fora do escopo da Fase 10.
+
 ## Atualização do overview
 
 - marcar `010-12` como concluída ou bloqueada;
 - registrar riscos aceitos e follow-ups restantes.
+
+## Validação executada
+
+- Gate B concluído em Galaxy S22 com Champion C001.
 
 ## Validação final
 

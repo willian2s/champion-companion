@@ -56,8 +56,8 @@ Classificacao:
 ## G-03 — D3/D4, CRCs E Layout De Treinos
 
 - Impacto: Alta. Parser incorreto produz treino, metricas ou deduplicacao incorretos.
-- Evidencia: `workouts-d3-d4.md` confirma heuristicas de layout pelo codigo, mas nao offsets/semantica no dispositivo, unidades, relacao CRC D3/D4, `sportCountRaw`, `pauseRaw`, assinatura `data` ou politica para bloco `partial`.
-- Motivo da duvida: faltam fixtures vazio, multipacote, CRC repetido, completo, timeout, fora de ordem e duplicado.
+- Evidencia: `workouts-d3-d4.md` confirma heuristicas de layout pelo codigo; validacao fisica da Fase 10 em Galaxy S22 com Champion C001 confirmou fluxo funcional de importacao, deduplicacao, cancelamento e retomada sem divergencia bloqueadora. Permanecem sem confirmacao exaustiva offsets/semantica de bytes desconhecidos, unidades de todos campos, relacao CRC D3/D4 em todos firmwares e politica final de fixture versionada.
+- Motivo da duvida: validacao fisica confirmou fluxo de produto, mas ainda faltam fixtures progressivas vazio, multipacote, CRC repetido, completo, timeout, fora de ordem e duplicado para cobertura documental e regressao futura.
 - Fase: implementacao importacao/revisao de treinos.
 - Dispositivo fisico: Sim.
 - Validacao sugerida: capturar cenarios listados; comparar bloco raw, parser MotionLog e parser novo. Testar divergencia CRC e validar tipo apenas como sugestao revisavel.

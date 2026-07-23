@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -91,6 +91,12 @@ Após validação física final, a fase precisa atualizar documentação factual
 - diffs documentais finais;
 - referências aos comandos obrigatórios e ao Gate B concluído;
 - lista de riscos aceitos e dívidas adiadas.
+
+## Resultado
+
+- Spec, overview, baseline factual, checklist de paridade, lacunas e protocolo foram alinhados ao estado final real da Fase 10.
+- Fechamento passou a registrar Gate B concluído, importação física D3/D4 aceita e fronteira preservada em `PENDING_REVIEW`.
+- Dívidas remanescentes ficaram explícitas para Fases 11, 12 e 14, sem reabrir escopo funcional da fase encerrada.
 
 ## Atualização do overview
 

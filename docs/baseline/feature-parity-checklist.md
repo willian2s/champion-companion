@@ -7,7 +7,7 @@ Validar, em fases futuras, paridade funcional segura entre Champion Companion e 
 ## Baseline E Uso
 
 - Baseline: MotionLog `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`.
-- Status de todos itens: pendente de implementacao e validacao futura.
+- Status de cada item: verificar checkbox individual. Fase 10 concluiu somente entregas D3/D4 ate `PENDING_REVIEW`; demais itens seguem pendentes.
 - Evidencia `Confirmado pelo codigo` descreve baseline. Nao confirma comportamento do Champion Companion nem validacao no dispositivo.
 - Itens `Ainda nao confirmado` exigem decisao ou validacao fisica antes de aceitacao; nao devem ser inferidos como requisito implementado.
 - Validacao deve registrar versao Champion Companion, firmware/dispositivo, dados de entrada, resultado esperado, resultado obtido e evidencia.
@@ -62,12 +62,12 @@ Estado Champion Companion apos Fase 09:
 
 Fontes: `workouts-d3-d4.md`, `feature-inventory.md`, `database-reference.md`, `health-connect-mapping.md`.
 
-- [ ] D3 obtém indice de CRCs; D4 baixa blocos sequencialmente, com timeout, cleanup e sem retry interno nao documentado.
-- [ ] Parser D4 produz data, horario, duracao, passos, distancia total/por intervalo, calorias, BPM total/por intervalo e min/media/max somente de valores validos.
-- [ ] Dados incompletos preservam status de validacao; `partial` e `invalid` bloqueiam envio ate regra definida.
+- [x] D3 obtém indice de CRCs; D4 baixa blocos sequencialmente, com timeout, cleanup e sem retry interno nao documentado.
+- [x] Parser D4 produz data, horario, duracao, passos, distancia total/por intervalo, calorias, BPM total/por intervalo e min/media/max somente de valores validos.
+- [x] Dados incompletos preservam status de validacao; `partial` e `invalid` bloqueiam envio ate regra definida.
 - [ ] Importacoes guardam payload bruto e deduplicam por `device_id`, CRC e origem.
-- [ ] Treino importado nasce `pending_review`, nunca sincroniza automaticamente e preserva resultado de revisao em reimportacao.
-- [ ] Consulta e sincronizacao partem de acao do usuario; abrir app nao inicia D3/D4 automaticamente.
+- [x] Treino importado nasce `pending_review`, nunca sincroniza automaticamente e preserva resultado de revisao em reimportacao.
+- [x] Consulta e sincronizacao partem de acao do usuario; abrir app nao inicia D3/D4 automaticamente.
 
 ## Revisao De Atividades
 

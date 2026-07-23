@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-10` concluídas; `010-11` a `010-13` pendentes.
+Concluída em 2026-07-23. `010-01` a `010-13` concluídas.
 
 ## Objetivo
 
@@ -108,6 +108,23 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - `ExercisesScreen.kt` agora observa lifecycle e cancela importação em `ON_STOP`, mantendo retorno ao foreground sem auto-start e sem gate preso fora de visão.
 - Rejeições do `ForegroundBleOperationGate` em Exercícios e Saúde agora mostram mensagens seguras por owner ativo, incluindo importação de treinos, sem expor detalhe BLE técnico.
 - Risco aceito permanece físico: cancelamento por background preserva blocos já persistidos, mas validação em relógio real segue para `010-11` e `010-12`.
+
+## Achados de `010-11`
+
+- Gate mínimo da fase ficou registrado com `./gradlew lint assembleDebug assembleRelease` e `./gradlew installDebug`, este último concluído com sucesso em `SM-S901E`.
+- Validação física inicial em Galaxy S22 com Champion C001 confirmou importação correta de treinos na tela Exercícios e criação de pendências locais esperadas.
+- Não houve divergência física nova suficiente para alterar protocolo ou bloquear o avanço para Gate B.
+
+## Achados de `010-12`
+
+- Gate B foi aceito no hardware real com treino curto, treino longo ou multipart, deduplicação, cancelamento e retomada válidos.
+- Correções físicas necessárias já estavam absorvidas pelo código entregue; não foi necessária nova rodada de implementação nesta sessão.
+- A fase ficou pronta para fechamento documental, preservando apenas riscos residuais fora do escopo da Fase 10.
+
+## Achados de `010-13`
+
+- Baseline factual, checklist de paridade, lacunas abertas, protocolo D3/D4 e spec agora refletem a fase concluída até `PENDING_REVIEW`.
+- Fronteiras de revisão, calibração e Health Connect permaneceram explícitas para Fases 11 e 12, sem reabrir escopo funcional da Fase 10.
 
 ## Ajuste posterior de alinhamento MotionLog
 
@@ -230,9 +247,9 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - [x] `010-08` criar `ExercisesViewModel`
 - [x] `010-09` substituir placeholder de Exercícios por UI de importação e pendências
 - [x] `010-10` integrar progresso, cancelamento, retry, lifecycle, navegação e mensagens seguras
-- [ ] `010-11` executar primeira validação física D3/D4
-- [ ] `010-12` resolver achados físicos e validar Gate B
-- [ ] `010-13` fechar spec, overview, baseline factual, checklist e dívida
+- [x] `010-11` executar primeira validação física D3/D4
+- [x] `010-12` resolver achados físicos e validar Gate B
+- [x] `010-13` fechar spec, overview, baseline factual, checklist e dívida
 
 ## Comandos
 
@@ -280,7 +297,7 @@ Galaxy S22 com Champion C001:
 - revisão e calibração da atividade ficam para Fase 11;
 - Health Connect real fica para Fase 12;
 - foreground service para importações longas fica para Fase 14;
-- confirmação física final dos bytes desconhecidos permanece em aberto;
+- semântica final dos bytes desconhecidos permanece em aberto, apesar de fluxo físico funcional confirmado;
 - ADR de política `PARTIAL`, payload release ou retomada por CRC só se a implementação exigir decisão duradoura nova.
 
 ## Critérios gerais
@@ -294,9 +311,9 @@ Galaxy S22 com Champion C001:
 
 ## Instruções de atualização
 
-- cada task concluída deve atualizar este overview no mesmo trabalho;
-- dependência nova ou risco novo deve ser registrado aqui imediatamente;
-- bloqueio físico deve manter task pendente e documentar motivo;
-- `010-13` consolida checklist, comandos, Gate B, baseline factual e dívida final.
+- fase concluída em 2026-07-23;
+- comandos obrigatórios registrados: `./gradlew lint assembleDebug assembleRelease` e `./gradlew installDebug`;
+- Gate B aceito em Galaxy S22 com Champion C001;
+- próximos trabalhos devem partir das fronteiras documentadas para Fases 11, 12 e 14.
 
 Risco novo aberto por `010-01`: deduplicação intra-tentativa de CRC repetido não existe no MotionLog auditado; implementação D3 do app nativo deve resolver isso sem perder ordem determinística dos blocos.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -89,10 +89,23 @@ Layouts D3/D4 ainda dependem de validação real. Esta task não pode ser conclu
 - observações do smoke físico;
 - screenshots e achados do protocolo, quando aplicável.
 
+## Resultado
+
+- `./gradlew lint assembleDebug assembleRelease` foi executado com sucesso nesta sessão.
+- `./gradlew installDebug` foi executado com sucesso nesta sessão em `SM-S901E`.
+- Validação física inicial já havia sido executada em Galaxy S22 com Champion C001 antes desta atualização documental.
+- Importação D3/D4 foi confirmada no dispositivo real, com treinos importados corretamente na tela Exercícios e criação de pendências locais esperadas.
+- Nenhuma divergência nova de protocolo precisou ser registrada nesta task; sequência D3, download D4 e persistência ficaram compatíveis com o comportamento observado.
+
 ## Atualização do overview
 
 - marcar `010-11` como concluída ou bloqueada;
 - registrar achados físicos e dependência de correção para `010-12`.
+
+## Validação executada
+
+- `./gradlew lint assembleDebug assembleRelease`
+- `./gradlew installDebug`
 
 ## Validação final
 
