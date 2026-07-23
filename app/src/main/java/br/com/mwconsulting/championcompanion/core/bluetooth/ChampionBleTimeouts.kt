@@ -12,6 +12,7 @@ data class ChampionBleTimeouts(
     val mtuRequest: Duration = 8.seconds,
     val notificationConfiguration: Duration = 8.seconds,
     val indicationConfiguration: Duration = 8.seconds,
+    val d1History: Duration = 15.seconds,
     val responseWait: Duration = 15.seconds,
     val disconnect: Duration = 5.seconds,
 ) {

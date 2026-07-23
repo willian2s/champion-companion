@@ -5,19 +5,24 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +45,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -52,6 +58,11 @@ import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportSummary
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryEntry
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import java.text.NumberFormat
 import java.time.Instant
@@ -60,8 +71,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+
+private const val HEART_RATE_HISTORY_PAGE_SIZE = 10
 
 @Composable
 fun HeartRateDetailScreen(
@@ -92,26 +106,42 @@ fun HeartRateDetailScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    BackHandler(enabled = state.surfaceState.isMeasurementInFlight()) {
+    val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
+    val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
+    val isBlockingExit = isMeasurementInFlight || isD1ImportInFlight
+
+    BackHandler(enabled = isBlockingExit) {
         showExitConfirmation = true
     }
 
-    DisposableEffect(view, state.surfaceState.isMeasurementInFlight()) {
+    DisposableEffect(view, isMeasurementInFlight) {
         val previousKeepScreenOn = view.keepScreenOn
-        view.keepScreenOn = state.surfaceState.isMeasurementInFlight()
+        view.keepScreenOn = isMeasurementInFlight
         onDispose { view.keepScreenOn = previousKeepScreenOn }
     }
 
     if (showExitConfirmation) {
         AlertDialog(
             onDismissRequest = { showExitConfirmation = false },
-            title = { Text("Cancelar medição?") },
-            text = { Text("A medição em andamento será cancelada e nenhum resultado parcial será salvo.") },
+            title = { Text(if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?") },
+            text = {
+                Text(
+                    if (isD1ImportInFlight) {
+                        "A importação D1 em andamento será cancelada antes da conclusão."
+                    } else {
+                        "A medição em andamento será cancelada e nenhum resultado parcial será salvo."
+                    },
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         showExitConfirmation = false
-                        healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
+                        if (isD1ImportInFlight) {
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
+                        } else {
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
+                        }
                         onNavigateBack()
                     },
                 ) {
@@ -120,7 +150,7 @@ fun HeartRateDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showExitConfirmation = false }) {
-                    Text("Continuar medindo")
+                    Text(if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo")
                 }
             },
         )
@@ -140,7 +170,15 @@ fun HeartRateDetailScreen(
         ) {
             MetricDetailHeader(
                 title = "Frequência cardíaca",
-                description = "A medição manual continua nesta tela. O hub de Saúde apenas resume o último valor persistido.",
+                description = "Esta tela concentra medição manual, importação D1 local, gráfico funcional e histórico consolidado sem iniciar BLE automaticamente.",
+            )
+            HeartRateOverviewCard(
+                state = state,
+                onStartMeasurement = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
+                onStartD1Import = { healthViewModel.onIntent(HealthIntent.StartD1Import) },
+                onCancelD1Import = { healthViewModel.onIntent(HealthIntent.CancelD1Import) },
+                onRetryD1Import = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
+                onDismissD1Import = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
             )
             HeartRateSessionSurface(
                 state = state,
@@ -149,31 +187,21 @@ fun HeartRateDetailScreen(
                 onRetry = { healthViewModel.onIntent(HealthIntent.Retry) },
                 onDismiss = { healthViewModel.onIntent(HealthIntent.DismissError) },
             )
-            LatestMeasurementCard(
-                measurement = state.latestMeasurement,
-                hasAssociatedDevice = state.hasAssociatedDevice,
-                associatedDeviceName = state.associatedDeviceName,
-            )
-            HealthMetricChartSection(
-                title = "Gráfico",
-                message = "Gráfico de frequência cardíaca será integrado em fase futura com dados históricos do relógio.",
+            HeartRateHistoryChartSection(
+                state = state,
+                onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
             )
             HealthMetricHistorySection(
-                title = "Histórico manual recente",
-                emptyMessage = "Ainda não há medições manuais recentes para exibir.",
+                title = "Histórico completo",
+                emptyMessage = "Ainda não há medições consolidadas para o período selecionado.",
             ) {
-                RecentMeasurementsList(measurements = state.recentMeasurements)
-            }
-            HealthCard(
-                title = "Ações futuras",
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = "Buscar dados do relógio ficará disponível na Fase 09, junto com D1, gráfico funcional e histórico completo.",
-                    modifier = Modifier.padding(top = ChampionSpacing.medium),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
+                HeartRateHistoryList(
+                    entries = state.history.entries,
+                    associatedDeviceName = state.associatedDeviceName,
                 )
+            }
+            TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
+                Text("Voltar para Saúde")
             }
         }
     }
@@ -345,6 +373,411 @@ private fun MetricDetailHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+    }
+}
+
+@Composable
+private fun HeartRateOverviewCard(
+    state: HealthUiState,
+    onStartMeasurement: () -> Unit,
+    onStartD1Import: () -> Unit,
+    onCancelD1Import: () -> Unit,
+    onRetryD1Import: () -> Unit,
+    onDismissD1Import: () -> Unit,
+) {
+    val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
+    val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
+    val latestMeasurement = state.latestMeasurement
+
+    HealthCard(title = "Resumo atual e ações", modifier = Modifier.fillMaxWidth()) {
+        if (latestMeasurement == null) {
+            Text(
+                text = if (state.hasAssociatedDevice) {
+                    "Ainda não há frequência cardíaca persistida. Use a medição manual ou toque em Buscar dados do relógio para importar o histórico local."
+                } else {
+                    "Associe um relógio para medir ou importar o histórico local de frequência cardíaca."
+                },
+                modifier = Modifier.padding(top = ChampionSpacing.medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            Text(
+                text = "${latestMeasurement.bpm} BPM",
+                modifier = Modifier.padding(top = ChampionSpacing.medium),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = latestMeasurement.measuredAt?.let(::formatMeasurementMoment) ?: "Horário indisponível",
+                modifier = Modifier.padding(top = ChampionSpacing.small),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "Origem: ${latestMeasurement.source.toFriendlySourceLabel(state.associatedDeviceName)}",
+                modifier = Modifier.padding(top = ChampionSpacing.small),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        state.associatedDeviceName?.let { name ->
+            Text(
+                text = "Relógio associado: $name",
+                modifier = Modifier.padding(top = ChampionSpacing.medium),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            PrimaryActionButton(
+                label = "Medir frequência cardíaca",
+                onClick = onStartMeasurement,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.hasAssociatedDevice && !isD1ImportInFlight,
+            )
+            OutlinedButton(
+                onClick = when {
+                    isD1ImportInFlight -> onCancelD1Import
+                    state.d1ImportState.isRetryableFailure() -> onRetryD1Import
+                    else -> onStartD1Import
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.hasAssociatedDevice && !isMeasurementInFlight,
+            ) {
+                Text(
+                    when {
+                        isD1ImportInFlight -> "Cancelar importação"
+                        state.d1ImportState.isRetryableFailure() -> "Tentar novamente"
+                        else -> "Buscar dados do relógio"
+                    },
+                )
+            }
+        }
+
+        HeartRateD1ImportPanel(
+            state = state.d1ImportState,
+            latestMetadata = state.latestD1ImportMetadata,
+            associatedDeviceName = state.associatedDeviceName,
+            onRetry = onRetryD1Import,
+            onDismiss = onDismissD1Import,
+        )
+    }
+}
+
+@Composable
+private fun HeartRateD1ImportPanel(
+    state: D1HeartRateImportSurfaceState,
+    latestMetadata: D1HeartRateImportMetadata?,
+    associatedDeviceName: String?,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val session = state.sessionOrNull()
+    val progress = session?.progress?.progressFraction
+    val importMessage = state.toUiMessage()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = ChampionSpacing.large)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = importMessage,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        if (state.isImportInFlight()) {
+            if (progress == null) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = "Aguardando primeiros pacotes válidos do D1.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "Progresso da importação D1"
+                        stateDescription = "${(progress * 100f).roundToInt()} por cento concluído"
+                        progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(progress, 0f..1f)
+                    },
+                )
+                Text(
+                    text = "${session.progress.receivedPacketCount} pacotes recebidos • ${(progress * 100f).roundToInt()}% concluído",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        session?.result?.summary?.let { summary ->
+            HeartRateD1Summary(summary = summary)
+        }
+
+        latestMetadata?.let {
+            Text(
+                text = buildLatestImportLabel(it, associatedDeviceName),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        if (state is D1HeartRateImportSurfaceState.Failed && state.session.error?.isRetryable == true) {
+            TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                Text("Tentar novamente")
+            }
+        }
+        if (state.isTerminalSurface()) {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Fechar aviso")
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeartRateD1Summary(summary: D1HeartRateImportSummary) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+    ) {
+        MetricCard(
+            label = "Registros válidos",
+            value = numberFormat().format(summary.validPointCount),
+            supportingText = "${summary.insertedCount} novos • ${summary.duplicateCount} duplicados",
+            modifier = Modifier.fillMaxWidth(),
+        )
+        MetricCard(
+            label = "Pacotes e lacunas",
+            value = numberFormat().format(summary.receivedPacketCount),
+            supportingText = "${summary.invalidCount} inválidos • ${summary.missingIndexCount} lacunas",
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun HeartRateHistoryChartSection(
+    state: HealthUiState,
+    onSelectPeriod: (HeartRateHistoryPeriod) -> Unit,
+) {
+    HealthCard(title = "Gráfico e resumo", modifier = Modifier.fillMaxWidth()) {
+        HistoryPeriodSelector(
+            selected = state.selectedHistoryPeriod,
+            onSelectPeriod = onSelectPeriod,
+        )
+
+        val aggregates = state.history.aggregates
+        HeartRateChartHeadline(
+            period = state.selectedHistoryPeriod,
+            aggregates = aggregates,
+            entryCount = state.history.entries.size,
+            pointsCount = state.history.chart.points.size,
+        )
+
+        HeartRateHistoryChart(
+            series = state.history.chart,
+            period = state.selectedHistoryPeriod,
+            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+        )
+
+        HeartRateChartAccessibleSummary(
+            measurementCount = state.history.entries.size,
+            pointCount = state.history.chart.points.size,
+            period = state.selectedHistoryPeriod,
+        )
+    }
+}
+
+@Composable
+private fun HeartRateChartHeadline(
+    period: HeartRateHistoryPeriod,
+    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
+    entryCount: Int,
+    pointsCount: Int,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = periodHeadline(period),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = heartRateRangeHeadline(aggregates),
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = heartRateRangeSupportingText(aggregates, entryCount, pointsCount),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} medições válidas",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun HistoryPeriodSelector(
+    selected: HeartRateHistoryPeriod,
+    onSelectPeriod: (HeartRateHistoryPeriod) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        HeartRateHistoryPeriod.entries.forEach { period ->
+            val isSelected = period == selected
+            OutlinedButton(
+                onClick = { onSelectPeriod(period) },
+                modifier = Modifier.weight(1f),
+            )
+            {
+                Text(
+                    text = compactPeriodToLabel(period),
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeartRateChartAccessibleSummary(
+    measurementCount: Int,
+    pointCount: Int,
+    period: HeartRateHistoryPeriod,
+) {
+    Text(
+        text = if (pointCount == 0) {
+            "Resumo acessível: nenhum ponto disponível para ${periodToLabel(period).lowercase(Locale.getDefault())}."
+        } else {
+            "Resumo acessível: ${numberFormat().format(measurementCount)} medições válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(Locale.getDefault())}."
+        },
+        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
+}
+
+@Composable
+private fun HeartRateHistoryList(
+    entries: List<HeartRateHistoryEntry>,
+    associatedDeviceName: String?,
+) {
+    if (entries.isEmpty()) {
+        HealthMetricEmptyState(message = "Ainda não há medições consolidadas para exibir neste período.")
+        return
+    }
+
+    val totalPages = ceil(entries.size / HEART_RATE_HISTORY_PAGE_SIZE.toDouble()).toInt().coerceAtLeast(1)
+    var currentPage by rememberSaveable(entries.size) { mutableStateOf(0) }
+    currentPage = currentPage.coerceIn(0, totalPages - 1)
+
+    val pageEntries = entries
+        .drop(currentPage * HEART_RATE_HISTORY_PAGE_SIZE)
+        .take(HEART_RATE_HISTORY_PAGE_SIZE)
+    val groupedEntries = pageEntries.groupBy { entry ->
+        entry.measuredAt.atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+
+    Column(
+        modifier = Modifier.padding(top = ChampionSpacing.medium),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Página ${currentPage + 1} de $totalPages",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "${numberFormat().format(entries.size)} medições",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        groupedEntries.forEach { (date, grouped) ->
+            Text(
+                text = formatHistoryDay(date),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            grouped.forEach { entry ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+                    ) {
+                        Text(
+                            text = formatMeasurementMoment(entry.measuredAt),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = entry.source.toFriendlySourceLabel(associatedDeviceName),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(ChampionSpacing.medium))
+                    Text(
+                        text = "${entry.bpm} BPM",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+        if (totalPages > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            ) {
+                OutlinedButton(
+                    onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) },
+                    modifier = Modifier.weight(1f),
+                    enabled = currentPage > 0,
+                ) {
+                    Text("Anterior", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(
+                    onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) },
+                    modifier = Modifier.weight(1f),
+                    enabled = currentPage < totalPages - 1,
+                ) {
+                    Text("Próxima", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
     }
 }
@@ -807,6 +1240,82 @@ private fun HealthSurfaceState.isMeasurementInFlight(): Boolean = when (this) {
     -> false
 }
 
+private fun D1HeartRateImportSurfaceState.isImportInFlight(): Boolean = when (this) {
+    is D1HeartRateImportSurfaceState.Preparing,
+    is D1HeartRateImportSurfaceState.Connecting,
+    is D1HeartRateImportSurfaceState.Reading,
+    is D1HeartRateImportSurfaceState.Persisting,
+    -> true
+
+    D1HeartRateImportSurfaceState.Idle,
+    is D1HeartRateImportSurfaceState.Completed,
+    is D1HeartRateImportSurfaceState.CompletedWithGaps,
+    is D1HeartRateImportSurfaceState.Partial,
+    is D1HeartRateImportSurfaceState.Failed,
+    is D1HeartRateImportSurfaceState.Cancelled,
+    -> false
+}
+
+private fun D1HeartRateImportSurfaceState.isRetryableFailure(): Boolean =
+    (this as? D1HeartRateImportSurfaceState.Failed)?.session?.error?.isRetryable == true
+
+private fun D1HeartRateImportSurfaceState.isTerminalSurface(): Boolean = when (this) {
+    is D1HeartRateImportSurfaceState.Completed,
+    is D1HeartRateImportSurfaceState.CompletedWithGaps,
+    is D1HeartRateImportSurfaceState.Partial,
+    is D1HeartRateImportSurfaceState.Failed,
+    is D1HeartRateImportSurfaceState.Cancelled,
+    -> true
+
+    D1HeartRateImportSurfaceState.Idle,
+    is D1HeartRateImportSurfaceState.Preparing,
+    is D1HeartRateImportSurfaceState.Connecting,
+    is D1HeartRateImportSurfaceState.Reading,
+    is D1HeartRateImportSurfaceState.Persisting,
+    -> false
+}
+
+private fun D1HeartRateImportSurfaceState.sessionOrNull(): D1HeartRateImportSessionState? = when (this) {
+    D1HeartRateImportSurfaceState.Idle -> null
+    is D1HeartRateImportSurfaceState.Preparing -> session
+    is D1HeartRateImportSurfaceState.Connecting -> session
+    is D1HeartRateImportSurfaceState.Reading -> session
+    is D1HeartRateImportSurfaceState.Persisting -> session
+    is D1HeartRateImportSurfaceState.Completed -> session
+    is D1HeartRateImportSurfaceState.CompletedWithGaps -> session
+    is D1HeartRateImportSurfaceState.Partial -> session
+    is D1HeartRateImportSurfaceState.Failed -> session
+    is D1HeartRateImportSurfaceState.Cancelled -> session
+}
+
+private fun D1HeartRateImportSurfaceState.toUiTitle(): String = when (this) {
+    D1HeartRateImportSurfaceState.Idle -> "Importação D1"
+    is D1HeartRateImportSurfaceState.Preparing -> "Preparando importação D1"
+    is D1HeartRateImportSurfaceState.Connecting -> "Conectando ao relógio"
+    is D1HeartRateImportSurfaceState.Reading -> "Lendo histórico do relógio"
+    is D1HeartRateImportSurfaceState.Persisting -> "Salvando histórico importado"
+    is D1HeartRateImportSurfaceState.Completed -> "Dados do relógio importados"
+    is D1HeartRateImportSurfaceState.CompletedWithGaps -> "Dados importados com lacunas"
+    is D1HeartRateImportSurfaceState.Partial -> "Importação parcial concluída"
+    is D1HeartRateImportSurfaceState.Failed -> "Não foi possível buscar os dados"
+    is D1HeartRateImportSurfaceState.Cancelled -> "Importação cancelada"
+}
+
+private fun D1HeartRateImportSurfaceState.toUiMessage(): String = when (this) {
+    D1HeartRateImportSurfaceState.Idle -> "A importação D1 acontece somente por toque explícito em Buscar dados do relógio."
+    is D1HeartRateImportSurfaceState.Preparing -> "Validando relógio associado e reservando a operação Bluetooth de foreground."
+    is D1HeartRateImportSurfaceState.Connecting -> "Aguardando conexão e handshake A1 antes do comando D1."
+    is D1HeartRateImportSurfaceState.Reading -> "Recebendo pacotes D1 e preservando dados válidos mesmo em timeout parcial."
+    is D1HeartRateImportSurfaceState.Persisting -> "Persistindo histórico local, deduplicando registros e atualizando metadata da última importação."
+    is D1HeartRateImportSurfaceState.Completed -> "Histórico local atualizado com sucesso a partir do relógio."
+    is D1HeartRateImportSurfaceState.CompletedWithGaps -> "Importação concluída, mas o relógio informou lacunas entre pacotes recebidos."
+    is D1HeartRateImportSurfaceState.Partial -> "Parte dos dados válidos foi salva antes do encerramento da tentativa."
+    is D1HeartRateImportSurfaceState.Failed -> session.error?.message
+        ?: "Não foi possível concluir a importação D1 com segurança."
+    is D1HeartRateImportSurfaceState.Cancelled -> session.error?.message
+        ?: "A tentativa foi cancelada antes da conclusão."
+}
+
 private fun ManualHeartRateSignalQuality?.toUiLabel(): String = when (this) {
     ManualHeartRateSignalQuality.GOOD -> "Boa"
     ManualHeartRateSignalQuality.REGULAR -> "Regular"
@@ -856,6 +1365,17 @@ private fun formatMeasurementMoment(instant: Instant): String {
     return "$prefix, $time"
 }
 
+private fun formatHistoryDay(date: LocalDate): String {
+    val today = LocalDate.now(ZoneId.systemDefault())
+    return when (date) {
+        today -> "Hoje"
+        today.minusDays(1) -> "Ontem"
+        else -> DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            .withLocale(Locale.getDefault())
+            .format(date)
+    }
+}
+
 private fun formatDateTime(instant: Instant): String =
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(Locale.getDefault())
@@ -868,6 +1388,88 @@ private fun br.com.mwconsulting.championcompanion.core.model.HeartRateSource.toM
     br.com.mwconsulting.championcompanion.core.model.HeartRateSource.WATCH_D1_HISTORY -> "Histórico do relógio"
     br.com.mwconsulting.championcompanion.core.model.HeartRateSource.APP_WORKOUT_SESSION -> "Sessão iniciada no app"
     br.com.mwconsulting.championcompanion.core.model.HeartRateSource.WATCH_WORKOUT_ACTIVITY -> "Atividade do relógio"
+}
+
+private fun br.com.mwconsulting.championcompanion.core.model.HeartRateSource.toFriendlySourceLabel(
+    associatedDeviceName: String?,
+): String = when (this) {
+    br.com.mwconsulting.championcompanion.core.model.HeartRateSource.MANUAL_MEASUREMENT -> "Medição manual"
+    br.com.mwconsulting.championcompanion.core.model.HeartRateSource.WATCH_D1_HISTORY -> associatedDeviceName ?: "Champion C001"
+    else -> toMeasurementSourceLabel()
+}
+
+private fun buildLatestImportLabel(
+    metadata: D1HeartRateImportMetadata,
+    associatedDeviceName: String?,
+): String {
+    val source = associatedDeviceName ?: "relógio associado"
+    val attemptLabel = formatDateTime(metadata.lastAttemptAt)
+    val successLabel = metadata.lastSuccessAt?.let(::formatDateTime)
+    val resultLabel = when (metadata.lastResult) {
+        D1HeartRateImportStatus.COMPLETED -> "sucesso"
+        D1HeartRateImportStatus.COMPLETED_WITH_GAPS -> "sucesso com lacunas"
+        D1HeartRateImportStatus.PARTIAL -> "parcial"
+        D1HeartRateImportStatus.FAILED -> "falha"
+        D1HeartRateImportStatus.CANCELLED -> "cancelada"
+    }
+    return buildString {
+        append("Última importação D1 de ")
+        append(source)
+        append(": tentativa em ")
+        append(attemptLabel)
+        append(" • resultado ")
+        append(resultLabel)
+        successLabel?.let {
+            append(" • concluída em ")
+            append(it)
+        }
+    }
+}
+
+private fun periodToLabel(period: HeartRateHistoryPeriod): String = when (period) {
+    HeartRateHistoryPeriod.TODAY -> "Hoje"
+    HeartRateHistoryPeriod.LAST_7_DAYS -> "7 dias"
+    HeartRateHistoryPeriod.LAST_30_DAYS -> "30 dias"
+}
+
+private fun compactPeriodToLabel(period: HeartRateHistoryPeriod): String = when (period) {
+    HeartRateHistoryPeriod.TODAY -> "D"
+    HeartRateHistoryPeriod.LAST_7_DAYS -> "S"
+    HeartRateHistoryPeriod.LAST_30_DAYS -> "M"
+}
+
+private fun periodHeadline(period: HeartRateHistoryPeriod): String = when (period) {
+    HeartRateHistoryPeriod.TODAY -> "Hoje"
+    HeartRateHistoryPeriod.LAST_7_DAYS -> buildRelativeDateRangeLabel(days = 7)
+    HeartRateHistoryPeriod.LAST_30_DAYS -> buildRelativeDateRangeLabel(days = 30)
+}
+
+private fun heartRateRangeHeadline(
+    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
+): String = if (aggregates.measurementCount == 0) {
+    "Sem dados"
+} else {
+    val min = aggregates.minimumBpm?.toString() ?: "--"
+    val max = aggregates.maximumBpm?.toString() ?: "--"
+    "$min a $max bpm"
+}
+
+private fun heartRateRangeSupportingText(
+    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
+    entryCount: Int,
+    pointsCount: Int,
+): String = if (aggregates.measurementCount == 0) {
+    "Use medição manual ou importação D1 para ver tendências no período selecionado."
+} else {
+    "${numberFormat().format(entryCount)} medições válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
+}
+
+private fun buildRelativeDateRangeLabel(days: Long): String {
+    val zoneId = ZoneId.systemDefault()
+    val end = LocalDate.now(zoneId)
+    val start = end.minusDays(days - 1)
+    val formatter = DateTimeFormatter.ofPattern("d 'de' MMM.", Locale.forLanguageTag("pt-BR"))
+    return "${start.format(formatter)}-${end.format(formatter)}"
 }
 
 internal fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toHealthOriginLabel(): String = when (this) {

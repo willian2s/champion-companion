@@ -58,6 +58,7 @@
 
 - Use Conventional Commits.
 - `AGENTS.md` é fonte de verdade para regras operacionais de execução das tasks.
+- Em documentação, ADRs, specs, tasks, roadmap, comentários e textos de UI escritos durante as tasks, siga sempre as regras gramaticais do português brasileiro, incluindo acentuação correta.
 - Sempre que executar uma task com spec associada, atualize também o `overview` da spec correspondente no mesmo trabalho.
 - Se algum arquivo de task, spec ou overview repetir essa regra com texto divergente, siga `AGENTS.md` e alinhe a documentação no mesmo trabalho.
 - Se mudança introduzir decisão arquitetural, de persistência, privacidade, navegação, build ou workflow com impacto duradouro, crie ou atualize ADR correspondente em `docs/decisions/` no mesmo trabalho.

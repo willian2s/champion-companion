@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Documentar consulta D1, parser, persistência, deduplicação e regra de envio integral de BPM válido ao Health Connect. Referência: MotionLog na baseline registrada em `docs/baseline/current-baseline.md`.
+Documentar consulta D1, parser, persistência, deduplicação e fronteira correta entre fila local `PENDING` da Fase 09 e envio integral futuro de BPM válido ao Health Connect. Referência: MotionLog na baseline registrada em `docs/baseline/current-baseline.md`.
 
 ## Fontes
 
@@ -97,6 +97,12 @@ Foreground gera `rawSessionId` determinístico por ponto: `D1_AUTO_HISTORY:<devi
 
 Champion Companion deve enviar **todos os registros D1 com BPM válido** ao Health Connect. Não haverá seleção manual registro a registro. Esta é regra de produto definida pela spec da Fase 0; não é opcional nem condicionada a tela de histórico.
 
+Fronteira documental corrigida em `009-02`:
+
+- Fase 09 e owner da importacao D1 local-first, persistencia e criacao/garantia de `HealthSyncOperation.PENDING`;
+- Fase 09 nao implementa provider, permissao, `HealthConnectClient`, escrita real ou estados `SYNCING/SYNCED`;
+- Fase 12 e owner do processamento real das operacoes pendentes no Health Connect.
+
 Fluxo MotionLog observado:
 
 1. Cada ponto persistido nasce `pending`.
@@ -107,7 +113,7 @@ Fluxo MotionLog observado:
 
 No MotionLog, criação também tenta sync imediato sem bloquear persistência; runtime D1 faz flush explícito de até 100 pendentes após salvar pontos. Falha de Health Connect não desfaz dado local. Classificação: `Confirmado pelo código`.
 
-Requisito para implementação futura: manter estado pendente por registro e retry seguro; não descartar nem marcar todo lote como sincronizado quando somente parte das escritas tiver êxito. Estratégia final de scheduler, limites, `clientRecordId` e versão pertencem à implementação Health Connect futura.
+Requisito para implementação futura: manter estado pendente por registro e retry seguro; não descartar nem marcar todo lote como sincronizado quando somente parte das escritas tiver êxito. Estratégia final de scheduler, limites, `clientRecordId` e versão pertencem à implementação Health Connect futura da Fase 12.
 
 ## Falhas Parciais
 

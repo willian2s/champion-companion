@@ -114,6 +114,7 @@ class HealthViewModelTest {
         val personalMetricsRepository = FakePersonalMetricsRepository()
         val appPreferencesRepository = FakeAppPreferencesRepository()
         val coordinator = FakeManualHeartRateCoordinator(startError)
+        val d1Coordinator = FakeD1HeartRateSyncCoordinator()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         return Fixture(
             viewModel = HealthViewModel(
@@ -123,6 +124,7 @@ class HealthViewModelTest {
                 personalMetricsRepository = personalMetricsRepository,
                 appPreferencesRepository = appPreferencesRepository,
                 manualHeartRateCoordinator = coordinator,
+                d1HeartRateSyncCoordinator = d1Coordinator,
                 scope = scope,
                 ids = UuidV7Generator(),
                 parserVersion = ParserVersion.create("manual-heart-rate-v1").valueOrNull()!!,
@@ -292,5 +294,21 @@ class HealthViewModelTest {
         override suspend fun update(preferences: AppPreferences): RepositoryResult<Unit> = RepositoryResult.Success(Unit)
 
         override suspend fun updateDailyStepsGoal(goal: Int): RepositoryResult<Unit> = RepositoryResult.Success(Unit)
+    }
+
+    private class FakeD1HeartRateSyncCoordinator : D1HeartRateSyncCoordinator {
+        private val mutableState = MutableStateFlow<D1HeartRateImportSurfaceState>(D1HeartRateImportSurfaceState.Idle)
+
+        override val state: StateFlow<D1HeartRateImportSurfaceState> = mutableState.asStateFlow()
+
+        override suspend fun startImport(request: D1HeartRateSyncRequest): HealthD1ImportError? = null
+
+        override suspend fun cancelImport(reason: D1HeartRateImportCancellationReason) {
+            Unit
+        }
+
+        override fun reset() {
+            mutableState.value = D1HeartRateImportSurfaceState.Idle
+        }
     }
 }

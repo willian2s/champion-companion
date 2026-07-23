@@ -119,6 +119,7 @@ data class DailyStepsRefreshResult(
 enum class ForegroundBleOperationOwner {
     DAILY_STEPS_REFRESH,
     MANUAL_HEART_RATE,
+    WATCH_D1_HISTORY,
 }
 
 data class ForegroundBleOperationRequest(
@@ -166,6 +167,11 @@ data class SaveManualHeartRateMeasurementInput(
     val parserVersion: ParserVersion?,
 )
 
+data class SaveD1HeartRateMeasurementsInput(
+    val measurements: List<HeartRateMeasurement>,
+    val metadata: D1HeartRateImportMetadata,
+)
+
 interface HeartRateRepository {
     suspend fun import(measurements: List<HeartRateMeasurement>): RepositoryResult<Unit>
     suspend fun findPendingSync(): RepositoryResult<List<HeartRateMeasurement>>
@@ -175,6 +181,16 @@ interface HeartRateRepository {
     fun observeLatestValidMeasurement(): Flow<HeartRateMeasurement?> = flowOf(null)
 
     fun observeRecentManualMeasurements(limit: Int): Flow<List<HeartRateMeasurement>> = flowOf(emptyList())
+
+    suspend fun importD1Measurements(
+        input: SaveD1HeartRateMeasurementsInput,
+    ): RepositoryResult<D1HeartRateImportPersistenceResult> = RepositoryResult.UnexpectedState
+
+    fun observeHistory(query: HeartRateHistoryQuery): Flow<HeartRateHistorySnapshot> = flowOf(
+        HeartRateHistorySnapshot(period = query.period),
+    )
+
+    fun observeD1ImportMetadata(deviceId: DeviceId): Flow<D1HeartRateImportMetadata?> = flowOf(null)
 }
 
 interface WorkoutActivityRepository {

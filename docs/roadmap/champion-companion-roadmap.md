@@ -1243,16 +1243,16 @@ Peso, passos e distância nesta fase exibem apenas shells iniciais com valor atu
 
 ---
 
-# Fase 9 — Histórico D1 e sincronização integral de BPM
+# Fase 9 — Histórico D1 local-first e fila pendente de BPM
 
 ## Objetivo
 
-Importar o histórico automático do relógio e enviar todos os registros válidos ao Health Connect.
+Importar o histórico automático do relógio, persistir todos os registros válidos localmente, consolidar histórico de BPM e deixá-los prontos em fila pendente para sincronização real posterior.
 
 ## Fluxo
 
 ```text
-Usuário toca em Sincronizar BPM
+Usuário toca em Buscar dados do relógio
         ↓
 Consulta D1
         ↓
@@ -1262,9 +1262,9 @@ Deduplicação
         ↓
 Persistência local
         ↓
-Envio de todos os válidos
+Fila `PENDING`
         ↓
-Health Connect
+Histórico e gráfico local
 ```
 
 ## Tarefas
@@ -1284,8 +1284,10 @@ Health Connect
 - tratar timeout;
 - permitir retry;
 - manter falhas pendentes;
+- criar ou reparar operação `PENDING` por medição D1 elegível;
 - consolidar medições manuais e automáticas de BPM;
-- fornecer agregações para frequência cardíaca.
+- fornecer agregações para frequência cardíaca;
+- registrar última importação D1 local.
 
 ## Registros válidos
 
@@ -1297,28 +1299,35 @@ Deverão possuir:
 - estrutura reconhecida;
 - ausência de duplicata local.
 
-## Health Connect
+## Fronteira com Health Connect
 
-Todos os registros válidos ainda não sincronizados deverão ser enviados.
+Fase 09 não executa escrita real no Health Connect.
 
-Não haverá:
+Fase 09 deve:
 
-- seleção individual;
-- envio somente de médias;
-- descarte de amostras válidas.
+- persistir todos os registros D1 válidos;
+- garantir fila `PENDING` por registro elegível;
+- preservar ausência de seleção individual;
+- manter dados locais utilizáveis mesmo sem provider.
 
-Os registros deverão ser enviados em lotes adequados.
+Fase 09 não deve implementar:
+
+- disponibilidade do provider;
+- permissões;
+- escrita real;
+- lotes reais;
+- contadores de enviados e erros do provider.
 
 ## Falhas
 
-- concluídos permanecem sincronizados;
-- falhas permanecem pendentes;
-- retry não repete D1 desnecessariamente;
-- registros sincronizados não duplicam.
+- timeout com dados preserva resultado parcial local;
+- timeout vazio falha sem persistência;
+- falhas locais preservam pendências já criadas quando aplicável;
+- retry não repete persistência nem cria duplicatas locais.
 
 ## Interface
 
-- integrar botão `Sincronizar BPM` ou ação equivalente à tela específica de frequência cardíaca;
+- integrar ação `Buscar dados do relógio` à tela específica de frequência cardíaca;
 - histórico diário;
 - semanal;
 - mensal;
@@ -1326,24 +1335,26 @@ Os registros deverão ser enviados em lotes adequados.
 - mínimo;
 - máximo;
 - gráfico;
-- última sincronização;
+- última importação;
 - quantidade importada;
-- quantidade enviada;
-- quantidade com erro;
-- botão “Sincronizar BPM”.
+- estado local da importação D1.
 
 ## Regra
 
 D1 não será consultado ao abrir o app.
+
+Health Connect real permanece fora desta fase.
 
 ## Critérios de aceite
 
 - não duplica;
 - timestamps preservados;
 - inválidos registrados em log;
-- todos os válidos são enviados;
-- falhas retomáveis;
-- sem seleção individual.
+- registros válidos ficam persistidos localmente;
+- fila `PENDING` fica pronta para processamento futuro;
+- falhas locais são retomáveis;
+- sem seleção individual;
+- nenhuma escrita real no Health Connect ocorre.
 
 ---
 
@@ -1643,7 +1654,10 @@ Implementar integração direta.
 - retry;
 - erros;
 - reenvio;
-- data de sincronização.
+- data de sincronização;
+- processar todas operações D1 `PENDING` acumuladas desde a Fase 09;
+- escrever todas amostras D1 válidas ainda não sincronizadas;
+- manter falhas parciais como pendentes ou failed sem desfazer dados locais.
 
 ## IDs
 
@@ -1659,6 +1673,8 @@ clientRecordVersion
 Enviar amostras com timestamps.
 
 Não enviar apenas média quando houver amostras.
+
+Para D1, fila local da Fase 09 e fonte de verdade para backlog de escrita.
 
 ## Sessão
 
@@ -1681,6 +1697,7 @@ Usar a distância calibrada.
 ## Critérios de aceite
 
 - atividade revisada é enviada;
+- backlog D1 pendente da Fase 09 é processado integralmente;
 - reenvio não duplica;
 - atualização funciona;
 - erros aparecem;

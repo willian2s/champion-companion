@@ -296,9 +296,10 @@ class DeviceManagementViewModel @Inject constructor(
         isAssociatedDevice: Boolean = false,
     ) {
         if (mutableState.value.activeOperation != null) return
-        if (isManualHeartRateOperationActive()) {
+        val activeForegroundBleOperation = foregroundBleOperation?.owner
+        if (activeForegroundBleOperation != null) {
             if (!automatic) {
-                presentManualMeasurementBlockError()
+                presentForegroundBleBlockError(activeForegroundBleOperation)
             }
             return
         }
@@ -668,7 +669,7 @@ class DeviceManagementViewModel @Inject constructor(
         if (functionalConnectionEstablished) return
         if (currentTransportState !is ChampionBleState.Disconnected && currentTransportState !is ChampionBleState.Failed) return
         if (lastAutoConnectAttemptEntryId == currentEntryId) return
-        if (isManualHeartRateOperationActive()) return
+        if (foregroundBleOperation?.owner != null) return
 
         val readiness = ChampionBlePrerequisites.forConnect(bleEnvironment.snapshot())
         if (!readiness.isReady) {
@@ -684,16 +685,13 @@ class DeviceManagementViewModel @Inject constructor(
         connectAssociatedDevice(automatic = true)
     }
 
-    private fun isManualHeartRateOperationActive(): Boolean =
-        foregroundBleOperation?.owner == ForegroundBleOperationOwner.MANUAL_HEART_RATE
-
-    private fun presentManualMeasurementBlockError() {
+    private fun presentForegroundBleBlockError(owner: ForegroundBleOperationOwner) {
         activeJob = null
         mutableState.update {
             it.copy(
                 error = DeviceManagementError(
                     category = DeviceManagementErrorCategory.INTERNAL,
-                    message = "Há uma medição manual em andamento na tela Saúde.",
+                    message = owner.toDeviceManagementForegroundBleBlockMessage(),
                     isRecoverable = true,
                 ),
                 retryAction = when (lastConnectIntent) {
@@ -702,6 +700,12 @@ class DeviceManagementViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    private fun ForegroundBleOperationOwner.toDeviceManagementForegroundBleBlockMessage(): String = when (this) {
+        ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Há uma sincronização do relógio em andamento na tela inicial."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Há uma medição manual em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico do relógio em andamento na tela Saúde."
     }
 
     private fun handleRepositoryFailure(

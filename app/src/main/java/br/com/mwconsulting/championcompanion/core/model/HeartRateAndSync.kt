@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.core.model
 
 import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 
 enum class HeartRateSource {
@@ -190,6 +191,166 @@ sealed interface HealthSyncAggregate {
 data class HealthSyncOperationKey(
     val aggregate: HealthSyncAggregate,
     val recordType: HealthSyncRecordType,
+)
+
+enum class HeartRateHistoryPeriod {
+    TODAY,
+    LAST_7_DAYS,
+    LAST_30_DAYS,
+
+    ;
+
+    val windowDays: Long
+        get() = when (this) {
+            TODAY -> 1L
+            LAST_7_DAYS -> 7L
+            LAST_30_DAYS -> 30L
+        }
+}
+
+data class HeartRateHistoryQuery(
+    val period: HeartRateHistoryPeriod,
+    val zoneId: ZoneId,
+    val sources: Set<HeartRateSource> = setOf(
+        HeartRateSource.MANUAL_MEASUREMENT,
+        HeartRateSource.WATCH_D1_HISTORY,
+    ),
+)
+
+data class HeartRateHistoryEntry(
+    val measurementId: HeartRateMeasurementId,
+    val measuredAt: Instant,
+    val bpm: Int,
+    val source: HeartRateSource,
+)
+
+data class HeartRateHistoryAggregates(
+    val measurementCount: Int = 0,
+    val averageBpm: Double? = null,
+    val minimumBpm: Int? = null,
+    val maximumBpm: Int? = null,
+)
+
+enum class HeartRateChartResolution {
+    INTRADAY,
+    DAILY,
+}
+
+data class HeartRateChartPoint(
+    val timestamp: Instant,
+    val bpm: Double,
+    val minimumBpm: Int? = null,
+    val maximumBpm: Int? = null,
+    val sampleCount: Int = 1,
+)
+
+data class HeartRateChartSeries(
+    val resolution: HeartRateChartResolution = HeartRateChartResolution.INTRADAY,
+    val points: List<HeartRateChartPoint> = emptyList(),
+)
+
+data class HeartRateHistorySnapshot(
+    val period: HeartRateHistoryPeriod,
+    val entries: List<HeartRateHistoryEntry> = emptyList(),
+    val aggregates: HeartRateHistoryAggregates = HeartRateHistoryAggregates(),
+    val chart: HeartRateChartSeries = HeartRateChartSeries(),
+)
+
+data class D1HeartRatePacketProgress(
+    val receivedPacketCount: Int = 0,
+    val highestPacketIndex: Int = 0,
+    val totalPackets: Int = 0,
+) {
+    val progressFraction: Float?
+        get() = if (totalPackets > 0) {
+            (highestPacketIndex.toFloat() / totalPackets.toFloat()).coerceIn(0f, 1f)
+        } else {
+            null
+        }
+}
+
+data class D1HeartRateImportSummary(
+    val receivedPacketCount: Int = 0,
+    val validPointCount: Int = 0,
+    val insertedCount: Int = 0,
+    val duplicateCount: Int = 0,
+    val conflictCount: Int = 0,
+    val invalidCount: Int = 0,
+    val missingIndexCount: Int = 0,
+    val pendingCreatedCount: Int = 0,
+    val pendingExistingCount: Int = 0,
+    val startedAt: Instant,
+    val finishedAt: Instant,
+    val timedOut: Boolean = false,
+) {
+    val hasPersistedData: Boolean
+        get() = insertedCount > 0 || duplicateCount > 0 || conflictCount > 0
+}
+
+enum class D1HeartRateImportStatus {
+    COMPLETED,
+    COMPLETED_WITH_GAPS,
+    PARTIAL,
+    FAILED,
+    CANCELLED,
+}
+
+sealed interface D1HeartRateImportResult {
+    val status: D1HeartRateImportStatus
+    val summary: D1HeartRateImportSummary?
+
+    data class Completed(
+        override val summary: D1HeartRateImportSummary,
+    ) : D1HeartRateImportResult {
+        override val status: D1HeartRateImportStatus = D1HeartRateImportStatus.COMPLETED
+    }
+
+    data class CompletedWithGaps(
+        override val summary: D1HeartRateImportSummary,
+    ) : D1HeartRateImportResult {
+        override val status: D1HeartRateImportStatus = D1HeartRateImportStatus.COMPLETED_WITH_GAPS
+    }
+
+    data class Partial(
+        override val summary: D1HeartRateImportSummary,
+    ) : D1HeartRateImportResult {
+        override val status: D1HeartRateImportStatus = D1HeartRateImportStatus.PARTIAL
+    }
+
+    data class Failed(
+        override val summary: D1HeartRateImportSummary? = null,
+    ) : D1HeartRateImportResult {
+        override val status: D1HeartRateImportStatus = D1HeartRateImportStatus.FAILED
+    }
+
+    data class Cancelled(
+        override val summary: D1HeartRateImportSummary? = null,
+    ) : D1HeartRateImportResult {
+        override val status: D1HeartRateImportStatus = D1HeartRateImportStatus.CANCELLED
+    }
+}
+
+data class D1HeartRateImportMetadata(
+    val deviceId: DeviceId,
+    val lastAttemptAt: Instant,
+    val lastSuccessAt: Instant? = null,
+    val lastResult: D1HeartRateImportStatus,
+    val parserVersion: ParserVersion? = null,
+    val insertedCount: Int = 0,
+    val duplicateCount: Int = 0,
+    val conflictCount: Int = 0,
+    val invalidCount: Int = 0,
+    val missingIndexCount: Int = 0,
+    val timedOut: Boolean = false,
+    val updatedAt: Instant,
+)
+
+data class D1HeartRateImportPersistenceResult(
+    val insertedCount: Int = 0,
+    val duplicateCount: Int = 0,
+    val conflictCount: Int = 0,
+    val pendingCreatedCount: Int = 0,
+    val pendingExistingCount: Int = 0,
 )
 
 enum class SyncOperationState {

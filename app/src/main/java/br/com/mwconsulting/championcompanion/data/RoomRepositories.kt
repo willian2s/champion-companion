@@ -10,6 +10,8 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportPersistenceResult
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryId
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
@@ -22,6 +24,14 @@ import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadReposit
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
+import br.com.mwconsulting.championcompanion.core.model.HeartRateChartPoint
+import br.com.mwconsulting.championcompanion.core.model.HeartRateChartResolution
+import br.com.mwconsulting.championcompanion.core.model.HeartRateChartSeries
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryEntry
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryQuery
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
@@ -31,6 +41,7 @@ import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
@@ -44,9 +55,13 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
@@ -54,7 +69,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -313,6 +327,100 @@ class RoomRepositories @Inject constructor(
             .flowOn(ioDispatcher)
     }
 
+    override fun observeHistory(query: HeartRateHistoryQuery): Flow<HeartRateHistorySnapshot> {
+        val window = historyWindow(
+            period = query.period,
+            zoneId = query.zoneId,
+            now = Instant.now(),
+        )
+        val sources = canonicalHistorySources(query.sources)
+        if (sources.isEmpty()) {
+            return flowOf(HeartRateHistorySnapshot(
+                period = query.period,
+                chart = HeartRateChartSeries(resolution = chartResolutionFor(query.period)),
+            ))
+        }
+        return database.heartRateDao()
+            .observeValidHistoryBetween(
+                fromEpochMillis = window.fromInclusive.toEpochMilli(),
+                untilEpochMillis = window.untilExclusive.toEpochMilli(),
+                sources = sources.mapTo(linkedSetOf()) { it.name },
+            )
+            .map { entities ->
+                buildHeartRateHistorySnapshot(
+                    period = query.period,
+                    zoneId = query.zoneId,
+                    measurements = entities.mapNotNull { it.toDomain() },
+                )
+            }
+            .flowOn(ioDispatcher)
+    }
+
+    override suspend fun importD1Measurements(
+        input: SaveD1HeartRateMeasurementsInput,
+    ): RepositoryResult<D1HeartRateImportPersistenceResult> = write {
+        val measurementDao = database.heartRateDao()
+        val syncDao = database.healthSyncOperationDao()
+        val metadataDao = database.deviceImportMetadataDao()
+        val incomingEntities = input.measurements.map { measurement ->
+            if (measurement.source != HeartRateSource.WATCH_D1_HISTORY || !measurement.isEligibleForSync) {
+                return@write RepositoryResult.UnexpectedState
+            }
+            measurement.toEntity()
+        }
+
+        val existingMeasurementsByKey = linkedMapOf<String, br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity>()
+        val existingPendingAggregateIds = linkedSetOf<String>()
+        incomingEntities.forEach { entity ->
+            if (existingMeasurementsByKey.containsKey(entity.deduplicationKey)) return@forEach
+            val existing = measurementDao.findByDeduplicationKey(entity.deduplicationKey) ?: return@forEach
+            existingMeasurementsByKey[entity.deduplicationKey] = existing
+            if (syncDao.findByNaturalKey(existing.id, "HEART_RATE") != null) {
+                existingPendingAggregateIds += existing.id
+            }
+        }
+
+        val plan = planD1Import(
+            existingMeasurementsByKey = existingMeasurementsByKey,
+            existingPendingAggregateIds = existingPendingAggregateIds,
+            incomingMeasurements = incomingEntities,
+        )
+
+        plan.measurementsToInsert.forEach { measurementDao.insert(it) }
+        plan.pendingOperationAggregateIdsToCreate.forEach { aggregateId ->
+            syncDao.insert(HealthSyncOperationEntity(
+                id = ids.next().toString(),
+                aggregateId = aggregateId,
+                aggregateType = "HEART_RATE_MEASUREMENT",
+                recordType = "HEART_RATE",
+                state = "PENDING",
+                attemptCount = 0,
+                lastAttemptAtEpochMillis = null,
+                lastError = null,
+            ))
+        }
+
+        val existingMetadata = metadataDao.findByDeviceAndImportType(
+            deviceId = input.metadata.deviceId.value.toString(),
+            importType = WATCH_D1_HISTORY_IMPORT_TYPE,
+        )
+        metadataDao.upsert(input.metadata.toEntity(id = existingMetadata?.id ?: ids.next().toString()))
+
+        RepositoryResult.Success(D1HeartRateImportPersistenceResult(
+            insertedCount = plan.insertedCount,
+            duplicateCount = plan.duplicateCount,
+            conflictCount = plan.conflictCount,
+            pendingCreatedCount = plan.pendingCreatedCount,
+            pendingExistingCount = plan.pendingExistingCount,
+        ))
+    }
+
+    override fun observeD1ImportMetadata(deviceId: DeviceId): Flow<D1HeartRateImportMetadata?> =
+        database.deviceImportMetadataDao()
+            .observeByDeviceAndImportType(deviceId.value.toString(), WATCH_D1_HISTORY_IMPORT_TYPE)
+            .map { it?.toD1ImportMetadata() }
+            .flowOn(ioDispatcher)
+
     override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = write {
         val activityEntity = activity.toEntity()
         val importEntity = importRecord.toEntity()
@@ -525,3 +633,197 @@ class RoomRepositories @Inject constructor(
 
     private fun generateIds(count: Int): Iterator<java.util.UUID> = List(count) { ids.next() }.iterator()
 }
+
+internal data class PlannedD1Import(
+    val measurementsToInsert: List<br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity>,
+    val pendingOperationAggregateIdsToCreate: Set<String>,
+    val insertedCount: Int,
+    val duplicateCount: Int,
+    val conflictCount: Int,
+    val pendingCreatedCount: Int,
+    val pendingExistingCount: Int,
+)
+
+internal data class HeartRateHistoryWindow(
+    val fromInclusive: Instant,
+    val untilExclusive: Instant,
+)
+
+internal fun historyWindow(
+    period: HeartRateHistoryPeriod,
+    zoneId: ZoneId,
+    now: Instant,
+): HeartRateHistoryWindow {
+    val today = LocalDateTime.ofInstant(now, zoneId).toLocalDate()
+    val fromDate = today.minusDays(period.windowDays - 1L)
+    return HeartRateHistoryWindow(
+        fromInclusive = fromDate.atStartOfDay(zoneId).toInstant(),
+        untilExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant(),
+    )
+}
+
+internal fun canonicalHistorySources(sources: Set<HeartRateSource>): Set<HeartRateSource> =
+    sources.intersect(HISTORY_ALLOWED_SOURCES)
+
+internal fun buildHeartRateHistorySnapshot(
+    period: HeartRateHistoryPeriod,
+    zoneId: ZoneId,
+    measurements: List<HeartRateMeasurement>,
+): HeartRateHistorySnapshot {
+    val validMeasurements = measurements.filter { measurement ->
+        measurement.validity == br.com.mwconsulting.championcompanion.core.model.DataValidity.VALID &&
+            measurement.measuredAt != null &&
+            measurement.source in HISTORY_ALLOWED_SOURCES
+    }
+    val entries = validMeasurements.mapNotNull { measurement ->
+        val measuredAt = measurement.measuredAt ?: return@mapNotNull null
+        HeartRateHistoryEntry(
+            measurementId = measurement.id,
+            measuredAt = measuredAt,
+            bpm = measurement.bpm,
+            source = measurement.source,
+        )
+    }
+    return HeartRateHistorySnapshot(
+        period = period,
+        entries = entries.sortedByDescending { it.measuredAt },
+        aggregates = buildHeartRateHistoryAggregates(entries),
+        chart = buildHeartRateChartSeries(period, zoneId, entries),
+    )
+}
+
+internal fun buildHeartRateHistoryAggregates(entries: List<HeartRateHistoryEntry>): HeartRateHistoryAggregates =
+    if (entries.isEmpty()) {
+        HeartRateHistoryAggregates()
+    } else {
+        HeartRateHistoryAggregates(
+            measurementCount = entries.size,
+            averageBpm = entries.map { it.bpm }.average(),
+            minimumBpm = entries.minOf { it.bpm },
+            maximumBpm = entries.maxOf { it.bpm },
+        )
+    }
+
+internal fun buildHeartRateChartSeries(
+    period: HeartRateHistoryPeriod,
+    zoneId: ZoneId,
+    entries: List<HeartRateHistoryEntry>,
+): HeartRateChartSeries = when (period) {
+    HeartRateHistoryPeriod.TODAY -> HeartRateChartSeries(
+        resolution = HeartRateChartResolution.INTRADAY,
+        points = entries
+            .sortedBy { it.measuredAt }
+            .map { entry ->
+                HeartRateChartPoint(
+                    timestamp = entry.measuredAt,
+                    bpm = entry.bpm.toDouble(),
+                    minimumBpm = entry.bpm,
+                    maximumBpm = entry.bpm,
+                    sampleCount = 1,
+                )
+            },
+    )
+
+    HeartRateHistoryPeriod.LAST_7_DAYS,
+    HeartRateHistoryPeriod.LAST_30_DAYS,
+    -> HeartRateChartSeries(
+        resolution = HeartRateChartResolution.DAILY,
+        points = entries
+            .groupBy { entry -> LocalDateTime.ofInstant(entry.measuredAt, zoneId).toLocalDate() }
+            .toSortedMap()
+            .map { (localDate, dayEntries) ->
+                HeartRateChartPoint(
+                    timestamp = localDate.atTime(LocalTime.MIDNIGHT).atZone(zoneId).toInstant(),
+                    bpm = dayEntries.map { it.bpm }.average(),
+                    minimumBpm = dayEntries.minOf { it.bpm },
+                    maximumBpm = dayEntries.maxOf { it.bpm },
+                    sampleCount = dayEntries.size,
+                )
+            },
+    )
+}
+
+internal fun chartResolutionFor(period: HeartRateHistoryPeriod): HeartRateChartResolution = when (period) {
+    HeartRateHistoryPeriod.TODAY -> HeartRateChartResolution.INTRADAY
+    HeartRateHistoryPeriod.LAST_7_DAYS,
+    HeartRateHistoryPeriod.LAST_30_DAYS,
+    -> HeartRateChartResolution.DAILY
+}
+
+internal fun planD1Import(
+    existingMeasurementsByKey: Map<String, br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity>,
+    existingPendingAggregateIds: Set<String>,
+    incomingMeasurements: List<br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity>,
+): PlannedD1Import {
+    val measurementsByKey = existingMeasurementsByKey.toMutableMap()
+    val pendingAggregateIds = existingPendingAggregateIds.toMutableSet()
+    val measurementsToInsert = mutableListOf<br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity>()
+    val pendingToCreate = linkedSetOf<String>()
+    var insertedCount = 0
+    var duplicateCount = 0
+    var conflictCount = 0
+    var pendingCreatedCount = 0
+    var pendingExistingCount = 0
+
+    incomingMeasurements.forEach { incoming ->
+        val existing = measurementsByKey[incoming.deduplicationKey]
+        if (existing == null) {
+            measurementsByKey[incoming.deduplicationKey] = incoming
+            measurementsToInsert += incoming
+            insertedCount += 1
+            when (planPendingOperation(incoming.id, pendingAggregateIds, pendingToCreate, incoming.isEligibleForD1Pending())) {
+                PendingPlan.CREATED -> pendingCreatedCount += 1
+                PendingPlan.EXISTING -> pendingExistingCount += 1
+                PendingPlan.SKIPPED -> Unit
+            }
+        } else {
+            if (existing.bpm == incoming.bpm) duplicateCount += 1 else conflictCount += 1
+            when (planPendingOperation(existing.id, pendingAggregateIds, pendingToCreate, existing.isEligibleForD1Pending())) {
+                PendingPlan.CREATED -> pendingCreatedCount += 1
+                PendingPlan.EXISTING -> pendingExistingCount += 1
+                PendingPlan.SKIPPED -> Unit
+            }
+        }
+    }
+
+    return PlannedD1Import(
+        measurementsToInsert = measurementsToInsert,
+        pendingOperationAggregateIdsToCreate = pendingToCreate,
+        insertedCount = insertedCount,
+        duplicateCount = duplicateCount,
+        conflictCount = conflictCount,
+        pendingCreatedCount = pendingCreatedCount,
+        pendingExistingCount = pendingExistingCount,
+    )
+}
+
+private enum class PendingPlan {
+    CREATED,
+    EXISTING,
+    SKIPPED,
+}
+
+private fun planPendingOperation(
+    aggregateId: String,
+    pendingAggregateIds: MutableSet<String>,
+    pendingToCreate: MutableSet<String>,
+    eligible: Boolean,
+): PendingPlan {
+    if (!eligible) return PendingPlan.SKIPPED
+    return if (pendingAggregateIds.add(aggregateId)) {
+        pendingToCreate += aggregateId
+        PendingPlan.CREATED
+    } else {
+        PendingPlan.EXISTING
+    }
+}
+
+private fun br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity.isEligibleForD1Pending(): Boolean =
+    source == HeartRateSource.WATCH_D1_HISTORY.name &&
+        validity == "VALID" &&
+        measuredAtEpochMillis != null
+
+private val HISTORY_ALLOWED_SOURCES: Set<HeartRateSource> = setOf(
+    HeartRateSource.MANUAL_MEASUREMENT,
+    HeartRateSource.WATCH_D1_HISTORY,
+)

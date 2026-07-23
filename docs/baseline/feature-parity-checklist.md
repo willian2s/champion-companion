@@ -45,6 +45,12 @@ Fontes: `feature-inventory.md`, `database-reference.md`, `health-connect-mapping
 
 Fontes: `heart-rate-d0-f002.md`, `history-d1.md`, `health-connect-mapping.md`, `database-reference.md`.
 
+Estado Champion Companion apos Fase 09:
+
+- medicao manual D0/F002 entregue e persistencia final ativa;
+- historico D1 local-first entregue com importacao explicita, deduplicacao, historico consolidado, agregacoes e grafico local;
+- escrita real no Health Connect para BPM ainda nao faz parte do estado atual e segue para fase posterior.
+
 - [ ] Medicao manual envia D0 start/stop, processa D0/F002 e mostra estado de medicao, erro e resultado final.
 - [ ] BPM em tempo real e resultado final aplicam faixas e fallback documentados; sinais invalidos nao viram medicao valida.
 - [ ] Historico D1 coleta pacotes multipart, respeita conclusao, timeout e tratamento de pacote invalido documentados.

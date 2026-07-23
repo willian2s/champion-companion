@@ -22,6 +22,18 @@ interface DeviceDao {
     suspend fun update(device: DeviceEntity): Int
 }
 
+@Dao
+interface DeviceImportMetadataDao {
+    @Query("SELECT * FROM device_import_metadata WHERE deviceId = :deviceId AND importType = :importType LIMIT 1")
+    suspend fun findByDeviceAndImportType(deviceId: String, importType: String): DeviceImportMetadataEntity?
+
+    @Query("SELECT * FROM device_import_metadata WHERE deviceId = :deviceId AND importType = :importType LIMIT 1")
+    fun observeByDeviceAndImportType(deviceId: String, importType: String): Flow<DeviceImportMetadataEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(metadata: DeviceImportMetadataEntity)
+}
+
 data class AssociatedDeviceRecord(
     val id: String,
     val platformIdentifier: String,
@@ -101,6 +113,13 @@ interface HeartRateDao {
 
     @Query("SELECT * FROM heart_rate_measurements WHERE source = 'MANUAL_MEASUREMENT' AND validity = 'VALID' AND measuredAtEpochMillis IS NOT NULL ORDER BY measuredAtEpochMillis DESC, id DESC LIMIT :limit")
     fun observeRecentValidManualMeasurements(limit: Int): Flow<List<HeartRateMeasurementEntity>>
+
+    @Query("SELECT * FROM heart_rate_measurements WHERE validity = 'VALID' AND measuredAtEpochMillis IS NOT NULL AND measuredAtEpochMillis >= :fromEpochMillis AND measuredAtEpochMillis < :untilEpochMillis AND source IN (:sources) ORDER BY measuredAtEpochMillis DESC, id DESC")
+    fun observeValidHistoryBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+        sources: Set<String>,
+    ): Flow<List<HeartRateMeasurementEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(measurement: HeartRateMeasurementEntity)

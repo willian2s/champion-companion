@@ -5,6 +5,7 @@ import br.com.mwconsulting.championcompanion.core.database.AssociatedDeviceRecor
 import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceAssociationEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
+import br.com.mwconsulting.championcompanion.core.database.DeviceImportMetadataEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
@@ -28,6 +29,8 @@ import br.com.mwconsulting.championcompanion.core.model.DailySummaryKey
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
 import br.com.mwconsulting.championcompanion.core.model.DeviceModel
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticCaptureFlow
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayload
@@ -124,6 +127,46 @@ internal fun AssociatedDeviceRecord.toDomain(): Device? = DeviceEntity(
 ).toDomain(associatedAtEpochMillis = associatedAtEpochMillis)
 
 internal const val PRIMARY_DEVICE_ASSOCIATION_ID: String = "primary"
+internal const val WATCH_D1_HISTORY_IMPORT_TYPE: String = "WATCH_D1_HISTORY"
+
+internal fun D1HeartRateImportMetadata.toEntity(
+    id: String,
+    importType: String = WATCH_D1_HISTORY_IMPORT_TYPE,
+) = DeviceImportMetadataEntity(
+    id = id,
+    deviceId = deviceId.value.toString(),
+    importType = importType,
+    lastAttemptAtEpochMillis = lastAttemptAt.toEpochMilli(),
+    lastSuccessAtEpochMillis = lastSuccessAt?.toEpochMilli(),
+    lastResult = lastResult.name,
+    parserVersion = parserVersion?.value,
+    insertedCount = insertedCount,
+    duplicateCount = duplicateCount,
+    conflictCount = conflictCount,
+    invalidCount = invalidCount,
+    missingIndexCount = missingIndexCount,
+    timedOut = timedOut,
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
+internal fun DeviceImportMetadataEntity.toD1ImportMetadata(): D1HeartRateImportMetadata? {
+    val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
+    val mappedStatus = enum<D1HeartRateImportStatus>(lastResult) ?: return null
+    return D1HeartRateImportMetadata(
+        deviceId = mappedDeviceId,
+        lastAttemptAt = Instant.ofEpochMilli(lastAttemptAtEpochMillis),
+        lastSuccessAt = lastSuccessAtEpochMillis?.let(Instant::ofEpochMilli),
+        lastResult = mappedStatus,
+        parserVersion = parserVersion?.let(::parserVersion),
+        insertedCount = insertedCount,
+        duplicateCount = duplicateCount,
+        conflictCount = conflictCount,
+        invalidCount = invalidCount,
+        missingIndexCount = missingIndexCount,
+        timedOut = timedOut,
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+    )
+}
 
 internal fun DailySummary.toEntity() = DailySummaryEntity(
     id.value.toString(), key.deviceId?.value?.toString(), key.origin.name, key.localDate.toString(), steps,

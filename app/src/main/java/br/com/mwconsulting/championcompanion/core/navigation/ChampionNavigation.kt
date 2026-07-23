@@ -1,5 +1,13 @@
 package br.com.mwconsulting.championcompanion.core.navigation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,16 +40,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.lifecycle.ViewModelProvider
-import androidx.navigation3.runtime.NavEntry
-import androidx.navigation3.ui.NavDisplay
 import br.com.mwconsulting.championcompanion.feature.calendar.CalendarScreen
 import br.com.mwconsulting.championcompanion.feature.device.DeviceScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
 import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
+import br.com.mwconsulting.championcompanion.feature.health.D1HeartRateImportSurfaceState
 import br.com.mwconsulting.championcompanion.feature.health.HealthScreen
+import br.com.mwconsulting.championcompanion.feature.health.HealthUiState
 import br.com.mwconsulting.championcompanion.feature.health.HeartRateDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthSurfaceState
 import br.com.mwconsulting.championcompanion.feature.health.HealthViewModel
@@ -85,44 +94,85 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     val currentDestination = backStack.lastOrNull()
     var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
+    var pendingBackNavigation by remember { mutableStateOf(false) }
+    var animationDirection by remember { mutableStateOf(NavigationAnimationDirection.Forward) }
     val healthState by healthViewModel.state.collectAsState()
+
+    fun navigateTo(destination: AppDestination) {
+        animationDirection = NavigationAnimationDirection.Forward
+        if (destination.isTopLevelDestination()) {
+            if (currentDestination.isHealthDestination()) {
+                backStack.removeHealthDestinations()
+            }
+            backStack.navigateToTopLevel(destination)
+        } else {
+            backStack.navigateForward(destination)
+        }
+    }
+
+    fun navigateBack() {
+        animationDirection = NavigationAnimationDirection.Backward
+        backStack.removeLastOrNull()
+    }
+
+    fun requestExitConfirmation(destination: AppDestination? = null, isBackNavigation: Boolean = false) {
+        pendingDestination = destination
+        pendingBackNavigation = isBackNavigation
+    }
 
     fun requestNavigation(destination: AppDestination) {
         if (
             currentDestination.isHealthMeasurementSurface() &&
             destination != currentDestination &&
-            healthState.surfaceState.isMeasurementInFlight()
+            healthState.hasBlockingHealthOperation()
         ) {
-            pendingDestination = destination
+            requestExitConfirmation(destination = destination)
         } else {
-            if (destination.isTopLevelDestination()) {
-                if (currentDestination.isHealthDestination()) {
-                    backStack.removeHealthDestinations()
-                }
-                backStack.navigateToTopLevel(destination)
-            } else {
-                backStack.navigateForward(destination)
-            }
+            navigateTo(destination)
         }
     }
 
-    pendingDestination?.let { destination ->
+    fun requestBackNavigation() {
+        if (currentDestination.isHealthMeasurementSurface() && healthState.hasBlockingHealthOperation()) {
+            requestExitConfirmation(isBackNavigation = true)
+        } else {
+            navigateBack()
+        }
+    }
+
+    if (pendingDestination != null || pendingBackNavigation) {
+        val isD1ImportInFlight = healthState.d1ImportState.isD1ImportInFlight()
         AlertDialog(
-            onDismissRequest = { pendingDestination = null },
-            title = { Text("Cancelar medição?") },
-            text = { Text("Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial.") },
+            onDismissRequest = {
+                pendingDestination = null
+                pendingBackNavigation = false
+            },
+            title = { Text(if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?") },
+            text = {
+                Text(
+                    if (isD1ImportInFlight) {
+                        "Sair da tela Saúde agora cancelará a importação D1 em andamento."
+                    } else {
+                        "Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial."
+                    },
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
+                        val destination = pendingDestination
+                        val shouldNavigateBack = pendingBackNavigation
                         pendingDestination = null
-                        healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
-                        if (destination.isTopLevelDestination()) {
-                            if (currentDestination.isHealthDestination()) {
-                                backStack.removeHealthDestinations()
-                            }
-                            backStack.navigateToTopLevel(destination)
+                        pendingBackNavigation = false
+                        if (isD1ImportInFlight) {
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
                         } else {
-                            backStack.navigateForward(destination)
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
+                        }
+                        if (shouldNavigateBack) {
+                            navigateBack()
+                        } else if (destination != null) {
+                            navigateTo(destination)
                         }
                     },
                 ) {
@@ -130,11 +180,18 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDestination = null }) {
-                    Text("Continuar medindo")
+                TextButton(onClick = {
+                    pendingDestination = null
+                    pendingBackNavigation = false
+                }) {
+                    Text(if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo")
                 }
             },
         )
+    }
+
+    BackHandler(enabled = backStack.size > 1 && pendingDestination == null && !pendingBackNavigation) {
+        requestBackNavigation()
     }
 
     Scaffold(
@@ -181,7 +238,13 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             }
         },
     ) { innerPadding ->
-        ChampionNavDisplay(backStack = backStack, contentPadding = innerPadding)
+        ChampionNavDisplay(
+            currentDestination = currentDestination ?: AppDestination.Home,
+            contentPadding = innerPadding,
+            onBackRequested = ::requestBackNavigation,
+            onNavigateTo = ::requestNavigation,
+            animationDirection = animationDirection,
+        )
     }
 }
 
@@ -197,54 +260,75 @@ private fun HealthSurfaceState.isMeasurementInFlight(): Boolean = when (this) {
     is HealthSurfaceState.Completed,
     is HealthSurfaceState.Cancelled,
     is HealthSurfaceState.Failed,
+        -> false
+}
+
+private fun D1HeartRateImportSurfaceState.isD1ImportInFlight(): Boolean = when (this) {
+    is D1HeartRateImportSurfaceState.Preparing,
+    is D1HeartRateImportSurfaceState.Connecting,
+    is D1HeartRateImportSurfaceState.Reading,
+    is D1HeartRateImportSurfaceState.Persisting,
+    -> true
+
+    D1HeartRateImportSurfaceState.Idle,
+    is D1HeartRateImportSurfaceState.Completed,
+    is D1HeartRateImportSurfaceState.CompletedWithGaps,
+    is D1HeartRateImportSurfaceState.Partial,
+    is D1HeartRateImportSurfaceState.Failed,
+    is D1HeartRateImportSurfaceState.Cancelled,
     -> false
 }
 
+private fun HealthUiState.hasBlockingHealthOperation(): Boolean =
+    surfaceState.isMeasurementInFlight() || d1ImportState.isD1ImportInFlight()
+
 @Composable
 private fun ChampionNavDisplay(
-    backStack: MutableList<AppDestination>,
+    currentDestination: AppDestination,
     contentPadding: PaddingValues,
+    onBackRequested: () -> Unit,
+    onNavigateTo: (AppDestination) -> Unit,
+    animationDirection: NavigationAnimationDirection,
 ) {
-    NavDisplay(
-        backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+    AnimatedContent(
+        targetState = currentDestination,
+        transitionSpec = { animationDirection.contentTransform() },
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
-        entryProvider = { destination ->
-            NavEntry(destination) {
-                when (destination) {
-                    AppDestination.Home -> HomeScreen(
-                        onOpenDevice = { backStack.navigateToTopLevel(AppDestination.Device) },
-                        onOpenProfile = { backStack.navigateToTopLevel(AppDestination.Profile) },
-                    )
-                    AppDestination.Health -> HealthScreen(
-                        onOpenHeartRate = { backStack.navigateForward(AppDestination.HealthHeartRate) },
-                        onOpenWeight = { backStack.navigateForward(AppDestination.HealthWeight) },
-                        onOpenSteps = { backStack.navigateForward(AppDestination.HealthSteps) },
-                        onOpenDistance = { backStack.navigateForward(AppDestination.HealthDistance) },
-                    )
-                    AppDestination.HealthHeartRate -> HeartRateDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.HealthWeight -> WeightDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.HealthSteps -> StepsDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.HealthDistance -> DistanceDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.Calendar -> CalendarScreen()
-                    AppDestination.Exercises -> ExercisesScreen()
-                    AppDestination.Device -> DeviceScreen()
-                    AppDestination.Profile -> ProfileScreen()
-                    AppDestination.Settings -> SettingsScreen()
-                }
-            }
-        },
-    )
+        label = "champion_navigation_slide",
+    ) { destination ->
+        when (destination) {
+            AppDestination.Home -> HomeScreen(
+                onOpenDevice = { onNavigateTo(AppDestination.Device) },
+                onOpenProfile = { onNavigateTo(AppDestination.Profile) },
+                onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+            )
+            AppDestination.Health -> HealthScreen(
+                onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+                onOpenWeight = { onNavigateTo(AppDestination.HealthWeight) },
+                onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
+                onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
+            )
+            AppDestination.HealthHeartRate -> HeartRateDetailScreen(
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+            )
+            AppDestination.HealthWeight -> WeightDetailScreen(
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+            )
+            AppDestination.HealthSteps -> StepsDetailScreen(
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+            )
+            AppDestination.HealthDistance -> DistanceDetailScreen(
+                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+            )
+            AppDestination.Calendar -> CalendarScreen()
+            AppDestination.Exercises -> ExercisesScreen()
+            AppDestination.Device -> DeviceScreen()
+            AppDestination.Profile -> ProfileScreen()
+            AppDestination.Settings -> SettingsScreen()
+        }
+    }
 }
 
 private fun MutableList<AppDestination>.navigateToTopLevel(destination: AppDestination) {
@@ -291,4 +375,36 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.HealthSteps,
     AppDestination.HealthDistance,
     -> false
+}
+
+private enum class NavigationAnimationDirection {
+    Forward,
+    Backward,
+}
+
+private fun NavigationAnimationDirection.contentTransform(): ContentTransform {
+    val durationMillis = 260
+    return when (this) {
+        NavigationAnimationDirection.Forward -> {
+            slideInHorizontally(
+                animationSpec = tween(durationMillis = durationMillis),
+                initialOffsetX = { it },
+            ) + fadeIn(animationSpec = tween(durationMillis = durationMillis)) togetherWith
+                slideOutHorizontally(
+                    animationSpec = tween(durationMillis = durationMillis),
+                    targetOffsetX = { -it / 4 },
+                ) + fadeOut(animationSpec = tween(durationMillis = durationMillis))
+        }
+
+        NavigationAnimationDirection.Backward -> {
+            slideInHorizontally(
+                animationSpec = tween(durationMillis = durationMillis),
+                initialOffsetX = { -it / 4 },
+            ) + fadeIn(animationSpec = tween(durationMillis = durationMillis)) togetherWith
+                slideOutHorizontally(
+                    animationSpec = tween(durationMillis = durationMillis),
+                    targetOffsetX = { it },
+                ) + fadeOut(animationSpec = tween(durationMillis = durationMillis))
+        }
+    }
 }

@@ -186,7 +186,7 @@ class HomeViewModel @Inject constructor(
                     refreshState.value = HomeRefreshState(
                         error = HomeRefreshError(
                             category = HomeRefreshErrorCategory.BLE_OPERATION_IN_PROGRESS,
-                            message = "Uma medição manual está em andamento na tela Saúde.",
+                            message = gateResult.activeOperation.owner.toHomeForegroundBleBlockMessage(),
                             isRetryable = true,
                         ),
                         lastSuccessfulRefreshAt = previousSuccess,
@@ -447,6 +447,12 @@ class HomeViewModel @Inject constructor(
             message = "Não foi possível concluir a sincronização.",
             isRetryable = true,
         )
+    }
+
+    private fun ForegroundBleOperationOwner.toHomeForegroundBleBlockMessage(): String = when (this) {
+        ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Outra sincronização do relógio já está em andamento."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
     }
 
     private fun br.com.mwconsulting.championcompanion.core.model.DailySyncAttempt.toHomeRefreshAttempt(): HomeRefreshAttempt =
