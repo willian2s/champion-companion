@@ -36,7 +36,6 @@ Criar `ExercisesViewModel` como owner do fluxo de produto da tela Exercícios, m
 - `docs/specs/010-watch-workouts-d3-d4.md`
 - `docs/tasks/010-watch-workouts-d3-d4/010-00-overview.md`
 - `docs/tasks/010-watch-workouts-d3-d4/010-08-create-exercises-import-viewmodel.md`
-- `app/src/test/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModelTest.kt`
 
 ## Arquivos proibidos
 
@@ -66,7 +65,6 @@ Criar `ExercisesViewModel` como owner do fluxo de produto da tela Exercícios, m
 2. Criar `ExercisesViewModel` e ligar observers locais.
 3. Integrar start, cancel, retry e dismiss sem acoplar BLE ao Composable.
 4. Garantir que `Load` observe dados, mas não inicie importação.
-5. Cobrir estado com testes pequenos.
 
 ## Critérios de aceite
 
@@ -77,19 +75,15 @@ Criar `ExercisesViewModel` como owner do fluxo de produto da tela Exercícios, m
 
 ## Testes pequenos aplicáveis
 
-- ausência de auto-start em `Load`;
-- start explícito inicia coordinator;
-- retry cria nova tentativa;
-- cancel limpa estado ativo sem apagar persistido.
+- não criar novos testes nesta task sem pedido explícito do usuário;
+- se o usuário pedir testes, priorizar ausência de auto-start em `Load`, start explícito, retry com nova tentativa e cancel sem apagar persistido.
 
 ## Validação mínima
 
 - `./gradlew assembleDebug`
-- `./gradlew testDebugUnitTest --tests "*ExercisesViewModelTest"`
 
 ## Evidências
 
-- testes pequenos da ViewModel;
 - diff focado em contrato e ViewModel.
 
 ## Atualização do overview

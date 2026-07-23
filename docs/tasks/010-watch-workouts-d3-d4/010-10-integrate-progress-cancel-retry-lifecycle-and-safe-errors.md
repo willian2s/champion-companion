@@ -45,7 +45,6 @@ Após coordinator, ViewModel e UI básica, a fase ainda precisa impedir operaç�
 - `docs/specs/010-watch-workouts-d3-d4.md`
 - `docs/tasks/010-watch-workouts-d3-d4/010-00-overview.md`
 - `docs/tasks/010-watch-workouts-d3-d4/010-10-integrate-progress-cancel-retry-lifecycle-and-safe-errors.md`
-- `app/src/test/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModelLifecycleTest.kt`
 
 ## Arquivos proibidos
 
@@ -86,19 +85,15 @@ Após coordinator, ViewModel e UI básica, a fase ainda precisa impedir operaç�
 
 ## Testes pequenos aplicáveis
 
-- background cancela importação;
-- callback tardio após cancelamento é ignorado;
-- owner `WATCH_WORKOUT_IMPORT` aparece nas mensagens seguras;
-- retry usa nova tentativa.
+- não criar novos testes nesta task sem pedido explícito do usuário;
+- se o usuário pedir testes, priorizar background cancelando importação, callback tardio ignorado, mensagem segura do owner e retry com nova tentativa.
 
 ## Validação mínima
 
 - `./gradlew assembleDebug`
-- `./gradlew testDebugUnitTest --tests "*ExercisesViewModelLifecycleTest"`
 
 ## Evidências
 
-- testes pequenos de lifecycle;
 - diff focado em navegação, ViewModel e mensagens seguras.
 
 ## Atualização do overview

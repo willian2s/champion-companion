@@ -79,7 +79,7 @@ Após validação física final, a fase precisa atualizar documentação factual
 
 ## Testes pequenos aplicáveis
 
-- nenhum; task é de fechamento documental.
+- nenhum; task é de fechamento documental e não deve criar testes.
 
 ## Validação mínima
 

@@ -90,7 +90,7 @@ Esta task existe para absorver divergências reais encontradas em `010-11`. O es
 
 ## Testes pequenos aplicáveis
 
-- adicionar ou ajustar apenas os necessários para regressão crítica descoberta fisicamente.
+- não criar nem ajustar testes nesta task sem pedido explícito do usuário.
 
 ## Validação mínima
 

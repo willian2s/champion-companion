@@ -79,7 +79,7 @@ Substituir placeholder da tela Exercícios por UI de importação D3/D4, última
 
 ## Testes pequenos aplicáveis
 
-- não criar bateria exclusiva de Compose; apenas testes pontuais se algum estado crítico exigir.
+- não criar novos testes nesta task sem pedido explícito do usuário.
 
 ## Validação mínima
 

@@ -76,7 +76,7 @@ Layouts D3/D4 ainda dependem de validação real. Esta task não pode ser conclu
 
 ## Testes pequenos aplicáveis
 
-- nenhum novo por padrão; task é de validação física.
+- não criar novos testes nesta task; task é de validação física.
 
 ## Validação mínima
 
