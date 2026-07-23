@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -91,6 +91,14 @@ Depois da validacao fisica, fase precisa registrar fronteira definitiva com Heal
 
 - gate de build e smoke fisico ja registrados;
 - links/referencias para protocolo D1 atualizado e screenshots quando existirem.
+
+## Implementacao Executada
+
+- spec 009 foi alinhada ao estado final entregue da Fase 09, incluindo fechamento local-first, UI final, grafico funcional e validacao local registrada.
+- overview `009-00` foi atualizado com checklist completo da fase, risco remanescente aceito e proxima responsabilidade transferida para a Fase 12.
+- `current-baseline.md` foi atualizado para refletir D1 funcional, historico consolidado, grafico local e metadata dedicada de importacao D1.
+- `feature-parity-checklist.md` foi alinhado para explicitar que D1 local-first e historico de BPM avancaram, enquanto Health Connect real continua pendente para fase posterior.
+- `gaps-and-open-questions.md` foi ajustado para registrar que lacuna de UI/graficos de frequencia cardiaca da Fase 09 foi fechada, preservando apenas pendencias futuras.
 
 ## Atualizacao Do Overview
 

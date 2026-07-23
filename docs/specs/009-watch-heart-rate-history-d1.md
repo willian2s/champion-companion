@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. Fronteira local-first formalizada em `009-02`.
+Concluida em 2026-07-23. Fronteira local-first formalizada em `009-02` e fechamento documental registrado em `009-11`.
 
 ## Contexto
 
@@ -107,6 +107,12 @@ Atualizacao de `009-10`:
 
 - validacao local da fase foi confirmada como executada.
 - como esta atualizacao nao trouxe novos bytes ou comportamentos fisicos detalhados para protocolo, `docs/protocol/history-d1.md` permaneceu sem ajuste nesta passagem documental.
+
+Atualizacao de `009-11`:
+
+- Fase 09 foi encerrada com D1 local-first funcional, sem escrita real no Health Connect.
+- baseline atual do app agora inclui acao explicita de importacao D1, persistencia idempotente, historico consolidado manual + D1, agregacoes, grafico local e metadata dedicada de importacao.
+- backlog `PENDING` e fronteira com provider Health Connect real permanecem responsabilidade da Fase 12.
 
 ## Objetivo
 

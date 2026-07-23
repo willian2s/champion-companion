@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06`, `009-07`, `009-08`, `009-09` e `009-10` concluidas; `009-11` pendente.
+Concluida em 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06`, `009-07`, `009-08`, `009-09`, `009-10` e `009-11` concluidas.
 
 ## Objetivo
 
@@ -115,6 +115,13 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - task documental foi encerrada sem alterar `docs/protocol/history-d1.md`, porque esta atualizacao nao trouxe novos bytes ou comportamentos fisicos detalhados o suficiente para expandir protocolo com seguranca.
 - fechamento da fase agora depende apenas de `009-11`.
 
+## Achados De `009-11`
+
+- Fase 09 foi encerrada documentalmente como local-first concluida.
+- baseline atual agora reconhece D1 funcional, historico consolidado, agregacoes, grafico local e metadata dedicada de ultima importacao D1.
+- paridade e lacunas permanecem apontando Health Connect real, treinos D3/D4, semantica clinica das faixas visuais e demais responsabilidades futuras fora da Fase 09.
+- proxima responsabilidade funcional ligada a frequencia cardiaca D1 fica na Fase 12 para provider Health Connect real e backlog `PENDING`.
+
 ## Estado Herdado Da Fase 08
 
 - medicao manual D0/F002 funcional permanece inalterada;
@@ -224,7 +231,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `009-08` integrar ViewModel, progresso, cancelamento, retry e lifecycle
 - [x] `009-09` implementar UI final de historico e grafico
 - [x] `009-10` registrar gate de build, smoke fisico e protocolo atualizado
-- [ ] `009-11` fechar baseline, checklist, spec e divida tecnica
+- [x] `009-11` fechar baseline, checklist, spec e divida tecnica
 
 ## Comandos Minimos
 

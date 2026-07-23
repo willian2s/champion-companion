@@ -166,6 +166,7 @@ Classificacao:
 - Impacto: Media. Fluxos podem existir sem comportamento compreensivel em loading, vazio, erro ou diagnostico.
 - Evidencia: `feature-inventory.md` cataloga telas/estados; `source-map.md` deixa pendentes politica visual, graficos, calendario, estados vazios, notificacoes e diagnosticos.
 - Motivo da duvida: Fase 0 mapeia comportamento atual, nao define navegacao, composicao visual ou cobertura de interface Android.
+- Atualizacao apos Fase 09: detalhe de frequencia cardiaca agora possui acao D1 explicita, grafico local, agregacoes, historico paginado e estados operacionais principais. Permanecem abertas apenas lacunas de semantica clinica das faixas visuais, screenshots formais de PR e paridade futura de outras areas nao cobertas pela fase.
 - Fase: implementacao UI e validacao de paridade.
 - Dispositivo fisico: Nao inicialmente.
 - Validacao sugerida: criar matriz tela/acao/estado esperado; testar loading, erro, vazio, pendencia de revisao, sync falho e dados parciais. Avaliar diagnosticos somente apos G-04.
