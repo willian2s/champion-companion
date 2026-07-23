@@ -84,6 +84,12 @@ Atualizacao de `009-06`:
 - `RoomRepositories.observeHistory(...)` agora resolve janelas locais para `TODAY`, `LAST_7_DAYS` e `LAST_30_DAYS`, calcula agregacoes em memoria e monta `HeartRateChartSeries` sem dados sinteticos.
 - `TODAY` usa pontos reais intraday; `LAST_7_DAYS` e `LAST_30_DAYS` usam buckets diarios com media, minimo, maximo e contagem por dia.
 
+Atualizacao de `009-07`:
+
+- `feature/health/D1HeartRateSyncCoordinator.kt` agora define contrato dedicado para tentativa D1 foreground.
+- `feature/health/ChampionD1HeartRateSyncCoordinator.kt` agora orquestra gate `WATCH_D1_HISTORY`, reuso de sessao, handshake A1, observer `F008_NOTIFY`, envio D1, timeout e persistencia D1 tipada.
+- mensagens de bloqueio em Home e Dispositivo agora distinguem refresh diario, medicao manual e importacao D1.
+
 ## Objetivo
 
 Permitir ao usuario:

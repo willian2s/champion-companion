@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05` e `009-06` concluidas; demais tasks pendentes.
+Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06` e `009-07` concluidas; demais tasks pendentes.
 
 ## Objetivo
 
@@ -84,6 +84,12 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `RoomRepositories.observeHistory(...)` agora monta `HeartRateHistorySnapshot` consolidando apenas `MANUAL_MEASUREMENT` e `WATCH_D1_HISTORY`.
 - agregacoes `measurementCount`, `averageBpm`, `minimumBpm` e `maximumBpm` sao calculadas em memoria sobre registros validos do periodo.
 - grafico usa pontos reais para `TODAY` e buckets diarios para `LAST_7_DAYS` e `LAST_30_DAYS`, sem dias vazios sinteticos.
+
+## Achados De `009-07`
+
+- `ChampionD1HeartRateSyncCoordinator` agora reusa sessao compativel, executa handshake A1, observa `F008_NOTIFY`, envia D1 e sempre libera gate `WATCH_D1_HISTORY` em `finally`.
+- callbacks tardios sao ignorados por sessao ativa + collector encerrado; timeout e cancelamento nao reabrem tentativa nem readquirem gate.
+- Home e Dispositivo agora mostram bloqueios seguros diferenciando refresh diario, medicao manual e importacao D1 em andamento.
 
 ## Estado Herdado Da Fase 08
 
@@ -190,7 +196,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `009-04` implementar comando D1, parser e collector multipart
 - [x] `009-05` implementar persistencia, deduplicacao, fila `PENDING` e migration
 - [x] `009-06` implementar consultas, agregacoes e serie do grafico
-- [ ] `009-07` implementar coordinator D1, gate e arbitragem BLE
+- [x] `009-07` implementar coordinator D1, gate e arbitragem BLE
 - [ ] `009-08` integrar ViewModel, progresso, cancelamento, retry e lifecycle
 - [ ] `009-09` implementar UI final de historico e grafico
 - [ ] `009-10` registrar gate de build, smoke fisico e protocolo atualizado

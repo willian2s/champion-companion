@@ -3,6 +3,7 @@ package br.com.mwconsulting.championcompanion.feature.health
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
 import br.com.mwconsulting.championcompanion.core.common.BleDispatcher
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
+import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.InMemoryForegroundBleOperationGate
 import br.com.mwconsulting.championcompanion.core.model.MonotonicClock
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
@@ -36,6 +37,21 @@ object HealthModule {
         connectionBootstrap = connectionBootstrap,
         foregroundBleOperationGate = foregroundBleOperationGate,
         monotonicClock = monotonicClock,
+        bleDispatcher = bleDispatcher,
+    )
+
+    @Provides
+    fun provideD1HeartRateSyncCoordinator(
+        connectionManager: ChampionConnectionManager,
+        connectionBootstrap: DeviceConnectionBootstrap,
+        foregroundBleOperationGate: ForegroundBleOperationGate,
+        heartRateRepository: HeartRateRepository,
+        @BleDispatcher bleDispatcher: CoroutineDispatcher,
+    ): D1HeartRateSyncCoordinator = ChampionD1HeartRateSyncCoordinator(
+        connectionManager = connectionManager,
+        connectionBootstrap = connectionBootstrap,
+        foregroundBleOperationGate = foregroundBleOperationGate,
+        heartRateRepository = heartRateRepository,
         bleDispatcher = bleDispatcher,
     )
 }

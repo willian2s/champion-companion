@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -110,6 +110,14 @@ Core BLE atual ja oferece sessao unica, fila serial, `ChampionNotificationHub`, 
 
 - resultados de testes pequenos;
 - diff de gate e coordinator mostrando cleanup em `finally`.
+
+## Implementacao Executada
+
+- `D1HeartRateSyncCoordinator.kt` criado com contrato dedicado para iniciar, cancelar e observar estado da importacao D1.
+- `ChampionD1HeartRateSyncCoordinator.kt` criado com gate `WATCH_D1_HISTORY`, reuso de sessao, handshake A1, observer `F008_NOTIFY`, timeout, cancelamento, persistencia tipada e cleanup em `finally`.
+- `HealthModule.kt` agora fornece coordinator D1 via Hilt.
+- `HomeViewModel.kt` e `DeviceManagementViewModel.kt` agora distinguem mensagens de bloqueio por owner foreground BLE ativo.
+- `ChampionD1HeartRateSyncCoordinatorTest.kt` cobre bloqueio de gate, cancelamento, timeout, callback tardio ignorado, reuso de sessao e ordem handshake->D1.
 
 ## Atualizacao Do Overview
 
