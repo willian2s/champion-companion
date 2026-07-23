@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 const val DEFAULT_DAILY_STEPS_GOAL = 8_000
@@ -61,6 +62,8 @@ interface PersonalMetricsRepository {
 data class PersonalMetricsSnapshot(
     val heightCentimeters: Double? = null,
     val weightKilograms: Double? = null,
+    val latestWeightMeasuredAt: Instant? = null,
+    val latestWeightOrigin: DataOrigin? = null,
     val manualStrideLengthMeters: Double? = null,
 )
 
@@ -113,9 +116,65 @@ data class DailyStepsRefreshResult(
     val parserVersion: ParserVersion,
 )
 
+enum class ForegroundBleOperationOwner {
+    DAILY_STEPS_REFRESH,
+    MANUAL_HEART_RATE,
+}
+
+data class ForegroundBleOperationRequest(
+    val owner: ForegroundBleOperationOwner,
+    val operationId: String,
+    val requestedAt: Instant,
+)
+
+data class ForegroundBleOperationPermit(
+    val owner: ForegroundBleOperationOwner,
+    val operationId: String,
+    val acquiredAt: Instant,
+)
+
+data class ForegroundBleOperationSnapshot(
+    val owner: ForegroundBleOperationOwner,
+    val operationId: String,
+    val acquiredAt: Instant,
+)
+
+sealed interface ForegroundBleOperationAcquireResult {
+    data class Acquired(
+        val permit: ForegroundBleOperationPermit,
+    ) : ForegroundBleOperationAcquireResult
+
+    data class Rejected(
+        val activeOperation: ForegroundBleOperationSnapshot,
+    ) : ForegroundBleOperationAcquireResult
+}
+
+interface ForegroundBleOperationGate {
+    fun observeActiveOperation(): Flow<ForegroundBleOperationSnapshot?> = flowOf(null)
+
+    suspend fun tryAcquire(request: ForegroundBleOperationRequest): ForegroundBleOperationAcquireResult
+
+    suspend fun release(permit: ForegroundBleOperationPermit) {}
+}
+
+data class SaveManualHeartRateMeasurementInput(
+    val measurementId: HeartRateMeasurementId,
+    val sessionId: HeartRateMeasurementSessionId,
+    val deviceId: DeviceId?,
+    val bpm: Int,
+    val measuredAt: Instant,
+    val parserVersion: ParserVersion?,
+)
+
 interface HeartRateRepository {
     suspend fun import(measurements: List<HeartRateMeasurement>): RepositoryResult<Unit>
     suspend fun findPendingSync(): RepositoryResult<List<HeartRateMeasurement>>
+    suspend fun saveManualMeasurement(input: SaveManualHeartRateMeasurementInput): RepositoryResult<HeartRateMeasurement> =
+        RepositoryResult.UnexpectedState
+
+    fun observeLatestValidMeasurement(): Flow<HeartRateMeasurement?> = flowOf(null)
+
+    fun observeRecentManualMeasurements(limit: Int): Flow<List<HeartRateMeasurement>> = flowOf(emptyList())
 }
 
 interface WorkoutActivityRepository {

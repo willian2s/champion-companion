@@ -3,6 +3,16 @@ package br.com.mwconsulting.championcompanion.core.database
 import androidx.room3.Room
 import androidx.sqlite.driver.AndroidSQLiteDriver
 import androidx.test.platform.app.InstrumentationRegistry
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
+import br.com.mwconsulting.championcompanion.core.model.ParserVersion
+import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
+import br.com.mwconsulting.championcompanion.data.RoomRepositories
+import java.time.Instant
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -104,6 +114,75 @@ class ChampionDaosInstrumentedTest {
         }
     }
 
+    @Test
+    fun latestValidMeasurementIgnoresInvalidRowsAndUsesNewestResolvedInstant() = runBlocking {
+        val database = database()
+        try {
+            database.deviceDao().insert(device())
+            database.heartRateDao().insert(heartRate("older-valid", "VALID", 1_000L, "WATCH_D1_HISTORY"))
+            database.heartRateDao().insert(heartRate("newer-invalid", "INVALID", 5_000L, "MANUAL_MEASUREMENT"))
+            database.heartRateDao().insert(heartRate("newest-valid", "VALID", 4_000L, "MANUAL_MEASUREMENT"))
+
+            assertEquals("newest-valid", database.heartRateDao().observeLatestValidMeasurement().first()?.id)
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun recentManualMeasurementsFiltersByManualSourceAndLimit() = runBlocking {
+        val database = database()
+        try {
+            database.deviceDao().insert(device())
+            database.heartRateDao().insert(heartRate("manual-old", "VALID", 1_000L, "MANUAL_MEASUREMENT"))
+            database.heartRateDao().insert(heartRate("watch-new", "VALID", 5_000L, "WATCH_D1_HISTORY"))
+            database.heartRateDao().insert(heartRate("manual-mid", "VALID", 3_000L, "MANUAL_MEASUREMENT"))
+            database.heartRateDao().insert(heartRate("manual-invalid", "INVALID", 4_000L, "MANUAL_MEASUREMENT"))
+            database.heartRateDao().insert(heartRate("manual-new", "VALID", 6_000L, "MANUAL_MEASUREMENT"))
+
+            assertEquals(
+                listOf("manual-new", "manual-mid"),
+                database.heartRateDao().observeRecentValidManualMeasurements(limit = 2).first().map { it.id },
+            )
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun roomRepositoriesDeduplicatesManualSaveBySessionAndSkipsSyncQueue() = runBlocking {
+        val database = database()
+        try {
+            database.deviceDao().insert(device())
+            val repositories = RoomRepositories(database, Dispatchers.Unconfined)
+            val sessionId = HeartRateMeasurementSessionId(uuid(10))
+            val first = SaveManualHeartRateMeasurementInput(
+                measurementId = HeartRateMeasurementId(uuid(11)),
+                sessionId = sessionId,
+                deviceId = null,
+                bpm = 77,
+                measuredAt = Instant.parse("2026-07-22T10:00:00Z"),
+                parserVersion = ParserVersion.create("manual-v1").valueOrNull()!!,
+            )
+
+            val saved = repositories.saveManualMeasurement(first)
+            val duplicate = repositories.saveManualMeasurement(
+                first.copy(measurementId = HeartRateMeasurementId(uuid(13)), bpm = 81),
+            )
+
+            assertTrue(saved is RepositoryResult.Success)
+            assertTrue(duplicate is RepositoryResult.Success)
+            assertEquals(
+                (saved as RepositoryResult.Success).value.id,
+                (duplicate as RepositoryResult.Success).value.id,
+            )
+            assertEquals(1, repositories.observeRecentManualMeasurements(limit = 10).first().size)
+            assertEquals(emptyList<HeartRateMeasurementEntity>(), database.heartRateDao().findValidPendingForSync())
+        } finally {
+            database.close()
+        }
+    }
+
     private fun database(): ChampionDatabase {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return Room.inMemoryDatabaseBuilder(context, ChampionDatabase::class.java)
@@ -172,4 +251,7 @@ class ChampionDaosInstrumentedTest {
         workoutActivityId = null,
         deduplicationKey = "d1:$id",
     )
+
+    private fun uuid(last: Int): UUID =
+        UUID.fromString("0190029f-2f80-7000-8000-0000000000${last.toString().padStart(2, '0')}")
 }

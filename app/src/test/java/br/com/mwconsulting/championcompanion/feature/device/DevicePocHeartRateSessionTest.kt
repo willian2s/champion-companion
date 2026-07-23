@@ -45,6 +45,20 @@ class DevicePocHeartRateSessionTest {
     }
 
     @Test
+    fun `parse live bpm ignores packet without valid bpm`() {
+        val result = DevicePocHeartRateSession.parseLiveBpm(
+            packet = testPacket(
+                channel = ChampionChannelAlias.F008_NOTIFY,
+                commandCode = 0xD0,
+                bytes = byteArrayOf(0xD0.toByte(), 0x00, 0x10, 0x21),
+            ),
+            sessionStartedAt = Instant.parse("2025-01-01T00:00:00Z"),
+        )
+
+        assertEquals(DevicePocHeartRateSession.D0Result.Ignored, result)
+    }
+
+    @Test
     fun `parse f002 decodes little endian pairs and ignores odd trailing byte`() {
         val result = DevicePocHeartRateSession.parseF002Samples(
             testPacket(

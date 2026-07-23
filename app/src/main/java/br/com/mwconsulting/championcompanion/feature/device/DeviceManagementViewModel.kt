@@ -16,8 +16,11 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidBleEnvironment
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
-import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationSnapshot
+import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
@@ -40,6 +43,7 @@ class DeviceManagementViewModel @Inject constructor(
     private val scanner: ChampionBleScanner,
     private val connectionManager: ChampionConnectionManager,
     private val connectionBootstrap: DeviceConnectionBootstrap,
+    private val foregroundBleOperationGate: ForegroundBleOperationGate,
 ) : ViewModel(), DeviceManagementFeatureContract {
     private val mutableState = MutableStateFlow(DeviceManagementUiState())
     private val mutableEvents = MutableSharedFlow<DeviceManagementEvent>(extraBufferCapacity = 8)
@@ -55,6 +59,7 @@ class DeviceManagementViewModel @Inject constructor(
     private var currentEntryId = 0L
     private var lastAutoConnectAttemptEntryId: Long? = null
     private var isFeatureVisible = false
+    private var foregroundBleOperation: ForegroundBleOperationSnapshot? = null
 
     override val state: StateFlow<DeviceManagementUiState> = mutableState.asStateFlow()
     val events: SharedFlow<DeviceManagementEvent> = mutableEvents.asSharedFlow()
@@ -82,6 +87,12 @@ class DeviceManagementViewModel @Inject constructor(
             scanner.scanResults.collect { candidates ->
                 scanCandidates = candidates
                 updateCandidatesState(candidates)
+            }
+        }
+
+        viewModelScope.launch {
+            foregroundBleOperationGate.observeActiveOperation().collect { operation ->
+                foregroundBleOperation = operation
             }
         }
     }
@@ -285,6 +296,12 @@ class DeviceManagementViewModel @Inject constructor(
         isAssociatedDevice: Boolean = false,
     ) {
         if (mutableState.value.activeOperation != null) return
+        if (isManualHeartRateOperationActive()) {
+            if (!automatic) {
+                presentManualMeasurementBlockError()
+            }
+            return
+        }
         val readiness = ChampionBlePrerequisites.forConnect(bleEnvironment.snapshot())
         if (!readiness.isReady) {
             handlePrerequisiteFailure(
@@ -651,6 +668,7 @@ class DeviceManagementViewModel @Inject constructor(
         if (functionalConnectionEstablished) return
         if (currentTransportState !is ChampionBleState.Disconnected && currentTransportState !is ChampionBleState.Failed) return
         if (lastAutoConnectAttemptEntryId == currentEntryId) return
+        if (isManualHeartRateOperationActive()) return
 
         val readiness = ChampionBlePrerequisites.forConnect(bleEnvironment.snapshot())
         if (!readiness.isReady) {
@@ -664,6 +682,26 @@ class DeviceManagementViewModel @Inject constructor(
 
         lastAutoConnectAttemptEntryId = currentEntryId
         connectAssociatedDevice(automatic = true)
+    }
+
+    private fun isManualHeartRateOperationActive(): Boolean =
+        foregroundBleOperation?.owner == ForegroundBleOperationOwner.MANUAL_HEART_RATE
+
+    private fun presentManualMeasurementBlockError() {
+        activeJob = null
+        mutableState.update {
+            it.copy(
+                error = DeviceManagementError(
+                    category = DeviceManagementErrorCategory.INTERNAL,
+                    message = "Há uma medição manual em andamento na tela Saúde.",
+                    isRecoverable = true,
+                ),
+                retryAction = when (lastConnectIntent) {
+                    DeviceManagementIntent.ConnectSelectedCandidate -> DeviceManagementRetryAction.RetrySelectedCandidateConnection
+                    else -> DeviceManagementRetryAction.ReconnectAssociatedDevice
+                },
+            )
+        }
     }
 
     private fun handleRepositoryFailure(

@@ -23,12 +23,15 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
+import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
@@ -38,6 +41,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
@@ -45,6 +49,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
@@ -76,6 +81,8 @@ class RoomRepositories @Inject constructor(
                     PersonalMetricsSnapshot(
                         heightCentimeters = profile.heightCentimeters,
                         weightKilograms = weight?.toKilogramsOrNull(),
+                        latestWeightMeasuredAt = weight?.measuredAtEpochMillis?.let(Instant::ofEpochMilli),
+                        latestWeightOrigin = weight?.origin?.let { enumValueOfOrNull<DataOrigin>(it) },
                         manualStrideLengthMeters = null,
                     )
                 }
@@ -264,6 +271,46 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun findPendingSync(): RepositoryResult<List<HeartRateMeasurement>> = withContext(ioDispatcher) {
         RepositoryResult.Success(database.heartRateDao().findValidPendingForSync().mapNotNull { it.toDomain() })
+    }
+
+    override suspend fun saveManualMeasurement(
+        input: SaveManualHeartRateMeasurementInput,
+    ): RepositoryResult<HeartRateMeasurement> = write {
+        val measurementDao = database.heartRateDao()
+        val deduplicationKey = manualMeasurementDeduplicationKey(input.sessionId)
+        val existing = measurementDao.findByDeduplicationKey(deduplicationKey)
+        if (existing != null) {
+            val mapped = existing.toDomain() ?: return@write RepositoryResult.UnexpectedState
+            return@write if (mapped.source == HeartRateSource.MANUAL_MEASUREMENT) {
+                RepositoryResult.Success(mapped)
+            } else {
+                RepositoryResult.UnexpectedState
+            }
+        }
+
+        val measurement = HeartRateMeasurement.createManualMeasurement(
+            id = input.measurementId,
+            sessionId = input.sessionId,
+            deviceId = input.deviceId,
+            bpm = input.bpm,
+            measuredAt = input.measuredAt,
+            parserVersion = input.parserVersion,
+        ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+
+        measurementDao.insert(measurement.toEntity())
+        RepositoryResult.Success(measurement)
+    }
+
+    override fun observeLatestValidMeasurement(): Flow<HeartRateMeasurement?> =
+        database.heartRateDao().observeLatestValidMeasurement()
+            .map { it?.toDomain() }
+            .flowOn(ioDispatcher)
+
+    override fun observeRecentManualMeasurements(limit: Int): Flow<List<HeartRateMeasurement>> {
+        if (limit <= 0) return flowOf(emptyList())
+        return database.heartRateDao().observeRecentValidManualMeasurements(limit)
+            .map { entities -> entities.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
     }
 
     override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = write {
@@ -455,6 +502,9 @@ class RoomRepositories @Inject constructor(
         else -> null
     }
 
+    private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
+        runCatching { enumValueOf<T>(value) }.getOrNull()
+
     private suspend fun transitionSync(id: HealthSyncOperationId, expected: List<String>, next: String, at: Instant?, error: String?, increment: Int = 0): RepositoryResult<Unit> = write {
         val operation = database.healthSyncOperationDao().findById(id.value.toString())
         if (operation == null) return@write RepositoryResult.NotFound
@@ -468,6 +518,10 @@ class RoomRepositories @Inject constructor(
     private suspend fun <T> write(block: suspend () -> RepositoryResult<T>): RepositoryResult<T> = withContext(ioDispatcher) {
         database.withWriteTransaction { block() }
     }
+
+    private fun manualMeasurementDeduplicationKey(sessionId: HeartRateMeasurementSessionId): String =
+        br.com.mwconsulting.championcompanion.core.model.HeartRateDeduplicationKey.MeasurementSession(sessionId)
+            .encode()
 
     private fun generateIds(count: Int): Iterator<java.util.UUID> = List(count) { ids.next() }.iterator()
 }

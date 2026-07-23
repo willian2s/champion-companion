@@ -15,6 +15,7 @@ import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateDeduplicationKey
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
@@ -90,6 +91,21 @@ class DatabaseMappersTest {
             validity = DataValidity.VALID, deviceId = deviceId, importedAt = measuredAt.plusSeconds(1),
             parserVersion = ParserVersion.create("d1-v1").valueOrNull()!!,
             deduplicationKey = HeartRateDeduplicationKey.D1History(deviceId, measuredAt, null),
+        ).valueOrNull()!!
+
+        assertEquals(measurement, measurement.toEntity().toDomain())
+    }
+
+    @Test
+    fun `heart rate mapper preserves manual measurement session deduplication`() {
+        val generator = generator()
+        val measurement = HeartRateMeasurement.createManualMeasurement(
+            id = HeartRateMeasurementId(generator.next()),
+            sessionId = HeartRateMeasurementSessionId(generator.next()),
+            deviceId = DeviceId(generator.next()),
+            bpm = 76,
+            measuredAt = instant.plusSeconds(10),
+            parserVersion = ParserVersion.create("manual-v1").valueOrNull()!!,
         ).valueOrNull()!!
 
         assertEquals(measurement, measurement.toEntity().toDomain())

@@ -14,12 +14,16 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,12 +31,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import br.com.mwconsulting.championcompanion.feature.calendar.CalendarScreen
 import br.com.mwconsulting.championcompanion.feature.device.DeviceScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
+import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
+import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthScreen
+import br.com.mwconsulting.championcompanion.feature.health.HeartRateDetailScreen
+import br.com.mwconsulting.championcompanion.feature.health.HealthSurfaceState
+import br.com.mwconsulting.championcompanion.feature.health.HealthViewModel
+import br.com.mwconsulting.championcompanion.feature.health.StepsDetailScreen
+import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
@@ -63,9 +77,65 @@ private val additionalItems = listOf(
 
 @Composable
 fun ChampionNavigation(modifier: Modifier = Modifier) {
+    val activity = checkNotNull(LocalActivity.current) as ComponentActivity
+    val healthViewModel = remember(activity) {
+        ViewModelProvider(activity)[HealthViewModel::class.java]
+    }
     val backStack = remember { mutableStateListOf<AppDestination>(AppDestination.Home) }
     val currentDestination = backStack.lastOrNull()
     var additionalMenuExpanded by remember { mutableStateOf(false) }
+    var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
+    val healthState by healthViewModel.state.collectAsState()
+
+    fun requestNavigation(destination: AppDestination) {
+        if (
+            currentDestination.isHealthMeasurementSurface() &&
+            destination != currentDestination &&
+            healthState.surfaceState.isMeasurementInFlight()
+        ) {
+            pendingDestination = destination
+        } else {
+            if (destination.isTopLevelDestination()) {
+                if (currentDestination.isHealthDestination()) {
+                    backStack.removeHealthDestinations()
+                }
+                backStack.navigateToTopLevel(destination)
+            } else {
+                backStack.navigateForward(destination)
+            }
+        }
+    }
+
+    pendingDestination?.let { destination ->
+        AlertDialog(
+            onDismissRequest = { pendingDestination = null },
+            title = { Text("Cancelar medição?") },
+            text = { Text("Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingDestination = null
+                        healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
+                        if (destination.isTopLevelDestination()) {
+                            if (currentDestination.isHealthDestination()) {
+                                backStack.removeHealthDestinations()
+                            }
+                            backStack.navigateToTopLevel(destination)
+                        } else {
+                            backStack.navigateForward(destination)
+                        }
+                    },
+                ) {
+                    Text("Sair da Saúde")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDestination = null }) {
+                    Text("Continuar medindo")
+                }
+            },
+        )
+    }
 
     Scaffold(
         modifier = modifier,
@@ -74,8 +144,12 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 val navigationBarScope = this
                 primaryItems.forEach { item ->
                     NavigationBarItem(
-                        selected = currentDestination == item.destination,
-                        onClick = { backStack.navigateToTopLevel(item.destination) },
+                        selected = if (item.destination == AppDestination.Health) {
+                            currentDestination.isHealthDestination()
+                        } else {
+                            currentDestination == item.destination
+                        },
+                        onClick = { requestNavigation(item.destination) },
                         icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
                     )
@@ -98,7 +172,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                                 text = { Text(item.label) },
                                 onClick = {
                                     additionalMenuExpanded = false
-                                    backStack.navigateToTopLevel(item.destination)
+                                    requestNavigation(item.destination)
                                 },
                             )
                         }
@@ -109,6 +183,21 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     ) { innerPadding ->
         ChampionNavDisplay(backStack = backStack, contentPadding = innerPadding)
     }
+}
+
+private fun HealthSurfaceState.isMeasurementInFlight(): Boolean = when (this) {
+    is HealthSurfaceState.Preparing,
+    is HealthSurfaceState.Connecting,
+    is HealthSurfaceState.Starting,
+    is HealthSurfaceState.Measuring,
+    is HealthSurfaceState.Stopping,
+    -> true
+
+    HealthSurfaceState.Idle,
+    is HealthSurfaceState.Completed,
+    is HealthSurfaceState.Cancelled,
+    is HealthSurfaceState.Failed,
+    -> false
 }
 
 @Composable
@@ -129,7 +218,24 @@ private fun ChampionNavDisplay(
                         onOpenDevice = { backStack.navigateToTopLevel(AppDestination.Device) },
                         onOpenProfile = { backStack.navigateToTopLevel(AppDestination.Profile) },
                     )
-                    AppDestination.Health -> HealthScreen()
+                    AppDestination.Health -> HealthScreen(
+                        onOpenHeartRate = { backStack.navigateForward(AppDestination.HealthHeartRate) },
+                        onOpenWeight = { backStack.navigateForward(AppDestination.HealthWeight) },
+                        onOpenSteps = { backStack.navigateForward(AppDestination.HealthSteps) },
+                        onOpenDistance = { backStack.navigateForward(AppDestination.HealthDistance) },
+                    )
+                    AppDestination.HealthHeartRate -> HeartRateDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
+                    AppDestination.HealthWeight -> WeightDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
+                    AppDestination.HealthSteps -> StepsDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
+                    AppDestination.HealthDistance -> DistanceDetailScreen(
+                        onNavigateBack = { backStack.removeLastOrNull() },
+                    )
                     AppDestination.Calendar -> CalendarScreen()
                     AppDestination.Exercises -> ExercisesScreen()
                     AppDestination.Device -> DeviceScreen()
@@ -146,4 +252,43 @@ private fun MutableList<AppDestination>.navigateToTopLevel(destination: AppDesti
 
     removeAll { it == destination }
     add(destination)
+}
+
+private fun MutableList<AppDestination>.navigateForward(destination: AppDestination) {
+    if (lastOrNull() == destination) return
+    add(destination)
+}
+
+private fun MutableList<AppDestination>.removeHealthDestinations() {
+    removeAll { it.isHealthDestination() }
+}
+
+private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
+    AppDestination.Health,
+    AppDestination.HealthHeartRate,
+    AppDestination.HealthWeight,
+    AppDestination.HealthSteps,
+    AppDestination.HealthDistance,
+    -> true
+
+    else -> false
+}
+
+private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppDestination.HealthHeartRate
+
+private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
+    AppDestination.Home,
+    AppDestination.Health,
+    AppDestination.Calendar,
+    AppDestination.Exercises,
+    AppDestination.Device,
+    AppDestination.Profile,
+    AppDestination.Settings,
+    -> true
+
+    AppDestination.HealthHeartRate,
+    AppDestination.HealthWeight,
+    AppDestination.HealthSteps,
+    AppDestination.HealthDistance,
+    -> false
 }

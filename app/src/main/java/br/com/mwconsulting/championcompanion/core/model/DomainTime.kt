@@ -5,10 +5,20 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlin.time.Duration
 
 data class CanonicalTime(
     val instant: Instant,
 )
+
+@JvmInline
+value class MonotonicTimestamp(val elapsedRealtimeMillis: Long)
+
+interface MonotonicClock {
+    fun now(): MonotonicTimestamp
+
+    fun elapsedSince(startedAt: MonotonicTimestamp): Duration
+}
 
 data class LocalCalendarDate(
     val value: LocalDate,
@@ -62,3 +72,18 @@ object LocalDateResolver {
 }
 
 fun Instant.toLocalDateIn(zoneId: ZoneId): LocalDate = LocalDateResolver.resolve(this, zoneId)
+
+fun MonotonicClock.remainingSince(
+    startedAt: MonotonicTimestamp,
+    targetDuration: Duration,
+): Duration = (targetDuration - elapsedSince(startedAt)).coerceAtLeast(Duration.ZERO)
+
+fun MonotonicClock.progressSince(
+    startedAt: MonotonicTimestamp,
+    targetDuration: Duration,
+): Float {
+    if (targetDuration <= Duration.ZERO) return 1f
+    val progress = elapsedSince(startedAt).inWholeMilliseconds.toDouble() /
+        targetDuration.inWholeMilliseconds.toDouble()
+    return progress.toFloat().coerceIn(0f, 1f)
+}
