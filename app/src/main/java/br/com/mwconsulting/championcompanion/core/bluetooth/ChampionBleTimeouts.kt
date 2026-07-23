@@ -13,6 +13,8 @@ data class ChampionBleTimeouts(
     val notificationConfiguration: Duration = 8.seconds,
     val indicationConfiguration: Duration = 8.seconds,
     val d1History: Duration = 15.seconds,
+    val d3WorkoutIndex: Duration = 10.seconds,
+    val d4WorkoutBlock: Duration = 15.seconds,
     val responseWait: Duration = 15.seconds,
     val disconnect: Duration = 5.seconds,
 ) {

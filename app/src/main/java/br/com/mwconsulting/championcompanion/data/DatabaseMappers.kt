@@ -6,12 +6,14 @@ import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceAssociationEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceImportMetadataEntity
+import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
+import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportLookupRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
@@ -33,6 +35,7 @@ import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadat
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
 import br.com.mwconsulting.championcompanion.core.model.DeviceModel
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticCaptureFlow
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticDerivedOutputKey
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayload
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadCapture
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadId
@@ -61,7 +64,10 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationOrig
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportId
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
@@ -128,6 +134,7 @@ internal fun AssociatedDeviceRecord.toDomain(): Device? = DeviceEntity(
 
 internal const val PRIMARY_DEVICE_ASSOCIATION_ID: String = "primary"
 internal const val WATCH_D1_HISTORY_IMPORT_TYPE: String = "WATCH_D1_HISTORY"
+internal const val WATCH_D3_D4_IMPORT_TYPE: String = "WATCH_WORKOUT_D3_D4"
 
 internal fun D1HeartRateImportMetadata.toEntity(
     id: String,
@@ -153,6 +160,45 @@ internal fun DeviceImportMetadataEntity.toD1ImportMetadata(): D1HeartRateImportM
     val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
     val mappedStatus = enum<D1HeartRateImportStatus>(lastResult) ?: return null
     return D1HeartRateImportMetadata(
+        deviceId = mappedDeviceId,
+        lastAttemptAt = Instant.ofEpochMilli(lastAttemptAtEpochMillis),
+        lastSuccessAt = lastSuccessAtEpochMillis?.let(Instant::ofEpochMilli),
+        lastResult = mappedStatus,
+        parserVersion = parserVersion?.let(::parserVersion),
+        insertedCount = insertedCount,
+        duplicateCount = duplicateCount,
+        conflictCount = conflictCount,
+        invalidCount = invalidCount,
+        missingIndexCount = missingIndexCount,
+        timedOut = timedOut,
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+    )
+}
+
+internal fun WatchWorkoutImportMetadata.toEntity(
+    id: String,
+    importType: String = WATCH_D3_D4_IMPORT_TYPE,
+) = DeviceImportMetadataEntity(
+    id = id,
+    deviceId = deviceId.value.toString(),
+    importType = importType,
+    lastAttemptAtEpochMillis = lastAttemptAt.toEpochMilli(),
+    lastSuccessAtEpochMillis = lastSuccessAt?.toEpochMilli(),
+    lastResult = lastResult.name,
+    parserVersion = parserVersion?.value,
+    insertedCount = insertedCount,
+    duplicateCount = duplicateCount,
+    conflictCount = conflictCount,
+    invalidCount = invalidCount,
+    missingIndexCount = missingIndexCount,
+    timedOut = timedOut,
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
+internal fun DeviceImportMetadataEntity.toWatchWorkoutImportMetadata(): WatchWorkoutImportMetadata? {
+    val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
+    val mappedStatus = enum<WatchWorkoutImportStatus>(lastResult) ?: return null
+    return WatchWorkoutImportMetadata(
         deviceId = mappedDeviceId,
         lastAttemptAt = Instant.ofEpochMilli(lastAttemptAtEpochMillis),
         lastSuccessAt = lastSuccessAtEpochMillis?.let(Instant::ofEpochMilli),
@@ -259,6 +305,23 @@ internal fun WorkoutActivityEntity.toPendingReviewDomain(
 ).successOrNull()
 }
 
+internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup? {
+    val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
+    val mappedImportId = uuid(importId)?.let(::WatchWorkoutImportId) ?: return null
+    val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
+    val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return null
+    val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    return WatchWorkoutImportLookup(
+        activityId = mappedActivityId,
+        importId = mappedImportId,
+        deviceId = mappedDeviceId,
+        crc = crc,
+        parserValidity = mappedParserValidity,
+        workflowState = mappedWorkflowState,
+        importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
+    )
+}
+
 internal fun TreadmillCalibration.toEntity(): TreadmillCalibrationEntity? {
     val activityId = (subject as? br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSubject.Activity)?.id ?: return null
     return TreadmillCalibrationEntity(
@@ -305,6 +368,16 @@ internal fun DiagnosticPayload.toEntity() = DiagnosticPayloadEntity(
     id.value.toString(), command, flow.name, bytesForPrivateStorage(), byteCount, deviceId?.value?.toString(), firmware,
     parserVersion.value, result.name, safeError?.name, capturedAt.toEpochMilli(),
 )
+
+internal fun DiagnosticPayload.toDerivedOutputEntities(ids: Iterator<UUID>): List<DiagnosticDerivedOutputEntity> =
+    derivedOutputs.sortedWith(compareBy<DiagnosticDerivedOutputKey>({ it.type.name }, { it.ordinal })).map {
+        DiagnosticDerivedOutputEntity(
+            id = ids.next().toString(),
+            payloadId = it.payloadId.value.toString(),
+            outputType = it.type.name,
+            ordinal = it.ordinal,
+        )
+    }
 
 internal fun DiagnosticPayloadEntity.toDomain(): DiagnosticPayload? {
     val payloadId = uuid(id)?.let(::DiagnosticPayloadId) ?: return null

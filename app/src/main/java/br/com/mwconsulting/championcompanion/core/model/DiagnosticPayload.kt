@@ -28,6 +28,34 @@ enum class DiagnosticDerivedOutputType {
     DAILY_SUMMARY,
 }
 
+data class WatchWorkoutDiagnosticCapturePolicy(
+    val flow: DiagnosticCaptureFlow = DiagnosticCaptureFlow.WATCH_WORKOUT,
+    val derivedOutputType: DiagnosticDerivedOutputType = DiagnosticDerivedOutputType.WATCH_WORKOUT_IMPORT,
+    val maximumAge: Duration = DiagnosticRetention.maximumAge,
+    val maximumBytes: Long = DiagnosticRetention.maximumBytes,
+    val captureValidInRelease: Boolean = false,
+    val capturePartialInRelease: Boolean = true,
+    val captureInvalidInRelease: Boolean = true,
+    val captureTechnicalErrorInRelease: Boolean = true,
+    val captureValidInDebugWhenExplicit: Boolean = true,
+) {
+    fun shouldCapture(
+        result: DiagnosticParseResult,
+        isDebugBuild: Boolean,
+        explicitDebugCaptureRequested: Boolean,
+    ): Boolean = when (result) {
+        DiagnosticParseResult.COMPLETED -> isDebugBuild && explicitDebugCaptureRequested && captureValidInDebugWhenExplicit
+        DiagnosticParseResult.PARTIAL -> capturePartialInRelease || (isDebugBuild && explicitDebugCaptureRequested)
+        DiagnosticParseResult.INVALID -> captureInvalidInRelease || (isDebugBuild && explicitDebugCaptureRequested)
+        DiagnosticParseResult.TECHNICAL_ERROR -> captureTechnicalErrorInRelease || (isDebugBuild && explicitDebugCaptureRequested)
+    }
+
+    fun derivedOutputKey(payloadId: DiagnosticPayloadId, ordinal: Int = 0): DiagnosticDerivedOutputKey =
+        DiagnosticDerivedOutputKey(payloadId = payloadId, type = derivedOutputType, ordinal = ordinal)
+}
+
+val WatchWorkoutDiagnostics: WatchWorkoutDiagnosticCapturePolicy = WatchWorkoutDiagnosticCapturePolicy()
+
 data class DiagnosticDerivedOutputKey(
     val payloadId: DiagnosticPayloadId,
     val type: DiagnosticDerivedOutputType,

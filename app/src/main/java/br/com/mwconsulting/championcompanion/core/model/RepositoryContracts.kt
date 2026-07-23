@@ -120,6 +120,7 @@ enum class ForegroundBleOperationOwner {
     DAILY_STEPS_REFRESH,
     MANUAL_HEART_RATE,
     WATCH_D1_HISTORY,
+    WATCH_WORKOUT_IMPORT,
 }
 
 data class ForegroundBleOperationRequest(
@@ -196,8 +197,27 @@ interface HeartRateRepository {
 interface WorkoutActivityRepository {
     suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit>
     fun observePendingReview(): Flow<List<WorkoutActivity>>
+    suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = RepositoryResult.UnexpectedState
+    fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> = flowOf(null)
+    suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
+}
+
+data class WatchWorkoutImportLookup(
+    val activityId: WorkoutActivityId,
+    val importId: WatchWorkoutImportId,
+    val deviceId: DeviceId,
+    val crc: Int,
+    val parserValidity: ParserValidity,
+    val workflowState: ActivityWorkflowState,
+    val importedAt: Instant,
+) {
+    val canSkipOnResume: Boolean
+        get() = parserValidity == ParserValidity.VALID
+
+    val shouldRetryOnResume: Boolean
+        get() = !canSkipOnResume
 }
 
 interface TreadmillCalibrationRepository {

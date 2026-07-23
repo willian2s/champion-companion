@@ -1,0 +1,319 @@
+# Task 010-00 - Overview Importação de treinos D3/D4
+
+## Status
+
+Concluída em 2026-07-23. `010-01` a `010-13` concluídas.
+
+## Objetivo
+
+Controlar escopo, ordem, dependências, paralelismo, checklist, validação física e dívida técnica da Fase 10, dedicada à importação local-first de treinos D3/D4 até `PENDING_REVIEW`.
+
+## Documentos autoritativos
+
+- `AGENTS.md`
+- `docs/specs/_inputs/phase-10-watch-workouts-d3-d4-direction.md`
+- `docs/specs/010-watch-workouts-d3-d4.md`
+- ADRs vigentes em `docs/decisions/`
+- `docs/decisions/adr-010-d1-local-first-and-health-connect-phase-boundary.md`
+- `docs/specs/009-watch-heart-rate-history-d1.md`
+- `docs/tasks/009-watch-heart-rate-history-d1/009-00-overview.md`
+- todas as tasks concluídas da Fase 09
+- specs e overviews das Fases 03 a 08
+- `docs/protocol/workouts-d3-d4.md`
+- `docs/protocol/ble-command-mapping.md`
+- `docs/protocol/ble-transport.md`
+- `docs/protocol/champion-c001.md`
+- `docs/protocol/handshake-a1.md`
+- `docs/protocol/history-d1.md`
+- `docs/protocol/diagnostics-d8-a8.md`
+- `docs/baseline/current-baseline.md`
+- `docs/baseline/database-reference.md`
+- `docs/baseline/feature-parity-checklist.md`
+- `docs/baseline/gaps-and-open-questions.md`
+
+## Status inicial
+
+- `ExercisesScreen.kt` continua placeholder e `ExercisesFeatureContract.kt` continua vazio.
+- `WatchWorkoutActivity.kt`, `DiagnosticPayload.kt` e Room já oferecem base de domínio e persistência para D3/D4.
+- `WorkoutActivityRepository.persistImported(...)` já preserva revisão/calibração e substitui intervalos e amostras em reimportação.
+- `observePendingReview()` já existe, mas não há `ExercisesViewModel`, coordinator de importação D3/D4, metadata D3/D4 nem UI final.
+- `ForegroundBleOperationGate` ainda não possui owner `WATCH_WORKOUT_IMPORT`.
+- `ChampionNavigation.kt` só bloqueia saída da tela de frequência cardíaca durante medição manual ou D1.
+- `HomeViewModel.kt` e `DeviceManagementViewModel.kt` só conhecem bloqueios de `DAILY_STEPS_REFRESH`, `MANUAL_HEART_RATE` e `WATCH_D1_HISTORY`.
+- `device_import_metadata` já existe e favorece reuse para `WATCH_WORKOUT_D3_D4`, sem migration obrigatória aparente.
+
+## Achados de `010-01`
+
+- `AGENTS.md` foi alinhado para `docs/baseline/current-baseline.md`.
+- Baseline MotionLog confirma D3 com CRCs `u16 LE` a partir do offset `3`, mas também usa `bytes[3..4]` para testar header multipart plausível; esse acoplamento deve ser tratado como fato herdado, não como header limpo já confirmado.
+- Baseline MotionLog confirma D4 com `packetIndex = u16 LE bytes[1..2]`, `totalPackets = u16 LE bytes[3..4]`, `minuteIndex = packetIndex - 4` e `sampledAt = startedAt + minuteIndex * 60 segundos`.
+- Baseline MotionLog confirma bucket fixo de 60 segundos, inclusive no último intervalo; sobra de duração total permanece diagnóstica.
+- Baseline MotionLog confirma `recordCount` apenas como verificação de completude; divergência gera `partial`, sem buckets sintéticos.
+- Baseline MotionLog não deduplica CRC repetido dentro da mesma leitura D3 antes do loop D4; isso virou risco funcional explícito para `010-02` e `010-03`.
+- App nativo já possui fronteira correta entre importação e revisão: `createFromImport(...)` nasce em `PENDING_REVIEW` e `confirmReview(...)` bloqueia avanço quando `parserValidity != VALID`.
+- App nativo já possui deduplicação/reimportação transacional por `(deviceId, origin, crc)` em `persistImported(...)`, com preservação de revisão, workflow e calibração existentes.
+
+## Achados de `010-02`
+
+- `WatchWorkoutImportSync.kt` passou a concentrar contratos de tentativa, progresso, resumo, resultado tipado, metadata, erro seguro e política explícita de persistência para `VALID/PARTIAL/INVALID`.
+- `ExercisesFeatureContract.kt` deixou de ser vazio e agora já separa estado de superfície da importação D3/D4 do restante da tela Exercícios.
+- `RepositoryContracts.kt` já reserva owner `WATCH_WORKOUT_IMPORT` e contratos de metadata, liberando trabalho paralelo de `010-03`, `010-04` e `010-06`.
+- `DiagnosticPayload.kt` já formaliza política diagnóstica privada da fase sem introduzir logging de payload nem retenção nova.
+
+## Achados de `010-03` e `010-04`
+
+- `ChampionD3WorkoutIndexProtocol.kt` e `ChampionD4WorkoutBlockProtocol.kt` agora existem como componentes únicos de protocolo, seguindo o padrão local do `ChampionD1HistoryProtocol.kt`.
+- `ChampionBleTimeouts.kt` passou a concentrar também `d3WorkoutIndex` e `d4WorkoutBlock`; esse arquivo segue como ponto de conflito direto para o coordinator da `010-07`.
+- D3 já deduplica CRC repetido de forma determinística e preserva timeout parcial com entradas válidas.
+- D4 já aceita pacotes fora de ordem, preserva duplicados para diagnóstico e calcula ausências sem interpretar métricas do treino.
+- `010-05` pode assumir entrada D4 já remontada e ordenada por `packetIndex`.
+
+## Achados de `010-05`
+
+- `ChampionD4WorkoutParser.kt` passou a resolver layouts preferido e legado, duração, buckets de minuto, agregados BPM, CRC divergente e validade `VALID/PARTIAL/INVALID`.
+- `WatchWorkoutImportSync.kt` agora expõe resultado tipado de parser e resumo técnico suficiente para `010-06` e `010-07` consumirem sem reler bytes.
+- `WatchWorkoutActivity.kt` deixou de exigir índices contíguos de intervalos, permitindo preservar lacunas reais do D4 sem buckets sintéticos.
+- Novo risco de conflito: `WatchWorkoutActivity.kt` agora virou ponto compartilhado entre parser da `010-05` e persistência/reimportação da `010-06`.
+
+## Achados de `010-06`
+
+- Nenhuma migration foi necessária: schema v3 já cobria `watch_workout_imports`, `device_import_metadata` e `diagnostic_derived_outputs`.
+- `RoomRepositories.kt` agora expõe lookup local por CRC, metadata D3/D4 observável e persistência de derived outputs diagnósticos junto do payload privado.
+- Reimportação continua preservando revisão, workflow e calibração, agora centralizada também em `planWatchWorkoutPersistence(...)` para teste puro.
+- Novo hotspot confirmado: `RoomRepositories.kt` e `DatabaseMappers.kt` ficam compartilhados entre `010-06` e coordinator/persistência futura de `010-07`.
+
+## Achados de `010-07`
+
+- `WatchWorkoutImportCoordinator.kt` e `ChampionWatchWorkoutImportCoordinator.kt` agora existem em `feature/exercises`, seguindo padrão foreground já usado em D1 e medição manual.
+- Coordinator D3/D4 agora adquire owner `WATCH_WORKOUT_IMPORT`, tenta reusar sessão saudável por `transportKey`, executa handshake A1, roda D3, faz lookup local por CRC e baixa D4 em sequência.
+- Persistência acontece por bloco via `WorkoutActivityRepository.persistImported(...)`; callbacks tardios passam a ser ignorados quando tentativa encerra ou troca de sessão.
+- `ExercisesModule.kt` virou dependência direta de `010-08`, porque ViewModel futura deve consumir binding Hilt já estabilizado do coordinator.
+
+## Achados de `010-08`
+
+- `ExercisesViewModel.kt` agora existe com `@HiltViewModel` e escopo interno equivalente ao padrão já usado em Saúde, sem acoplar a tela a BLE ou Room.
+- Observação de `observePendingReview()`, `observeWatchWorkoutImportMetadata(...)`, `observeAssociatedDevice()` e `observeDailyStepsGoal()` já foi conectada ao estado agregado de Exercícios.
+- `Load` permanece sem auto-start BLE; start, cancel, retry, dismiss e cancelamento por background/saída agora passam só pela ViewModel.
+- `010-09` passa a depender do estado realmente exposto pela ViewModel para renderizar CTA, progresso, resultado, erro e pendências sem redefinir contratos.
+
+## Achados de `010-09`
+
+- `ExercisesScreen.kt` agora renderiza superfície real da feature com CTA `Buscar treinos no relógio`, progresso textual, resultado, metadata da última importação e cards somente leitura para pendências.
+- Placeholder foi removido sem introduzir revisão, descarte, sync ou bloqueio de navegação; essas bordas continuam reservadas para `010-10` e fases posteriores.
+- Screenshot continua pendente de execução em dispositivo e deve entrar só no PR, conforme regra visual do repositório.
+
+## Achados de `010-10`
+
+- `ChampionNavigation.kt` agora trata Exercícios como superfície bloqueável, espelhando confirmação de saída já existente em Saúde para troca de aba, navegação para trás e back físico no destino raiz.
+- `ExercisesScreen.kt` agora observa lifecycle e cancela importação em `ON_STOP`, mantendo retorno ao foreground sem auto-start e sem gate preso fora de visão.
+- Rejeições do `ForegroundBleOperationGate` em Exercícios e Saúde agora mostram mensagens seguras por owner ativo, incluindo importação de treinos, sem expor detalhe BLE técnico.
+- Risco aceito permanece físico: cancelamento por background preserva blocos já persistidos, mas validação em relógio real segue para `010-11` e `010-12`.
+
+## Achados de `010-11`
+
+- Gate mínimo da fase ficou registrado com `./gradlew lint assembleDebug assembleRelease` e `./gradlew installDebug`, este último concluído com sucesso em `SM-S901E`.
+- Validação física inicial em Galaxy S22 com Champion C001 confirmou importação correta de treinos na tela Exercícios e criação de pendências locais esperadas.
+- Não houve divergência física nova suficiente para alterar protocolo ou bloquear o avanço para Gate B.
+
+## Achados de `010-12`
+
+- Gate B foi aceito no hardware real com treino curto, treino longo ou multipart, deduplicação, cancelamento e retomada válidos.
+- Correções físicas necessárias já estavam absorvidas pelo código entregue; não foi necessária nova rodada de implementação nesta sessão.
+- A fase ficou pronta para fechamento documental, preservando apenas riscos residuais fora do escopo da Fase 10.
+
+## Achados de `010-13`
+
+- Baseline factual, checklist de paridade, lacunas abertas, protocolo D3/D4 e spec agora refletem a fase concluída até `PENDING_REVIEW`.
+- Fronteiras de revisão, calibração e Health Connect permaneceram explícitas para Fases 11 e 12, sem reabrir escopo funcional da Fase 10.
+
+## Ajuste posterior de alinhamento MotionLog
+
+- `ChampionD4WorkoutParser.kt` foi relaxado para acompanhar a baseline funcional antiga em três pontos: timestamps locais, fallback legado do pacote `2` e duração zero quando `endedAt <= startedAt` sem fallback positivo.
+- O parser também passou a normalizar datas civis limítrofes do pacote `1`, acompanhando o comportamento permissivo do `Date(...)` usado pelo MotionLog.
+- `ChampionD3WorkoutIndexProtocol.kt` passou a preservar `blockIndex` original do D3 mesmo após deduplicação por CRC, evitando baixar bloco D4 errado quando o relógio repete CRC antes de blocos posteriores.
+- Esse alinhamento reduz casos em que um bloco antes coerente no MotionLog aparecia como `invalid` no app novo, especialmente em firmwares com pacote `1` ou `2` menos estáveis.
+
+## Estado herdado da Fase 09
+
+- D1 local-first está funcional e Health Connect real segue fora do escopo até a Fase 12.
+- Sessão BLE saudável continua no escopo do app, não da tela Dispositivo.
+- Gate foreground já é compartilhado entre Home, Saúde e Dispositivo.
+- D1 já consolidou padrão de coordinator foreground com `attemptId`, `bleSessionId`, observer temporário, timeout, cancelamento e `finally`.
+
+## Fronteiras das Fases 11 e 12
+
+- Fase 10 termina em `PENDING_REVIEW`.
+- Fase 11 assume revisão, edição de tipo, título, observações, calibração e avanço para `READY_TO_SYNC`.
+- Fase 12 assume Health Connect real, backlog local e estados `SYNCING/SYNCED`.
+
+## Limites
+
+- não implementar revisão, calibração ou Health Connect;
+- não executar D3/D4 automaticamente;
+- não criar task exclusiva de testes;
+- não depender de foreground service ou WorkManager;
+- não tratar evidência fake como substituta de validação física.
+
+## Lista completa de tasks
+
+1. `010-01-audit-d3-d4-baseline-domain-and-workflow-boundaries.md`
+2. `010-02-define-watch-workout-import-contracts-state-and-diagnostic-policy.md`
+3. `010-03-implement-d3-index-protocol-and-collector.md`
+4. `010-04-implement-d4-block-collector-and-remounting.md`
+5. `010-05-implement-d4-workout-parser-and-domain-mapping.md`
+6. `010-06-implement-workout-import-persistence-deduplication-and-metadata.md`
+7. `010-07-implement-watch-workout-import-coordinator-and-foreground-gate.md`
+8. `010-08-create-exercises-import-viewmodel.md`
+9. `010-09-create-exercises-import-and-pending-ui.md`
+10. `010-10-integrate-progress-cancel-retry-lifecycle-and-safe-errors.md`
+11. `010-11-run-initial-d3-d4-physical-validation.md`
+12. `010-12-resolve-physical-findings-and-run-gate-b.md`
+13. `010-13-close-watch-workout-import-phase.md`
+
+## Ordem
+
+1. `010-01`
+2. `010-02`
+3. `010-03`
+4. `010-04`
+5. `010-05`
+6. `010-06`
+7. `010-07`
+8. `010-08`
+9. `010-09`
+10. `010-10`
+11. `010-11`
+12. `010-12`
+13. `010-13`
+
+## Dependências
+
+| Task     | Depende de                                                   |
+| -------- | ------------------------------------------------------------ |
+| `010-01` | leitura inicial completa                                     |
+| `010-02` | `010-01`                                                     |
+| `010-03` | `010-02`                                                     |
+| `010-04` | `010-02`                                                     |
+| `010-05` | `010-03`, `010-04`                                           |
+| `010-06` | `010-02`                                                     |
+| `010-07` | `010-03`, `010-04`, `010-05`, `010-06`                       |
+| `010-08` | `010-07` e contrato final do `WatchWorkoutImportCoordinator` |
+| `010-09` | `010-08` e estado real exposto por `ExercisesViewModel`      |
+| `010-10` | `010-07`, `010-08`, `010-09`                                 |
+| `010-11` | `010-10`                                                     |
+| `010-12` | `010-11`                                                     |
+| `010-13` | `010-12`                                                     |
+
+## Paralelismo
+
+- `010-03`, `010-04` e `010-06` podem avançar após `010-02` se coordenarem conflitos em `RepositoryContracts.kt` e `WatchWorkoutImportSync.kt`.
+- `010-05` depende de `010-03` e `010-04` porque usa contratos D4 já estabilizados.
+- `010-07` só inicia quando D3, D4, parser e persistência estiverem estáveis.
+- `010-08`, `010-09` e `010-10` devem permanecer sequenciais por alto conflito em `feature/exercises/**` e `ChampionNavigation.kt`.
+- `010-11`, `010-12` e `010-13` são sequenciais.
+
+## Arquivos com risco de conflito
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/DiagnosticPayload.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RepositoryModule.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/InMemoryForegroundBleOperationGate.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionConnectionManager.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionTransportSession.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionNotificationHub.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionPacketRouter.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceConnectionBootstrap.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `docs/specs/010-watch-workouts-d3-d4.md`
+- `docs/tasks/010-watch-workouts-d3-d4/010-00-overview.md`
+
+## Checklist
+
+- [x] `010-01` auditar MotionLog, baseline factual, domínio, Room, offsets e corrigir caminho futuro em `AGENTS.md`
+- [x] `010-02` definir contratos, state machine, metadata e política diagnóstica D3/D4
+- [x] `010-03` implementar protocolo e collector D3
+- [x] `010-04` implementar collector D4 e remontagem
+- [x] `010-05` implementar parser D4, timestamps, intervalos e agregados
+- [x] `010-06` implementar persistência, deduplicação, metadata e payload privado
+- [x] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
+- [x] `010-08` criar `ExercisesViewModel`
+- [x] `010-09` substituir placeholder de Exercícios por UI de importação e pendências
+- [x] `010-10` integrar progresso, cancelamento, retry, lifecycle, navegação e mensagens seguras
+- [x] `010-11` executar primeira validação física D3/D4
+- [x] `010-12` resolver achados físicos e validar Gate B
+- [x] `010-13` fechar spec, overview, baseline factual, checklist e dívida
+
+## Comandos
+
+Gate obrigatório:
+
+```bash
+./gradlew lint assembleDebug assembleRelease
+./gradlew installDebug
+```
+
+Falhas antigas e não relacionadas devem ser documentadas. Regressão introduzida pela Fase 10 deve ser corrigida.
+
+## Roteiro físico
+
+Galaxy S22 com Champion C001:
+
+1. abrir Exercícios;
+2. confirmar ausência de importação automática;
+3. tocar `Buscar treinos no relógio`;
+4. observar D3;
+5. observar D4 sequencial;
+6. importar treino curto;
+7. confirmar atividade pendente;
+8. repetir e confirmar deduplicação;
+9. cancelar durante D4;
+10. tentar novamente e confirmar retomada;
+11. validar ausência de Health Connect;
+12. validar ausência de payload/CRC no Logcat.
+
+## Gate B
+
+- treino curto real;
+- treino longo ou multipart real;
+- D3 com índice coerente;
+- D4 sequencial e remontagem correta;
+- persistência local;
+- intervalos e BPM coerentes;
+- deduplicação;
+- cancelamento;
+- retomada por CRC;
+- `PENDING_REVIEW` sem Health Connect.
+
+## Dívida técnica
+
+- revisão e calibração da atividade ficam para Fase 11;
+- Health Connect real fica para Fase 12;
+- foreground service para importações longas fica para Fase 14;
+- semântica final dos bytes desconhecidos permanece em aberto, apesar de fluxo físico funcional confirmado;
+- ADR de política `PARTIAL`, payload release ou retomada por CRC só se a implementação exigir decisão duradoura nova.
+
+## Critérios gerais
+
+- importação apenas por ação explícita;
+- `PENDING_REVIEW` como fronteira da fase;
+- sem revisão, calibração ou Health Connect;
+- sem migration de Room por padrão;
+- build gate obrigatório registrado;
+- validação física obrigatória, não substituída por fakes.
+
+## Instruções de atualização
+
+- fase concluída em 2026-07-23;
+- comandos obrigatórios registrados: `./gradlew lint assembleDebug assembleRelease` e `./gradlew installDebug`;
+- Gate B aceito em Galaxy S22 com Champion C001;
+- próximos trabalhos devem partir das fronteiras documentadas para Fases 11, 12 e 14.
+
+Risco novo aberto por `010-01`: deduplicação intra-tentativa de CRC repetido não existe no MotionLog auditado; implementação D3 do app nativo deve resolver isso sem perder ordem determinística dos blocos.

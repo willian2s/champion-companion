@@ -706,6 +706,7 @@ class DeviceManagementViewModel @Inject constructor(
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Há uma sincronização do relógio em andamento na tela inicial."
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Há uma medição manual em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico do relógio em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Há uma importação de treinos do relógio em andamento na tela Exercícios."
     }
 
     private fun handleRepositoryFailure(
