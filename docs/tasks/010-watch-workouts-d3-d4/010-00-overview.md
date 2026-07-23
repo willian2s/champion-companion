@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-07` concluídas; `010-08` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` a `010-09` concluídas; `010-10` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -89,6 +89,26 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - Persistência acontece por bloco via `WorkoutActivityRepository.persistImported(...)`; callbacks tardios passam a ser ignorados quando tentativa encerra ou troca de sessão.
 - `ExercisesModule.kt` virou dependência direta de `010-08`, porque ViewModel futura deve consumir binding Hilt já estabilizado do coordinator.
 
+## Achados de `010-08`
+
+- `ExercisesViewModel.kt` agora existe com `@HiltViewModel` e escopo interno equivalente ao padrão já usado em Saúde, sem acoplar a tela a BLE ou Room.
+- Observação de `observePendingReview()`, `observeWatchWorkoutImportMetadata(...)`, `observeAssociatedDevice()` e `observeDailyStepsGoal()` já foi conectada ao estado agregado de Exercícios.
+- `Load` permanece sem auto-start BLE; start, cancel, retry, dismiss e cancelamento por background/saída agora passam só pela ViewModel.
+- `010-09` passa a depender do estado realmente exposto pela ViewModel para renderizar CTA, progresso, resultado, erro e pendências sem redefinir contratos.
+
+## Achados de `010-09`
+
+- `ExercisesScreen.kt` agora renderiza superfície real da feature com CTA `Buscar treinos no relógio`, progresso textual, resultado, metadata da última importação e cards somente leitura para pendências.
+- Placeholder foi removido sem introduzir revisão, descarte, sync ou bloqueio de navegação; essas bordas continuam reservadas para `010-10` e fases posteriores.
+- Screenshot continua pendente de execução em dispositivo e deve entrar só no PR, conforme regra visual do repositório.
+
+## Ajuste posterior de alinhamento MotionLog
+
+- `ChampionD4WorkoutParser.kt` foi relaxado para acompanhar a baseline funcional antiga em três pontos: timestamps locais, fallback legado do pacote `2` e duração zero quando `endedAt <= startedAt` sem fallback positivo.
+- O parser também passou a normalizar datas civis limítrofes do pacote `1`, acompanhando o comportamento permissivo do `Date(...)` usado pelo MotionLog.
+- `ChampionD3WorkoutIndexProtocol.kt` passou a preservar `blockIndex` original do D3 mesmo após deduplicação por CRC, evitando baixar bloco D4 errado quando o relógio repete CRC antes de blocos posteriores.
+- Esse alinhamento reduz casos em que um bloco antes coerente no MotionLog aparecia como `invalid` no app novo, especialmente em firmwares com pacote `1` ou `2` menos estáveis.
+
 ## Estado herdado da Fase 09
 
 - D1 local-first está funcional e Health Connect real segue fora do escopo até a Fase 12.
@@ -154,7 +174,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 | `010-06` | `010-02`                                                     |
 | `010-07` | `010-03`, `010-04`, `010-05`, `010-06`                       |
 | `010-08` | `010-07` e contrato final do `WatchWorkoutImportCoordinator` |
-| `010-09` | `010-08`                                                     |
+| `010-09` | `010-08` e estado real exposto por `ExercisesViewModel`      |
 | `010-10` | `010-07`, `010-08`, `010-09`                                 |
 | `010-11` | `010-10`                                                     |
 | `010-12` | `010-11`                                                     |
@@ -200,8 +220,8 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - [x] `010-05` implementar parser D4, timestamps, intervalos e agregados
 - [x] `010-06` implementar persistência, deduplicação, metadata e payload privado
 - [x] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
-- [ ] `010-08` criar `ExercisesViewModel`
-- [ ] `010-09` substituir placeholder de Exercícios por UI de importação e pendências
+- [x] `010-08` criar `ExercisesViewModel`
+- [x] `010-09` substituir placeholder de Exercícios por UI de importação e pendências
 - [ ] `010-10` integrar progresso, cancelamento, retry, lifecycle, navegação e mensagens seguras
 - [ ] `010-11` executar primeira validação física D3/D4
 - [ ] `010-12` resolver achados físicos e validar Gate B

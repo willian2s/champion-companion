@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -90,6 +90,12 @@ Substituir placeholder da tela Exercícios por UI de importação D3/D4, última
 
 - screenshot da tela para futuro PR;
 - diff restrito a Exercícios.
+
+## Resultado
+
+- `ExercisesScreen.kt` passou a consumir `ExercisesViewModel` e renderizar CTA explícita, progresso, resultado, metadata da última importação e lista read-only de pendências.
+- Placeholder foi removido sem introduzir revisão, Health Connect ou navegação bloqueada.
+- Screenshot ficou pendente para PR futuro, conforme execução local desta task.
 
 ## Atualização do overview
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -85,6 +85,12 @@ Criar `ExercisesViewModel` como owner do fluxo de produto da tela Exercícios, m
 ## Evidências
 
 - diff focado em contrato e ViewModel.
+
+## Resultado
+
+- `ExercisesViewModel.kt` criado com `@HiltViewModel`, observando dispositivo associado, pendências persistidas, metadata D3/D4, goal diário e estado do coordinator.
+- intents `StartImport`, `CancelImport`, `RetryImport`, `DismissImport`, `ConfirmExitImport`, `AppMovedToBackground` e `Load` agora passam pela ViewModel.
+- `Load` permaneceu sem auto-start BLE; erro por ausência de relógio associado agora gera estado terminal seguro na própria feature.
 
 ## Atualização do overview
 

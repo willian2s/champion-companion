@@ -17,6 +17,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutMetrics
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 object ChampionD4WorkoutParser {
     private const val minimumPacketSize: Int = 20
@@ -40,7 +42,7 @@ object ChampionD4WorkoutParser {
         val resolvedDurationSeconds = when {
             durationFromPacket1 > 0 -> durationFromPacket1
             durationData.durationFallbackSeconds > 0 -> durationData.durationFallbackSeconds
-            else -> return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request, layout = resolveOverallLayout(startEnd.layout, totals.layout, durationData.layout), recordCount = durationData.recordCount, reportedBlockCrc = durationData.reportedCrc)
+            else -> 0L
         }
         val resolvedEndedAt = if (startEnd.endedAt.isAfter(startEnd.startedAt)) {
             startEnd.endedAt
@@ -273,12 +275,7 @@ object ChampionD4WorkoutParser {
         val legacyLooksPlausible = legacy.totalSteps in 1..200_000 &&
             legacy.totalDistanceRaw in 0..500_000_000 &&
             legacy.totalCaloriesRaw in 0..10_000_000
-        return when {
-            observedLooksPlausible && !legacyLooksPlausible -> observed
-            legacyLooksPlausible -> legacy
-            observedLooksPlausible -> observed
-            else -> null
-        }
+        return if (observedLooksPlausible && !legacyLooksPlausible) observed else legacy
     }
 
     private fun parsePacket3(bytes: ByteArray): Packet3Data? {
@@ -327,7 +324,12 @@ object ChampionD4WorkoutParser {
             return null
         }
         return try {
-            Instant.parse(String.format("%04d-%02d-%02dT%02d:%02d:%02dZ", year, month, day, hour, minute, second))
+            LocalDate.of(year, 1, 1)
+                .plusMonths((month - 1).toLong())
+                .plusDays((day - 1).toLong())
+                .atTime(hour, minute, second)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
         } catch (_: Exception) {
             null
         }

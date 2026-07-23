@@ -115,6 +115,7 @@ object ChampionD3WorkoutIndexProtocol {
         private var receivedPacketCount = 0
         private var highestPacketIndex = 0
         private var highestExpectedPacketCount = 0
+        private var nextOriginalBlockIndex = 0
 
         fun onPacket(packet: ChampionPacket): D3IndexCollectionUpdate {
             if (!active) return D3IndexCollectionUpdate.Ignored
@@ -127,9 +128,11 @@ object ChampionD3WorkoutIndexProtocol {
 
             parsed.crcCandidates.forEach { candidate ->
                 if (candidate.crc == 0) return@forEach
+                val originalBlockIndex = nextOriginalBlockIndex
+                nextOriginalBlockIndex += 1
                 if (entriesByCrc.containsKey(candidate.crc)) return@forEach
                 entriesByCrc[candidate.crc] = D3WorkoutBlockEntry(
-                    blockIndex = entriesByCrc.size,
+                    blockIndex = originalBlockIndex,
                     crc = candidate.crc,
                     rawLittleEndian = candidate.rawLittleEndianCopy(),
                 )

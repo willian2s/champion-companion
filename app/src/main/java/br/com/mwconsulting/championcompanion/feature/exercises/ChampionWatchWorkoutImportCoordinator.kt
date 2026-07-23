@@ -458,11 +458,12 @@ class ChampionWatchWorkoutImportCoordinator(
         active: ActiveImport,
         packets: Flow<br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket>,
     ): ChampionD3WorkoutIndexProtocol.D3IndexCollectionOutcome {
+        val phaseStartedAt = civilNow()
         val collector = ChampionD3WorkoutIndexProtocol.IndexCollector(
             ChampionD3WorkoutIndexProtocol.D3IndexContext(
                 importAttemptId = active.importAttemptId,
                 bleSessionId = active.transport.session.id,
-                startedAt = active.startedAt,
+                startedAt = phaseStartedAt,
             ),
         )
         val completion = CompletableDeferred<ChampionD3WorkoutIndexProtocol.D3IndexCollectionOutcome>()
@@ -515,11 +516,12 @@ class ChampionWatchWorkoutImportCoordinator(
         packets: Flow<br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket>,
         entry: ChampionD3WorkoutIndexProtocol.D3WorkoutBlockEntry,
     ): ChampionD4WorkoutBlockProtocol.D4BlockCollectionOutcome {
+        val phaseStartedAt = civilNow()
         val collector = ChampionD4WorkoutBlockProtocol.BlockCollector(
             ChampionD4WorkoutBlockProtocol.D4BlockContext(
                 importAttemptId = active.importAttemptId,
                 bleSessionId = active.transport.session.id,
-                startedAt = active.startedAt,
+                startedAt = phaseStartedAt,
                 blockIndex = entry.blockIndex,
             ),
         )

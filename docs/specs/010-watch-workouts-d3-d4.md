@@ -79,6 +79,26 @@ Atualização de `010-07`:
 - `ChampionWatchWorkoutImportCoordinator.kt` agora orquestra gate `WATCH_WORKOUT_IMPORT`, reuso de sessão compatível, handshake A1, D3 seguido de D4 sequencial, skip local de `VALID`, persistência por bloco e liberação segura em `finally`.
 - `ExercisesModule.kt` agora publica binding Hilt dedicado do coordinator para consumo futuro em `010-08`.
 
+Atualização de `010-08`:
+
+- `ExercisesViewModel.kt` agora existe como owner do fluxo de produto da tela Exercícios, observando dispositivo associado, pendências locais, metadata D3/D4, goal diário e estado do coordinator.
+- `ExercisesFeatureContract.kt` segue como fronteira única da feature para intents e estado de importação, sem auto-start BLE em `Load`.
+- Start, cancelamento, retry, dismiss e erro por ausência de relógio associado agora ficam centralizados na ViewModel, preparando `010-09` para conectar UI sem acessar BLE ou Room diretamente.
+
+Atualização de `010-09`:
+
+- `ExercisesScreen.kt` deixou de usar `PlaceholderScreen("Exercícios")` e agora renderiza CTA explícita de importação, progresso, resultado, metadata da última importação e lista read-only de pendências `PENDING_REVIEW`.
+- A superfície visual já anuncia estados ocioso, importando, concluído, parcial, vazio, cancelado e erro com copy em pt-BR e sem expor CRC, payload ou detalhes BLE.
+- A UI permanece sem revisão, detalhes completos, descarte ou sincronização, preservando a fronteira da fase em `PENDING_REVIEW`.
+
+Atualização posterior de alinhamento MotionLog:
+
+- `ChampionD4WorkoutParser.kt` voltou a tratar timestamps D4 como horário local do dispositivo, em vez de UTC artificial, alinhando o comportamento ao MotionLog funcional.
+- O parser também deixou de promover alguns blocos coerentes para `INVALID` quando a duração observada não fecha e não existe fallback positivo no pacote `3`; nesses casos o bloco segue elegível para `VALID` ou `PARTIAL`, como na baseline funcional antiga.
+- A escolha entre layout preferido e legado do pacote `2` foi alinhada ao MotionLog: se o layout observado não vencer claramente, o parser cai para legado em vez de falhar com `INVALID_LAYOUT`.
+- A montagem de data/hora do pacote `1` também foi alinhada ao MotionLog: combinações dentro das faixas básicas (`mês 1..12`, `dia 1..31`) passam por normalização de calendário local, em vez de falharem imediatamente por data civil estrita.
+- O índice D4 derivado do D3 agora preserva a posição original do relógio mesmo quando CRC repetido é deduplicado intra-tentativa; isso evita deslocar `blockIndex` de blocos seguintes, divergência que o MotionLog não sofria porque não reindexava após CRC duplicado.
+
 ## Achados auditados em `010-01`
 
 - `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.
@@ -582,6 +602,7 @@ Contratos formalizados em `010-05`:
 ## Timestamp
 
 - `startedAt` e `endedAt` vêm do pacote `1`;
+- parsing de data/hora segue horário local do dispositivo, como no MotionLog baseline, e só depois cruza a fronteira do app como instante absoluto;
 - `sampledAt` de BPM usa `startedAt + minuteIndex * 60_000`;
 - o primeiro minuto usa `minuteIndex = 0`;
 - amostras fora da duração total não são ajustadas artificialmente; entram como diagnóstico quando houver incoerência.
@@ -591,6 +612,7 @@ Contratos formalizados em `010-05`:
 - preferir `endedAt - startedAt` quando positivo;
 - usar fallback do pacote `3` quando necessário;
 - quando fim não for posterior ao início, resolver `endedAt = startedAt + durationFallback`;
+- quando fim não for posterior ao início e também não existir fallback positivo, preservar duração zero em vez de invalidar bloco automaticamente, para manter paridade com a baseline MotionLog funcional;
 - atividade preserva duração reportada, mesmo quando buckets não fecharem minutos exatos.
 
 ## Intervalos
