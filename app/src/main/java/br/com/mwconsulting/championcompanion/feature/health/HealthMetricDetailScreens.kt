@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -670,11 +671,13 @@ private fun HeartRateChartAccessibleSummary(
     pointCount: Int,
     period: HeartRateHistoryPeriod,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
+
     Text(
         text = if (pointCount == 0) {
-            "Resumo acessível: nenhum ponto disponível para ${periodToLabel(period).lowercase(Locale.getDefault())}."
+            "Resumo acessível: nenhum ponto disponível para ${periodToLabel(period).lowercase(locale)}."
         } else {
-            "Resumo acessível: ${numberFormat().format(measurementCount)} medições válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(Locale.getDefault())}."
+            "Resumo acessível: ${numberFormat().format(measurementCount)} medições válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(locale)}."
         },
         modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
