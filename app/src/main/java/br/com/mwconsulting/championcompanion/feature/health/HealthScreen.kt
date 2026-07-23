@@ -71,8 +71,10 @@ fun HealthScreen(
                 title = "Frequência cardíaca",
                 value = state.latestMeasurement?.let { "${it.bpm} BPM" } ?: "Sem medições",
                 supportingText = state.latestMeasurement?.measuredAt?.let(::formatMoment)
-                    ?: "Abra para medir ou ver histórico manual",
-                extraText = state.associatedDeviceName?.let { "Origem: $it" } ?: "Origem: relógio associado",
+                    ?: "Abra para medir, importar D1 e ver histórico consolidado",
+                extraText = state.latestD1ImportMetadata?.lastSuccessAt?.let { "Última importação D1: ${formatMoment(it)}" }
+                    ?: state.associatedDeviceName?.let { "Origem: $it" }
+                    ?: "Origem: relógio associado",
                 onClick = onOpenHeartRate,
             )
             HealthMetricSummaryCard(

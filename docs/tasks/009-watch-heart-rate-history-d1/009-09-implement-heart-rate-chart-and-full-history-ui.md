@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -96,6 +96,21 @@ Com `HealthViewModel` e leitura local prontos, `HeartRateDetailScreen` deixa de 
 
 - screenshots da tela de frequencia cardiaca com D1;
 - diff da UI mostrando remocao do placeholder e uso do novo estado D1.
+
+## Implementacao Executada
+
+- `HealthMetricDetailScreens.kt` agora usa `HeartRateOverviewCard` como primeiro card da tela, com ultimo BPM, origem, `Medir frequencia cardiaca`, `Buscar dados do relogio`, progresso D1, estados terminais acessiveis e metadata da ultima importacao.
+- `HeartRateHistoryChartSection` agora renderiza seletor de periodo, agregacoes locais, grafico funcional e leitura textual dos pontos sem depender de biblioteca externa.
+- `HeartRateHistoryList` agora mostra historico consolidado manual + D1 agrupado por dia e com origem amigavel.
+- `HeartRateHistoryChart.kt` foi criado com grafico local em `Canvas` para `Hoje`, `7 dias` e `30 dias`.
+- `HealthScreen.kt` agora resume melhor a tela de frequencia cardiaca com referencia a importacao D1 e ultima importacao bem-sucedida quando existir.
+
+## Evidencias Coletadas Nesta Execucao
+
+- `./gradlew assembleDebug`
+- `./gradlew installDebug`
+- APK debug instalada com sucesso em `SM-S901E - 16`.
+- screenshot para PR futuro nao foi anexada nesta execucao porque task restringe arquivos permitidos a codigo e documentacao.
 
 ## Atualizacao Do Overview
 

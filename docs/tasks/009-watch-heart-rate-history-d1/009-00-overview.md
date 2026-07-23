@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06`, `009-07` e `009-08` concluidas; demais tasks pendentes.
+Em andamento desde 2026-07-23. `009-01`, `009-02`, `009-03`, `009-04`, `009-05`, `009-06`, `009-07`, `009-08` e `009-09` concluidas; demais tasks pendentes.
 
 ## Objetivo
 
@@ -98,6 +98,14 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `surfaceState` e `d1ImportState` permanecem independentes, enquanto `AppMovedToBackground` e confirmacao de saida cancelam medicao manual ou importacao D1 conforme operacao ativa.
 - `ChampionNavigation.kt` agora protege troca de aba e back da tela de frequencia cardiaca quando medicao manual ou D1 estiverem em progresso.
 - `HealthViewModelD1IntegrationTest.kt` cobre ausencia de auto-start, troca de periodo sem BLE, cancelamento em background, retry com nova tentativa e independencia entre estados manual e D1.
+
+## Achados De `009-09`
+
+- `HeartRateDetailScreen` agora substitui shell da Fase 08 por superficie completa com `HeartRateOverviewCard`, `HeartRateHistoryChartSection`, `HeartRateHistoryChart` e `HeartRateHistoryList`.
+- primeiro card agora concentra ultimo BPM, origem amigavel, acoes manual + D1, progresso D1, estado terminal acessivel e metadata da ultima importacao.
+- grafico funcional agora usa `Canvas` local sem biblioteca externa e expone alternativa textual dos pontos, alem de agregacoes do periodo selecionado.
+- historico consolidado agora lista medicoes manuais e D1 agrupadas por dia na propria tela de frequencia cardiaca.
+- screenshot para PR futuro permaneceu pendente nesta execucao documental; instalacao em device fisico foi validada por `installDebug`.
 
 ## Estado Herdado Da Fase 08
 
@@ -206,7 +214,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - [x] `009-06` implementar consultas, agregacoes e serie do grafico
 - [x] `009-07` implementar coordinator D1, gate e arbitragem BLE
 - [x] `009-08` integrar ViewModel, progresso, cancelamento, retry e lifecycle
-- [ ] `009-09` implementar UI final de historico e grafico
+- [x] `009-09` implementar UI final de historico e grafico
 - [ ] `009-10` registrar gate de build, smoke fisico e protocolo atualizado
 - [ ] `009-11` fechar baseline, checklist, spec e divida tecnica
 

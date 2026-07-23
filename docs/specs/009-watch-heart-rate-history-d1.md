@@ -96,6 +96,12 @@ Atualizacao de `009-08`:
 - `HealthViewModel` agora observa `observeHistory(HeartRateHistoryQuery(...))`, `observeD1ImportMetadata(...)` e `D1HeartRateSyncCoordinator.state`, mantendo `surfaceState` e `d1ImportState` independentes.
 - `ChampionNavigation` agora bloqueia troca de aba e back da tela `HealthHeartRate` quando medicao manual ou importacao D1 estiverem ativas, com confirmacao contextual.
 
+Atualizacao de `009-09`:
+
+- `HeartRateDetailScreen` agora compoe `HeartRateOverviewCard`, `HeartRateHistoryChartSection`, `HeartRateHistoryChart` e `HeartRateHistoryList` para fechar superficie D1 sem biblioteca externa de grafico.
+- primeiro card agora mostra ultimo BPM, origem amigavel, acoes `Medir frequencia cardiaca` + `Buscar dados do relogio`, progresso/estado D1 e metadata da ultima importacao.
+- grafico usa `Canvas` local com alternativa textual por ponto e historico consolidado agrupado por dia, cobrindo `Hoje`, `7 dias` e `30 dias`.
+
 ## Objetivo
 
 Permitir ao usuario:
