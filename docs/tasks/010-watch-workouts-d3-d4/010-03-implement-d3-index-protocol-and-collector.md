@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -99,11 +99,32 @@ Fase 10 depende de um índice de CRCs confiável antes de qualquer D4. O app atu
 - resultados dos testes pequenos;
 - diff restrito a D3 e timeouts relacionados.
 
+## Execução
+
+- `ChampionBleTimeouts.kt` recebeu `d3WorkoutIndex = 10 segundos`.
+- `ChampionD3WorkoutIndexProtocol.kt` foi criado com:
+  - `createIndexCommand(...)` para `D3 01 00 00`;
+  - parser `parsePayload(...)` e `parsePacket(...)`;
+  - `D3IndexContext`, `D3IndexProgress`, `D3WorkoutBlockEntry`;
+  - `IndexCollector` com deduplicação determinística, suporte a resposta única sem header plausível e timeout parcial.
+- `ChampionD3WorkoutIndexProtocolTest.kt` cobre:
+  - builder D3;
+  - little-endian;
+  - CRC zero ignorado;
+  - CRC duplicado;
+  - resposta sem header;
+  - multipart;
+  - timeout parcial.
+
 ## Atualização do overview
 
 - marcar `010-03` como concluída;
 - registrar impacto de conflito com `ChampionBleTimeouts.kt`.
 
+Registrado: `ChampionBleTimeouts.kt` passou a concentrar timeout dedicado de D3 e permanece arquivo compartilhado com `010-04` e futuro coordinator.
+
 ## Validação final
 
 - confirmar que D4, parser do treino e persistência não foram implementados nesta task.
+
+Confirmado: esta task não implementou D4, parser do treino nem persistência.

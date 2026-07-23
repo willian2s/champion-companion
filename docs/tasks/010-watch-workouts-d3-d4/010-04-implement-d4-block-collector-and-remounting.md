@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -96,11 +96,31 @@ O app atual não possui protocolo D4. A coleta precisa ser sequencial, por bloco
 - resultados dos testes pequenos;
 - diff focado no collector D4.
 
+## Execução
+
+- `ChampionBleTimeouts.kt` recebeu `d4WorkoutBlock = 15 segundos`.
+- `ChampionD4WorkoutBlockProtocol.kt` foi criado com:
+  - `createBlockCommand(...)` para `D4 <blockIndex> 00 00`;
+  - parser `parsePayload(...)` e `parsePacket(...)` do header little-endian;
+  - `D4BlockContext`, `D4BlockProgress`, `D4CollectedPacket`;
+  - `BlockCollector` com aceitação fora de ordem, preservação de duplicados, cálculo de ausentes, ordenação por `packetIndex` e timeout por bloco.
+- `ChampionD4WorkoutBlockProtocolTest.kt` cobre:
+  - builder D4;
+  - header little-endian;
+  - fora de ordem;
+  - duplicados;
+  - ausentes;
+  - timeout por bloco.
+
 ## Atualização do overview
 
 - marcar `010-04` como concluída;
 - registrar conflitos ou decisões necessárias para `010-05`.
 
+Registrado: `010-05` pode depender de entrada D4 já ordenada e com duplicados/ausentes calculados, sem precisar repetir lógica de remontagem.
+
 ## Validação final
 
 - confirmar que parser do treino, Room e UI continuam fora desta task.
+
+Confirmado: parser do treino, Room e UI continuam fora desta task.

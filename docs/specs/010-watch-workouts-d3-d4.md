@@ -53,6 +53,12 @@ Atualização de `010-02`:
 - `RepositoryContracts.kt` agora reserva owner `WATCH_WORKOUT_IMPORT` no gate foreground, além de observação e atualização dedicadas para metadata `WATCH_WORKOUT_D3_D4`.
 - `DiagnosticPayload.kt` agora formaliza política de captura diagnóstica privada para treinos: release captura `PARTIAL`, `INVALID` e erro técnico; debug pode capturar bloco `VALID` apenas sob pedido explícito local.
 
+Atualização de `010-03` e `010-04`:
+
+- `ChampionBleTimeouts.kt` agora reserva `d3WorkoutIndex = 10 segundos` e `d4WorkoutBlock = 15 segundos`.
+- `ChampionD3WorkoutIndexProtocol.kt` agora implementa builder `D3 01 00 00`, parser little-endian, detecção de header multipart plausível, deduplicação de CRC repetido e timeout parcial com CRCs preservados.
+- `ChampionD4WorkoutBlockProtocol.kt` agora implementa builder `D4 <blockIndex> 00 00`, parser de header little-endian, collector por bloco com ordenação, duplicados, índices ausentes e remontagem pronta para o parser D4.
+
 ## Achados auditados em `010-01`
 
 - `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.

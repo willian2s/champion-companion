@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` e `010-02` concluídas; `010-03` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` a `010-04` concluídas; `010-05` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -59,6 +59,14 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - `ExercisesFeatureContract.kt` deixou de ser vazio e agora já separa estado de superfície da importação D3/D4 do restante da tela Exercícios.
 - `RepositoryContracts.kt` já reserva owner `WATCH_WORKOUT_IMPORT` e contratos de metadata, liberando trabalho paralelo de `010-03`, `010-04` e `010-06`.
 - `DiagnosticPayload.kt` já formaliza política diagnóstica privada da fase sem introduzir logging de payload nem retenção nova.
+
+## Achados de `010-03` e `010-04`
+
+- `ChampionD3WorkoutIndexProtocol.kt` e `ChampionD4WorkoutBlockProtocol.kt` agora existem como componentes únicos de protocolo, seguindo o padrão local do `ChampionD1HistoryProtocol.kt`.
+- `ChampionBleTimeouts.kt` passou a concentrar também `d3WorkoutIndex` e `d4WorkoutBlock`; esse arquivo segue como ponto de conflito direto para o coordinator da `010-07`.
+- D3 já deduplica CRC repetido de forma determinística e preserva timeout parcial com entradas válidas.
+- D4 já aceita pacotes fora de ordem, preserva duplicados para diagnóstico e calcula ausências sem interpretar métricas do treino.
+- `010-05` pode assumir entrada D4 já remontada e ordenada por `packetIndex`.
 
 ## Estado herdado da Fase 09
 
@@ -166,8 +174,8 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 
 - [x] `010-01` auditar MotionLog, baseline factual, domínio, Room, offsets e corrigir caminho futuro em `AGENTS.md`
 - [x] `010-02` definir contratos, state machine, metadata e política diagnóstica D3/D4
-- [ ] `010-03` implementar protocolo e collector D3
-- [ ] `010-04` implementar collector D4 e remontagem
+- [x] `010-03` implementar protocolo e collector D3
+- [x] `010-04` implementar collector D4 e remontagem
 - [ ] `010-05` implementar parser D4, timestamps, intervalos e agregados
 - [ ] `010-06` implementar persistência, deduplicação, metadata e payload privado
 - [ ] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
