@@ -59,6 +59,13 @@ Atualização de `010-03` e `010-04`:
 - `ChampionD3WorkoutIndexProtocol.kt` agora implementa builder `D3 01 00 00`, parser little-endian, detecção de header multipart plausível, deduplicação de CRC repetido e timeout parcial com CRCs preservados.
 - `ChampionD4WorkoutBlockProtocol.kt` agora implementa builder `D4 <blockIndex> 00 00`, parser de header little-endian, collector por bloco com ordenação, duplicados, índices ausentes e remontagem pronta para o parser D4.
 
+Atualização de `010-05`:
+
+- `ChampionD4WorkoutParser.kt` agora existe como parser puro para `WatchWorkoutParserResult.Valid`, `Partial` ou `Invalid`.
+- O parser já mapeia `D4BlockCollectionOutcome` para `WatchWorkoutParserInput`, `WorkoutMetrics`, `WorkoutInterval` e `WorkoutHeartRateSample`.
+- `WatchWorkoutImportSync.kt` agora concentra `WatchWorkoutD4Layout`, `WatchWorkoutParserSummary` e `WatchWorkoutParserResult`.
+- `WatchWorkoutActivity.kt` agora aceita intervalos esparsos ordenados e amostras de BPM estritamente crescentes no tempo, preservando a regra de não sintetizar buckets ausentes.
+
 ## Achados auditados em `010-01`
 
 - `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.
@@ -550,6 +557,14 @@ O parser deve:
 - não introduzir terceiro layout especulativo;
 - manter validações já confirmadas pelo MotionLog;
 - produzir saída própria para `VALID`, `PARTIAL` ou `INVALID` antes da persistência.
+
+Contratos formalizados em `010-05`:
+
+- `ChampionD4WorkoutParser.Request`
+- `WatchWorkoutParserSummary`
+- `WatchWorkoutParserResult.Valid`
+- `WatchWorkoutParserResult.Partial`
+- `WatchWorkoutParserResult.Invalid`
 
 ## Timestamp
 
@@ -1101,6 +1116,7 @@ Testes pequenos recomendados:
 - treino longo ou multipart real é importado;
 - Gate B é validado;
 - `lint`, `assembleDebug`, `assembleRelease` e `installDebug` são registrados.
+- parser D4 entregue em `010-05` permanece puro, sem BLE real, Room ou UI.
 
 ## Fora do escopo
 

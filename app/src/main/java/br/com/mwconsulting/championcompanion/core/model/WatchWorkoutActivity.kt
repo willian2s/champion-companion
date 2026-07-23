@@ -284,11 +284,9 @@ data class WorkoutActivity private constructor(
             input.crc in 1..0xffff && input.externalBlockIndex >= 0 &&
                 input.metrics.duration >= Duration.ZERO && input.metrics.steps >= 0 &&
                 areValid(input.metrics) &&
-                input.intervals.withIndex().all { (index, interval) ->
-                    interval.index == index && interval.duration >= Duration.ZERO && interval.steps >= 0 &&
-                        isNonNegative(interval.distanceMeters) && isNonNegative(interval.caloriesKilocalories)
-                } &&
-                input.heartRateSamples.all { it.bpm in 30..220 }
+                areValidIntervals(input.intervals) &&
+                areValidHeartRateSamples(input.heartRateSamples) &&
+                areValidTemporalOrder(input.heartRateSamples)
 
         private fun areValid(metrics: WorkoutMetrics): Boolean =
             isNonNegative(metrics.caloriesKilocalories) &&
@@ -305,6 +303,29 @@ data class WorkoutActivity private constructor(
 
         private fun isValidBpm(value: DomainValue<Int>): Boolean =
             value !is DomainValue.Present || value.value in 30..220
+
+        private fun areValidIntervals(intervals: List<WorkoutInterval>): Boolean {
+            var previousIndex = Int.MIN_VALUE
+            return intervals.all { interval ->
+                val currentIndex = interval.index
+                val isOrdered = currentIndex >= 0 && currentIndex > previousIndex
+                previousIndex = currentIndex
+                isOrdered && interval.duration >= Duration.ZERO && interval.steps >= 0 &&
+                    isNonNegative(interval.distanceMeters) && isNonNegative(interval.caloriesKilocalories)
+            }
+        }
+
+        private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean =
+            samples.all { it.bpm in 30..220 }
+
+        private fun areValidTemporalOrder(samples: List<WorkoutHeartRateSample>): Boolean {
+            var previous: Instant? = null
+            return samples.all { sample ->
+                val isOrdered = previous == null || sample.sampledAt.isAfter(previous)
+                previous = sample.sampledAt
+                isOrdered
+            }
+        }
 
         private const val STEPS_FOR_RUNNING_SUGGESTION = 1_000L
     }

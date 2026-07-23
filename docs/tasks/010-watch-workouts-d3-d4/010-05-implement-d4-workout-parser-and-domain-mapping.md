@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -104,11 +104,50 @@ Domínio e Room já possuem `WorkoutActivity`, `WatchWorkoutImport`, `WorkoutInt
 - testes pequenos do parser;
 - diff restrito a parser e domínio relacionado.
 
+## Execução
+
+- `ChampionD4WorkoutParser.kt` foi criado como parser puro e testável.
+- `WatchWorkoutImportSync.kt` agora expõe:
+  - `WatchWorkoutD4Layout`
+  - `WatchWorkoutParserSummary`
+  - `WatchWorkoutParserResult.Valid`
+  - `WatchWorkoutParserResult.Partial`
+  - `WatchWorkoutParserResult.Invalid`
+- `WatchWorkoutActivity.kt` foi ajustado para aceitar intervalos esparsos ordenados, preservando lacunas reais do D4.
+
+### Regras implementadas
+
+- pacotes `1`, `2` e `3` continuam obrigatórios;
+- pacote `1` tenta layout preferido e cai para legado apenas quando necessário;
+- pacote `2` preserva heurística MotionLog de plausibilidade entre layout preferido e legado;
+- pacote `3` usa `recordCount` observado quando plausível; caso contrário usa fallback legado com duração `u32 LE`;
+- `minuteIndex = packetIndex - 4`;
+- `sampledAt = startedAt + minuteIndex * 60 segundos`;
+- buckets continuam com `60 segundos`, inclusive último intervalo;
+- `recordCount` divergente, timeout, duplicado, ausente, CRC divergente ou sample fora da duração total geram `PARTIAL`;
+- ausência de pacote obrigatório ou data/layout irrecuperável gera `INVALID`.
+
+### Testes cobertos
+
+- layout preferido;
+- layout legado;
+- calorias por mil;
+- distância raw para metros;
+- BPM válido e inválido;
+- agregados BPM;
+- sugestão de tipo por passos;
+- `PARTIAL` por duplicado, ausente, timeout, `recordCount` divergente e CRC divergente;
+- `INVALID` por pacote obrigatório ausente e data inválida.
+
 ## Atualização do overview
 
 - marcar `010-05` como concluída;
 - registrar qualquer ajuste de paralelismo ou novo risco de conflito.
 
+Registrado: `WatchWorkoutActivity.kt` virou ponto de conflito compartilhado com `010-06` por causa da validação de intervalos esparsos.
+
 ## Validação final
 
 - confirmar que BLE real, Room e UI final continuaram fora desta task.
+
+Confirmado: BLE real, Room e UI final ficaram fora desta task.

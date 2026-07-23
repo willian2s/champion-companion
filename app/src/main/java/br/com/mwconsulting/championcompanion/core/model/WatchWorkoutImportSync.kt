@@ -138,3 +138,60 @@ data class WatchWorkoutParserPolicy(
         get() = parserValidity == ParserValidity.VALID ||
             (parserValidity == ParserValidity.PARTIAL && hasRequiredPackets && hasSafeMinimumData)
 }
+
+enum class WatchWorkoutD4Layout {
+    PREFERRED,
+    LEGACY,
+}
+
+data class WatchWorkoutParserSummary(
+    val layout: WatchWorkoutD4Layout? = null,
+    val timedOut: Boolean = false,
+    val missingPacketIndices: Set<Int> = emptySet(),
+    val duplicatePacketIndices: Set<Int> = emptySet(),
+    val recordCount: Int? = null,
+    val parsedIntervalCount: Int = 0,
+    val validHeartRateSampleCount: Int = 0,
+    val ignoredHeartRateSampleCount: Int = 0,
+    val outOfDurationSampleCount: Int = 0,
+    val reportedBlockCrc: Int? = null,
+    val crcMatchesD3: Boolean? = null,
+)
+
+sealed interface WatchWorkoutParserResult {
+    val policy: WatchWorkoutParserPolicy
+    val summary: WatchWorkoutParserSummary?
+
+    data class Valid(
+        val input: WatchWorkoutParserInput,
+        override val summary: WatchWorkoutParserSummary,
+    ) : WatchWorkoutParserResult {
+        override val policy: WatchWorkoutParserPolicy = WatchWorkoutParserPolicy(
+            parserValidity = ParserValidity.VALID,
+            hasRequiredPackets = true,
+            hasSafeMinimumData = true,
+        )
+    }
+
+    data class Partial(
+        val input: WatchWorkoutParserInput,
+        override val summary: WatchWorkoutParserSummary,
+    ) : WatchWorkoutParserResult {
+        override val policy: WatchWorkoutParserPolicy = WatchWorkoutParserPolicy(
+            parserValidity = ParserValidity.PARTIAL,
+            hasRequiredPackets = true,
+            hasSafeMinimumData = true,
+        )
+    }
+
+    data class Invalid(
+        val errorCategory: WatchWorkoutImportErrorCategory,
+        override val summary: WatchWorkoutParserSummary? = null,
+    ) : WatchWorkoutParserResult {
+        override val policy: WatchWorkoutParserPolicy = WatchWorkoutParserPolicy(
+            parserValidity = ParserValidity.INVALID,
+            hasRequiredPackets = false,
+            hasSafeMinimumData = false,
+        )
+    }
+}

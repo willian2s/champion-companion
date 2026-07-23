@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-04` concluídas; `010-05` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` a `010-05` concluídas; `010-06` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -67,6 +67,13 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - D3 já deduplica CRC repetido de forma determinística e preserva timeout parcial com entradas válidas.
 - D4 já aceita pacotes fora de ordem, preserva duplicados para diagnóstico e calcula ausências sem interpretar métricas do treino.
 - `010-05` pode assumir entrada D4 já remontada e ordenada por `packetIndex`.
+
+## Achados de `010-05`
+
+- `ChampionD4WorkoutParser.kt` passou a resolver layouts preferido e legado, duração, buckets de minuto, agregados BPM, CRC divergente e validade `VALID/PARTIAL/INVALID`.
+- `WatchWorkoutImportSync.kt` agora expõe resultado tipado de parser e resumo técnico suficiente para `010-06` e `010-07` consumirem sem reler bytes.
+- `WatchWorkoutActivity.kt` deixou de exigir índices contíguos de intervalos, permitindo preservar lacunas reais do D4 sem buckets sintéticos.
+- Novo risco de conflito: `WatchWorkoutActivity.kt` agora virou ponto compartilhado entre parser da `010-05` e persistência/reimportação da `010-06`.
 
 ## Estado herdado da Fase 09
 
@@ -176,7 +183,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - [x] `010-02` definir contratos, state machine, metadata e política diagnóstica D3/D4
 - [x] `010-03` implementar protocolo e collector D3
 - [x] `010-04` implementar collector D4 e remontagem
-- [ ] `010-05` implementar parser D4, timestamps, intervalos e agregados
+- [x] `010-05` implementar parser D4, timestamps, intervalos e agregados
 - [ ] `010-06` implementar persistência, deduplicação, metadata e payload privado
 - [ ] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
 - [ ] `010-08` criar `ExercisesViewModel`
