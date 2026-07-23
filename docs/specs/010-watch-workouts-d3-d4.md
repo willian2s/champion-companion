@@ -46,6 +46,13 @@ Documentos autoritativos:
 - `DeviceManagementViewModel.kt`, `HomeViewModel.kt` e `ChampionNavigation.kt` ainda não conhecem `WATCH_WORKOUT_IMPORT`.
 - `device_import_metadata` já é genérica por `deviceId + importType`, mas o código atual só expõe caminho D1.
 
+Atualização de `010-02`:
+
+- `core/model/WatchWorkoutImportSync.kt` agora concentra contratos duradouros de tentativa, progresso, resultado tipado, metadata, erro seguro e política explícita de persistência `VALID/PARTIAL/INVALID`.
+- `feature/exercises/ExercisesFeatureContract.kt` agora expõe `ExercisesUiState`, `ExercisesIntent`, `WatchWorkoutImportSurfaceState` e `WatchWorkoutImportSessionState`, mantendo estado de importação separado da futura UI final.
+- `RepositoryContracts.kt` agora reserva owner `WATCH_WORKOUT_IMPORT` no gate foreground, além de observação e atualização dedicadas para metadata `WATCH_WORKOUT_D3_D4`.
+- `DiagnosticPayload.kt` agora formaliza política de captura diagnóstica privada para treinos: release captura `PARTIAL`, `INVALID` e erro técnico; debug pode capturar bloco `VALID` apenas sob pedido explícito local.
+
 ## Achados auditados em `010-01`
 
 - `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.
@@ -726,6 +733,12 @@ Plano inicial:
 - release deve preferir captura bruta só para `PARTIAL`, `INVALID` ou erro técnico relevante;
 - debug e validação física podem permitir captura explícita de bloco `VALID` para investigação local.
 
+Contratos formalizados em `010-02`:
+
+- `WatchWorkoutDiagnosticCapturePolicy`
+- constante `WatchWorkoutDiagnostics`
+- `derivedOutputType = WATCH_WORKOUT_IMPORT`
+
 ## Retenção
 
 ```text
@@ -756,6 +769,13 @@ Persistir quando disponível:
 
 Contagens como `partialCount`, `timedOutBlockCount` e `skippedValidCount` vivem no resultado tipado da tentativa e só ganham persistência dedicada se auditoria futura provar necessidade real de schema novo.
 
+Contratos formalizados em `010-02`:
+
+- `WATCH_WORKOUT_D3_D4_IMPORT_TYPE`
+- `WatchWorkoutImportMetadata`
+- `WorkoutActivityRepository.observeWatchWorkoutImportMetadata(...)`
+- `WorkoutActivityRepository.updateWatchWorkoutImportMetadata(...)`
+
 ## State machine
 
 ```mermaid
@@ -778,6 +798,14 @@ stateDiagram-v2
     Failed --> Idle
     Cancelled --> Idle
 ```
+
+Contratos formalizados em `010-02`:
+
+- `WatchWorkoutImportSurfaceState`
+- `WatchWorkoutImportSessionState`
+- `WatchWorkoutImportProgress`
+- `WatchWorkoutImportError`
+- `WatchWorkoutImportErrorCategory`
 
 ## Resultado tipado
 
@@ -802,6 +830,16 @@ Metadados seguros planejados:
 - `missingPacketCount`;
 - `startedAt`;
 - `finishedAt`.
+
+Contratos formalizados em `010-02`:
+
+- `WatchWorkoutImportSummary`
+- `WatchWorkoutImportStatus`
+- `WatchWorkoutImportResult.Completed`
+- `WatchWorkoutImportResult.Partial`
+- `WatchWorkoutImportResult.Empty`
+- `WatchWorkoutImportResult.Cancelled`
+- `WatchWorkoutImportResult.Failed`
 
 ## Progresso
 

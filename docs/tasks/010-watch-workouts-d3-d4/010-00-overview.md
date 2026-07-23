@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` concluída; `010-02` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` e `010-02` concluídas; `010-03` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -52,6 +52,13 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - Baseline MotionLog não deduplica CRC repetido dentro da mesma leitura D3 antes do loop D4; isso virou risco funcional explícito para `010-02` e `010-03`.
 - App nativo já possui fronteira correta entre importação e revisão: `createFromImport(...)` nasce em `PENDING_REVIEW` e `confirmReview(...)` bloqueia avanço quando `parserValidity != VALID`.
 - App nativo já possui deduplicação/reimportação transacional por `(deviceId, origin, crc)` em `persistImported(...)`, com preservação de revisão, workflow e calibração existentes.
+
+## Achados de `010-02`
+
+- `WatchWorkoutImportSync.kt` passou a concentrar contratos de tentativa, progresso, resumo, resultado tipado, metadata, erro seguro e política explícita de persistência para `VALID/PARTIAL/INVALID`.
+- `ExercisesFeatureContract.kt` deixou de ser vazio e agora já separa estado de superfície da importação D3/D4 do restante da tela Exercícios.
+- `RepositoryContracts.kt` já reserva owner `WATCH_WORKOUT_IMPORT` e contratos de metadata, liberando trabalho paralelo de `010-03`, `010-04` e `010-06`.
+- `DiagnosticPayload.kt` já formaliza política diagnóstica privada da fase sem introduzir logging de payload nem retenção nova.
 
 ## Estado herdado da Fase 09
 
@@ -158,7 +165,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 ## Checklist
 
 - [x] `010-01` auditar MotionLog, baseline factual, domínio, Room, offsets e corrigir caminho futuro em `AGENTS.md`
-- [ ] `010-02` definir contratos, state machine, metadata e política diagnóstica D3/D4
+- [x] `010-02` definir contratos, state machine, metadata e política diagnóstica D3/D4
 - [ ] `010-03` implementar protocolo e collector D3
 - [ ] `010-04` implementar collector D4 e remontagem
 - [ ] `010-05` implementar parser D4, timestamps, intervalos e agregados

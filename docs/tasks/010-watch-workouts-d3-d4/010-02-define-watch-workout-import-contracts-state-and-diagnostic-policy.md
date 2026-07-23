@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -99,6 +99,52 @@ Congelar contratos de domínio, estado, resultado tipado, metadata e política d
 - diff focado em contratos;
 - lista dos modelos novos e onde cada task seguinte os consumirá.
 
+## Execução
+
+### Modelos e contratos definidos
+
+- `ExercisesFeatureContract.kt`
+  - `ExercisesUiState`
+  - `ExercisesIntent`
+  - `WatchWorkoutImportSurfaceState`
+  - `WatchWorkoutImportSessionState`
+- `RepositoryContracts.kt`
+  - owner `WATCH_WORKOUT_IMPORT`
+  - `observeWatchWorkoutImportMetadata(...)`
+  - `updateWatchWorkoutImportMetadata(...)`
+- `WatchWorkoutImportSync.kt`
+  - `WATCH_WORKOUT_D3_D4_IMPORT_TYPE`
+  - `WatchWorkoutImportAttempt`
+  - `WatchWorkoutImportProgress`
+  - `WatchWorkoutImportSummary`
+  - `WatchWorkoutImportStatus`
+  - `WatchWorkoutImportResult`
+  - `WatchWorkoutImportMetadata`
+  - `WatchWorkoutImportError`
+  - `WatchWorkoutImportErrorCategory`
+  - `WatchWorkoutParserPolicy`
+- `DiagnosticPayload.kt`
+  - `WatchWorkoutDiagnosticCapturePolicy`
+  - `WatchWorkoutDiagnostics`
+
+### Consumo esperado nas próximas tasks
+
+- `010-03` consumirá `WATCH_WORKOUT_IMPORT`, `WatchWorkoutImportProgress`, `WatchWorkoutImportErrorCategory` e `WatchWorkoutImportSessionState` para D3.
+- `010-04` consumirá `WatchWorkoutImportProgress`, `WatchWorkoutImportSummary` e `WatchWorkoutImportResult` para D4/remontagem.
+- `010-05` consumirá `WatchWorkoutParserPolicy` para regra explícita de persistência `VALID/PARTIAL/INVALID`.
+- `010-06` consumirá `WATCH_WORKOUT_D3_D4_IMPORT_TYPE`, `WatchWorkoutImportMetadata` e `WatchWorkoutDiagnostics` para persistência, metadata e payload privado.
+- `010-07` consumirá owner `WATCH_WORKOUT_IMPORT`, `WatchWorkoutImportAttempt`, `WatchWorkoutImportSurfaceState` e `WatchWorkoutImportSessionState` no coordinator.
+- `010-08` consumirá `ExercisesUiState`, `ExercisesIntent` e `WatchWorkoutImportSurfaceState` no ViewModel.
+
+### Política congelada nesta task
+
+- `VALID` sempre pode persistir atividade.
+- `PARTIAL` só pode persistir quando parser sinalizar `hasRequiredPackets = true` e `hasSafeMinimumData = true`.
+- `INVALID` nunca persiste atividade.
+- release captura payload privado apenas para `PARTIAL`, `INVALID` e `TECHNICAL_ERROR`.
+- debug só captura bloco `VALID` quando houver pedido explícito local.
+- derived output da fase continua `WATCH_WORKOUT_IMPORT`.
+
 ## Atualização do overview
 
 - marcar `010-02` como concluída;
@@ -107,3 +153,5 @@ Congelar contratos de domínio, estado, resultado tipado, metadata e política d
 ## Validação final
 
 - confirmar que protocolo, Room e UI final não foram implementados aqui.
+
+Confirmado: esta task só definiu contratos, owner, metadata, política diagnóstica e teste puro de contrato.
