@@ -60,6 +60,12 @@ Roadmap atual ainda coloca escrita real no Health Connect dentro da Fase 09. Est
 - `core/bluetooth/ChampionConnectionManager.kt`, `ChampionTransportSession.kt`, `ChampionNotificationHub.kt`, `ChampionPacketRouter.kt` e `feature/device/DeviceConnectionBootstrap.kt` ja oferecem sessao reutilizavel, subscriptions por canal e handshake A1 reutilizavel, mas auditoria nao encontrou parser D1, collector multipart nem coordinator D1 de produto.
 - `core/model/RepositoryContracts.kt` e `InMemoryForegroundBleOperationGate.kt` ainda expõem somente `DAILY_STEPS_REFRESH` e `MANUAL_HEART_RATE`; `WATCH_D1_HISTORY` ainda precisa ser adicionado.
 
+Atualizacao de `009-03`:
+
+- `feature/health/HealthFeatureContract.kt` passou a expor `d1ImportState`, `selectedHistoryPeriod`, `history` e `latestD1ImportMetadata` sem acoplar importacao D1 a state machine da medicao manual.
+- `core/model/RepositoryContracts.kt` agora reserva `importD1Measurements(...)`, `observeHistory(...)` e `observeD1ImportMetadata(...)`, alem de owner `WATCH_D1_HISTORY` no gate.
+- `core/model/HeartRateAndSync.kt` agora concentra modelos duradouros de periodo, historico, agregacoes, serie do grafico, progresso D1, resultado tipado, metadata e contagens de persistencia D1.
+
 ## Objetivo
 
 Permitir ao usuario:
@@ -414,6 +420,14 @@ Resultado tipado definitivo:
 - `Failed`
 - `Cancelled`
 
+Contratos formalizados em `009-03`:
+
+- `D1HeartRateImportResult.Completed`
+- `D1HeartRateImportResult.CompletedWithGaps`
+- `D1HeartRateImportResult.Partial`
+- `D1HeartRateImportResult.Failed`
+- `D1HeartRateImportResult.Cancelled`
+
 Regras:
 
 - timeout + pontos validos = `Partial`;
@@ -506,6 +520,11 @@ importD1Measurements(batch) -> {
 }
 ```
 
+Contrato reservado em `009-03`:
+
+- `SaveD1HeartRateMeasurementsInput`
+- `D1HeartRateImportPersistenceResult`
+
 UI nao infere contagens comparando listas.
 
 ## Operacoes Pendentes
@@ -556,6 +575,14 @@ Periodos planejados:
 - `7 dias`;
 - `30 dias`.
 
+Contrato reservado em `009-03`:
+
+- `HeartRateHistoryPeriod.TODAY`
+- `HeartRateHistoryPeriod.LAST_7_DAYS`
+- `HeartRateHistoryPeriod.LAST_30_DAYS`
+- `HeartRateHistoryQuery`
+- `HeartRateHistorySnapshot`
+
 Interpretacao:
 
 - `Hoje`: inicio e fim do dia local atual;
@@ -573,6 +600,8 @@ Para periodo selecionado, calcular em memoria ou query derivada:
 - `minimo`;
 - `maximo`.
 
+Contrato reservado em `009-03`: `HeartRateHistoryAggregates`.
+
 Somente medicoes validas. Nada persistido.
 
 ## Serie Do Grafico
@@ -580,6 +609,12 @@ Somente medicoes validas. Nada persistido.
 - `Hoje`: pontos reais por horario.
 - `7 dias` e `30 dias`: buckets diarios com media principal; minimo e maximo quando simples.
 - sem biblioteca nova de grafico por padrao; preferir Compose Canvas ou componente local pequeno.
+
+Contrato reservado em `009-03`:
+
+- `HeartRateChartPoint`
+- `HeartRateChartSeries`
+- `HeartRateChartResolution`
 
 ## Historico
 
@@ -650,6 +685,13 @@ Importacao D1 deve ter state machine propria, independente da medicao manual:
 - `Partial`
 - `Failed`
 - `Cancelled`
+
+Contrato reservado em `009-03`:
+
+- `D1HeartRateImportSurfaceState`
+- `D1HeartRateImportSessionState`
+- `HealthD1ImportError`
+- `HealthD1ImportErrorCategory`
 
 ```mermaid
 stateDiagram-v2

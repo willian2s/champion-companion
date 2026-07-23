@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -98,6 +98,44 @@ Estado atual de `HealthFeatureContract.kt` modela apenas medicao manual. `HeartR
 - diff focado em contratos;
 - lista de modelos novos e como cada um sera consumido por tasks posteriores.
 
+## Modelos Definidos
+
+- em `HealthFeatureContract.kt`:
+  - `D1HeartRateImportSurfaceState`
+  - `D1HeartRateImportSessionState`
+  - `HealthD1ImportError`
+  - `HealthD1ImportErrorCategory`
+  - novos campos em `HealthUiState`: `d1ImportState`, `selectedHistoryPeriod`, `history`, `latestD1ImportMetadata`
+- em `RepositoryContracts.kt`:
+  - `ForegroundBleOperationOwner.WATCH_D1_HISTORY`
+  - `SaveD1HeartRateMeasurementsInput`
+  - `HeartRateRepository.importD1Measurements(...)`
+  - `HeartRateRepository.observeHistory(...)`
+  - `HeartRateRepository.observeD1ImportMetadata(...)`
+- em `HeartRateAndSync.kt`:
+  - `HeartRateHistoryPeriod`
+  - `HeartRateHistoryQuery`
+  - `HeartRateHistoryEntry`
+  - `HeartRateHistoryAggregates`
+  - `HeartRateChartPoint`
+  - `HeartRateChartSeries`
+  - `HeartRateChartResolution`
+  - `HeartRateHistorySnapshot`
+  - `D1HeartRatePacketProgress`
+  - `D1HeartRateImportSummary`
+  - `D1HeartRateImportStatus`
+  - `D1HeartRateImportResult`
+  - `D1HeartRateImportMetadata`
+  - `D1HeartRateImportPersistenceResult`
+
+## Consumo Planejado Por Tasks Posteriores
+
+- `009-04` consumira `D1HeartRatePacketProgress`, `D1HeartRateImportResult` e `HealthD1ImportErrorCategory` para parser e collector multipart.
+- `009-05` consumira `SaveD1HeartRateMeasurementsInput`, `D1HeartRateImportMetadata` e `D1HeartRateImportPersistenceResult` para Room, deduplicacao e fila `PENDING`.
+- `009-06` consumira `HeartRateHistoryQuery`, `HeartRateHistorySnapshot`, `HeartRateHistoryAggregates` e `HeartRateChartSeries` para consultas locais, agregacoes e politica de grafico.
+- `009-07` consumira `ForegroundBleOperationOwner.WATCH_D1_HISTORY` e `D1HeartRateImportSurfaceState` como base do coordinator.
+- `009-08` consumira novos campos de `HealthUiState` para integrar progresso, periodo, metadata e retry sem misturar com medicao manual.
+
 ## Atualizacao Do Overview
 
 - marcar `009-03` como concluida;
@@ -106,3 +144,10 @@ Estado atual de `HealthFeatureContract.kt` modela apenas medicao manual. `HeartR
 ## Validacao Final
 
 - confirmar que parser, Room e UI final nao foram implementados aqui.
+
+Confirmado nesta task:
+
+- parser D1 nao foi implementado;
+- Room/persistencia final nao foram implementados;
+- UI final de grafico/historico nao foi implementada;
+- mudanca ficou restrita a contratos, modelos, um teste pequeno e documentacao associada.

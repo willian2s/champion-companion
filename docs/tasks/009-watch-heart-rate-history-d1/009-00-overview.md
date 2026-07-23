@@ -57,6 +57,14 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `docs/protocol/history-d1.md` foi alinhado para refletir que regra de envio integral continua obrigatoria, mas implementacao real fica para Fase 12.
 - spec da Fase 09 ficou alinhada a ADR-010 e consolidou que `DeviceImportMetadata.lastImportedAt` nao pode ser tratado como metadata D1 exclusiva.
 
+## Achados De `009-03`
+
+- `HealthFeatureContract.kt` agora separa medicao manual de importacao D1 por `surfaceState` e `d1ImportState`, mantendo state machines independentes.
+- `HealthUiState` agora reserva `selectedHistoryPeriod`, `history` e `latestD1ImportMetadata`, sem depender de Compose nem de implementacao BLE.
+- `RepositoryContracts.kt` agora reserva `WATCH_D1_HISTORY` no gate foreground e contratos `importD1Measurements(...)`, `observeHistory(...)` e `observeD1ImportMetadata(...)`.
+- `HeartRateAndSync.kt` agora centraliza modelos duradouros de periodo, historico, agregacoes, grafico, progresso D1, resultado tipado, metadata e contagens de persistencia.
+- `009-04` e `009-05` passam a poder paralelizar com base em contratos ja fixados, desde que coordenem edicoes concorrentes em `RepositoryContracts.kt` e modelos compartilhados.
+
 ## Estado Herdado Da Fase 08
 
 - medicao manual D0/F002 funcional permanece inalterada;
@@ -158,7 +166,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 
 - [x] `009-01` auditar protocolo D1, lacunas e fronteira Health Connect
 - [x] `009-02` formalizar ADR, roadmap e alinhamento Fase 09/Fase 12
-- [ ] `009-03` definir contratos, metadata e state machine D1
+- [x] `009-03` definir contratos, metadata e state machine D1
 - [ ] `009-04` implementar comando D1, parser e collector multipart
 - [ ] `009-05` implementar persistencia, deduplicacao, fila `PENDING` e migration
 - [ ] `009-06` implementar consultas, agregacoes e serie do grafico
@@ -229,6 +237,7 @@ Galaxy S22 com Champion C001:
 - `ForegroundBleOperationGate` ainda nao conhece owner D1; `009-07` precisa expandir arbitragem sem quebrar manual heart rate nem refresh diario.
 - protocolo D1 continua com bytes desconhecidos e sem data no payload; `009-04` precisa manter parser conservador e contexto de tentativa congelado.
 - `009-03` agora depende explicitamente de contratos documentados em ADR-010 para metadata D1, state machine separada e fronteira definitiva com fila `PENDING`.
+- `009-04` e `009-05` devem manter compatibilidade com contratos recem-fixados e evitar renomeacoes paralelas de modelos D1 sem coordenacao.
 
 ## Criterios Gerais
 
