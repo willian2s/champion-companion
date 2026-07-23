@@ -73,6 +73,12 @@ Atualização de `010-06`:
 - `DatabaseMappers.kt` agora mapeia metadata `WATCH_WORKOUT_D3_D4`, lookup de importação D3/D4 e derived outputs diagnósticos.
 - `RoomRepositories.kt` agora persiste derived outputs junto do payload privado, bloqueia persistência acidental de parser `INVALID` e observa/atualiza metadata D3/D4 sem reutilizar metadata D1.
 
+Atualização de `010-07`:
+
+- `feature/exercises/WatchWorkoutImportCoordinator.kt` agora formaliza contrato foreground de importação D3/D4 com `startImport`, `cancelImport`, `reset`, request explícita e motivo de cancelamento.
+- `ChampionWatchWorkoutImportCoordinator.kt` agora orquestra gate `WATCH_WORKOUT_IMPORT`, reuso de sessão compatível, handshake A1, D3 seguido de D4 sequencial, skip local de `VALID`, persistência por bloco e liberação segura em `finally`.
+- `ExercisesModule.kt` agora publica binding Hilt dedicado do coordinator para consumo futuro em `010-08`.
+
 ## Achados auditados em `010-01`
 
 - `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.

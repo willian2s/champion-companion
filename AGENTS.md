@@ -45,7 +45,7 @@
 
 ## Guard rails
 
-- Existem suites em `app/src/test` e `app/src/androidTest`; não trate criação ou execução de novos testes como etapa padrão.
+- Existem suites em `app/src/test` e `app/src/androidTest`; não trate criação ou execução de testes como etapa padrão e não crie novos testes, salvo pedido explícito do usuário.
 - `Phase003PrivacyGuardTest` bloqueia termos de localização/rota em `core/model`, `core/database`, `data`, `core/logging` e testes existentes. Não introduza latitude/longitude/GPX/rotas nesses escopos.
 - `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
@@ -64,3 +64,4 @@
 - Se mudança introduzir decisão arquitetural, de persistência, privacidade, navegação, build ou workflow com impacto duradouro, crie ou atualize ADR correspondente em `docs/decisions/` no mesmo trabalho.
 - Se mudança for visual, inclua screenshot no PR.
 - Não misture refatorações não relacionadas.
+- Testes não devem ser considerados para este projeto e não devem ser criados sem pedido explícito do usuário.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-06` concluídas; `010-07` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` a `010-07` concluídas; `010-08` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -82,6 +82,13 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - Reimportação continua preservando revisão, workflow e calibração, agora centralizada também em `planWatchWorkoutPersistence(...)` para teste puro.
 - Novo hotspot confirmado: `RoomRepositories.kt` e `DatabaseMappers.kt` ficam compartilhados entre `010-06` e coordinator/persistência futura de `010-07`.
 
+## Achados de `010-07`
+
+- `WatchWorkoutImportCoordinator.kt` e `ChampionWatchWorkoutImportCoordinator.kt` agora existem em `feature/exercises`, seguindo padrão foreground já usado em D1 e medição manual.
+- Coordinator D3/D4 agora adquire owner `WATCH_WORKOUT_IMPORT`, tenta reusar sessão saudável por `transportKey`, executa handshake A1, roda D3, faz lookup local por CRC e baixa D4 em sequência.
+- Persistência acontece por bloco via `WorkoutActivityRepository.persistImported(...)`; callbacks tardios passam a ser ignorados quando tentativa encerra ou troca de sessão.
+- `ExercisesModule.kt` virou dependência direta de `010-08`, porque ViewModel futura deve consumir binding Hilt já estabilizado do coordinator.
+
 ## Estado herdado da Fase 09
 
 - D1 local-first está funcional e Health Connect real segue fora do escopo até a Fase 12.
@@ -137,21 +144,21 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 
 ## Dependências
 
-| Task | Depende de |
-| --- | --- |
-| `010-01` | leitura inicial completa |
-| `010-02` | `010-01` |
-| `010-03` | `010-02` |
-| `010-04` | `010-02` |
-| `010-05` | `010-03`, `010-04` |
-| `010-06` | `010-02` |
-| `010-07` | `010-03`, `010-04`, `010-05`, `010-06` |
-| `010-08` | `010-07` |
-| `010-09` | `010-08` |
-| `010-10` | `010-07`, `010-08`, `010-09` |
-| `010-11` | `010-10` |
-| `010-12` | `010-11` |
-| `010-13` | `010-12` |
+| Task     | Depende de                                                   |
+| -------- | ------------------------------------------------------------ |
+| `010-01` | leitura inicial completa                                     |
+| `010-02` | `010-01`                                                     |
+| `010-03` | `010-02`                                                     |
+| `010-04` | `010-02`                                                     |
+| `010-05` | `010-03`, `010-04`                                           |
+| `010-06` | `010-02`                                                     |
+| `010-07` | `010-03`, `010-04`, `010-05`, `010-06`                       |
+| `010-08` | `010-07` e contrato final do `WatchWorkoutImportCoordinator` |
+| `010-09` | `010-08`                                                     |
+| `010-10` | `010-07`, `010-08`, `010-09`                                 |
+| `010-11` | `010-10`                                                     |
+| `010-12` | `010-11`                                                     |
+| `010-13` | `010-12`                                                     |
 
 ## Paralelismo
 
@@ -192,7 +199,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - [x] `010-04` implementar collector D4 e remontagem
 - [x] `010-05` implementar parser D4, timestamps, intervalos e agregados
 - [x] `010-06` implementar persistência, deduplicação, metadata e payload privado
-- [ ] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
+- [x] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
 - [ ] `010-08` criar `ExercisesViewModel`
 - [ ] `010-09` substituir placeholder de Exercícios por UI de importação e pendências
 - [ ] `010-10` integrar progresso, cancelamento, retry, lifecycle, navegação e mensagens seguras
@@ -207,14 +214,6 @@ Gate obrigatório:
 ```bash
 ./gradlew lint assembleDebug assembleRelease
 ./gradlew installDebug
-```
-
-Comandos pequenos opcionais por task:
-
-```bash
-./gradlew app:testDebugUnitTest --tests "*Workout*"
-./gradlew app:testDebugUnitTest --tests "*D3*"
-./gradlew app:testDebugUnitTest --tests "*D4*"
 ```
 
 Falhas antigas e não relacionadas devem ser documentadas. Regressão introduzida pela Fase 10 deve ser corrigida.

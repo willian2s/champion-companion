@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -107,6 +107,13 @@ Core BLE e bootstrap atual já resolvem conexão, sessão e A1. A fase precisa a
 
 - testes pequenos do coordinator;
 - diff mostrando `finally` e persistência por bloco.
+
+## Resultado
+
+- `WatchWorkoutImportCoordinator.kt` criado com contrato explícito de start/cancel/reset.
+- `ChampionWatchWorkoutImportCoordinator.kt` implementado com gate foreground, reuso de sessão por `transportKey`, handshake A1, D3, lookup local por CRC, D4 sequencial, persistência por bloco, timeout, cancelamento e `finally`.
+- `ExercisesModule.kt` criado para binding Hilt do coordinator.
+- Teste unitário alvo reduzido a smoke checks de gate e liberação em falha de conexão; cobertura profunda do fluxo BLE completo fica não priorizada nesta task.
 
 ## Atualização do overview
 
