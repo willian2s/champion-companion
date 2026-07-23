@@ -1,5 +1,13 @@
 package br.com.mwconsulting.championcompanion.core.navigation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,10 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.lifecycle.ViewModelProvider
-import androidx.navigation3.runtime.NavEntry
-import androidx.navigation3.ui.NavDisplay
 import br.com.mwconsulting.championcompanion.feature.calendar.CalendarScreen
 import br.com.mwconsulting.championcompanion.feature.device.DeviceScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
@@ -88,9 +95,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
     var pendingBackNavigation by remember { mutableStateOf(false) }
+    var animationDirection by remember { mutableStateOf(NavigationAnimationDirection.Forward) }
     val healthState by healthViewModel.state.collectAsState()
 
     fun navigateTo(destination: AppDestination) {
+        animationDirection = NavigationAnimationDirection.Forward
         if (destination.isTopLevelDestination()) {
             if (currentDestination.isHealthDestination()) {
                 backStack.removeHealthDestinations()
@@ -102,6 +111,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     }
 
     fun navigateBack() {
+        animationDirection = NavigationAnimationDirection.Backward
         backStack.removeLastOrNull()
     }
 
@@ -180,6 +190,10 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         )
     }
 
+    BackHandler(enabled = backStack.size > 1 && pendingDestination == null && !pendingBackNavigation) {
+        requestBackNavigation()
+    }
+
     Scaffold(
         modifier = modifier,
         bottomBar = {
@@ -225,9 +239,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         },
     ) { innerPadding ->
         ChampionNavDisplay(
-            backStack = backStack,
+            currentDestination = currentDestination ?: AppDestination.Home,
             contentPadding = innerPadding,
             onBackRequested = ::requestBackNavigation,
+            onNavigateTo = ::requestNavigation,
+            animationDirection = animationDirection,
         )
     }
 }
@@ -268,50 +284,51 @@ private fun HealthUiState.hasBlockingHealthOperation(): Boolean =
 
 @Composable
 private fun ChampionNavDisplay(
-    backStack: MutableList<AppDestination>,
+    currentDestination: AppDestination,
     contentPadding: PaddingValues,
     onBackRequested: () -> Unit,
+    onNavigateTo: (AppDestination) -> Unit,
+    animationDirection: NavigationAnimationDirection,
 ) {
-    NavDisplay(
-        backStack = backStack,
-        onBack = onBackRequested,
+    AnimatedContent(
+        targetState = currentDestination,
+        transitionSpec = { animationDirection.contentTransform() },
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
-        entryProvider = { destination ->
-            NavEntry(destination) {
-                when (destination) {
-                    AppDestination.Home -> HomeScreen(
-                        onOpenDevice = { backStack.navigateToTopLevel(AppDestination.Device) },
-                        onOpenProfile = { backStack.navigateToTopLevel(AppDestination.Profile) },
-                    )
-                    AppDestination.Health -> HealthScreen(
-                        onOpenHeartRate = { backStack.navigateForward(AppDestination.HealthHeartRate) },
-                        onOpenWeight = { backStack.navigateForward(AppDestination.HealthWeight) },
-                        onOpenSteps = { backStack.navigateForward(AppDestination.HealthSteps) },
-                        onOpenDistance = { backStack.navigateForward(AppDestination.HealthDistance) },
-                    )
-                    AppDestination.HealthHeartRate -> HeartRateDetailScreen(
-                        onNavigateBack = onBackRequested,
-                    )
-                    AppDestination.HealthWeight -> WeightDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.HealthSteps -> StepsDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.HealthDistance -> DistanceDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
-                    )
-                    AppDestination.Calendar -> CalendarScreen()
-                    AppDestination.Exercises -> ExercisesScreen()
-                    AppDestination.Device -> DeviceScreen()
-                    AppDestination.Profile -> ProfileScreen()
-                    AppDestination.Settings -> SettingsScreen()
-                }
-            }
-        },
-    )
+        label = "champion_navigation_slide",
+    ) { destination ->
+        when (destination) {
+            AppDestination.Home -> HomeScreen(
+                onOpenDevice = { onNavigateTo(AppDestination.Device) },
+                onOpenProfile = { onNavigateTo(AppDestination.Profile) },
+                onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+            )
+            AppDestination.Health -> HealthScreen(
+                onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+                onOpenWeight = { onNavigateTo(AppDestination.HealthWeight) },
+                onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
+                onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
+            )
+            AppDestination.HealthHeartRate -> HeartRateDetailScreen(
+                onNavigateBack = onBackRequested,
+            )
+            AppDestination.HealthWeight -> WeightDetailScreen(
+                onNavigateBack = onBackRequested,
+            )
+            AppDestination.HealthSteps -> StepsDetailScreen(
+                onNavigateBack = onBackRequested,
+            )
+            AppDestination.HealthDistance -> DistanceDetailScreen(
+                onNavigateBack = onBackRequested,
+            )
+            AppDestination.Calendar -> CalendarScreen()
+            AppDestination.Exercises -> ExercisesScreen()
+            AppDestination.Device -> DeviceScreen()
+            AppDestination.Profile -> ProfileScreen()
+            AppDestination.Settings -> SettingsScreen()
+        }
+    }
 }
 
 private fun MutableList<AppDestination>.navigateToTopLevel(destination: AppDestination) {
@@ -358,4 +375,36 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.HealthSteps,
     AppDestination.HealthDistance,
     -> false
+}
+
+private enum class NavigationAnimationDirection {
+    Forward,
+    Backward,
+}
+
+private fun NavigationAnimationDirection.contentTransform(): ContentTransform {
+    val durationMillis = 260
+    return when (this) {
+        NavigationAnimationDirection.Forward -> {
+            slideInHorizontally(
+                animationSpec = tween(durationMillis = durationMillis),
+                initialOffsetX = { it },
+            ) + fadeIn(animationSpec = tween(durationMillis = durationMillis)) togetherWith
+                slideOutHorizontally(
+                    animationSpec = tween(durationMillis = durationMillis),
+                    targetOffsetX = { -it / 4 },
+                ) + fadeOut(animationSpec = tween(durationMillis = durationMillis))
+        }
+
+        NavigationAnimationDirection.Backward -> {
+            slideInHorizontally(
+                animationSpec = tween(durationMillis = durationMillis),
+                initialOffsetX = { -it / 4 },
+            ) + fadeIn(animationSpec = tween(durationMillis = durationMillis)) togetherWith
+                slideOutHorizontally(
+                    animationSpec = tween(durationMillis = durationMillis),
+                    targetOffsetX = { it },
+                ) + fadeOut(animationSpec = tween(durationMillis = durationMillis))
+        }
+    }
 }

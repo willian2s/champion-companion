@@ -74,6 +74,7 @@ import java.util.Locale
 fun HomeScreen(
     onOpenDevice: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenHeartRate: () -> Unit,
     homeViewModel: HomeViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -174,6 +175,7 @@ fun HomeScreen(
                     HomeSurface(
                         state = state,
                         onOpenDevice = onOpenDevice,
+                        onOpenHeartRate = onOpenHeartRate,
                         onRefresh = { homeViewModel.onIntent(HomeIntent.Refresh) },
                         onRetry = { homeViewModel.onIntent(HomeIntent.Retry) },
                     )
@@ -187,6 +189,7 @@ fun HomeScreen(
 private fun HomeSurface(
     state: HomeUiState,
     onOpenDevice: () -> Unit,
+    onOpenHeartRate: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -196,6 +199,7 @@ private fun HomeSurface(
             latestHeartRate = state.latestHeartRate,
             watch = state.watch,
             pendingActivities = state.pendingActivities,
+            onOpenHeartRate = onOpenHeartRate,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -253,6 +257,7 @@ private fun HomeSurface(
     if (state.summary == null) {
         HomeLatestHeartRateCard(
             latestHeartRate = state.latestHeartRate,
+            onClick = onOpenHeartRate,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -264,6 +269,7 @@ private fun HomeSummaryContent(
     latestHeartRate: HomeLatestHeartRateModel?,
     watch: HomeWatchSnapshot,
     pendingActivities: List<HomePendingActivityModel>,
+    onOpenHeartRate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -300,6 +306,7 @@ private fun HomeSummaryContent(
 
         HomeLatestHeartRateCard(
             latestHeartRate = latestHeartRate,
+            onClick = onOpenHeartRate,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -351,6 +358,7 @@ private fun HomeSummaryContent(
 @Composable
 private fun HomeLatestHeartRateCard(
     latestHeartRate: HomeLatestHeartRateModel?,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     MetricCard(
@@ -358,7 +366,15 @@ private fun HomeLatestHeartRateCard(
         value = latestHeartRate?.let { "${it.bpm} BPM" } ?: "Sem medições",
         supportingText = latestHeartRate?.let { formatMeasurementTimestamp(it.measuredAt) }
             ?: "Disponível após a primeira medição manual",
-        modifier = modifier,
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .semantics {
+                contentDescription = buildString {
+                    append("Última frequência cardíaca. ")
+                    append(latestHeartRate?.let { "${it.bpm} BPM. ${formatMeasurementTimestamp(it.measuredAt)}." } ?: "Sem medições.")
+                    append(" Toque para abrir detalhes.")
+                }
+            },
     )
 }
 
