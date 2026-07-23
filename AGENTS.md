@@ -2,7 +2,7 @@
 
 ## Ler primeiro
 
-- Leia `docs/core/current-project-baseline.md` antes de mudar código, dependências ou arquitetura.
+- Leia `docs/baseline/current-baseline.md` antes de mudar código, dependências ou arquitetura.
 - Se tocar escopo funcional, confira spec correspondente em `docs/specs/` e ADRs em `docs/decisions/`.
 
 ## Estrutura real

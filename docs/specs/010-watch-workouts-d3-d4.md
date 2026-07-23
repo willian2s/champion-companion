@@ -46,6 +46,21 @@ Documentos autoritativos:
 - `DeviceManagementViewModel.kt`, `HomeViewModel.kt` e `ChampionNavigation.kt` ainda não conhecem `WATCH_WORKOUT_IMPORT`.
 - `device_import_metadata` já é genérica por `deviceId + importType`, mas o código atual só expõe caminho D1.
 
+## Achados auditados em `010-01`
+
+- `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.
+- MotionLog lê CRCs D3 em pares `u16` little-endian a partir do offset `3`, com `availableCount = floor((bytes.length - 3) / 2)`.
+- O mesmo baseline MotionLog considera header D3 multipart plausível lendo `packetIndex = u16 LE bytes[1..2]` e `totalPackets = u16 LE bytes[3..4]`; portanto `bytes[3..4]` acumulam dupla função factual: header plausível e primeiro par candidato de CRC.
+- MotionLog não deduplica CRC repetido durante coleta D3 nem antes do loop D4; `shouldSkipWorkoutBlock(...)` só pula bloco já persistido no banco, não duplicata ainda não salva da mesma consulta D3.
+- MotionLog aceita D4 fora de ordem, preserva duplicatas de `packetIndex`, ordena por `packetIndex` antes do parser e marca `partial` quando quantidade de índices distintos diverge de `totalPackets` ou quando `minuteIndex` repete.
+- `minuteIndex` no baseline MotionLog é `packetIndex - 4`.
+- `sampledAt` no baseline MotionLog é `startedAt + minuteIndex * 60_000`; primeiro bucket usa `minuteIndex = 0`.
+- Cada pacote D4 `4+` representa bucket de um minuto; baseline MotionLog não encurta bucket final para casar com sobra de duração.
+- `recordCount` divergente não sintetiza amostras nem buckets; baseline MotionLog marca `partial` quando o restante mínimo segue válido.
+- App nativo já possui domínio, Room e reimportação para D3/D4: `WorkoutActivity`, `WatchWorkoutImport`, `WorkoutInterval`, `WorkoutHeartRateSample`, tabelas dedicadas e `persistImported(...)` transacional.
+- Reimportação atual no app nativo deduplica por chave natural `(deviceId, origin, crc)`, preserva identidade da atividade e mantém `confirmedType`, `workflowState`, `reviewedAt`, `calibrationId` e métricas calibradas como dados autoritativos.
+- O schema Room atual impõe unicidade de intervalos por `(activityId, intervalIndex)` e de amostras BPM por `(activityId, sampledAtEpochMillis)`, então a deduplicação derivada de BPM já acontece por timestamp, não por `minuteIndex` explícito.
+
 ## Objetivo
 
 Permitir que o usuário:
@@ -328,6 +343,8 @@ Regras obrigatórias:
 - não usar CRC como `blockIndex`;
 - tratar header multipart apenas quando plausível;
 - aceitar resposta única sem header plausível;
+- preservar fato auditado de que MotionLog hoje começa CRCs no offset `3`, mesmo quando também testa plausibilidade multipart com `bytes[3..4]`;
+- tratar deduplicação intra-D3 como decisão explícita da Fase 10, porque ela não existe no baseline MotionLog auditado;
 - não atribuir semântica a bytes não confirmados.
 
 ## D3 - Multipart
@@ -440,7 +457,7 @@ Regras:
 - rejeitar pacote curto;
 - copiar bytes defensivamente;
 - aceitar fora de ordem;
-- registrar duplicados;
+- registrar duplicados e preservar evidência para diagnóstico, porque MotionLog não elimina `packetIndex` repetido antes do parser;
 - ordenar por `packetIndex` antes do parser;
 - calcular índices ausentes;
 - remover observer em todos os caminhos.
@@ -502,6 +519,8 @@ Ausência, corrupção ou layout não reconhecido de qualquer um deles:
 - pacote `2`: passos `u16 LE 7..8`, distância `u16 LE 11..12 * 100 cm`, calorias `u24 LE 15..17`;
 - pacote `3`: `recordCount` no byte `9`, CRC `u16 LE 14..15`;
 - pacote `4+`: `minuteIndex = packetIndex - 4`, BPM byte `6`, passos `u24 LE 7..9`, distância `u24 LE 10..12`, calorias `u16 LE 13..14`.
+
+Observação auditada: no pacote `1`, segundo final não existe no layout preferido; baseline MotionLog usa `0`.
 
 ## D4 - Layout legado
 
@@ -646,7 +665,7 @@ flowchart TD
 Regras:
 
 - mesma atividade não duplica;
-- CRC repetido no mesmo D3 não dispara download duplicado;
+- CRC repetido no mesmo D3 deve deixar de disparar download duplicado na implementação da Fase 10; auditoria `010-01` confirmou que MotionLog atual ainda não faz essa deduplicação intra-tentativa;
 - reimportação substitui intervalos e amostras transacionalmente;
 - workflow revisado, sincronizado ou calibrado não é rebaixado.
 

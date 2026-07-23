@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -104,11 +104,59 @@ Ainda faltam confirmação documental do caminho da baseline em `AGENTS.md`, reg
 - lista explícita de offsets, regras e lacunas confirmadas;
 - diff de `AGENTS.md`, spec e overview.
 
+## Execução
+
+### Referências auditadas
+
+- `../motionlog-app/src/lib/ble/watch-workout-sync.ts`
+- `../motionlog-app/src/lib/ble/watch-workout-parser.ts`
+- `../motionlog-app/src/lib/ble/watch-workout-import-adapter.ts`
+- `../motionlog-app/src/lib/repositories/watch-workout-repository.ts`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+
+### Fatos confirmados do baseline MotionLog
+
+- D3 lê CRCs `u16` little-endian a partir do offset `3`.
+- D3 considera header multipart plausível com `packetIndex = u16 LE bytes[1..2]` e `totalPackets = u16 LE bytes[3..4]`.
+- No baseline auditado, `bytes[3..4]` ficam sobrepostos entre header plausível e primeiro par candidato de CRC; não há evidência para assumir header D3 “limpo” como em D1.
+- D3 ignora `0x0000`, preserva ordem de aparição e atribui `blockIndex` sequencial começando em `0`.
+- D3 não deduplica CRC repetido antes do loop D4.
+- D4 usa `packetIndex = u16 LE bytes[1..2]` e `totalPackets = u16 LE bytes[3..4]`.
+- D4 aceita pacotes fora de ordem, ordena antes do parser e preserva duplicatas para diagnóstico.
+- Pacotes obrigatórios continuam `1`, `2` e `3`; ausência deles faz parser retornar `null`.
+- Pacote `1` preferido usa início `7..13` e fim `14..19`; segundo final ausente vira `0`.
+- Pacote `2` preferido usa passos `7..8`, distância `11..12 * 100 cm` e calorias `15..17 / 1000`.
+- Pacote `3` preferido usa `recordCount` no byte `9` e CRC `14..15`; fallback legado usa duração `u32 LE 5..8`.
+- Pacote `4+` usa `minuteIndex = packetIndex - 4`, BPM byte `6`, passos `u24 LE 7..9`, distância `u24 LE 10..12` e calorias `u16 LE 13..14`.
+- `sampledAt` das amostras BPM usa `startedAt + minuteIndex * 60_000`.
+- Cada bucket D4 `4+` vale 60 segundos; bucket final não é encurtado para fechar sobra residual.
+- Divergência de `recordCount`, timeout, índice ausente ou `minuteIndex` duplicado gera `partial`; baseline não cria amostra sintética.
+
+### Fatos confirmados do app nativo
+
+- `WorkoutActivity.createFromImport(...)` cria atividade `WATCH_D3_D4` em `PENDING_REVIEW`.
+- `WorkoutActivity.confirmReview(...)` bloqueia revisão quando `parserValidity != VALID`.
+- `WatchWorkoutImportEntity` possui índice único `(deviceId, origin, crc)`.
+- `WorkoutIntervalEntity` possui índice único `(activityId, intervalIndex)`.
+- `WorkoutHeartRateSampleEntity` possui índice único `(activityId, sampledAtEpochMillis)`.
+- `RoomRepositories.persistImported(...)` já faz deduplicação/reimportação por chave natural, preserva `confirmedType`, `workflowState`, `reviewedAt`, `calibrationId` e métricas calibradas, apaga intervalos/amostras antigas e reinsere conjunto novo na mesma escrita.
+- `observePendingReview()` já existe e reconstrói domínio com intervalos e amostras persistidos.
+
+### Lacunas e riscos reais registrados
+
+- Deduplicação intra-tentativa de CRC repetido precisa ser implementada explicitamente no Champion Companion; MotionLog não resolve isso sozinho.
+- Header D3 multipart continua ambíguo no baseline porque divide bytes com início da área de CRC.
+- Offsets D4 e unidades seguem confirmados apenas “pelo código”; validação física continua obrigatória em `010-11` e `010-12`.
+
 ## Atualização do overview
 
 - marcar `010-01` como concluída;
-- registrar achados iniciais e qualquer risco novo de conflito.
+- registrar achados iniciais e risco novo de deduplicação intra-tentativa por CRC repetido.
 
 ## Validação final
 
-- confirmar que D3/D4 não foram implementados nesta task.
+- confirmado: nenhuma implementação D3/D4 foi feita nesta task; mudanças ficaram restritas a `AGENTS.md`, spec e documentação da Fase 10.

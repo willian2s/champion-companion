@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` concluída; `010-02` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -41,6 +41,17 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - `ChampionNavigation.kt` só bloqueia saída da tela de frequência cardíaca durante medição manual ou D1.
 - `HomeViewModel.kt` e `DeviceManagementViewModel.kt` só conhecem bloqueios de `DAILY_STEPS_REFRESH`, `MANUAL_HEART_RATE` e `WATCH_D1_HISTORY`.
 - `device_import_metadata` já existe e favorece reuse para `WATCH_WORKOUT_D3_D4`, sem migration obrigatória aparente.
+
+## Achados de `010-01`
+
+- `AGENTS.md` foi alinhado para `docs/baseline/current-baseline.md`.
+- Baseline MotionLog confirma D3 com CRCs `u16 LE` a partir do offset `3`, mas também usa `bytes[3..4]` para testar header multipart plausível; esse acoplamento deve ser tratado como fato herdado, não como header limpo já confirmado.
+- Baseline MotionLog confirma D4 com `packetIndex = u16 LE bytes[1..2]`, `totalPackets = u16 LE bytes[3..4]`, `minuteIndex = packetIndex - 4` e `sampledAt = startedAt + minuteIndex * 60 segundos`.
+- Baseline MotionLog confirma bucket fixo de 60 segundos, inclusive no último intervalo; sobra de duração total permanece diagnóstica.
+- Baseline MotionLog confirma `recordCount` apenas como verificação de completude; divergência gera `partial`, sem buckets sintéticos.
+- Baseline MotionLog não deduplica CRC repetido dentro da mesma leitura D3 antes do loop D4; isso virou risco funcional explícito para `010-02` e `010-03`.
+- App nativo já possui fronteira correta entre importação e revisão: `createFromImport(...)` nasce em `PENDING_REVIEW` e `confirmReview(...)` bloqueia avanço quando `parserValidity != VALID`.
+- App nativo já possui deduplicação/reimportação transacional por `(deviceId, origin, crc)` em `persistImported(...)`, com preservação de revisão, workflow e calibração existentes.
 
 ## Estado herdado da Fase 09
 
@@ -146,7 +157,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 
 ## Checklist
 
-- [ ] `010-01` auditar MotionLog, baseline factual, domínio, Room, offsets e corrigir caminho futuro em `AGENTS.md`
+- [x] `010-01` auditar MotionLog, baseline factual, domínio, Room, offsets e corrigir caminho futuro em `AGENTS.md`
 - [ ] `010-02` definir contratos, state machine, metadata e política diagnóstica D3/D4
 - [ ] `010-03` implementar protocolo e collector D3
 - [ ] `010-04` implementar collector D4 e remontagem
@@ -232,3 +243,5 @@ Galaxy S22 com Champion C001:
 - dependência nova ou risco novo deve ser registrado aqui imediatamente;
 - bloqueio físico deve manter task pendente e documentar motivo;
 - `010-13` consolida checklist, comandos, Gate B, baseline factual e dívida final.
+
+Risco novo aberto por `010-01`: deduplicação intra-tentativa de CRC repetido não existe no MotionLog auditado; implementação D3 do app nativo deve resolver isso sem perder ordem determinística dos blocos.
