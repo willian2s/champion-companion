@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluida em 2026-07-23.
 
 ## Objetivo
 
@@ -101,6 +101,14 @@ Depois de `009-06` e `009-07`, feature ja deve ter coordinator D1 funcional e ca
 
 - resultados de testes pequenos;
 - diff mostrando intents, estados independentes e protecao de lifecycle.
+
+## Implementacao Executada
+
+- `HealthFeatureContract.kt` ganhou intents D1 dedicadas para iniciar, cancelar, repetir, dispensar estado transiente, confirmar saida e trocar periodo local.
+- `HealthViewModel.kt` agora observa `observeHistory(HeartRateHistoryQuery(...))`, `observeD1ImportMetadata(...)` e `D1HeartRateSyncCoordinator.state`, preservando independencia entre medicao manual e importacao D1.
+- `Load` e `SelectHistoryPeriod(...)` nao iniciam BLE; `AppMovedToBackground` cancela manual e D1 quando ativos.
+- `ChampionNavigation.kt` agora exige confirmacao ao sair da tela de frequencia cardiaca por back ou troca de aba enquanto manual ou D1 estiverem em progresso.
+- `HealthViewModelD1IntegrationTest.kt` cobre ausencia de auto-start, troca de periodo sem BLE, cancelamento em background, retry com nova tentativa e independencia entre estados.
 
 ## Atualizacao Do Overview
 

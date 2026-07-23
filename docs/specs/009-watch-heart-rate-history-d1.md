@@ -90,6 +90,12 @@ Atualizacao de `009-07`:
 - `feature/health/ChampionD1HeartRateSyncCoordinator.kt` agora orquestra gate `WATCH_D1_HISTORY`, reuso de sessao, handshake A1, observer `F008_NOTIFY`, envio D1, timeout e persistencia D1 tipada.
 - mensagens de bloqueio em Home e Dispositivo agora distinguem refresh diario, medicao manual e importacao D1.
 
+Atualizacao de `009-08`:
+
+- `HealthIntent` agora expone `StartD1Import`, `CancelD1Import`, `RetryD1Import`, `DismissD1Import`, `ConfirmExitD1Import` e `SelectHistoryPeriod(...)` sem acoplar D1 ao fluxo manual legado.
+- `HealthViewModel` agora observa `observeHistory(HeartRateHistoryQuery(...))`, `observeD1ImportMetadata(...)` e `D1HeartRateSyncCoordinator.state`, mantendo `surfaceState` e `d1ImportState` independentes.
+- `ChampionNavigation` agora bloqueia troca de aba e back da tela `HealthHeartRate` quando medicao manual ou importacao D1 estiverem ativas, com confirmacao contextual.
+
 ## Objetivo
 
 Permitir ao usuario:

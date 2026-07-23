@@ -6,9 +6,9 @@ import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportResult
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRatePacketProgress
-import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.MonotonicTimestamp
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -54,10 +54,16 @@ sealed interface HealthIntent {
     data object Load : HealthIntent
     data object StartMeasurement : HealthIntent
     data object CancelMeasurement : HealthIntent
+    data object StartD1Import : HealthIntent
+    data object CancelD1Import : HealthIntent
     data object Retry : HealthIntent
+    data object RetryD1Import : HealthIntent
     data object DismissError : HealthIntent
+    data object DismissD1Import : HealthIntent
     data object ConfirmExitMeasurement : HealthIntent
+    data object ConfirmExitD1Import : HealthIntent
     data object AppMovedToBackground : HealthIntent
+    data class SelectHistoryPeriod(val period: HeartRateHistoryPeriod) : HealthIntent
     data object OpenDevice : HealthIntent
 }
 

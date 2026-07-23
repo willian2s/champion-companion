@@ -4,9 +4,13 @@ import androidx.lifecycle.ViewModel
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
+import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryQuery
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
@@ -33,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 private const val RECENT_MANUAL_MEASUREMENTS_LIMIT = 10
@@ -47,15 +52,20 @@ class HealthViewModel internal constructor(
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
     private val manualHeartRateCoordinator: ManualHeartRateCoordinator,
+    private val d1HeartRateSyncCoordinator: D1HeartRateSyncCoordinator,
     private val scope: CoroutineScope,
     private val ids: UuidV7Generator,
     private val parserVersion: ParserVersion,
 ) : ViewModel(), HealthFeatureContract {
     private val mutableState = MutableStateFlow(HealthUiState())
     private val surfaceState = MutableStateFlow<HealthSurfaceState>(HealthSurfaceState.Idle)
+    private val d1ImportState = MutableStateFlow<D1HeartRateImportSurfaceState>(D1HeartRateImportSurfaceState.Idle)
     private val associatedDevice = MutableStateFlow<Device?>(null)
     private val latestMeasurement = MutableStateFlow<HeartRateMeasurement?>(null)
     private val recentMeasurements = MutableStateFlow<List<HeartRateMeasurement>>(emptyList())
+    private val selectedHistoryPeriod = MutableStateFlow(HeartRateHistoryPeriod.TODAY)
+    private val history = MutableStateFlow(HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY))
+    private val latestD1ImportMetadata = MutableStateFlow<D1HeartRateImportMetadata?>(null)
     private val personalMetrics = MutableStateFlow(PersonalMetricsSnapshot())
     private val observedDate = MutableStateFlow(LocalDate.now())
     private val todaySummary = MutableStateFlow<DailySummary?>(null)
@@ -84,6 +94,29 @@ class HealthViewModel internal constructor(
             }
         }
         scope.launch {
+            selectedHistoryPeriod.flatMapLatest { period ->
+                heartRateRepository.observeHistory(
+                    HeartRateHistoryQuery(
+                        period = period,
+                        zoneId = java.time.ZoneId.systemDefault(),
+                    ),
+                )
+            }.collect { snapshot ->
+                history.value = snapshot
+            }
+        }
+        scope.launch {
+            associatedDevice.flatMapLatest { device ->
+                if (device == null) {
+                    flowOf(null)
+                } else {
+                    heartRateRepository.observeD1ImportMetadata(device.id)
+                }
+            }.collect { metadata ->
+                latestD1ImportMetadata.value = metadata
+            }
+        }
+        scope.launch {
             personalMetricsRepository.observeSnapshot().collect { snapshot ->
                 personalMetrics.value = snapshot
             }
@@ -104,17 +137,45 @@ class HealthViewModel internal constructor(
             manualHeartRateCoordinator.state.collect(::handleCoordinatorState)
         }
         scope.launch {
-            val coreState = combine(
+            d1HeartRateSyncCoordinator.state.collect(::handleD1CoordinatorState)
+        }
+        scope.launch {
+            val stateFlows = combine(
                 surfaceState,
+                d1ImportState,
+                selectedHistoryPeriod,
+                history,
+            ) { currentSurface, currentD1ImportState, period, currentHistory ->
+                PartialHealthState(
+                    surfaceState = currentSurface,
+                    d1ImportState = currentD1ImportState,
+                    selectedHistoryPeriod = period,
+                    history = currentHistory,
+                )
+            }
+            val dataFlows = combine(
+                latestD1ImportMetadata,
                 latestMeasurement,
                 recentMeasurements,
                 associatedDevice,
-            ) { currentSurface, latest, recent, device ->
-                CoreHealthState(
-                    surfaceState = currentSurface,
+            ) { metadata, latest, recent, device ->
+                PartialHealthData(
+                    latestD1ImportMetadata = metadata,
                     latestMeasurement = latest,
                     recentMeasurements = recent,
                     associatedDevice = device,
+                )
+            }
+            val coreState = combine(stateFlows, dataFlows) { partialState, partialData ->
+                CoreHealthState(
+                    surfaceState = partialState.surfaceState,
+                    d1ImportState = partialState.d1ImportState,
+                    selectedHistoryPeriod = partialState.selectedHistoryPeriod,
+                    history = partialState.history,
+                    latestD1ImportMetadata = partialData.latestD1ImportMetadata,
+                    latestMeasurement = partialData.latestMeasurement,
+                    recentMeasurements = partialData.recentMeasurements,
+                    associatedDevice = partialData.associatedDevice,
                 )
             }
             combine(
@@ -125,6 +186,10 @@ class HealthViewModel internal constructor(
             ) { core, metrics, summary, goal ->
                 HealthUiState(
                     surfaceState = core.surfaceState,
+                    d1ImportState = core.d1ImportState,
+                    selectedHistoryPeriod = core.selectedHistoryPeriod,
+                    history = core.history,
+                    latestD1ImportMetadata = core.latestD1ImportMetadata,
                     latestMeasurement = core.latestMeasurement,
                     recentMeasurements = core.recentMeasurements,
                     latestWeight = metrics.toWeightSnapshot(),
@@ -145,6 +210,7 @@ class HealthViewModel internal constructor(
         personalMetricsRepository: PersonalMetricsRepository,
         appPreferencesRepository: AppPreferencesRepository,
         manualHeartRateCoordinator: ManualHeartRateCoordinator,
+        d1HeartRateSyncCoordinator: D1HeartRateSyncCoordinator,
     ) : this(
         heartRateRepository = heartRateRepository,
         deviceRepository = deviceRepository,
@@ -152,6 +218,7 @@ class HealthViewModel internal constructor(
         personalMetricsRepository = personalMetricsRepository,
         appPreferencesRepository = appPreferencesRepository,
         manualHeartRateCoordinator = manualHeartRateCoordinator,
+        d1HeartRateSyncCoordinator = d1HeartRateSyncCoordinator,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
         parserVersion = ParserVersion.create(MANUAL_HEART_RATE_PARSER_VERSION).valueOrNull()!!,
@@ -164,10 +231,19 @@ class HealthViewModel internal constructor(
             HealthIntent.Load -> observedDate.value = LocalDate.now()
             HealthIntent.StartMeasurement -> startMeasurement()
             HealthIntent.CancelMeasurement -> cancelMeasurement(ManualHeartRateCancellationReason.USER_REQUESTED)
+            HealthIntent.StartD1Import -> startD1Import()
+            HealthIntent.CancelD1Import -> cancelD1Import(D1HeartRateImportCancellationReason.USER_REQUESTED)
             HealthIntent.Retry -> retryMeasurement()
+            HealthIntent.RetryD1Import -> retryD1Import()
             HealthIntent.DismissError -> dismissTransientSurface()
+            HealthIntent.DismissD1Import -> dismissTransientD1Import()
             HealthIntent.ConfirmExitMeasurement -> cancelMeasurement(ManualHeartRateCancellationReason.EXIT_CONFIRMED)
-            HealthIntent.AppMovedToBackground -> cancelMeasurement(ManualHeartRateCancellationReason.BACKGROUND)
+            HealthIntent.ConfirmExitD1Import -> cancelD1Import(D1HeartRateImportCancellationReason.EXIT_CONFIRMED)
+            HealthIntent.AppMovedToBackground -> {
+                cancelMeasurement(ManualHeartRateCancellationReason.BACKGROUND)
+                cancelD1Import(D1HeartRateImportCancellationReason.BACKGROUND)
+            }
+            is HealthIntent.SelectHistoryPeriod -> selectHistoryPeriod(intent.period)
             HealthIntent.OpenDevice -> Unit
         }
     }
@@ -221,12 +297,68 @@ class HealthViewModel internal constructor(
             manualHeartRateCoordinator.reset()
             surfaceState.value = HealthSurfaceState.Idle
         }
+        dismissTransientD1Import()
     }
 
     private fun cancelMeasurement(reason: ManualHeartRateCancellationReason) {
         if (!isMeasurementInFlight(surfaceState.value)) return
         scope.launch {
             manualHeartRateCoordinator.cancelMeasurement(reason)
+        }
+    }
+
+    private fun selectHistoryPeriod(period: HeartRateHistoryPeriod) {
+        selectedHistoryPeriod.value = period
+    }
+
+    private fun startD1Import() {
+        val device = associatedDevice.value
+        val attemptId = ids.next().toString()
+        if (device == null) {
+            d1ImportState.value = D1HeartRateImportSurfaceState.Failed(
+                session = D1HeartRateImportSessionState(
+                    importAttemptId = attemptId,
+                    error = noAssociatedDeviceD1Error(),
+                ),
+            )
+            return
+        }
+
+        scope.launch {
+            val error = d1HeartRateSyncCoordinator.startImport(
+                D1HeartRateSyncRequest(
+                    importAttemptId = attemptId,
+                    associatedDevice = device,
+                ),
+            )
+            if (error != null && shouldPresentImmediateD1Error(error)) {
+                d1ImportState.value = D1HeartRateImportSurfaceState.Failed(
+                    session = D1HeartRateImportSessionState(
+                        importAttemptId = attemptId,
+                        error = error,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun retryD1Import() {
+        if (isD1ImportInFlight(d1ImportState.value)) return
+        dismissTransientD1Import()
+        startD1Import()
+    }
+
+    private fun dismissTransientD1Import() {
+        if (!isD1ImportInFlight(d1ImportState.value)) {
+            d1HeartRateSyncCoordinator.reset()
+            d1ImportState.value = D1HeartRateImportSurfaceState.Idle
+        }
+    }
+
+    private fun cancelD1Import(reason: D1HeartRateImportCancellationReason) {
+        if (!isD1ImportInFlight(d1ImportState.value)) return
+        scope.launch {
+            d1HeartRateSyncCoordinator.cancelImport(reason)
         }
     }
 
@@ -244,6 +376,10 @@ class HealthViewModel internal constructor(
 
             is HealthSurfaceState.Completed -> persistCompletedSession(next.session)
         }
+    }
+
+    private fun handleD1CoordinatorState(next: D1HeartRateImportSurfaceState) {
+        d1ImportState.value = next
     }
 
     private fun persistCompletedSession(session: ManualHeartRateSessionState) {
@@ -323,6 +459,15 @@ class HealthViewModel internal constructor(
         return current.session.error == error
     }
 
+    private fun shouldPresentImmediateD1Error(error: HealthD1ImportError): Boolean =
+        error.category != HealthD1ImportErrorCategory.BLE_OPERATION_IN_PROGRESS &&
+            !isD1FailureForCurrentSession(error)
+
+    private fun isD1FailureForCurrentSession(error: HealthD1ImportError): Boolean {
+        val current = d1ImportState.value as? D1HeartRateImportSurfaceState.Failed ?: return false
+        return current.session.error == error
+    }
+
     private fun isMeasurementInFlight(state: HealthSurfaceState): Boolean = when (state) {
         is HealthSurfaceState.Preparing,
         is HealthSurfaceState.Connecting,
@@ -338,9 +483,31 @@ class HealthViewModel internal constructor(
         -> false
     }
 
+    private fun isD1ImportInFlight(state: D1HeartRateImportSurfaceState): Boolean = when (state) {
+        is D1HeartRateImportSurfaceState.Preparing,
+        is D1HeartRateImportSurfaceState.Connecting,
+        is D1HeartRateImportSurfaceState.Reading,
+        is D1HeartRateImportSurfaceState.Persisting,
+        -> true
+
+        D1HeartRateImportSurfaceState.Idle,
+        is D1HeartRateImportSurfaceState.Completed,
+        is D1HeartRateImportSurfaceState.CompletedWithGaps,
+        is D1HeartRateImportSurfaceState.Partial,
+        is D1HeartRateImportSurfaceState.Failed,
+        is D1HeartRateImportSurfaceState.Cancelled,
+        -> false
+    }
+
     private fun noAssociatedDeviceError() = HealthMeasurementError(
         category = HealthMeasurementErrorCategory.NO_ASSOCIATED_DEVICE,
         message = "Nenhum relógio associado foi encontrado para medir a frequência cardíaca.",
+        isRetryable = false,
+    )
+
+    private fun noAssociatedDeviceD1Error() = HealthD1ImportError(
+        category = HealthD1ImportErrorCategory.NO_ASSOCIATED_DEVICE,
+        message = "Nenhum relógio associado foi encontrado para buscar o histórico de frequência cardíaca.",
         isRetryable = false,
     )
 
@@ -380,6 +547,24 @@ class HealthViewModel internal constructor(
 
     private data class CoreHealthState(
         val surfaceState: HealthSurfaceState,
+        val d1ImportState: D1HeartRateImportSurfaceState,
+        val selectedHistoryPeriod: HeartRateHistoryPeriod,
+        val history: HeartRateHistorySnapshot,
+        val latestD1ImportMetadata: D1HeartRateImportMetadata?,
+        val latestMeasurement: HeartRateMeasurement?,
+        val recentMeasurements: List<HeartRateMeasurement>,
+        val associatedDevice: Device?,
+    )
+
+    private data class PartialHealthState(
+        val surfaceState: HealthSurfaceState,
+        val d1ImportState: D1HeartRateImportSurfaceState,
+        val selectedHistoryPeriod: HeartRateHistoryPeriod,
+        val history: HeartRateHistorySnapshot,
+    )
+
+    private data class PartialHealthData(
+        val latestD1ImportMetadata: D1HeartRateImportMetadata?,
         val latestMeasurement: HeartRateMeasurement?,
         val recentMeasurements: List<HeartRateMeasurement>,
         val associatedDevice: Device?,

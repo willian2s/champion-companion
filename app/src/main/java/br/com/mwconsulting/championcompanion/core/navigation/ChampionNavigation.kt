@@ -41,7 +41,9 @@ import br.com.mwconsulting.championcompanion.feature.device.DeviceScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
 import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
+import br.com.mwconsulting.championcompanion.feature.health.D1HeartRateImportSurfaceState
 import br.com.mwconsulting.championcompanion.feature.health.HealthScreen
+import br.com.mwconsulting.championcompanion.feature.health.HealthUiState
 import br.com.mwconsulting.championcompanion.feature.health.HeartRateDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.HealthSurfaceState
 import br.com.mwconsulting.championcompanion.feature.health.HealthViewModel
@@ -85,44 +87,82 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     val currentDestination = backStack.lastOrNull()
     var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
+    var pendingBackNavigation by remember { mutableStateOf(false) }
     val healthState by healthViewModel.state.collectAsState()
+
+    fun navigateTo(destination: AppDestination) {
+        if (destination.isTopLevelDestination()) {
+            if (currentDestination.isHealthDestination()) {
+                backStack.removeHealthDestinations()
+            }
+            backStack.navigateToTopLevel(destination)
+        } else {
+            backStack.navigateForward(destination)
+        }
+    }
+
+    fun navigateBack() {
+        backStack.removeLastOrNull()
+    }
+
+    fun requestExitConfirmation(destination: AppDestination? = null, isBackNavigation: Boolean = false) {
+        pendingDestination = destination
+        pendingBackNavigation = isBackNavigation
+    }
 
     fun requestNavigation(destination: AppDestination) {
         if (
             currentDestination.isHealthMeasurementSurface() &&
             destination != currentDestination &&
-            healthState.surfaceState.isMeasurementInFlight()
+            healthState.hasBlockingHealthOperation()
         ) {
-            pendingDestination = destination
+            requestExitConfirmation(destination = destination)
         } else {
-            if (destination.isTopLevelDestination()) {
-                if (currentDestination.isHealthDestination()) {
-                    backStack.removeHealthDestinations()
-                }
-                backStack.navigateToTopLevel(destination)
-            } else {
-                backStack.navigateForward(destination)
-            }
+            navigateTo(destination)
         }
     }
 
-    pendingDestination?.let { destination ->
+    fun requestBackNavigation() {
+        if (currentDestination.isHealthMeasurementSurface() && healthState.hasBlockingHealthOperation()) {
+            requestExitConfirmation(isBackNavigation = true)
+        } else {
+            navigateBack()
+        }
+    }
+
+    if (pendingDestination != null || pendingBackNavigation) {
+        val isD1ImportInFlight = healthState.d1ImportState.isD1ImportInFlight()
         AlertDialog(
-            onDismissRequest = { pendingDestination = null },
-            title = { Text("Cancelar medição?") },
-            text = { Text("Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial.") },
+            onDismissRequest = {
+                pendingDestination = null
+                pendingBackNavigation = false
+            },
+            title = { Text(if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?") },
+            text = {
+                Text(
+                    if (isD1ImportInFlight) {
+                        "Sair da tela Saúde agora cancelará a importação D1 em andamento."
+                    } else {
+                        "Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial."
+                    },
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
+                        val destination = pendingDestination
+                        val shouldNavigateBack = pendingBackNavigation
                         pendingDestination = null
-                        healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
-                        if (destination.isTopLevelDestination()) {
-                            if (currentDestination.isHealthDestination()) {
-                                backStack.removeHealthDestinations()
-                            }
-                            backStack.navigateToTopLevel(destination)
+                        pendingBackNavigation = false
+                        if (isD1ImportInFlight) {
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
                         } else {
-                            backStack.navigateForward(destination)
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
+                        }
+                        if (shouldNavigateBack) {
+                            navigateBack()
+                        } else if (destination != null) {
+                            navigateTo(destination)
                         }
                     },
                 ) {
@@ -130,8 +170,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDestination = null }) {
-                    Text("Continuar medindo")
+                TextButton(onClick = {
+                    pendingDestination = null
+                    pendingBackNavigation = false
+                }) {
+                    Text(if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo")
                 }
             },
         )
@@ -181,7 +224,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             }
         },
     ) { innerPadding ->
-        ChampionNavDisplay(backStack = backStack, contentPadding = innerPadding)
+        ChampionNavDisplay(
+            backStack = backStack,
+            contentPadding = innerPadding,
+            onBackRequested = ::requestBackNavigation,
+        )
     }
 }
 
@@ -197,17 +244,37 @@ private fun HealthSurfaceState.isMeasurementInFlight(): Boolean = when (this) {
     is HealthSurfaceState.Completed,
     is HealthSurfaceState.Cancelled,
     is HealthSurfaceState.Failed,
+        -> false
+}
+
+private fun D1HeartRateImportSurfaceState.isD1ImportInFlight(): Boolean = when (this) {
+    is D1HeartRateImportSurfaceState.Preparing,
+    is D1HeartRateImportSurfaceState.Connecting,
+    is D1HeartRateImportSurfaceState.Reading,
+    is D1HeartRateImportSurfaceState.Persisting,
+    -> true
+
+    D1HeartRateImportSurfaceState.Idle,
+    is D1HeartRateImportSurfaceState.Completed,
+    is D1HeartRateImportSurfaceState.CompletedWithGaps,
+    is D1HeartRateImportSurfaceState.Partial,
+    is D1HeartRateImportSurfaceState.Failed,
+    is D1HeartRateImportSurfaceState.Cancelled,
     -> false
 }
+
+private fun HealthUiState.hasBlockingHealthOperation(): Boolean =
+    surfaceState.isMeasurementInFlight() || d1ImportState.isD1ImportInFlight()
 
 @Composable
 private fun ChampionNavDisplay(
     backStack: MutableList<AppDestination>,
     contentPadding: PaddingValues,
+    onBackRequested: () -> Unit,
 ) {
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = onBackRequested,
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
@@ -225,7 +292,7 @@ private fun ChampionNavDisplay(
                         onOpenDistance = { backStack.navigateForward(AppDestination.HealthDistance) },
                     )
                     AppDestination.HealthHeartRate -> HeartRateDetailScreen(
-                        onNavigateBack = { backStack.removeLastOrNull() },
+                        onNavigateBack = onBackRequested,
                     )
                     AppDestination.HealthWeight -> WeightDetailScreen(
                         onNavigateBack = { backStack.removeLastOrNull() },
