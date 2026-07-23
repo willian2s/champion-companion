@@ -90,7 +90,7 @@ class ChampionD1HeartRateSyncCoordinator(
             is ForegroundBleOperationAcquireResult.Rejected -> {
                 return HealthD1ImportError(
                     category = HealthD1ImportErrorCategory.BLE_OPERATION_IN_PROGRESS,
-                    message = "Outra operacao Bluetooth de foreground ja esta em andamento.",
+                    message = gateResult.activeOperation.owner.toHealthForegroundBleBlockMessage(),
                     isRetryable = true,
                 ).also { error ->
                     mutableState.value = D1HeartRateImportSurfaceState.Failed(
@@ -605,6 +605,13 @@ class ChampionD1HeartRateSyncCoordinator(
 
     private fun Throwable.isExpectedObserverShutdown(): Boolean =
         message?.startsWith("notification_hub_closed:") == true
+
+    private fun ForegroundBleOperationOwner.toHealthForegroundBleBlockMessage(): String = when (this) {
+        ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização do relógio está em andamento na tela Início."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio já está em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio está em andamento na tela Exercícios."
+    }
 
     private data class ActiveImport(
         val permit: ForegroundBleOperationPermit,

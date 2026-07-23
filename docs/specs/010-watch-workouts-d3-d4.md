@@ -91,6 +91,13 @@ Atualização de `010-09`:
 - A superfície visual já anuncia estados ocioso, importando, concluído, parcial, vazio, cancelado e erro com copy em pt-BR e sem expor CRC, payload ou detalhes BLE.
 - A UI permanece sem revisão, detalhes completos, descarte ou sincronização, preservando a fronteira da fase em `PENDING_REVIEW`.
 
+Atualização de `010-10`:
+
+- `ChampionNavigation.kt` agora bloqueia saída da tela Exercícios durante importação ativa, com confirmação explícita antes de trocar de destino, voltar ou fechar a activity raiz.
+- `ExercisesScreen.kt` agora cancela importação ao entrar em `ON_STOP`, preservando tentativa explícita apenas em foreground visível e sem reinício automático no retorno.
+- `ChampionWatchWorkoutImportCoordinator.kt`, `ChampionManualHeartRateCoordinator.kt` e `ChampionD1HeartRateSyncCoordinator.kt` agora traduzem rejeição do gate foreground para mensagens seguras por owner ativo, incluindo `WATCH_WORKOUT_IMPORT`.
+- Retry e dismiss permanecem na `ExercisesViewModel` com nova tentativa limpa, novo `importAttemptId` e novo permit do gate após estados terminais.
+
 Atualização posterior de alinhamento MotionLog:
 
 - `ChampionD4WorkoutParser.kt` voltou a tratar timestamps D4 como horário local do dispositivo, em vez de UTC artificial, alinhando o comportamento ao MotionLog funcional.

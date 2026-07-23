@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -96,6 +96,13 @@ Após coordinator, ViewModel e UI básica, a fase ainda precisa impedir operaç�
 
 - diff focado em navegação, ViewModel e mensagens seguras.
 
+## Resultado
+
+- `ChampionNavigation.kt` passou a bloquear saída da tela Exercícios durante importação ativa, com confirmação para troca de destino, back físico e fechamento da activity raiz.
+- `ExercisesScreen.kt` agora observa lifecycle e cancela importação em `ON_STOP`, preservando blocos já persistidos e evitando operação invisível no background.
+- `ChampionWatchWorkoutImportCoordinator.kt`, `ChampionManualHeartRateCoordinator.kt` e `ChampionD1HeartRateSyncCoordinator.kt` agora exibem mensagens seguras específicas do owner ativo quando o gate foreground rejeita nova operação.
+- Retry e dismiss já existentes permaneceram válidos, preservando nova tentativa limpa com novo permit após estados terminais.
+
 ## Atualização do overview
 
 - marcar `010-10` como concluída;
@@ -104,3 +111,7 @@ Após coordinator, ViewModel e UI básica, a fase ainda precisa impedir operaç�
 ## Validação final
 
 - confirmar que validação física e fechamento documental permaneceram para tasks posteriores.
+
+## Validação executada
+
+- `./gradlew assembleDebug`

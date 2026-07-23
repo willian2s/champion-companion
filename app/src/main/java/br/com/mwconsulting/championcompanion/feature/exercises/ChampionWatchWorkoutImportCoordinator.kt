@@ -100,7 +100,7 @@ class ChampionWatchWorkoutImportCoordinator(
             is ForegroundBleOperationAcquireResult.Rejected -> {
                 return WatchWorkoutImportError(
                     category = WatchWorkoutImportErrorCategory.BLE_OPERATION_IN_PROGRESS,
-                    message = "Outra operacao Bluetooth de foreground ja esta em andamento.",
+                    message = gateResult.activeOperation.owner.toExercisesForegroundBleBlockMessage(),
                     isRetryable = true,
                 ).also { error ->
                     mutableState.value = WatchWorkoutImportSurfaceState.Failed(
@@ -812,6 +812,13 @@ class ChampionWatchWorkoutImportCoordinator(
 
     private fun Throwable.isExpectedObserverShutdown(): Boolean =
         message?.startsWith("notification_hub_closed:") == true
+
+    private fun ForegroundBleOperationOwner.toExercisesForegroundBleBlockMessage(): String = when (this) {
+        ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização do relógio está em andamento na tela Início."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio já está em andamento na tela Exercícios."
+    }
 
     private data class ActiveImport(
         val permit: ForegroundBleOperationPermit,

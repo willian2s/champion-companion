@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-09` concluídas; `010-10` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` a `010-10` concluídas; `010-11` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -101,6 +101,13 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - `ExercisesScreen.kt` agora renderiza superfície real da feature com CTA `Buscar treinos no relógio`, progresso textual, resultado, metadata da última importação e cards somente leitura para pendências.
 - Placeholder foi removido sem introduzir revisão, descarte, sync ou bloqueio de navegação; essas bordas continuam reservadas para `010-10` e fases posteriores.
 - Screenshot continua pendente de execução em dispositivo e deve entrar só no PR, conforme regra visual do repositório.
+
+## Achados de `010-10`
+
+- `ChampionNavigation.kt` agora trata Exercícios como superfície bloqueável, espelhando confirmação de saída já existente em Saúde para troca de aba, navegação para trás e back físico no destino raiz.
+- `ExercisesScreen.kt` agora observa lifecycle e cancela importação em `ON_STOP`, mantendo retorno ao foreground sem auto-start e sem gate preso fora de visão.
+- Rejeições do `ForegroundBleOperationGate` em Exercícios e Saúde agora mostram mensagens seguras por owner ativo, incluindo importação de treinos, sem expor detalhe BLE técnico.
+- Risco aceito permanece físico: cancelamento por background preserva blocos já persistidos, mas validação em relógio real segue para `010-11` e `010-12`.
 
 ## Ajuste posterior de alinhamento MotionLog
 
@@ -222,7 +229,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - [x] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
 - [x] `010-08` criar `ExercisesViewModel`
 - [x] `010-09` substituir placeholder de Exercícios por UI de importação e pendências
-- [ ] `010-10` integrar progresso, cancelamento, retry, lifecycle, navegação e mensagens seguras
+- [x] `010-10` integrar progresso, cancelamento, retry, lifecycle, navegação e mensagens seguras
 - [ ] `010-11` executar primeira validação física D3/D4
 - [ ] `010-12` resolver achados físicos e validar Gate B
 - [ ] `010-13` fechar spec, overview, baseline factual, checklist e dívida

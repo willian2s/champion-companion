@@ -2,6 +2,7 @@ package br.com.mwconsulting.championcompanion.feature.exercises
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -24,6 +25,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -60,10 +64,26 @@ fun ExercisesScreen(
         }
     },
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(viewModel) {
         viewModel.onIntent(ExercisesIntent.Load)
+    }
+
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START,
+                Lifecycle.Event.ON_RESUME,
+                -> viewModel.onIntent(ExercisesIntent.Load)
+
+                Lifecycle.Event.ON_STOP -> viewModel.onIntent(ExercisesIntent.AppMovedToBackground)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Surface(
