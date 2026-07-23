@@ -49,12 +49,16 @@ Roadmap atual ainda coloca escrita real no Health Connect dentro da Fase 09. Est
 - `feature/health/HealthMetricDetailScreens.kt` concentra `HeartRateDetailScreen`, onde medicao manual ja e funcional, grafico ainda e placeholder e historico atual mostra apenas recentes manuais.
 - `feature/health/HealthViewModel.kt` observa `observeLatestValidMeasurement()` para ultimo BPM geral, mas `observeRecentManualMeasurements(...)` ainda limita historico da tela a `MANUAL_MEASUREMENT`.
 - `feature/health/HealthFeatureContract.kt` modela apenas state machine da medicao manual. Nao ha estado independente para D1, periodo, agregacoes, grafico ou ultima importacao.
+- `feature/health/HealthMetricDetailScreens.kt` ainda nao expone CTA funcional de D1: `Buscar dados do relogio` aparece apenas como copy futura no card `Ações futuras`.
 - `core/model/HeartRateAndSync.kt` ja contem `HeartRateSource.WATCH_D1_HISTORY`, `D1RecordKey` e `HeartRateDeduplicationKey.D1History`.
 - `core/database/ChampionDatabase.kt` v2 ja possui `heart_rate_measurements` com `deduplicationKey` unico e `health_sync_operations` com unicidade por `(aggregateId, recordType)`.
 - `core/database/ChampionDaos.kt` ja possui `findValidPendingForSync()` para D1 e `observeLatestValidMeasurement()`, mas nao possui query por periodo nem historico consolidado manual + D1.
 - `data/RoomRepositories.kt` ja cria `HealthSyncOperationEntity(state = "PENDING")` para D1 elegivel novo, mas nao repara operacao ausente quando registro D1 ja existe.
+- `data/RoomRepositories.kt` ainda usa `import(measurements)` generico, sem resultado tipado de lote, sem contagens de inseridos/duplicados/conflitos e sem metadata D1 dedicada.
 - `feature/home/HomeViewModel.kt` e `feature/home/HomeScreen.kt` usam `Device.importMetadata.lastImportedAt` como ultima sincronizacao do resumo diario; esse metadado nao pode virar ultima importacao D1.
 - `core/navigation/ChampionNavigation.kt` e `HeartRateDetailScreen` hoje protegem saida e background apenas para medicao manual.
+- `core/bluetooth/ChampionConnectionManager.kt`, `ChampionTransportSession.kt`, `ChampionNotificationHub.kt`, `ChampionPacketRouter.kt` e `feature/device/DeviceConnectionBootstrap.kt` ja oferecem sessao reutilizavel, subscriptions por canal e handshake A1 reutilizavel, mas auditoria nao encontrou parser D1, collector multipart nem coordinator D1 de produto.
+- `core/model/RepositoryContracts.kt` e `InMemoryForegroundBleOperationGate.kt` ainda expõem somente `DAILY_STEPS_REFRESH` e `MANUAL_HEART_RATE`; `WATCH_D1_HISTORY` ainda precisa ser adicionado.
 
 ## Objetivo
 
@@ -210,6 +214,8 @@ timeout: 15 segundos
 retry automatico interno: nenhum
 ```
 
+Auditoria `009-01` confirmou que esse ainda e unico comando D1 documentado e implementado na baseline de referencia. Nao ha evidencia atual de variante por data, faixa, 7 dias ou 30 dias.
+
 ## Canais
 
 - escrita em `F008_WRITE` com `WITH_RESPONSE`;
@@ -242,6 +248,8 @@ D1Packet + D1ImportContext -> HeartRateMeasurement
 ## Bytes Desconhecidos
 
 Offsets `6-13` e `15-18` permanecem sem semantica confirmada.
+
+Auditoria `009-01` nao encontrou no codigo atual do app nem nos documentos obrigatorios evidencia suficiente para promover esses offsets a ano, mes, dia, segundos, timezone, checksum ou controle adicional.
 
 Nao:
 
@@ -515,6 +523,8 @@ flowchart TD
 ## Metadados Da Consulta
 
 Nao reutilizar `DeviceImportMetadata.lastImportedAt` como se fosse exclusivo de D1.
+
+Auditoria `009-01` confirmou risco concreto desse reuso: `HomeViewModel.kt`, `HomeScreen.kt`, `DeviceManagementViewModel.kt` e `DeviceScreen.kt` continuam expondo esse campo como metadado generico de importacao/sincronizacao do dispositivo.
 
 Solucao planejada:
 

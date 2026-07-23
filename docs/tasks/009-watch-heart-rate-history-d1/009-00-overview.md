@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejado em 2026-07-23. Nenhuma task da Fase 09 executada ainda.
+Em andamento desde 2026-07-23. `009-01` concluida; demais tasks pendentes.
 
 ## Objetivo
 
@@ -37,6 +37,18 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 - `HeartRateRepository` ja possui scaffolding parcial de D1 no dominio e na persistencia, mas sem queries por periodo nem metadado especifico de importacao.
 - `ForegroundBleOperationGate` ainda nao possui owner `WATCH_D1_HISTORY`.
 - `Device.importMetadata.lastImportedAt` continua semantica generica de resumo diario e nao pode ser reinterpretado como metadado exclusivo de D1.
+
+## Achados De `009-01`
+
+- `HealthMetricDetailScreens.kt` ainda mantem `HeartRateDetailScreen` como owner visual apenas da medicao manual; grafico segue placeholder, historico segue manual-only e `Buscar dados do relogio` ainda aparece apenas como texto futuro.
+- `HealthViewModel.kt` ainda nao possui estado separado para importacao D1, periodo, agregacoes, ultima importacao D1 ou resultado tipado de sync local.
+- `ChampionConnectionManager.kt`, `ChampionTransportSession.kt`, `ChampionNotificationHub.kt`, `ChampionPacketRouter.kt` e `DeviceConnectionBootstrap.kt` ja oferecem base de sessao, subscriptions e handshake A1 reutilizavel, mas auditoria nao encontrou parser D1, collector multipart nem coordinator D1 de produto.
+- `ForegroundBleOperationGate` ainda expone apenas `DAILY_STEPS_REFRESH` e `MANUAL_HEART_RATE`; `WATCH_D1_HISTORY` continua ausente.
+- `HeartRateAndSync.kt` ja contem scaffolding de dominio para `WATCH_D1_HISTORY`, `D1RecordKey` e `HeartRateDeduplicationKey.D1History`.
+- `ChampionDatabase.kt` v2, `ChampionDaos.kt` e `RoomRepositories.kt` ja sustentam `deduplicationKey` unico e fila `PENDING` parcial para D1 elegivel novo, mas ainda sem metadata D1 dedicada, query por periodo, lote tipado, historico consolidado ou reparo de operacao pendente ausente.
+- `HomeViewModel.kt`, `DeviceManagementViewModel.kt` e telas relacionadas continuam usando `Device.importMetadata.lastImportedAt` como metadado generico; esse campo nao representa ultima importacao D1.
+- `docs/protocol/history-d1.md` confirma limite real atual: `D1 01 00 00` consulta historico automatico do dia corrente, com timeout foreground de 15 segundos, conclusao por `totalPackets > 0 && packetIndex >= totalPackets`, sem data/timezone no payload e sem semantica confirmada para offsets `6-13` e `15-18`.
+- Fronteira correta confirmada: Fase 09 e local-first; Health Connect real fica para Fase 12, apesar do roadmap ainda divergente.
 
 ## Estado Herdado Da Fase 08
 
@@ -137,7 +149,7 @@ Controlar escopo, ordem, dependencias, paralelismo, checklist, validacao e divid
 
 ## Checklist
 
-- [ ] `009-01` auditar protocolo D1, lacunas e fronteira Health Connect
+- [x] `009-01` auditar protocolo D1, lacunas e fronteira Health Connect
 - [ ] `009-02` formalizar ADR, roadmap e alinhamento Fase 09/Fase 12
 - [ ] `009-03` definir contratos, metadata e state machine D1
 - [ ] `009-04` implementar comando D1, parser e collector multipart
@@ -201,6 +213,14 @@ Galaxy S22 com Champion C001:
 - historico com BPM de treinos para fase futura apos decisoes de treino;
 - cobertura ampla Compose e BLE para Fase 21;
 - investigacao dos bytes D1 desconhecidos segue aberta.
+
+## Riscos Atuais
+
+- `HealthFeatureContract.kt`, `HealthViewModel.kt` e `HealthMetricDetailScreens.kt` ainda concentram estado manual e futura integracao D1; conflito alto esperado a partir de `009-03`.
+- `Device.importMetadata.lastImportedAt` segue exposto em Home e Dispositivo; risco de reuso indevido como metadado D1 caso `009-03` nao introduza fonte propria.
+- `RoomRepositories.import(...)` cria `PENDING` apenas para D1 novo; `009-05` precisa decidir reparo idempotente de operacao ausente para registros existentes.
+- `ForegroundBleOperationGate` ainda nao conhece owner D1; `009-07` precisa expandir arbitragem sem quebrar manual heart rate nem refresh diario.
+- protocolo D1 continua com bytes desconhecidos e sem data no payload; `009-04` precisa manter parser conservador e contexto de tentativa congelado.
 
 ## Criterios Gerais
 
