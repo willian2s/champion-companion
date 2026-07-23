@@ -48,6 +48,8 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
@@ -425,31 +427,34 @@ class RoomRepositories @Inject constructor(
         val activityEntity = activity.toEntity()
         val importEntity = importRecord.toEntity()
         val existingImport = database.watchWorkoutImportDao().findByNaturalKey(importEntity.deviceId, importEntity.origin, importEntity.crc)
-        if (existingImport == null) {
-            database.workoutActivityDao().insert(activityEntity)
-            database.watchWorkoutImportDao().insert(importEntity)
+        val existingActivity = existingImport?.let { database.workoutActivityDao().findById(it.activityId) }
+        val plan = planWatchWorkoutPersistence(
+            incomingActivity = activityEntity,
+            incomingImport = importEntity,
+            existingImport = existingImport,
+            existingActivity = existingActivity,
+        ) ?: return@write if (existingImport != null && existingActivity == null) RepositoryResult.NotFound else RepositoryResult.UnexpectedState
+        if (!plan.isReimport) {
+            database.workoutActivityDao().insert(plan.persistedActivity)
+            database.watchWorkoutImportDao().insert(plan.persistedImport)
         } else {
-            val existingActivity = database.workoutActivityDao().findById(existingImport.activityId) ?: return@write RepositoryResult.NotFound
-            // Reimport replaces parser output only; user decisions and calibration remain authoritative.
-            val refreshed = activityEntity.copy(
-                id = existingActivity.id,
-                confirmedType = existingActivity.confirmedType,
-                workflowState = existingActivity.workflowState,
-                reviewedAtEpochMillis = existingActivity.reviewedAtEpochMillis,
-                calibrationId = existingActivity.calibrationId,
-                calibratedDistanceMeters = existingActivity.calibratedDistanceMeters,
-                calibratedAveragePaceSecondsPerKilometer = existingActivity.calibratedAveragePaceSecondsPerKilometer,
-                calibratedAverageSpeedMetersPerSecond = existingActivity.calibratedAverageSpeedMetersPerSecond,
-            )
-            database.workoutActivityDao().update(refreshed)
-            database.watchWorkoutImportDao().update(importEntity.copy(id = existingImport.id, activityId = existingActivity.id))
+            database.workoutActivityDao().update(plan.persistedActivity)
+            database.watchWorkoutImportDao().update(plan.persistedImport)
         }
-        val persistedId = existingImport?.activityId ?: activityEntity.id
+        val persistedId = plan.persistedActivity.id
         database.workoutDetailDao().deleteIntervalsForActivity(persistedId)
         database.workoutDetailDao().deleteHeartRateSamplesForActivity(persistedId)
         database.workoutDetailDao().insertIntervals(activity.toIntervals(persistedId, generateIds(activity.intervals.size)))
         database.workoutDetailDao().insertHeartRateSamples(activity.toHeartRateSamples(persistedId, generateIds(activity.heartRateSamples.size)))
         RepositoryResult.Success(Unit)
+    }
+
+    override suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = withContext(ioDispatcher) {
+        RepositoryResult.Success(
+            database.watchWorkoutImportDao()
+                .findLookupByNaturalKey(deviceId.value.toString(), DataOrigin.WATCH_D3_D4.name, crc)
+                ?.toDomain(),
+        )
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -459,6 +464,19 @@ class RoomRepositories @Inject constructor(
             importRecord?.let { activity.toPendingReviewDomain(it, database.workoutDetailDao().findIntervalsForActivity(activity.id), database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id)) }
         }) }
         .flowOn(ioDispatcher)
+
+    override fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> =
+        database.deviceImportMetadataDao()
+            .observeByDeviceAndImportType(deviceId.value.toString(), WATCH_D3_D4_IMPORT_TYPE)
+            .map { it?.toWatchWorkoutImportMetadata() }
+            .flowOn(ioDispatcher)
+
+    override suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = write {
+        val metadataDao = database.deviceImportMetadataDao()
+        val existing = metadataDao.findByDeviceAndImportType(metadata.deviceId.value.toString(), WATCH_D3_D4_IMPORT_TYPE)
+        metadataDao.upsert(metadata.toEntity(id = existing?.id ?: ids.next().toString(), importType = WATCH_D3_D4_IMPORT_TYPE))
+        RepositoryResult.Success(Unit)
+    }
 
     override suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity> = write {
         val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return@write RepositoryResult.NotFound
@@ -525,7 +543,11 @@ class RoomRepositories @Inject constructor(
     override suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError): RepositoryResult<Unit> = transitionSync(operationId, listOf("SYNCING"), "FAILED", null, error.name)
 
     override suspend fun store(payload: DiagnosticPayload): RepositoryResult<Unit> = write {
-        database.diagnosticPayloadDao().insert(payload.toEntity())
+        val payloadDao = database.diagnosticPayloadDao()
+        payloadDao.insert(payload.toEntity())
+        payload.toDerivedOutputEntities(generateIds(payload.derivedOutputs.size)).forEach { derivedOutput ->
+            payloadDao.insertDerivedOutput(derivedOutput)
+        }
         RepositoryResult.Success(Unit)
     }
 
@@ -632,6 +654,48 @@ class RoomRepositories @Inject constructor(
             .encode()
 
     private fun generateIds(count: Int): Iterator<java.util.UUID> = List(count) { ids.next() }.iterator()
+}
+
+internal data class PlannedWatchWorkoutPersistence(
+    val persistedActivity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity,
+    val persistedImport: br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity,
+    val isReimport: Boolean,
+)
+
+internal fun planWatchWorkoutPersistence(
+    incomingActivity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity,
+    incomingImport: br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity,
+    existingImport: br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity?,
+    existingActivity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity?,
+): PlannedWatchWorkoutPersistence? {
+    if (incomingActivity.parserValidity == "INVALID" || incomingImport.parserValidity == "INVALID") {
+        return null
+    }
+    if (existingImport == null) {
+        return PlannedWatchWorkoutPersistence(
+            persistedActivity = incomingActivity,
+            persistedImport = incomingImport,
+            isReimport = false,
+        )
+    }
+    val persistedActivity = existingActivity ?: return null
+    return PlannedWatchWorkoutPersistence(
+        persistedActivity = incomingActivity.copy(
+            id = persistedActivity.id,
+            confirmedType = persistedActivity.confirmedType,
+            workflowState = persistedActivity.workflowState,
+            reviewedAtEpochMillis = persistedActivity.reviewedAtEpochMillis,
+            calibrationId = persistedActivity.calibrationId,
+            calibratedDistanceMeters = persistedActivity.calibratedDistanceMeters,
+            calibratedAveragePaceSecondsPerKilometer = persistedActivity.calibratedAveragePaceSecondsPerKilometer,
+            calibratedAverageSpeedMetersPerSecond = persistedActivity.calibratedAverageSpeedMetersPerSecond,
+        ),
+        persistedImport = incomingImport.copy(
+            id = existingImport.id,
+            activityId = persistedActivity.id,
+        ),
+        isReimport = true,
+    )
 }
 
 internal data class PlannedD1Import(

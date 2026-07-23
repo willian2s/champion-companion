@@ -154,12 +154,25 @@ interface WatchWorkoutImportDao {
     @Query("SELECT * FROM watch_workout_imports WHERE deviceId = :deviceId AND origin = :origin AND crc = :crc")
     suspend fun findByNaturalKey(deviceId: String, origin: String, crc: Int): WatchWorkoutImportEntity?
 
+    @Query("SELECT importRecord.id AS importId, importRecord.activityId AS activityId, importRecord.deviceId AS deviceId, importRecord.crc AS crc, importRecord.parserValidity AS parserValidity, importRecord.importedAtEpochMillis AS importedAtEpochMillis, activity.workflowState AS workflowState FROM watch_workout_imports importRecord INNER JOIN workout_activities activity ON activity.id = importRecord.activityId WHERE importRecord.deviceId = :deviceId AND importRecord.origin = :origin AND importRecord.crc = :crc LIMIT 1")
+    suspend fun findLookupByNaturalKey(deviceId: String, origin: String, crc: Int): WatchWorkoutImportLookupRecord?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(importRecord: WatchWorkoutImportEntity)
 
     @Update
     suspend fun update(importRecord: WatchWorkoutImportEntity): Int
 }
+
+data class WatchWorkoutImportLookupRecord(
+    val importId: String,
+    val activityId: String,
+    val deviceId: String,
+    val crc: Int,
+    val parserValidity: String,
+    val importedAtEpochMillis: Long,
+    val workflowState: String,
+)
 
 @Dao
 interface WorkoutDetailDao {

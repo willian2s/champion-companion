@@ -2,7 +2,7 @@
 
 ## Status
 
-Pendente.
+Concluída em 2026-07-23.
 
 ## Objetivo
 
@@ -104,11 +104,49 @@ Adaptar persistência atual para importação D3/D4 por bloco, metadata dedicada
 - decisão explícita sobre migration ou ausência dela;
 - schema exportado, se houver mudança de banco.
 
+## Execução
+
+### Decisão de schema
+
+- nenhuma migration foi criada;
+- `ChampionDatabase` permaneceu em `version = 3`;
+- schema exportado permaneceu inalterado;
+- justificativa: `watch_workout_imports`, `device_import_metadata` e `diagnostic_derived_outputs` já cobriam deduplicação, metadata e vínculo diagnóstico exigidos pela fase.
+
+### Contratos e persistência adicionados
+
+- `WorkoutActivityRepository.findWatchWorkoutImport(deviceId, crc)`
+- `WatchWorkoutImportLookup`
+- metadata D3/D4 observável por `WATCH_WORKOUT_D3_D4`
+- upsert de metadata D3/D4 separado da metadata D1
+- persistência de derived outputs diagnósticos junto do `DiagnosticPayload`
+- guarda defensiva: `persistImported(...)` rejeita parser `INVALID`
+
+### Reuso e retomada por CRC
+
+- lookup local por `(deviceId, origin = WATCH_D3_D4, crc)` agora retorna parser validity, workflow e timestamps suficientes para:
+  - pular `VALID` em retomada;
+  - reprocessar `PARTIAL`;
+  - distinguir ausência local de falha/pendência.
+
+### Testes adicionados
+
+- deduplicação por CRC via planner puro de persistência;
+- reimportação preserva revisão, workflow e calibração;
+- `INVALID` não gera plano de persistência;
+- metadata D3/D4 usa import type dedicado e preserva status;
+- lookup local diferencia `VALID` de `PARTIAL` para retomada;
+- derived outputs diagnósticos viram entidades persistíveis.
+
 ## Atualização do overview
 
 - marcar `010-06` como concluída;
 - registrar se houve migration, conflito de schema ou novo hotspot.
 
+Registrado: não houve migration; hotspots principais ficaram em `RoomRepositories.kt` e `DatabaseMappers.kt`.
+
 ## Validação final
 
 - confirmar que UI, coordinator BLE e Health Connect não foram tocados aqui.
+
+Confirmado: UI, coordinator BLE e Health Connect não foram tocados nesta task.

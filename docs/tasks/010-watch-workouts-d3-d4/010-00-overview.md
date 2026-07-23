@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-23. `010-01` a `010-05` concluídas; `010-06` a `010-13` pendentes.
+Planejada em 2026-07-23. `010-01` a `010-06` concluídas; `010-07` a `010-13` pendentes.
 
 ## Objetivo
 
@@ -74,6 +74,13 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - `WatchWorkoutImportSync.kt` agora expõe resultado tipado de parser e resumo técnico suficiente para `010-06` e `010-07` consumirem sem reler bytes.
 - `WatchWorkoutActivity.kt` deixou de exigir índices contíguos de intervalos, permitindo preservar lacunas reais do D4 sem buckets sintéticos.
 - Novo risco de conflito: `WatchWorkoutActivity.kt` agora virou ponto compartilhado entre parser da `010-05` e persistência/reimportação da `010-06`.
+
+## Achados de `010-06`
+
+- Nenhuma migration foi necessária: schema v3 já cobria `watch_workout_imports`, `device_import_metadata` e `diagnostic_derived_outputs`.
+- `RoomRepositories.kt` agora expõe lookup local por CRC, metadata D3/D4 observável e persistência de derived outputs diagnósticos junto do payload privado.
+- Reimportação continua preservando revisão, workflow e calibração, agora centralizada também em `planWatchWorkoutPersistence(...)` para teste puro.
+- Novo hotspot confirmado: `RoomRepositories.kt` e `DatabaseMappers.kt` ficam compartilhados entre `010-06` e coordinator/persistência futura de `010-07`.
 
 ## Estado herdado da Fase 09
 
@@ -184,7 +191,7 @@ Controlar escopo, ordem, dependências, paralelismo, checklist, validação fís
 - [x] `010-03` implementar protocolo e collector D3
 - [x] `010-04` implementar collector D4 e remontagem
 - [x] `010-05` implementar parser D4, timestamps, intervalos e agregados
-- [ ] `010-06` implementar persistência, deduplicação, metadata e payload privado
+- [x] `010-06` implementar persistência, deduplicação, metadata e payload privado
 - [ ] `010-07` implementar coordinator D3/D4 e owner `WATCH_WORKOUT_IMPORT`
 - [ ] `010-08` criar `ExercisesViewModel`
 - [ ] `010-09` substituir placeholder de Exercícios por UI de importação e pendências

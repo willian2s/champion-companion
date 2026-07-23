@@ -66,6 +66,13 @@ Atualização de `010-05`:
 - `WatchWorkoutImportSync.kt` agora concentra `WatchWorkoutD4Layout`, `WatchWorkoutParserSummary` e `WatchWorkoutParserResult`.
 - `WatchWorkoutActivity.kt` agora aceita intervalos esparsos ordenados e amostras de BPM estritamente crescentes no tempo, preservando a regra de não sintetizar buckets ausentes.
 
+Atualização de `010-06`:
+
+- `ChampionDatabase.kt` e schema exportado permaneceram inalterados; `010-06` confirmou que não há lacuna real de schema e não criou migration.
+- `WorkoutActivityRepository` agora expõe lookup local por `(deviceId, crc)` via `findWatchWorkoutImport(...)`, suficiente para retomada por CRC e skip local de `VALID`.
+- `DatabaseMappers.kt` agora mapeia metadata `WATCH_WORKOUT_D3_D4`, lookup de importação D3/D4 e derived outputs diagnósticos.
+- `RoomRepositories.kt` agora persiste derived outputs junto do payload privado, bloqueia persistência acidental de parser `INVALID` e observa/atualiza metadata D3/D4 sem reutilizar metadata D1.
+
 ## Achados auditados em `010-01`
 
 - `AGENTS.md` estava apontando para `docs/core/current-project-baseline.md`, mas a baseline factual vigente está em `docs/baseline/current-baseline.md`.
@@ -745,6 +752,8 @@ Plano inicial:
 - reuso de `WorkoutActivity`, `WatchWorkoutImport`, `WorkoutInterval`, `WorkoutHeartRateSample` e `device_import_metadata`;
 - criação de migration só se `010-01` ou `010-02` provarem lacuna real de schema.
 
+Decisão confirmada em `010-06`: schema atual já cobre importação D3/D4; nenhuma migration foi necessária.
+
 ## Payload diagnóstico
 
 - fluxo `WATCH_WORKOUT`;
@@ -796,6 +805,11 @@ Contratos formalizados em `010-02`:
 - `WatchWorkoutImportMetadata`
 - `WorkoutActivityRepository.observeWatchWorkoutImportMetadata(...)`
 - `WorkoutActivityRepository.updateWatchWorkoutImportMetadata(...)`
+
+Contrato adicional formalizado em `010-06`:
+
+- `WorkoutActivityRepository.findWatchWorkoutImport(...)`
+- `WatchWorkoutImportLookup`
 
 ## State machine
 
