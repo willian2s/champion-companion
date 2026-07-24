@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -102,7 +102,42 @@ O roadmap atual ainda atribui à Fase 11 ação funcional de sincronizar, retry 
 - marcar `011-02` como concluída;
 - registrar que contratos e implementação podem seguir com fronteira documental estável.
 
+## Execução
+
+### Arquivos alterados
+
+- `docs/decisions/adr-011-activity-ready-to-sync-phase-boundary.md`
+- `docs/roadmap/champion-companion-roadmap.md`
+- `docs/specs/011-activity-review-calibration.md`
+- `docs/tasks/011-activity-review-calibration/011-00-overview.md`
+- `docs/tasks/011-activity-review-calibration/011-02-formalize-ready-to-sync-adr-and-roadmap.md`
+
+### Resultado da ADR
+
+- criada `ADR-011` para formalizar que Fase 11 termina em `READY_TO_SYNC`;
+- Fase 12 passa a ser dona explícita de `SYNCING`, `SYNCED`, `SYNC_FAILED` e da integração real com Health Connect;
+- métricas importadas foram formalizadas como imutáveis;
+- calibração foi formalizada como camada derivada;
+- descarte lógico foi formalizado;
+- bloqueio de `PARTIAL` foi formalizado;
+- preservação de revisão na reimportação foi formalizada.
+
+### Resultado do roadmap
+
+- Fase 11 deixou de citar ação funcional de sincronizar e retry do provider;
+- Fase 11 deixou de citar `Health Connect` como item de detalhe da fase;
+- fluxo da Fase 11 foi corrigido para sair de `PENDING_REVIEW` e terminar em `READY_TO_SYNC`;
+- Fase 11 ganhou fronteira explícita de fase com saída local `READY_TO_SYNC`;
+- Fase 12 passou a citar explicitamente consumo de backlog `READY_TO_SYNC` e backlog D1 `PENDING`.
+
+### Coerência preservada
+
+- `title`, `notes`, tipo confirmado e distância calibrada permanecem registrados como entradas da Fase 12;
+- nenhuma implementação funcional foi introduzida;
+- nenhuma fronteira de Health Connect foi antecipada para Fase 11.
+
 ## Validação final
 
 - Não criar, alterar ou executar testes automatizados.
 - Task executável em sessão nova, sem depender de contexto anterior.
+- Confirmado: mudanças ficaram restritas à documentação da Fase 11 e ao roadmap/ADR correspondentes.

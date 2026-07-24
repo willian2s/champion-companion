@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01` concluída; `011-02` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01` e `011-02` concluídas; `011-03` a `011-13` pendentes.
 
 ## Objetivo
 
@@ -50,6 +50,13 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `HomeViewModel.kt` e `HomeScreen.kt` ainda observam pendências de `AppWorkoutSession`, não `WorkoutActivity`.
 - `AppDestination.kt` e `ChampionNavigation.kt` ainda não possuem destino por `activityId`.
 - Baseline MotionLog confirma revisão manual e calibração antes do sync, mas descarte lá é exclusão persistida e fator separado de calibração não foi confirmado.
+
+## Achados de `011-02`
+
+- ADR `docs/decisions/adr-011-activity-ready-to-sync-phase-boundary.md` formalizou `READY_TO_SYNC` como saída obrigatória da Fase 11.
+- Roadmap foi corrigido para remover sync funcional, retry do provider e responsabilidade por `SYNCING`, `SYNCED` e `SYNC_FAILED` da Fase 11.
+- Roadmap agora reforça que a Fase 12 consome backlog local `READY_TO_SYNC` e usa tipo confirmado, título, observações e distância calibrada como entradas da integração real.
+- Fronteira documental da fase ficou estável para seguir com contratos, migration, queries e UI local sem ambiguidade de escopo.
 
 ## Estado herdado da Fase 10
 
@@ -146,7 +153,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 ## Checklist
 
 - [x] `011-01` auditar domínio, Room, queries, Home, filtros, navegação, MotionLog e fronteira F11/F12
-- [ ] `011-02` planejar ADR e corrigir roadmap durante implementação
+- [x] `011-02` planejar ADR e corrigir roadmap durante implementação
 - [ ] `011-03` congelar contratos, filtros, estados e limites funcionais
 - [ ] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
 - [ ] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa

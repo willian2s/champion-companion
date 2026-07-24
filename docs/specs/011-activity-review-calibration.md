@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. Auditoria `011-01` concluída.
+Em andamento em 2026-07-24. Auditorias `011-01` e `011-02` concluídas.
 
 ## Contexto
 
@@ -144,7 +144,11 @@ Atividades prontas permanecem locais até a futura ação de sincronização.
 
 ## ADR
 
-Durante a implementação, criar ADR com próximo número disponível para formalizar:
+ADR criada na fase:
+
+- `docs/decisions/adr-011-activity-ready-to-sync-phase-boundary.md`
+
+Ela formaliza:
 
 - Fase 11 termina em `READY_TO_SYNC`;
 - Fase 12 controla sincronização real;
@@ -156,11 +160,16 @@ Durante a implementação, criar ADR com próximo número disponível para forma
 
 ## Roadmap
 
-Durante a implementação, atualizar `docs/roadmap/champion-companion-roadmap.md` para:
+Roadmap corrigido na fase:
 
 - remover da Fase 11 qualquer ação funcional de sincronizar, retry do Health Connect e responsabilidade por `SYNCING`, `SYNCED` e `SYNC_FAILED`;
 - reforçar que a Fase 12 consome `READY_TO_SYNC`;
 - preservar tipo confirmado, título, observações e distância calibrada como entradas da Fase 12.
+
+Atualização de `011-02`:
+
+- Fase 11 do roadmap agora termina explicitamente em `READY_TO_SYNC` e não cita ação funcional de sync;
+- Fase 12 do roadmap agora assume explicitamente consumo de backlog `READY_TO_SYNC` e estados remotos de sincronização.
 
 ## Arquitetura
 
