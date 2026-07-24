@@ -234,6 +234,12 @@ class RoomRepositories @Inject constructor(
             .map { entities -> entities.mapNotNull { it.toDomain() } }
             .flowOn(ioDispatcher)
 
+    override suspend fun findById(summaryId: DailySummaryId): RepositoryResult<DailySummary> = withContext(ioDispatcher) {
+        val summary = database.dailySummaryDao().findById(summaryId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(summary)
+    }
+
     override suspend fun save(summary: DailySummary): RepositoryResult<Unit> = write {
         val entity = summary.toEntity()
         val existing = database.dailySummaryDao().findByNaturalKey(entity.deviceId, entity.origin, entity.localDateIso)
@@ -310,6 +316,14 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun findPendingSync(): RepositoryResult<List<HeartRateMeasurement>> = withContext(ioDispatcher) {
         RepositoryResult.Success(database.heartRateDao().findValidPendingForSync().mapNotNull { it.toDomain() })
+    }
+
+    override suspend fun findById(
+        measurementId: HeartRateMeasurementId,
+    ): RepositoryResult<HeartRateMeasurement> = withContext(ioDispatcher) {
+        val measurement = database.heartRateDao().findById(measurementId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(measurement)
     }
 
     override suspend fun saveManualMeasurement(
@@ -528,6 +542,13 @@ class RoomRepositories @Inject constructor(
             .map { it?.toWatchWorkoutImportMetadata() }
             .flowOn(ioDispatcher)
 
+    override suspend fun findById(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = withContext(ioDispatcher) {
+        val activity = database.workoutActivityDao().findById(activityId.value.toString())
+            ?.let { loadWorkoutActivity(it) }
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(activity)
+    }
+
     override suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = write {
         val metadataDao = database.deviceImportMetadataDao()
         val existing = metadataDao.findByDeviceAndImportType(metadata.deviceId.value.toString(), WATCH_D3_D4_IMPORT_TYPE)
@@ -630,6 +651,20 @@ class RoomRepositories @Inject constructor(
             .observeLatestForActivity(activityId.value.toString())
             .map { it?.toSnapshot() }
             .flowOn(ioDispatcher)
+
+    override suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.UserProfile> = withContext(ioDispatcher) {
+        val profile = database.userProfileDao().findById(profileId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(profile)
+    }
+
+    override suspend fun findWeightById(
+        measurementId: WeightMeasurementId,
+    ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.WeightMeasurement> = withContext(ioDispatcher) {
+        val weight = database.userProfileDao().findWeightById(measurementId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(weight)
+    }
 
     override fun observeRecoverable(): Flow<List<AppWorkoutSession>> = database.appWorkoutSessionDao().observeRecoverable()
         .map { it.mapNotNull { entity -> entity.toDomain() } }

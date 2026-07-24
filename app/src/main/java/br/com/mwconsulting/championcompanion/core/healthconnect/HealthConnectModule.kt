@@ -14,4 +14,16 @@ abstract class HealthConnectModule {
     abstract fun bindHealthConnectPlatform(
         platform: AndroidHealthConnectPlatform,
     ): HealthConnectPlatform
+
+    @Binds
+    @Singleton
+    abstract fun bindHealthConnectGateway(
+        gateway: AndroidHealthConnectGateway,
+    ): HealthConnectGateway
+
+    @Binds
+    @Singleton
+    abstract fun bindHealthRecordMapper(
+        mapper: DefaultHealthRecordMapper,
+    ): HealthRecordMapper
 }

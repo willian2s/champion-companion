@@ -88,6 +88,13 @@ Achados confirmados por `012-05`:
 - operações antigas sem `clientRecordId`, versão ou timestamps novos agora recebem repair idempotente antes do processamento normal da fila.
 - atividades `READY_TO_SYNC` continuam excluídas da reconciliação genérica.
 
+Achados confirmados por `012-06` e `012-07`:
+
+- `HealthConnectGateway` foi adicionado sobre `HealthConnectClient`, cobrindo disponibilidade, permissões write-only concedidas e `insertRecords` sem leitura remota.
+- `HealthRecordMapper` passou a mapear resumo diário, BPM manual, backlog D1, peso, altura e atividade para records reais do SDK, reutilizando `clientRecordId` e versão da fila persistida.
+- granularidade de atividade foi estabilizada por record independente: sessão obrigatória, distância/calorias/BPM opcionais quando elegíveis, sem `StepsRecord` e sem rota.
+- `ParserValidity.PARTIAL` passou a ser tratado por presença real de dados complementares, sem inventar métricas ausentes.
+
 ## SDK
 
 Dependência planejada:

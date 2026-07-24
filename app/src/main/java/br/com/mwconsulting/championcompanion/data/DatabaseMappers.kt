@@ -69,12 +69,14 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationId
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationOrigin
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.UserProfileId
+import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportId
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -236,6 +238,25 @@ internal fun DailySummaryEntity.toDomain(): DailySummary? {
         id = summaryId, key = DailySummaryKey(deviceId?.let(::uuid)?.let(::DeviceId), dataOrigin, LocalDate.parse(localDateIso)),
         steps = steps, estimatedDistanceMeters = estimatedDistanceMeters, estimatedCaloriesKilocalories = estimatedCaloriesKilocalories,
         collectedAt = Instant.ofEpochMilli(collectedAtEpochMillis), updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis), validity = dataValidity,
+    ).successOrNull()
+}
+
+internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity.toDomain(): WeightMeasurement? {
+    val unit = enum<br.com.mwconsulting.championcompanion.core.model.WeightUnit>(unit) ?: return null
+    return WeightMeasurement.create(
+        id = uuid(id)?.let(::WeightMeasurementId) ?: return null,
+        value = value,
+        unit = unit,
+        measuredAt = Instant.ofEpochMilli(measuredAtEpochMillis),
+        origin = enum<DataOrigin>(origin) ?: return null,
+    ).successOrNull()
+}
+
+internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEntity.toDomain(): UserProfile? {
+    return UserProfile.create(
+        id = uuid(id)?.let(::UserProfileId) ?: return null,
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+        heightCentimeters = heightCentimeters,
     ).successOrNull()
 }
 

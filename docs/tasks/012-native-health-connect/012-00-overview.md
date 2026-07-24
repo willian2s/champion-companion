@@ -76,6 +76,19 @@ Planejada em 2026-07-24.
 - Atividades em `READY_TO_SYNC` continuam fora da reconciliação genérica e preservam trigger explícito próprio.
 - `./gradlew :app:compileDebugKotlin` foi validado com sucesso após estabilização da fila.
 
+## Achados de `012-06`
+
+- `HealthConnectGateway` Android-free e implementação concreta Android foram adicionados sobre `HealthConnectClient`, cobrindo disponibilidade, permissões concedidas e insert write-only.
+- `HealthRecordMapper` passou a mapear `DailySummary`, `HeartRateMeasurement`, `WeightMeasurement` e `UserProfile` para `StepsRecord`, `HeartRateRecord`, `WeightRecord` e `HeightRecord` com `clientRecordId` e versão reutilizados da fila.
+- contratos mínimos de repositório ganharam busca por aggregate para resumo diário, BPM, peso, altura e atividade, preparando coordinator sem acoplar mapper a Room.
+
+## Achados de `012-07`
+
+- o mesmo `HealthRecordMapper` passou a mapear `WorkoutActivity` em records granulares de `ExerciseSessionRecord`, `DistanceRecord`, `TotalCaloriesBurnedRecord` e `HeartRateRecord`.
+- a elegibilidade de atividade foi estabilizada por tipo de record, respeitando `READY_TO_SYNC|SYNC_FAILED`, ausência de `StepsRecord`, prioridade calibrada > original > estimada e amostras reais de BPM.
+- `ParserValidity.PARTIAL` permanece elegível apenas quando sessão temporal é válida e os complementos realmente existem no aggregate local.
+- `./gradlew :app:compileDebugKotlin` foi validado com sucesso após gateway e mapeadores.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.
@@ -187,8 +200,8 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 - [x] `012-03` integrar SDK estável `connect-client:1.1.0`, manifesto, rationale e disponibilidade
 - [x] `012-04` expandir domínio de sync, record types, identidades e schema Room
 - [x] `012-05` implementar fila de sync, reconciliação de backlog e contratos de repositório
-- [ ] `012-06` implementar gateway e mapeadores de passos, BPM e perfil
-- [ ] `012-07` implementar mapeadores de sessão de exercício e records complementares
+- [x] `012-06` implementar gateway e mapeadores de passos, BPM e perfil
+- [x] `012-07` implementar mapeadores de sessão de exercício e records complementares
 - [ ] `012-08` implementar coordinator foreground com partial e retry
 - [ ] `012-09` integrar triggers pós-persistência de passos, manual e D1
 - [ ] `012-10` integrar sync explícito de atividade e transições de workflow

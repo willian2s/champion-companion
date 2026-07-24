@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -101,6 +101,37 @@ Depois de estabilizar Android base e fila persistida, a fase precisa mapear os a
 
 - marcar `012-06` como concluída;
 - registrar mapeadores simples estabilizados.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectGateway.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectModule.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthRecordMapper.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-06-implement-health-connect-gateway-and-steps-heart-profile-mappers.md`
+
+### Implementação concluída
+
+- `HealthConnectGateway` Android-free e `AndroidHealthConnectGateway` foram adicionados para encapsular disponibilidade, permissões concedidas e `insertRecords` do `HealthConnectClient`.
+- `HealthConnectWritePermission` foi formalizado para passos, BPM, exercício, distância, calorias, peso e altura.
+- `HealthRecordMapper` passou a mapear `DailySummary`, `HeartRateMeasurement`, `WeightMeasurement` e `UserProfile` para `StepsRecord`, `HeartRateRecord`, `WeightRecord` e `HeightRecord`.
+- os mapeadores simples reutilizam `clientRecordId` e `clientRecordVersion` já persistidos na fila, preservando política de idempotência write-only.
+- contratos mínimos de repositório ganharam busca por aggregate para resumo diário, BPM, peso e altura, evitando acoplamento do mapper a Room.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- nenhuma leitura do Health Connect foi adicionada.
+- permissões continuam limitadas ao conjunto write-only da fase.
 
 ## Validação final
 

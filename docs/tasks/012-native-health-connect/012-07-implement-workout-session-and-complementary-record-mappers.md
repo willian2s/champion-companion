@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -105,6 +105,35 @@ As atividades em `READY_TO_SYNC` já existem localmente, com tipo confirmado, t�
 
 - marcar `012-07` como concluída;
 - registrar granularidade de atividade estabilizada.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthRecordMapper.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-07-implement-workout-session-and-complementary-record-mappers.md`
+
+### Implementação concluída
+
+- `HealthRecordMapper` passou a mapear `WorkoutActivity` para `ExerciseSessionRecord`, `DistanceRecord`, `TotalCaloriesBurnedRecord` e `HeartRateRecord` granulares.
+- sessão exige janela temporal válida, tipo confirmado e workflow explícito elegível (`READY_TO_SYNC` ou `SYNC_FAILED`).
+- distância usa prioridade calibrada > original > estimada; calorias exigem valor positivo; BPM usa apenas amostras reais dentro da sessão.
+- nenhum `StepsRecord` de atividade e nenhuma rota foram introduzidos.
+- `findEligibleWorkoutRecordTypes(...)` foi adicionado para que tasks seguintes criem operações apenas para complementos realmente elegíveis, inclusive em `PARTIAL`.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- `ParserValidity.PARTIAL` não inventa distância, calorias ou BPM ausentes.
+- workflow explícito de sincronização da atividade continua para tasks posteriores da fase.
 
 ## Validação final
 
