@@ -60,6 +60,15 @@ A primeira task da fase deve reconciliar documentação atrasada da Fase 11 sem 
 - task de fechamento pendente;
 - visão factual de backlog local herdado.
 
+Achados confirmados por `012-01`:
+
+- Fase 11 foi reconciliada como concluída sem reabrir implementação funcional.
+- `ChampionDatabase` segue em `v4` e ainda não possui campos de identidade estável de sync.
+- `AndroidManifest.xml` ainda não possui permissões, queries ou Activity de rationale do Health Connect.
+- `gradle/libs.versions.toml` e `app/build.gradle.kts` ainda não contêm `connect-client`.
+- `AppPreferences.healthSyncEnabled` já existe, persiste em DataStore e ainda não participa do fluxo funcional.
+- Backlog herdado real está distribuído por tipo: D1 com operação persistida, medição manual sem operação garantida, resumo diário sem operação garantida, atividades `READY_TO_SYNC` e dados locais de peso/altura elegíveis sem pipeline funcional de sync.
+
 ## SDK
 
 Dependência planejada:

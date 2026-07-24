@@ -7,7 +7,7 @@ Validar, em fases futuras, paridade funcional segura entre Champion Companion e 
 ## Baseline E Uso
 
 - Baseline: MotionLog `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`.
-- Status de cada item: verificar checkbox individual. Fase 10 concluiu somente entregas D3/D4 ate `PENDING_REVIEW`; demais itens seguem pendentes.
+- Status de cada item: verificar checkbox individual. Fase 11 concluiu entregas locais de revisao, calibracao, descarte logico e `READY_TO_SYNC`; integracao funcional com Health Connect segue pendente para a Fase 12.
 - Evidencia `Confirmado pelo codigo` descreve baseline. Nao confirma comportamento do Champion Companion nem validacao no dispositivo.
 - Itens `Ainda nao confirmado` exigem decisao ou validacao fisica antes de aceitacao; nao devem ser inferidos como requisito implementado.
 - Validacao deve registrar versao Champion Companion, firmware/dispositivo, dados de entrada, resultado esperado, resultado obtido e evidencia.
@@ -73,11 +73,11 @@ Fontes: `workouts-d3-d4.md`, `feature-inventory.md`, `database-reference.md`, `h
 
 Fontes: `feature-inventory.md`, `database-reference.md`, `health-connect-mapping.md`.
 
-- [ ] Lista mostra atividades pendentes, revisadas, invalidas e estados de sync aplicaveis.
-- [ ] Sugestao automatica de tipo permanece revisavel; usuario confirma ou altera tipo antes de enviar.
-- [ ] Revisao permite tipos confirmados `walking`, `running`, `treadmill` e `free`; regras adicionais so entram apos decisao documentada.
-- [ ] Edicao de distancia respeita limite confirmado: esteira revisada. Edicao generica para outros tipos nao e assumida.
-- [ ] Descarte remove atividade e dependentes de forma consistente, sem aparentar sync concluido.
+- [x] Lista mostra atividades pendentes, prontas, descartadas e estados de sync locais observaveis ja previstos no dominio, sem envio funcional ainda.
+- [x] Sugestao automatica de tipo permanece revisavel; usuario confirma ou altera tipo antes de enviar.
+- [x] Revisao permite tipos confirmados `walking`, `running`, `treadmill` e `free`; regras adicionais so entram apos decisao documentada.
+- [x] Edicao de distancia respeita limite confirmado: esteira revisada. Edicao generica para outros tipos nao e assumida.
+- [x] Descarte e logico, preserva atividade e dependentes locais, e nao aparenta sync concluido.
 - [ ] Sync manual exige revisao, validacao valida, sessao vinculada e calibracao de esteira quando aplicavel.
 - [ ] Falha de sync preserva estado e erro para tentativa manual posterior; sucesso evita novo envio indevido.
 
@@ -96,9 +96,9 @@ Fontes: `feature-inventory.md`, `health-connect-mapping.md`, `database-reference
 
 Fontes: `feature-inventory.md`, `health-connect-mapping.md`.
 
-- [ ] Usuario informa tempo e distancia validos do painel; app recalcula fim, distancia, ritmo, velocidade e calorias segundo regra escolhida.
+- [x] Usuario informa tempo e distancia validos do painel; app recalcula fim, distancia, ritmo e velocidade segundo regra local escolhida, sem envio funcional ainda.
 - [ ] Distancia calibrada, em metros, torna-se unica distancia usada no envio Health Connect de esteira.
-- [ ] Treino importado revisado como esteira fica bloqueado de sync ate calibracao concluida.
+- [x] Treino importado revisado como esteira fica bloqueado de sync ate calibracao concluida.
 - [ ] Fator de calibracao separado nao e exigido nem declarado atingido: baseline nao o confirmou. Decisao futura deve definir calculo/persistencia, se necessario.
 
 ## Health Connect

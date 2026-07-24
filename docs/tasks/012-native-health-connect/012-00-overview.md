@@ -31,6 +31,21 @@ Planejada em 2026-07-24.
 - `docs/baseline/feature-parity-checklist.md` e `docs/baseline/gaps-and-open-questions.md` ainda não refletem toda a fronteira pós-Fase 11.
 - `docs/roadmap/champion-companion-roadmap.md` ainda descreve Fase 12 com `Steps` de atividade e outros pontos que precisam de atualização futura.
 
+## Achados de `012-01`
+
+- Fase 11 foi reconciliada como concluída documentalmente, sem reabertura funcional.
+- `current-baseline.md` foi alinhada ao estado real do código, incluindo revisão, calibração, descarte lógico e `READY_TO_SYNC`.
+- Backlog herdado factual para a Fase 12 foi mapeado como:
+  - D1 com operações `PENDING` ou `FAILED` já persistidas;
+  - medições manuais válidas sem operação garantida;
+  - resumos diários válidos sem operação garantida;
+  - atividades `READY_TO_SYNC` aguardando ação explícita futura;
+  - peso e altura locais elegíveis sem pipeline funcional de sync.
+- `ChampionDatabase` permanece em `v4`.
+- `AndroidManifest.xml` segue sem integração Health Connect.
+- `libs.versions.toml` e `app/build.gradle.kts` seguem sem o SDK `connect-client`.
+- `healthSyncEnabled` já existe em DataStore e segue sem uso funcional.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.

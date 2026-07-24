@@ -6,6 +6,18 @@ Mapear integração Health Connect da baseline MotionLog `feat/015-watch-workout
 
 Salvo indicação contrária, itens são `Confirmado pelo código` em `../motionlog-app`. Regras marcadas `Decisão já definida` vêm de spec/requisitos Fase 0. Prefixos `motionlog:` são referência legada, não contrato para novo app.
 
+## Atualizacao Factual Pre-Fase 12
+
+No estado atual do Champion Companion antes da integracao nativa real:
+
+- Fase 11 ja terminou localmente em `READY_TO_SYNC` para atividades importadas revisadas e calibradas;
+- backlog D1 ja nasce persistido com operacoes locais em `health_sync_operations`, mas somente para `HEART_RATE`;
+- medicoes manuais, resumos diarios, peso e altura ainda nao possuem fila funcional equivalente;
+- `SettingsScreen` ainda nao expõe provider, disponibilidade, permissões nem `manage access`;
+- SDK Android do Health Connect ainda nao foi integrado.
+
+Esta task atualiza o documento para refletir esse ponto de partida factual, sem adiantar decisoes finais de implementacao da Fase 12.
+
 ## Permissões E Disponibilidade
 
 | Classe | Permissões de escrita MotionLog | Situação |

@@ -6,6 +6,14 @@ Este documento descreve SQLite do MotionLog na baseline `feat/015-watch-workouts
 
 Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de dados, compatibilidade de schema, leitura do `motionlog.db`, importador ou transferencia do MotionLog. Documento e referencia conceitual; nao e schema Room nem plano de migrations.
 
+## Atualizacao Factual Pre-Fase 12
+
+- Banco real do Champion Companion esta em `ChampionDatabase` schema `v4`.
+- Fase 11 ja adicionou `title` e `notes` a `workout_activities` e concluiu fluxo local ate `READY_TO_SYNC`.
+- `health_sync_operations` real do Champion Companion ainda esta limitado a backlog D1 de `HEART_RATE`, com estado persistido e sem `clientRecordId`, `clientRecordVersion` ou `syncedAt`.
+- `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja formam backlog local factual para futura fila expandida da Fase 12.
+- Esta task nao altera schema Room; apenas registra ponto de partida factual para migration futura a partir do `v4`.
+
 Classificacao: itens de schema, SQL e fluxo marcados como `Confirmado pelo codigo`. Recomendacoes para banco novo sao `Decisao ja definida` quando derivam de roadmap/spec/ADR; demais sao `Inferido a partir do codigo`.
 
 ## Runtime E Evolucao Atual
