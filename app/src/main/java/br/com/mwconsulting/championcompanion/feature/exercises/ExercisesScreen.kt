@@ -2,6 +2,10 @@ package br.com.mwconsulting.championcompanion.feature.exercises
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +54,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -93,6 +99,10 @@ private val ExerciseHeartRateGuideBands = listOf(
     71f to Color(0xFF4FC3F7),
     30f to Color(0xFF29B6F6),
 )
+
+private val PendingWorkflowBorderColor = Color(0xFFF9A825)
+private val ReadyWorkflowBorderColor = Color(0xFF1E88E5)
+private val SyncedWorkflowBorderColor = Color(0xFF2E7D32)
 
 @Composable
 fun ExercisesScreen(
@@ -684,15 +694,34 @@ private fun WorkoutActivityCard(
     activity: WorkoutActivity,
     onClick: () -> Unit,
 ) {
+    val borderColor = activity.workflowState.toListBorderColor()
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(width = 2.dp, color = borderColor, shape = ChampionShapeMedium),
         shape = ChampionShapeMedium,
     ) {
         Column(
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = activity.displayType().toListIcon(),
+                    contentDescription = activity.displayType().toLabel(),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = activity.displayType().toLabel(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 text = activity.displayTitle(),
                 style = MaterialTheme.typography.titleMedium,
@@ -707,13 +736,12 @@ private fun WorkoutActivityCard(
                 text = "Duração ${activity.metrics.duration.toDurationLabel()} • Distância ${activity.metrics.distances.toDistanceLabel()}",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-            ) {
-                AssistChip(onClick = {}, enabled = false, label = { Text(activity.displayType().toLabel()) })
-                AssistChip(onClick = {}, enabled = false, label = { Text(activity.workflowState.toLabel()) })
-            }
+            Text(
+                text = activity.workflowState.toLabel(),
+                style = MaterialTheme.typography.bodySmall,
+                color = borderColor,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
@@ -747,13 +775,9 @@ private fun ExerciseDetailShell(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
                 ) {
                     Text("Detalhe do treino", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                }
-                if (onNavigateBack != null) {
-                    AssistChip(onClick = onNavigateBack, label = { Text("Voltar") })
                 }
             }
 
@@ -877,7 +901,7 @@ private fun ActivityHeaderCard(activity: WorkoutActivity) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
             ) {
-                AssistChip(onClick = {}, enabled = false, label = { Text(activity.workflowState.toLabel()) })
+                AssistChip(onClick = {}, enabled = false, label = { Text(activity.workflowState.toChipLabel()) })
                 AssistChip(onClick = {}, enabled = false, label = { Text(activity.displayType().toLabel()) })
                 AssistChip(onClick = {}, enabled = false, label = { Text(activity.parserValidity.toLabel()) })
                 AssistChip(onClick = {}, enabled = false, label = { Text("Origem: relógio") })
@@ -1516,6 +1540,33 @@ private fun ActivityWorkflowState.toLabel(): String = when (this) {
     ActivityWorkflowState.SYNCED -> "Sincronizada"
     ActivityWorkflowState.SYNC_FAILED -> "Com erro"
     ActivityWorkflowState.DISCARDED -> "Descartada"
+}
+
+private fun ActivityWorkflowState.toChipLabel(): String = when (this) {
+    ActivityWorkflowState.READY_TO_SYNC -> "Pronta p/ sincronizar"
+    else -> toLabel()
+}
+
+private fun ActivityWorkflowState.toListBorderColor(): Color = when (this) {
+    ActivityWorkflowState.PENDING_REVIEW,
+    ActivityWorkflowState.PENDING_CALIBRATION,
+    ActivityWorkflowState.DISCARDED,
+    -> PendingWorkflowBorderColor
+
+    ActivityWorkflowState.READY_TO_SYNC,
+    ActivityWorkflowState.SYNCING,
+    ActivityWorkflowState.SYNC_FAILED,
+    -> ReadyWorkflowBorderColor
+
+    ActivityWorkflowState.SYNCED -> SyncedWorkflowBorderColor
+}
+
+private fun WorkoutType.toListIcon(): ImageVector = when (this) {
+    WorkoutType.RUNNING -> Icons.AutoMirrored.Filled.DirectionsRun
+    WorkoutType.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
+    WorkoutType.FREE_WORKOUT -> Icons.Filled.FitnessCenter
+    WorkoutType.TREADMILL -> Icons.AutoMirrored.Filled.DirectionsWalk
+    WorkoutType.UNKNOWN -> Icons.Filled.FitnessCenter
 }
 
 private fun ParserValidity.toLabel(): String = when (this) {
