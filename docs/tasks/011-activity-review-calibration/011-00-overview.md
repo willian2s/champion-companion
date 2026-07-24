@@ -2,7 +2,12 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02` e `011-04` concluídas; `011-03`, `011-05` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-04` e `011-05` concluídas; `011-03`, `011-06` a `011-13` pendentes.
+
+Observação de ordem real:
+
+- `011-04` e `011-05` foram executadas antes de `011-03`.
+- `011-03` permanece necessária para formalizar contratos e estado de UI de forma documental e explícita, alinhando o que já foi introduzido parcialmente em `RepositoryContracts.kt` e o que ainda falta na feature.
 
 ## Objetivo
 
@@ -65,6 +70,16 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `ChampionDatabase` subiu de `v3` para `v4` com `AutoMigration(from = 3, to = 4)`.
 - `RoomRepositories.planWatchWorkoutPersistence(...)` agora preserva `title` e `notes` durante reimportação, junto das demais decisões já preservadas.
 - `app/schemas/.../4.json` foi exportado com `title` e `notes` nullable em `workout_activities`.
+
+## Achados de `011-05`
+
+- `WorkoutActivityRepository` agora já expõe lista por filtro, detalhe por `activityId` e resumo por workflow.
+- `TreadmillCalibrationRepository` agora já expõe observação da calibração mais recente por atividade via snapshot de contrato.
+- `WorkoutActivityDao` agora já possui queries reativas para lista completa, lista por workflow, detalhe por ID e resumo agregado por workflow.
+- `TreadmillCalibrationDao` agora já possui observação reativa da calibração mais recente.
+- `DatabaseMappers.kt` deixou de depender apenas do caminho específico de `toPendingReviewDomain(...)` e já reconstrói `WorkoutActivity` para múltiplos workflows observáveis.
+- Hotspot confirmado: `RepositoryContracts.kt`, `ChampionDaos.kt`, `DatabaseMappers.kt` e `RoomRepositories.kt` ficam ainda mais compartilhados entre `011-05`, `011-06` e `011-07`.
+- Como `011-05` ocorreu antes de `011-03`, a task `011-03` precisa consolidar e revisar formalmente os contratos já introduzidos, sem assumir automaticamente que a parte de UI state da fase já está resolvida.
 
 ## Estado herdado da Fase 10
 
@@ -164,7 +179,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-02` planejar ADR e corrigir roadmap durante implementação
 - [ ] `011-03` congelar contratos, filtros, estados e limites funcionais
 - [x] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
-- [ ] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
+- [x] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
 - [ ] `011-06` implementar review atômico, descarte e preservação na reimportação
 - [ ] `011-07` implementar calibração atômica e métricas derivadas
 - [ ] `011-08` evoluir `ExercisesViewModel` e contratos da feature

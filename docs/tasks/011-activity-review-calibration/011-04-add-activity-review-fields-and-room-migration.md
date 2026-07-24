@@ -23,6 +23,11 @@ Adicionar `title` e `notes` à atividade importada com migration segura v3 -> v4
 
 - `011-03`.
 
+Observação de execução real:
+
+- esta task foi executada antes de `011-03`.
+- `011-03` continua pendente para formalização documental dos contratos estáveis que passaram a embasar a sequência da fase.
+
 ## Entradas
 
 - contratos estáveis de review/calibração;

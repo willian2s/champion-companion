@@ -2,7 +2,12 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02` e `011-04` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-04` e `011-05` concluídas.
+
+Observação de execução real:
+
+- `011-04` e `011-05` foram executadas antes de `011-03`.
+- `011-03` continua pendente para formalizar contratos duradouros de revisão, calibração e estado de UI da feature, além de alinhar documentalmente o que já entrou no domínio de repositórios.
 
 ## Contexto
 
@@ -67,6 +72,15 @@ Atualização de `011-04`:
 - `ChampionDatabase` subiu para `v4` com `AutoMigration(from = 3, to = 4)`.
 - `RoomRepositories.planWatchWorkoutPersistence(...)` agora preserva `title` e `notes` na reimportação, junto das demais decisões do usuário.
 - `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/4.json` já foi exportado com as duas novas colunas nullable em `workout_activities`.
+
+Atualização de `011-05`:
+
+- `WorkoutActivityRepository` agora já expõe contratos observáveis equivalentes de lista por filtro, detalhe por `activityId` e resumo por workflow.
+- `TreadmillCalibrationRepository` agora já expõe observação da calibração mais recente por atividade via snapshot de contrato.
+- `WorkoutActivityDao` agora já possui query para lista completa, lista por workflow, detalhe observável por ID e resumo por workflow.
+- `TreadmillCalibrationDao` agora já possui observação reativa da calibração mais recente por atividade.
+- `DatabaseMappers.kt` agora já reconstrói `WorkoutActivity` para múltiplos workflows observáveis, sem depender apenas do caminho específico de `PENDING_REVIEW`.
+- `011-03` permanece necessária para consolidar formalmente esses contratos e completar a parte ainda pendente de estado de UI e inputs equivalentes de review/calibração.
 
 ## Objetivo
 
@@ -349,6 +363,10 @@ discard(activityId)
 calibrateImportedActivity(input)
 observeLatestCalibration(activityId)
 ```
+
+Atualização de `011-05`:
+
+- `observeActivities(filter)`, `observeActivity(activityId)`, `observeWorkflowSummary()` e `observeLatestCalibration(activityId)` já existem na superfície de repositories.
 
 ## Queries
 

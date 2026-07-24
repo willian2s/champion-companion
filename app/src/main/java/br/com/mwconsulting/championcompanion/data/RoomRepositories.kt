@@ -51,8 +51,10 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
@@ -458,12 +460,28 @@ class RoomRepositories @Inject constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun observePendingReview(): Flow<List<WorkoutActivity>> = database.workoutActivityDao().observePendingReview()
-        .transformLatest { activities -> emit(activities.mapNotNull { activity ->
-            val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id)
-            importRecord?.let { activity.toPendingReviewDomain(it, database.workoutDetailDao().findIntervalsForActivity(activity.id), database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id)) }
-        }) }
-        .flowOn(ioDispatcher)
+    override fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = when (filter) {
+        WorkoutActivityFilter.ALL -> database.workoutActivityDao().observeAll()
+        else -> database.workoutActivityDao().observeByWorkflowStates(filter.toStoredWorkflowStates())
+    }.transformLatest { activities ->
+        emit(activities.mapNotNull { activity -> loadWorkoutActivity(activity) })
+    }.flowOn(ioDispatcher)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> =
+        database.workoutActivityDao().observeById(activityId.value.toString())
+            .transformLatest { activity ->
+                emit(activity?.let { loadWorkoutActivity(it) })
+            }
+            .flowOn(ioDispatcher)
+
+    override fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummary> =
+        database.workoutActivityDao().observeWorkflowSummary()
+            .map { it.toDomain() }
+            .flowOn(ioDispatcher)
 
     override fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> =
         database.deviceImportMetadataDao()
@@ -512,6 +530,12 @@ class RoomRepositories @Inject constructor(
         ))
         RepositoryResult.Success(Unit)
     }
+
+    override fun observeLatestCalibration(activityId: WorkoutActivityId) =
+        database.treadmillCalibrationDao()
+            .observeLatestForActivity(activityId.value.toString())
+            .map { it?.toSnapshot() }
+            .flowOn(ioDispatcher)
 
     override fun observeRecoverable(): Flow<List<AppWorkoutSession>> = database.appWorkoutSessionDao().observeRecoverable()
         .map { it.mapNotNull { entity -> entity.toDomain() } }
@@ -604,6 +628,15 @@ class RoomRepositories @Inject constructor(
             ),
         )
         persisted
+    }
+
+    private suspend fun loadWorkoutActivity(activity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity): WorkoutActivity? {
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id) ?: return null
+        return activity.toDomain(
+            importRecord = importRecord,
+            intervals = database.workoutDetailDao().findIntervalsForActivity(activity.id),
+            samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id),
+        )
     }
 
     private fun createWatchDailySummary(input: MergeWatchDailySummaryInput): DailySummary? = when (
@@ -888,6 +921,16 @@ private fun br.com.mwconsulting.championcompanion.core.database.HeartRateMeasure
     source == HeartRateSource.WATCH_D1_HISTORY.name &&
         validity == "VALID" &&
         measuredAtEpochMillis != null
+
+private fun WorkoutActivityFilter.toStoredWorkflowStates(): List<String> = when (this) {
+    WorkoutActivityFilter.ALL -> emptyList()
+    WorkoutActivityFilter.PENDING_REVIEW -> listOf("PENDING_REVIEW")
+    WorkoutActivityFilter.PENDING_CALIBRATION -> listOf("PENDING_CALIBRATION")
+    WorkoutActivityFilter.READY_TO_SYNC -> listOf("READY_TO_SYNC")
+    WorkoutActivityFilter.SYNCED -> listOf("SYNCED")
+    WorkoutActivityFilter.SYNC_FAILED -> listOf("SYNC_FAILED")
+    WorkoutActivityFilter.DISCARDED -> listOf("DISCARDED")
+}
 
 private val HISTORY_ALLOWED_SOURCES: Set<HeartRateSource> = setOf(
     HeartRateSource.MANUAL_MEASUREMENT,
