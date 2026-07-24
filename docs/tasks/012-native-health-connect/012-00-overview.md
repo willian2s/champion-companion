@@ -46,6 +46,13 @@ Planejada em 2026-07-24.
 - `libs.versions.toml` e `app/build.gradle.kts` seguem sem o SDK `connect-client`.
 - `healthSyncEnabled` já existe em DataStore e segue sem uso funcional.
 
+## Achados de `012-02`
+
+- ADR `docs/decisions/adr-012-health-connect-write-only-and-granular-sync.md` formalizou política write-only, local-first e granular da Fase 12.
+- Roadmap da Fase 12 foi alinhado para remover `Steps` de atividade, reforçar triggers assimétricos, explicitar permissões por capacidade e manter `WorkManager` fora do escopo.
+- `health-connect-mapping.md` deixou de ser apenas leitura comparativa do MotionLog e passou a registrar explicitamente as diferenças deliberadas do app novo para a Fase 12.
+- Fronteira documental da fase ficou estável para início da implementação funcional sem ambiguidades sobre IDs, versões, fila, atividade explícita e falha parcial.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.

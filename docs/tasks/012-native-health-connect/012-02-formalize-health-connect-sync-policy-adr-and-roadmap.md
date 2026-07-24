@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -106,6 +106,37 @@ A Fase 12 precisa consolidar decisões duradouras sobre IDs, versões, granulari
 
 - marcar `012-02` como concluída;
 - registrar ADR criada e decisões estabilizadas.
+
+## Execução
+
+### Arquivos atualizados
+
+- `docs/decisions/adr-012-health-connect-write-only-and-granular-sync.md`
+- `docs/roadmap/champion-companion-roadmap.md`
+- `docs/baseline/health-connect-mapping.md`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-02-formalize-health-connect-sync-policy-adr-and-roadmap.md`
+
+### Decisões estabilizadas
+
+- integração `write-only` na Fase 12;
+- Room permanece fonte operacional e visual primária;
+- fila persistida será granular por agregado e tipo de record;
+- atividade exige ação explícita para sync;
+- `clientRecordId` será determinístico por `applicationId + aggregateType + aggregateId + recordType`;
+- `clientRecordVersion` será monotônico para agregados mutáveis;
+- atividade não criará `StepsRecord` separado;
+- falha parcial será tratada por record complementar, sem desfazer sessão já sincronizada;
+- permissões serão somente de escrita e agrupadas por capacidade;
+- `WorkManager`, foreground service e leitura remota permanecem fora do escopo da fase.
+
+### Reconciliação documental aplicada
+
+- ADR-012 criada com foco na política duradoura da fase.
+- roadmap da Fase 12 alinhado ao escopo write-only e granular.
+- `health-connect-mapping.md` atualizado com política planejada do Champion Companion e diferenças deliberadas em relação ao MotionLog.
+- spec e overview da Fase 12 atualizados para referenciar a ADR nova e registrar estabilização documental da fronteira da fase.
 
 ## Validação final
 

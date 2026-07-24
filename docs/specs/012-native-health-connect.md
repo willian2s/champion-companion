@@ -35,6 +35,7 @@ Room permanece fonte operacional e visual primária. O Health Connect é destino
 - ADRs vigentes em `docs/decisions/`
 - `docs/decisions/adr-010-d1-local-first-and-health-connect-phase-boundary.md`
 - `docs/decisions/adr-011-activity-ready-to-sync-phase-boundary.md`
+- `docs/decisions/adr-012-health-connect-write-only-and-granular-sync.md`
 - `docs/specs/011-activity-review-calibration.md`
 - `docs/tasks/011-activity-review-calibration/011-00-overview.md`
 
@@ -138,6 +139,22 @@ Deve existir Activity de rationale de privacidade, explicando:
 - como pausar sincronização;
 - como gerenciar permissões;
 - como os dados são tratados.
+
+## Política formalizada
+
+`012-02` formaliza em ADR própria:
+
+- write-only;
+- Room como fonte operacional e visual primária;
+- triggers assimétricos por tipo;
+- atividade somente com ação explícita;
+- IDs determinísticos por agregado e tipo;
+- versões monotônicas;
+- granularidade por record;
+- falha parcial por complemento de atividade;
+- permissões agrupadas por capacidade;
+- ausência de `Steps` por atividade;
+- ausência de `WorkManager` na fase.
 
 ## Preferência
 
