@@ -496,17 +496,36 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(Unit)
     }
 
+    override suspend fun submitReview(input: br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = write {
+        val entity = database.workoutActivityDao().findById(input.activityId.value.toString()) ?: return@write RepositoryResult.NotFound
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(entity.id) ?: return@write RepositoryResult.NotFound
+        val activity = entity.toDomain(
+            importRecord,
+            database.workoutDetailDao().findIntervalsForActivity(entity.id),
+            database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id),
+        ) ?: return@write RepositoryResult.UnexpectedState
+        val reviewed = activity.submitReview(input).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+        database.workoutActivityDao().update(reviewed.toEntity())
+        RepositoryResult.Success(reviewed)
+    }
+
     override suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity> = write {
         val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return@write RepositoryResult.NotFound
         val importRecord = database.watchWorkoutImportDao().findByActivityId(entity.id) ?: return@write RepositoryResult.NotFound
-        val activity = entity.toPendingReviewDomain(importRecord, database.workoutDetailDao().findIntervalsForActivity(entity.id), database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id))
-            ?: return@write RepositoryResult.UnexpectedState
-        val reviewed = when (val result = activity.confirmReview(type, reviewedAt)) {
-            is br.com.mwconsulting.championcompanion.core.model.DomainResult.Success -> result.value
-            is br.com.mwconsulting.championcompanion.core.model.DomainResult.Failure -> return@write RepositoryResult.UnexpectedState
-        }
-        database.workoutActivityDao().update(reviewed.toEntity())
-        RepositoryResult.Success(reviewed)
+        val existing = entity.toDomain(
+            importRecord,
+            database.workoutDetailDao().findIntervalsForActivity(entity.id),
+            database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id),
+        ) ?: return@write RepositoryResult.UnexpectedState
+        submitReview(
+            br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput(
+                activityId = activityId,
+                confirmedType = type,
+                title = existing.title,
+                notes = existing.notes,
+                reviewedAt = reviewedAt,
+            ),
+        )
     }
 
     override suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit> = write {

@@ -142,9 +142,22 @@ data class WorkoutActivity private constructor(
     val reviewedAt: Instant?,
     val calibrationId: TreadmillCalibrationId?,
 ) {
+    fun submitReview(input: SubmitWorkoutReviewInput): DomainResult<WorkoutActivity> {
+        val normalizedTitle = normalizeTitle(input.title) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val normalizedNotes = normalizeNotes(input.notes) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        if (input.activityId != id || input.confirmedType == WorkoutType.UNKNOWN) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+
+        return confirmReview(input.confirmedType, input.reviewedAt).mapSuccess { reviewed ->
+            reviewed.copy(title = normalizedTitle, notes = normalizedNotes)
+        }
+    }
+
     fun confirmReview(type: WorkoutType, reviewedAt: Instant): DomainResult<WorkoutActivity> {
         if (workflowState != ActivityWorkflowState.PENDING_REVIEW ||
-            parserValidity != ParserValidity.VALID || reviewedAt.isBefore(importedAt)
+            parserValidity != ParserValidity.VALID || reviewedAt.isBefore(importedAt) ||
+            type == WorkoutType.UNKNOWN
         ) {
             return DomainResult.Failure(DomainValidationError.INVALID_STATE)
         }
@@ -283,8 +296,47 @@ data class WorkoutActivity private constructor(
             )
         }
 
+        fun createPersistedImported(
+            id: WorkoutActivityId,
+            input: WatchWorkoutParserInput,
+            importedAt: Instant,
+            title: String?,
+            notes: String?,
+            confirmedType: WorkoutType?,
+            workflowState: ActivityWorkflowState,
+            reviewedAt: Instant?,
+            calibrationId: TreadmillCalibrationId?,
+        ): DomainResult<WorkoutActivity> {
+            val created = createFromImport(id, input, importedAt).valueOrNull()
+                ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            val normalizedTitle = normalizeTitle(title) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            val normalizedNotes = normalizeNotes(notes) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            return DomainResult.Success(
+                created.copy(
+                    title = normalizedTitle,
+                    notes = normalizedNotes,
+                    confirmedType = confirmedType,
+                    workflowState = workflowState,
+                    reviewedAt = reviewedAt,
+                    calibrationId = calibrationId,
+                ),
+            )
+        }
+
         fun suggestType(steps: Long): WorkoutType =
             if (steps < STEPS_FOR_RUNNING_SUGGESTION) WorkoutType.FREE_WORKOUT else WorkoutType.RUNNING
+
+        private fun normalizeTitle(value: String?): String? {
+            val trimmed = value?.trim() ?: return null
+            if (trimmed.isEmpty() || trimmed.length > TITLE_MAX_LENGTH) return null
+            return trimmed
+        }
+
+        private fun normalizeNotes(value: String?): String? {
+            val trimmed = value?.trim() ?: return null
+            if (trimmed.isEmpty() || trimmed.length > NOTES_MAX_LENGTH) return null
+            return trimmed
+        }
 
         private fun isValidInput(input: WatchWorkoutParserInput): Boolean =
             input.crc in 1..0xffff && input.externalBlockIndex >= 0 &&
@@ -334,5 +386,17 @@ data class WorkoutActivity private constructor(
         }
 
         private const val STEPS_FOR_RUNNING_SUGGESTION = 1_000L
+        private const val TITLE_MAX_LENGTH = 120
+        private const val NOTES_MAX_LENGTH = 2_000
     }
+}
+
+private inline fun WorkoutActivity.mapSuccess(transform: (WorkoutActivity) -> WorkoutActivity): DomainResult<WorkoutActivity> =
+    DomainResult.Success(transform(this))
+
+private inline fun DomainResult<WorkoutActivity>.mapSuccess(
+    transform: (WorkoutActivity) -> WorkoutActivity,
+): DomainResult<WorkoutActivity> = when (this) {
+    is DomainResult.Success -> DomainResult.Success(transform(value))
+    is DomainResult.Failure -> this
 }

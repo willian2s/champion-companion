@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04` e `011-05` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05` e `011-06` concluídas.
 
 Observação de execução real:
 
@@ -91,6 +91,12 @@ Atualização de `011-03`:
 - `RepositoryContracts.kt` agora já formaliza `SubmitWorkoutReviewInput` e `CalibrateImportedActivityInput` como contratos equivalentes da fase.
 - `TreadmillCalibration.forImportedActivity(...)` agora já suporta fator por `originalMeters`, fallback por `estimatedMeters` e fator ausente quando não houver distância-base positiva.
 - `ExercisesFeatureContract.kt` agora já separa `selectedFilter`, `activityList`, `workflowSummary`, `selectedActivity`, `detailState`, `reviewFormState`, `calibrationFormState` e `operationError`.
+
+Atualização de `011-06`:
+
+- `WorkoutActivity.submitReview(input)` agora já existe no domínio como confirmação completa de revisão, validando `activityId`, `confirmedType`, `parserValidity`, `reviewedAt`, `title` e `notes`.
+- `RoomRepositories.submitReview(input)` agora já executa persistência atômica de `confirmedType`, `title`, `notes`, `reviewedAt` e transição de workflow para `READY_TO_SYNC` ou `PENDING_CALIBRATION`.
+- `RoomRepositories.review(...)` foi mantido por compatibilidade, delegando ao contrato novo sem perder `title` e `notes` já persistidos.
 
 ## Objetivo
 

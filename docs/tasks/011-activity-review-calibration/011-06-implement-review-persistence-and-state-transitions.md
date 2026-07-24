@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -104,7 +104,48 @@ Hoje existe apenas `review(activityId, type, reviewedAt)` e `discard(activityId)
 - marcar `011-06` como concluída;
 - registrar qualquer risco residual de concorrência ou estado inesperado.
 
+## Execução
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/specs/011-activity-review-calibration.md`
+- `docs/tasks/011-activity-review-calibration/011-00-overview.md`
+- `docs/tasks/011-activity-review-calibration/011-06-implement-review-persistence-and-state-transitions.md`
+
+### Resultado no domínio
+
+- `WorkoutActivity.submitReview(input)` foi adicionado para validar:
+  - `activityId` correto;
+  - `confirmedType` diferente de `UNKNOWN`;
+  - `workflowState == PENDING_REVIEW`;
+  - `parserValidity == VALID`;
+  - `reviewedAt >= importedAt`;
+  - `title` e `notes` normalizados.
+- `confirmReview(...)` passou a bloquear `WorkoutType.UNKNOWN` explicitamente.
+- `title` usa trim externo e limite de `120` caracteres.
+- `notes` usa trim externo, aceita `null` e limite de `2000` caracteres.
+
+### Resultado no repository
+
+- `RoomRepositories.submitReview(input)` agora executa review atômico em transação local.
+- `RoomRepositories.review(...)` foi mantido por compatibilidade e delega ao contrato novo, preservando `title` e `notes` já existentes.
+- `discard(...)` permaneceu lógico e compatível com os estados planejados.
+
+### Resultado no mapeamento
+
+- `DatabaseMappers.kt` passou a reconstruir `WorkoutActivity` persistida via `WorkoutActivity.createPersistedImported(...)`, preservando `title`, `notes`, `confirmedType`, `workflowState`, `reviewedAt` e `calibrationId` do banco.
+- Essa mudança evita perder decisões do usuário ao observar detalhe ou lista após review.
+
+### Gate executado
+
+- `./gradlew lint assembleDebug assembleRelease`
+- resultado: sucesso.
+
 ## Validação final
 
 - Não criar, alterar ou executar testes automatizados.
 - Task executável em sessão nova, sem depender de contexto anterior.
+- Confirmado: calibração, ViewModel, UI, Home e navegação não foram implementados nesta task.

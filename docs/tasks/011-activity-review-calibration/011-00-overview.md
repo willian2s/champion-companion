@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04` e `011-05` concluídas; `011-06` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05` e `011-06` concluídas; `011-07` a `011-13` pendentes.
 
 Observação de ordem real:
 
@@ -87,6 +87,13 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `ExercisesFeatureContract.kt` agora separa explicitamente `selectedFilter`, `activityList`, `workflowSummary`, `selectedActivity`, `detailState`, `reviewFormState`, `calibrationFormState` e `operationError`, preservando `importState` como estado independente.
 - `TreadmillCalibration.kt` agora já suporta fallback puro de fator por `estimatedMeters` e fator ausente quando não houver base positiva, alinhando o domínio ao escopo planejado sem tocar persistência nesta task.
 - `011-03` consolidou documentalmente e em contratos o que `011-04` e `011-05` já haviam antecipado parcialmente.
+
+## Achados de `011-06`
+
+- `WorkoutActivity.submitReview(input)` agora centraliza validação e normalização de revisão no domínio.
+- `RoomRepositories.submitReview(input)` agora persiste `confirmedType`, `title`, `notes`, `reviewedAt` e transição de workflow na mesma transação.
+- `RoomRepositories.review(...)` foi mantido por compatibilidade e passou a delegar ao contrato novo sem apagar `title` ou `notes` existentes.
+- Reimportação continua preservando `title`, `notes` e decisões já persistidas.
 
 ## Estado herdado da Fase 10
 
@@ -187,7 +194,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-03` congelar contratos, filtros, estados e limites funcionais
 - [x] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
 - [x] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
-- [ ] `011-06` implementar review atômico, descarte e preservação na reimportação
+- [x] `011-06` implementar review atômico, descarte e preservação na reimportação
 - [ ] `011-07` implementar calibração atômica e métricas derivadas
 - [ ] `011-08` evoluir `ExercisesViewModel` e contratos da feature
 - [ ] `011-09` implementar filtros, lista clicável e navegação para detalhe

@@ -295,7 +295,7 @@ internal fun WorkoutActivityEntity.toDomain(
     val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return null
     val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
-    var activity = WorkoutActivity.createFromImport(
+    return WorkoutActivity.createPersistedImported(
         id = activityId,
         input = WatchWorkoutParserInput(
             deviceId = mappedDeviceId,
@@ -315,30 +315,13 @@ internal fun WorkoutActivityEntity.toDomain(
             heartRateSamples = samples.map { WorkoutHeartRateSample(Instant.ofEpochMilli(it.sampledAtEpochMillis), it.bpm) },
         ),
         importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
-    ).successOrNull() ?: return null
-    val reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli)
-    if (mappedConfirmedType != null && reviewedAt != null) {
-        activity = activity.confirmReview(mappedConfirmedType, reviewedAt).successOrNull() ?: return null
-    }
-    activity = when (mappedWorkflowState) {
-        ActivityWorkflowState.PENDING_REVIEW -> activity
-        ActivityWorkflowState.PENDING_CALIBRATION -> activity
-        ActivityWorkflowState.READY_TO_SYNC -> when (activity.workflowState) {
-            ActivityWorkflowState.PENDING_CALIBRATION -> activity.markCalibrated().successOrNull() ?: return null
-            else -> activity
-        }
-        ActivityWorkflowState.SYNCING -> activity.startSync().successOrNull() ?: return null
-        ActivityWorkflowState.SYNCED -> {
-            val syncing = activity.startSync().successOrNull() ?: return null
-            syncing.markSynced().successOrNull() ?: return null
-        }
-        ActivityWorkflowState.SYNC_FAILED -> {
-            val syncing = activity.startSync().successOrNull() ?: return null
-            syncing.markSyncFailed().successOrNull() ?: return null
-        }
-        ActivityWorkflowState.DISCARDED -> activity.discard().successOrNull() ?: return null
-    }
-    return activity
+        title = title,
+        notes = notes,
+        confirmedType = mappedConfirmedType,
+        workflowState = mappedWorkflowState,
+        reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli),
+        calibrationId = calibrationId?.let(::uuid)?.let(::TreadmillCalibrationId),
+    ).successOrNull()
 }
 
 internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup? {
