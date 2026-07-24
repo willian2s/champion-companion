@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. Auditorias `011-01` e `011-02` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02` e `011-04` concluídas.
 
 ## Contexto
 
@@ -59,6 +59,14 @@ Atualização de `011-01`:
 - `ExercisesFeatureContract.kt` ainda não separa `selectedFilter`, `workflowSummary`, `selectedActivity`, `detailState`, `reviewFormState` ou `calibrationFormState`.
 - `AppDestination.kt` ainda não possui destino específico de detalhe por `activityId`.
 - Baseline MotionLog confirma revisão manual e calibração de esteira antes do sync, mas também confirma diferença importante: descarte na baseline antiga é exclusão persistida, enquanto a Fase 11 do app novo adotará `DISCARDED` como descarte lógico.
+
+Atualização de `011-04`:
+
+- `WorkoutActivity` agora já contém `title` e `notes` como campos opcionais no domínio.
+- `WorkoutActivityEntity` agora já contém `title` e `notes` como colunas opcionais.
+- `ChampionDatabase` subiu para `v4` com `AutoMigration(from = 3, to = 4)`.
+- `RoomRepositories.planWatchWorkoutPersistence(...)` agora preserva `title` e `notes` na reimportação, junto das demais decisões do usuário.
+- `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/4.json` já foi exportado com as duas novas colunas nullable em `workout_activities`.
 
 ## Objetivo
 
@@ -322,6 +330,11 @@ flowchart LR
 - fallback permitido: migration manual com `ALTER TABLE workout_activities ADD COLUMN title TEXT` e `ADD COLUMN notes TEXT`;
 - migration não cria valores artificiais;
 - migration não altera workflow, tipo, calibração ou métricas existentes.
+
+Atualização de `011-04`:
+
+- `AutoMigration(from = 3, to = 4)` foi suficiente para adição segura de `title` e `notes` nullable;
+- nenhuma outra tabela precisou de mudança estrutural para esta task.
 
 ## Repository
 

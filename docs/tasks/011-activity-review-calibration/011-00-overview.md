@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01` e `011-02` concluídas; `011-03` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02` e `011-04` concluídas; `011-03`, `011-05` a `011-13` pendentes.
 
 ## Objetivo
 
@@ -57,6 +57,14 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - Roadmap foi corrigido para remover sync funcional, retry do provider e responsabilidade por `SYNCING`, `SYNCED` e `SYNC_FAILED` da Fase 11.
 - Roadmap agora reforça que a Fase 12 consome backlog local `READY_TO_SYNC` e usa tipo confirmado, título, observações e distância calibrada como entradas da integração real.
 - Fronteira documental da fase ficou estável para seguir com contratos, migration, queries e UI local sem ambiguidade de escopo.
+
+## Achados de `011-04`
+
+- `WorkoutActivity` agora já contém `title` e `notes` como campos opcionais.
+- `WorkoutActivityEntity` agora já contém `title` e `notes` como colunas opcionais.
+- `ChampionDatabase` subiu de `v3` para `v4` com `AutoMigration(from = 3, to = 4)`.
+- `RoomRepositories.planWatchWorkoutPersistence(...)` agora preserva `title` e `notes` durante reimportação, junto das demais decisões já preservadas.
+- `app/schemas/.../4.json` foi exportado com `title` e `notes` nullable em `workout_activities`.
 
 ## Estado herdado da Fase 10
 
@@ -155,7 +163,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-01` auditar domínio, Room, queries, Home, filtros, navegação, MotionLog e fronteira F11/F12
 - [x] `011-02` planejar ADR e corrigir roadmap durante implementação
 - [ ] `011-03` congelar contratos, filtros, estados e limites funcionais
-- [ ] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
+- [x] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
 - [ ] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
 - [ ] `011-06` implementar review atômico, descarte e preservação na reimportação
 - [ ] `011-07` implementar calibração atômica e métricas derivadas

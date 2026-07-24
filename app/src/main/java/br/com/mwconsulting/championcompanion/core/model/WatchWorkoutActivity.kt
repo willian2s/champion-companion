@@ -135,6 +135,8 @@ data class WorkoutActivity private constructor(
     val intervals: List<WorkoutInterval>,
     val heartRateSamples: List<WorkoutHeartRateSample>,
     val suggestedType: WorkoutType,
+    val title: String?,
+    val notes: String?,
     val confirmedType: WorkoutType?,
     val workflowState: ActivityWorkflowState,
     val reviewedAt: Instant?,
@@ -233,6 +235,8 @@ data class WorkoutActivity private constructor(
             intervals = input.intervals,
             heartRateSamples = input.heartRateSamples,
             suggestedType = suggestType(input.metrics.steps),
+            title = title,
+            notes = notes,
         ))
     }
 
@@ -269,10 +273,12 @@ data class WorkoutActivity private constructor(
                     intervals = input.intervals,
                     heartRateSamples = input.heartRateSamples,
                     suggestedType = suggestType(input.metrics.steps),
+                    title = null,
+                    notes = null,
                     confirmedType = null,
                     workflowState = ActivityWorkflowState.PENDING_REVIEW,
-            reviewedAt = null,
-            calibrationId = null,
+                    reviewedAt = null,
+                    calibrationId = null,
                 ),
             )
         }

@@ -257,7 +257,7 @@ internal fun WorkoutActivity.toEntity() = WorkoutActivityEntity(
     metrics.distances.calibratedMeters.valueOrNull(), metrics.averagePaceSecondsPerKilometer.valueOrNull(),
     metrics.averageSpeedMetersPerSecond.valueOrNull(), metrics.calibratedMetrics?.averagePaceSecondsPerKilometer?.valueOrNull(),
     metrics.calibratedMetrics?.averageSpeedMetersPerSecond?.valueOrNull(), metrics.averageBpm.valueOrNull(), metrics.minimumBpm.valueOrNull(),
-    metrics.maximumBpm.valueOrNull(), suggestedType.name, confirmedType?.name, workflowState.name, reviewedAt?.toEpochMilli(), calibrationId?.value?.toString(),
+    metrics.maximumBpm.valueOrNull(), suggestedType.name, title, notes, confirmedType?.name, workflowState.name, reviewedAt?.toEpochMilli(), calibrationId?.value?.toString(),
 )
 
 internal fun WatchWorkoutImport.toEntity() = WatchWorkoutImportEntity(

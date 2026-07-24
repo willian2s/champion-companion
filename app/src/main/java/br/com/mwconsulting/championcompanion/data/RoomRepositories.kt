@@ -682,6 +682,8 @@ internal fun planWatchWorkoutPersistence(
     return PlannedWatchWorkoutPersistence(
         persistedActivity = incomingActivity.copy(
             id = persistedActivity.id,
+            title = persistedActivity.title,
+            notes = persistedActivity.notes,
             confirmedType = persistedActivity.confirmedType,
             workflowState = persistedActivity.workflowState,
             reviewedAtEpochMillis = persistedActivity.reviewedAtEpochMillis,

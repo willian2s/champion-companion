@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -105,7 +105,49 @@ Adicionar `title` e `notes` à atividade importada com migration segura v3 -> v4
 - marcar `011-04` como concluída;
 - liberar `011-05`, `011-06` e `011-07`.
 
+## Execução
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/4.json`
+- `docs/specs/011-activity-review-calibration.md`
+- `docs/tasks/011-activity-review-calibration/011-00-overview.md`
+- `docs/tasks/011-activity-review-calibration/011-04-add-activity-review-fields-and-room-migration.md`
+
+### Resultado no domínio e na entity
+
+- `WorkoutActivity` passou a ter `title: String?` e `notes: String?`.
+- `WorkoutActivityEntity` passou a ter `title` e `notes` nullable.
+- `createFromImport(...)` continua criando atividades novas sem valores artificiais para esses campos.
+- `reimport(...)` agora preserva `title` e `notes` já existentes na atividade.
+
+### Resultado da migration
+
+- `ChampionDatabase` subiu para `v4`.
+- `AutoMigration(from = 3, to = 4)` foi suficiente para adicionar as colunas opcionais sem mudança estrutural adicional.
+- Nenhuma outra tabela precisou ser alterada.
+
+### Resultado da reimportação
+
+- `WorkoutActivity.toEntity()` passou a mapear `title` e `notes`.
+- `planWatchWorkoutPersistence(...)` agora preserva `title` e `notes` na reimportação, junto de `confirmedType`, `workflowState`, `reviewedAt`, `calibrationId` e métricas calibradas.
+
+### Resultado do schema exportado
+
+- `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/4.json` foi gerado.
+- `workout_activities` agora contém `title TEXT` e `notes TEXT` como colunas opcionais.
+
+### Gate executado
+
+- `./gradlew lint assembleDebug assembleRelease`
+- resultado: sucesso.
+
 ## Validação final
 
 - Não criar, alterar ou executar testes automatizados.
 - Task executável em sessão nova, sem depender de contexto anterior.
+- Confirmado: nenhuma query nova, review, calibração ou UI foi implementada nesta task.
