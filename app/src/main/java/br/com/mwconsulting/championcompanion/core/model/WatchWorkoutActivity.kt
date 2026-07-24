@@ -135,14 +135,32 @@ data class WorkoutActivity private constructor(
     val intervals: List<WorkoutInterval>,
     val heartRateSamples: List<WorkoutHeartRateSample>,
     val suggestedType: WorkoutType,
+    val title: String?,
+    val notes: String?,
     val confirmedType: WorkoutType?,
     val workflowState: ActivityWorkflowState,
     val reviewedAt: Instant?,
     val calibrationId: TreadmillCalibrationId?,
 ) {
+    fun submitReview(input: SubmitWorkoutReviewInput): DomainResult<WorkoutActivity> {
+        val normalizedTitle = normalizeTitle(input.title)
+        val normalizedNotes = normalizeNotes(input.notes)
+        if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText()) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
+        if (input.activityId != id || input.confirmedType == WorkoutType.UNKNOWN) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+
+        return confirmReview(input.confirmedType, input.reviewedAt).mapSuccess { reviewed ->
+            reviewed.copy(title = normalizedTitle, notes = normalizedNotes)
+        }
+    }
+
     fun confirmReview(type: WorkoutType, reviewedAt: Instant): DomainResult<WorkoutActivity> {
         if (workflowState != ActivityWorkflowState.PENDING_REVIEW ||
-            parserValidity != ParserValidity.VALID || reviewedAt.isBefore(importedAt)
+            reviewedAt.isBefore(importedAt) ||
+            type == WorkoutType.UNKNOWN
         ) {
             return DomainResult.Failure(DomainValidationError.INVALID_STATE)
         }
@@ -233,6 +251,8 @@ data class WorkoutActivity private constructor(
             intervals = input.intervals,
             heartRateSamples = input.heartRateSamples,
             suggestedType = suggestType(input.metrics.steps),
+            title = title,
+            notes = notes,
         ))
     }
 
@@ -269,16 +289,72 @@ data class WorkoutActivity private constructor(
                     intervals = input.intervals,
                     heartRateSamples = input.heartRateSamples,
                     suggestedType = suggestType(input.metrics.steps),
+                    title = null,
+                    notes = null,
                     confirmedType = null,
                     workflowState = ActivityWorkflowState.PENDING_REVIEW,
-            reviewedAt = null,
-            calibrationId = null,
+                    reviewedAt = null,
+                    calibrationId = null,
+                ),
+            )
+        }
+
+        fun createPersistedImported(
+            id: WorkoutActivityId,
+            input: WatchWorkoutParserInput,
+            importedAt: Instant,
+            title: String?,
+            notes: String?,
+            confirmedType: WorkoutType?,
+            workflowState: ActivityWorkflowState,
+            reviewedAt: Instant?,
+            calibrationId: TreadmillCalibrationId?,
+        ): DomainResult<WorkoutActivity> {
+            val normalizedTitle = normalizeTitle(title)
+            val normalizedNotes = normalizeNotes(notes)
+            if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText()) {
+                return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            }
+            return DomainResult.Success(
+                WorkoutActivity(
+                    id = id,
+                    origin = DataOrigin.WATCH_D3_D4,
+                    deviceId = input.deviceId,
+                    importKey = WatchWorkoutImportKey(input.deviceId, DataOrigin.WATCH_D3_D4, input.crc),
+                    parserValidity = input.parserValidity,
+                    importedAt = importedAt,
+                    parserVersion = input.parserVersion,
+                    diagnosticPayloadId = input.diagnosticPayloadId,
+                    metrics = input.metrics,
+                    intervals = input.intervals,
+                    heartRateSamples = input.heartRateSamples,
+                    suggestedType = suggestType(input.metrics.steps),
+                    title = normalizedTitle,
+                    notes = normalizedNotes,
+                    confirmedType = confirmedType,
+                    workflowState = workflowState,
+                    reviewedAt = reviewedAt,
+                    calibrationId = calibrationId,
                 ),
             )
         }
 
         fun suggestType(steps: Long): WorkoutType =
             if (steps < STEPS_FOR_RUNNING_SUGGESTION) WorkoutType.FREE_WORKOUT else WorkoutType.RUNNING
+
+        private fun normalizeTitle(value: String?): String? {
+            val trimmed = value?.trim() ?: return null
+            if (trimmed.isEmpty()) return null
+            if (trimmed.length > TITLE_MAX_LENGTH) return INVALID_NORMALIZED_TEXT
+            return trimmed
+        }
+
+        private fun normalizeNotes(value: String?): String? {
+            val trimmed = value?.trim() ?: return null
+            if (trimmed.isEmpty()) return null
+            if (trimmed.length > NOTES_MAX_LENGTH) return INVALID_NORMALIZED_TEXT
+            return trimmed
+        }
 
         private fun isValidInput(input: WatchWorkoutParserInput): Boolean =
             input.crc in 1..0xffff && input.externalBlockIndex >= 0 &&
@@ -328,5 +404,20 @@ data class WorkoutActivity private constructor(
         }
 
         private const val STEPS_FOR_RUNNING_SUGGESTION = 1_000L
+        private const val TITLE_MAX_LENGTH = 120
+        private const val NOTES_MAX_LENGTH = 2_000
+        private const val INVALID_NORMALIZED_TEXT = "\u0000"
     }
+}
+
+private inline fun WorkoutActivity.mapSuccess(transform: (WorkoutActivity) -> WorkoutActivity): DomainResult<WorkoutActivity> =
+    DomainResult.Success(transform(this))
+
+private fun String?.isInvalidNormalizedText(): Boolean = this == "\u0000"
+
+private inline fun DomainResult<WorkoutActivity>.mapSuccess(
+    transform: (WorkoutActivity) -> WorkoutActivity,
+): DomainResult<WorkoutActivity> = when (this) {
+    is DomainResult.Success -> DomainResult.Success(transform(value))
+    is DomainResult.Failure -> this
 }

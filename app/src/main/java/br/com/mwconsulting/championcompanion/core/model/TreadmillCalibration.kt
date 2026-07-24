@@ -47,16 +47,18 @@ data class TreadmillCalibration private constructor(
             reportedMeters: Double,
             appliedAt: Instant,
         ): DomainResult<TreadmillCalibration> {
-            val original = activity.metrics.distances.originalMeters as? DomainValue.Present
-                ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
-            if (revision < 1 || original.value <= 0.0 || !reportedMeters.isFinite() ||
+            if (revision < 1 || !reportedMeters.isFinite() ||
                 reportedMeters <= 0.0 || activity.confirmedType != WorkoutType.TREADMILL ||
                 activity.reviewedAt == null || appliedAt.isBefore(activity.reviewedAt)
             ) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }
 
-            val factor = reportedMeters / original.value
+            val factor = when (val base = resolveFactorBase(activity)) {
+                is DomainValue.Present -> DomainValue.Present(reportedMeters / base.value)
+                is DomainValue.Absent -> DomainValue.Absent(base.reason)
+            }
+
             return DomainResult.Success(
                 TreadmillCalibration(
                     id = id,
@@ -66,7 +68,7 @@ data class TreadmillCalibration private constructor(
                     estimatedMeters = activity.metrics.distances.estimatedMeters,
                     reportedMeters = DomainValue.Present(reportedMeters),
                     calibratedMeters = DomainValue.Present(reportedMeters),
-                    factor = DomainValue.Present(factor),
+                    factor = factor,
                     appliedAt = appliedAt,
                     origin = TreadmillCalibrationOrigin.USER_REPORTED,
                     derivedMetrics = deriveMetrics(activity.metrics.duration, reportedMeters),
@@ -117,6 +119,16 @@ data class TreadmillCalibration private constructor(
                 averagePaceSecondsPerKilometer = DomainValue.Present(seconds * METERS_PER_KILOMETER / meters),
                 averageSpeedMetersPerSecond = DomainValue.Present(meters / seconds),
             )
+        }
+
+        private fun resolveFactorBase(activity: WorkoutActivity): DomainValue<Double> {
+            val original = activity.metrics.distances.originalMeters as? DomainValue.Present
+            if (original != null && original.value > 0.0) return original
+
+            val estimated = activity.metrics.distances.estimatedMeters as? DomainValue.Present
+            if (estimated != null && estimated.value > 0.0) return estimated
+
+            return DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
         }
 
         private const val NANOS_PER_SECOND = 1_000_000_000.0

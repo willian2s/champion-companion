@@ -196,13 +196,44 @@ interface HeartRateRepository {
 
 interface WorkoutActivityRepository {
     suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit>
-    fun observePendingReview(): Flow<List<WorkoutActivity>>
+    fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
+    fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = flowOf(emptyList())
+    fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> = flowOf(null)
+    fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummary> = flowOf(WorkoutWorkflowSummary())
     suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = RepositoryResult.UnexpectedState
     fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> = flowOf(null)
     suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
+    suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
 }
+
+enum class WorkoutActivityFilter {
+    ALL,
+    PENDING_REVIEW,
+    PENDING_CALIBRATION,
+    READY_TO_SYNC,
+    SYNCED,
+    SYNC_FAILED,
+    DISCARDED,
+}
+
+data class WorkoutWorkflowSummary(
+    val pendingReviewCount: Int = 0,
+    val pendingCalibrationCount: Int = 0,
+    val readyToSyncCount: Int = 0,
+    val syncedCount: Int = 0,
+    val syncFailedCount: Int = 0,
+    val discardedCount: Int = 0,
+)
+
+data class SubmitWorkoutReviewInput(
+    val activityId: WorkoutActivityId,
+    val confirmedType: WorkoutType,
+    val title: String?,
+    val notes: String?,
+    val reviewedAt: Instant,
+)
 
 data class WatchWorkoutImportLookup(
     val activityId: WorkoutActivityId,
@@ -222,7 +253,29 @@ data class WatchWorkoutImportLookup(
 
 interface TreadmillCalibrationRepository {
     suspend fun register(calibration: TreadmillCalibration): RepositoryResult<Unit>
+    suspend fun calibrateImportedActivity(input: CalibrateImportedActivityInput): RepositoryResult<TreadmillCalibrationSnapshot> = RepositoryResult.UnexpectedState
+    fun observeLatestCalibration(activityId: WorkoutActivityId): Flow<TreadmillCalibrationSnapshot?> = flowOf(null)
 }
+
+data class CalibrateImportedActivityInput(
+    val activityId: WorkoutActivityId,
+    val reportedMeters: Double,
+    val appliedAt: Instant,
+)
+
+data class TreadmillCalibrationSnapshot(
+    val activityId: WorkoutActivityId,
+    val revision: Int,
+    val originalDistanceMeters: DomainValue<Double>,
+    val estimatedDistanceMeters: DomainValue<Double>,
+    val reportedDistanceMeters: DomainValue<Double>,
+    val calibratedDistanceMeters: DomainValue<Double>,
+    val factor: DomainValue<Double>,
+    val appliedAt: Instant,
+    val averagePaceSecondsPerKilometer: DomainValue<Double>,
+    val averageSpeedMetersPerSecond: DomainValue<Double>,
+    val metricsProvenance: MetricProvenance,
+)
 
 interface AppWorkoutSessionRepository {
     fun observeRecoverable(): Flow<List<AppWorkoutSession>>

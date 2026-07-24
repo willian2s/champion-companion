@@ -14,6 +14,7 @@ import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportLookupRecord
+import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
@@ -23,6 +24,7 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionAggregates
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
+import br.com.mwconsulting.championcompanion.core.model.CalibratedWorkoutMetrics
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
@@ -59,6 +61,7 @@ import br.com.mwconsulting.championcompanion.core.model.SafeDiagnosticError
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
+import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationId
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationOrigin
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
@@ -75,6 +78,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -257,7 +261,7 @@ internal fun WorkoutActivity.toEntity() = WorkoutActivityEntity(
     metrics.distances.calibratedMeters.valueOrNull(), metrics.averagePaceSecondsPerKilometer.valueOrNull(),
     metrics.averageSpeedMetersPerSecond.valueOrNull(), metrics.calibratedMetrics?.averagePaceSecondsPerKilometer?.valueOrNull(),
     metrics.calibratedMetrics?.averageSpeedMetersPerSecond?.valueOrNull(), metrics.averageBpm.valueOrNull(), metrics.minimumBpm.valueOrNull(),
-    metrics.maximumBpm.valueOrNull(), suggestedType.name, confirmedType?.name, workflowState.name, reviewedAt?.toEpochMilli(), calibrationId?.value?.toString(),
+    metrics.maximumBpm.valueOrNull(), suggestedType.name, title, notes, confirmedType?.name, workflowState.name, reviewedAt?.toEpochMilli(), calibrationId?.value?.toString(),
 )
 
 internal fun WatchWorkoutImport.toEntity() = WatchWorkoutImportEntity(
@@ -278,31 +282,46 @@ internal fun WorkoutActivityEntity.toPendingReviewDomain(
     importRecord: WatchWorkoutImportEntity,
     intervals: List<WorkoutIntervalEntity>,
     samples: List<WorkoutHeartRateSampleEntity>,
+): WorkoutActivity? = toDomain(importRecord, intervals, samples)
+
+internal fun WorkoutActivityEntity.toDomain(
+    importRecord: WatchWorkoutImportEntity,
+    intervals: List<WorkoutIntervalEntity>,
+    samples: List<WorkoutHeartRateSampleEntity>,
 ): WorkoutActivity? {
     val activityId = uuid(id)?.let(::WorkoutActivityId) ?: return null
     val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
     val mappedParserVersion = parserVersion(parserVersion) ?: return null
     val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return null
-    return WorkoutActivity.createFromImport(
-    id = activityId,
-    input = WatchWorkoutParserInput(
-        deviceId = mappedDeviceId,
-        crc = importRecord.crc,
-        externalBlockIndex = importRecord.externalBlockIndex,
-        parserVersion = mappedParserVersion,
-        parserValidity = mappedParserValidity,
-        diagnosticPayloadId = diagnosticPayloadId?.let(::uuid)?.let(::DiagnosticPayloadId),
-        metrics = WorkoutMetrics(
-            Instant.ofEpochMilli(startedAtEpochMillis), Duration.ofNanos(durationNanos), steps,
-            caloriesKilocalories.domainValue(), WorkoutDistanceMetrics(originalDistanceMeters.domainValue(), estimatedDistanceMeters.domainValue(), calibratedDistanceMeters.domainValue()),
-            importedAveragePaceSecondsPerKilometer.domainValue(), importedAverageSpeedMetersPerSecond.domainValue(),
-            averageBpm.domainValue(), minimumBpm.domainValue(), maximumBpm.domainValue(),
+    val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
+    val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    return WorkoutActivity.createPersistedImported(
+        id = activityId,
+        input = WatchWorkoutParserInput(
+            deviceId = mappedDeviceId,
+            crc = importRecord.crc,
+            externalBlockIndex = importRecord.externalBlockIndex,
+            parserVersion = mappedParserVersion,
+            parserValidity = mappedParserValidity,
+            diagnosticPayloadId = diagnosticPayloadId?.let(::uuid)?.let(::DiagnosticPayloadId),
+            metrics = WorkoutMetrics(
+                Instant.ofEpochMilli(startedAtEpochMillis), Duration.ofNanos(durationNanos), steps,
+                caloriesKilocalories.domainValue(), WorkoutDistanceMetrics(originalDistanceMeters.domainValue(), estimatedDistanceMeters.domainValue(), calibratedDistanceMeters.domainValue()),
+                importedAveragePaceSecondsPerKilometer.domainValue(), importedAverageSpeedMetersPerSecond.domainValue(),
+                averageBpm.domainValue(), minimumBpm.domainValue(), maximumBpm.domainValue(),
+                calibratedMetrics = calibratedMetricsOrNull(),
+            ),
+            intervals = intervals.map { WorkoutInterval(it.intervalIndex, Duration.ofNanos(it.durationNanos), it.steps, it.distanceMeters.domainValue(), it.caloriesKilocalories.domainValue()) },
+            heartRateSamples = samples.map { WorkoutHeartRateSample(Instant.ofEpochMilli(it.sampledAtEpochMillis), it.bpm) },
         ),
-        intervals = intervals.map { WorkoutInterval(it.intervalIndex, Duration.ofNanos(it.durationNanos), it.steps, it.distanceMeters.domainValue(), it.caloriesKilocalories.domainValue()) },
-        heartRateSamples = samples.map { WorkoutHeartRateSample(Instant.ofEpochMilli(it.sampledAtEpochMillis), it.bpm) },
-    ),
-    importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
-).successOrNull()
+        importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
+        title = title,
+        notes = notes,
+        confirmedType = mappedConfirmedType,
+        workflowState = mappedWorkflowState,
+        reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli),
+        calibrationId = calibrationId?.let(::uuid)?.let(::TreadmillCalibrationId),
+    ).successOrNull()
 }
 
 internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup? {
@@ -332,6 +351,33 @@ internal fun TreadmillCalibration.toEntity(): TreadmillCalibrationEntity? {
         derivedMetrics.provenance.name,
     )
 }
+
+internal fun TreadmillCalibrationEntity.toSnapshot(): TreadmillCalibrationSnapshot? {
+    val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
+    val provenance = enum<MetricProvenance>(metricsProvenance) ?: return null
+    return TreadmillCalibrationSnapshot(
+        activityId = mappedActivityId,
+        revision = revision,
+        originalDistanceMeters = originalDistanceMeters.domainValue(),
+        estimatedDistanceMeters = estimatedDistanceMeters.domainValue(),
+        reportedDistanceMeters = reportedDistanceMeters.domainValue(),
+        calibratedDistanceMeters = calibratedDistanceMeters.domainValue(),
+        factor = factorDomainValue(),
+        appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
+        averagePaceSecondsPerKilometer = averagePaceSecondsPerKilometer.domainValue(),
+        averageSpeedMetersPerSecond = averageSpeedMetersPerSecond.domainValue(),
+        metricsProvenance = provenance,
+    )
+}
+
+internal fun WorkoutWorkflowSummaryRecord.toDomain() = WorkoutWorkflowSummary(
+    pendingReviewCount = pendingReviewCount,
+    pendingCalibrationCount = pendingCalibrationCount,
+    readyToSyncCount = readyToSyncCount,
+    syncedCount = syncedCount,
+    syncFailedCount = syncFailedCount,
+    discardedCount = discardedCount,
+)
 
 internal fun AppWorkoutSessionEntity.toDomain(): AppWorkoutSession? {
     val session = AppWorkoutSession.create(uuid(id)?.let(::AppWorkoutSessionId) ?: return null, enum<WorkoutType>(type) ?: return null,
@@ -419,3 +465,16 @@ private fun <T> DomainResult<T>.successOrNull(): T? = (this as? DomainResult.Suc
 private fun <T> DomainValue<T>.valueOrNull(): T? = (this as? DomainValue.Present)?.value
 private fun Double?.domainValue(): DomainValue<Double> = if (this == null) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(this)
 private fun Int?.domainValue(): DomainValue<Int> = if (this == null) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(this)
+private fun WorkoutActivityEntity.calibratedMetricsOrNull(): CalibratedWorkoutMetrics? = when {
+    calibratedAveragePaceSecondsPerKilometer == null && calibratedAverageSpeedMetersPerSecond == null -> null
+    else -> CalibratedWorkoutMetrics(
+        averagePaceSecondsPerKilometer = calibratedAveragePaceSecondsPerKilometer.domainValue(),
+        averageSpeedMetersPerSecond = calibratedAverageSpeedMetersPerSecond.domainValue(),
+    )
+}
+
+private fun TreadmillCalibrationEntity.factorDomainValue(): DomainValue<Double> = when {
+    factor != null -> DomainValue.Present(factor)
+    factorAbsenceReason != null -> DomainValue.Absent(enum<AbsenceReason>(factorAbsenceReason) ?: AbsenceReason.NOT_APPLICABLE)
+    else -> DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE)
+}

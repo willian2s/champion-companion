@@ -1173,7 +1173,7 @@ Testes pequenos recomendados:
 - passos, distância, calorias, intervalos e BPM são interpretados conforme baseline auditada;
 - agregados BPM são calculados;
 - atividade `VALID` persiste;
-- atividade `PARTIAL` segura persiste e permanece bloqueada para sync;
+- atividade `PARTIAL` segura persiste localmente e pode seguir revisão/sync futuro conforme regras vigentes da fase seguinte;
 - atividade `INVALID` não é criada;
 - deduplicação por dispositivo, origem e CRC funciona;
 - reimportação preserva decisões do usuário;

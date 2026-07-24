@@ -63,6 +63,8 @@ import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import java.util.UUID
 
 private data class NavigationItem(
     val destination: AppDestination,
@@ -118,6 +120,9 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             if (currentDestination.isHealthDestination()) {
                 backStack.removeHealthDestinations()
             }
+            if (currentDestination.isExercisesDestination()) {
+                backStack.removeExercisesDestinations()
+            }
             backStack.navigateToTopLevel(destination)
         } else {
             backStack.navigateForward(destination)
@@ -142,7 +147,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 requestExitConfirmation(destination = destination)
             }
 
-            currentDestination == AppDestination.Exercises && exercisesState.hasBlockingExerciseOperation() -> {
+            currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation() -> {
                 pendingExitConfirmationTarget = ExitConfirmationTarget.Exercises
                 requestExitConfirmation(destination = destination)
             }
@@ -158,7 +163,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 requestExitConfirmation(isBackNavigation = true)
             }
 
-            currentDestination == AppDestination.Exercises && exercisesState.hasBlockingExerciseOperation() -> {
+            currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation() -> {
                 pendingExitConfirmationTarget = ExitConfirmationTarget.Exercises
                 requestExitConfirmation(isBackNavigation = true)
             }
@@ -169,6 +174,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
 
     if (pendingDestination != null || pendingBackNavigation) {
         val isD1ImportInFlight = healthState.d1ImportState.isD1ImportInFlight()
+        val isExerciseImportInFlight = exercisesState.importState.isImportInFlight()
         val confirmationTarget = pendingExitConfirmationTarget
         AlertDialog(
             onDismissRequest = {
@@ -180,7 +186,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 Text(
                     when (confirmationTarget) {
                         ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?"
-                        ExitConfirmationTarget.Exercises -> "Cancelar importação?"
+                        ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Cancelar importação?" else "Descartar alterações?"
                         null -> "Confirmar saída?"
                     },
                 )
@@ -194,8 +200,10 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                             "Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial."
                         }
 
-                        ExitConfirmationTarget.Exercises -> {
+                        ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
                             "Sair da tela Exercícios agora cancelará a importação de treinos em andamento, preservando os blocos já salvos."
+                        } else {
+                            "Sair agora descartará alterações não salvas do detalhe do treino atual."
                         }
 
                         null -> "A operação atual será interrompida."
@@ -220,7 +228,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                                 }
                             }
 
-                            ExitConfirmationTarget.Exercises -> exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitImport)
+                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
+                                exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitImport)
+                            } else {
+                                exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitDetail)
+                            }
                             null -> Unit
                         }
                         if (shouldNavigateBack) {
@@ -237,7 +249,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                     Text(
                         when (confirmationTarget) {
                             ExitConfirmationTarget.Health -> "Sair da Saúde"
-                            ExitConfirmationTarget.Exercises -> "Sair de Exercícios"
+                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Sair de Exercícios" else "Descartar alterações"
                             null -> "Sair"
                         },
                     )
@@ -252,7 +264,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                     Text(
                         when (confirmationTarget) {
                             ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo"
-                            ExitConfirmationTarget.Exercises -> "Continuar importando"
+                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Continuar importando" else "Continuar editando"
                             null -> "Continuar"
                         },
                     )
@@ -265,7 +277,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         pendingDestination == null &&
             !pendingBackNavigation &&
             (backStack.size > 1 ||
-                (currentDestination == AppDestination.Exercises && exercisesState.hasBlockingExerciseOperation()) ||
+                (currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation()) ||
                 (currentDestination.isHealthMeasurementSurface() && healthState.hasBlockingHealthOperation()))
 
     BackHandler(enabled = shouldInterceptBack) {
@@ -281,6 +293,8 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                     NavigationBarItem(
                         selected = if (item.destination == AppDestination.Health) {
                             currentDestination.isHealthDestination()
+                        } else if (item.destination == AppDestination.Exercises) {
+                            currentDestination.isExercisesDestination()
                         } else {
                             currentDestination == item.destination
                         },
@@ -362,7 +376,7 @@ private fun HealthUiState.hasBlockingHealthOperation(): Boolean =
     surfaceState.isMeasurementInFlight() || d1ImportState.isD1ImportInFlight()
 
 private fun ExercisesUiState.hasBlockingExerciseOperation(): Boolean =
-    importState.isImportInFlight()
+    importState.isImportInFlight() || hasUnsavedDetailChanges
 
 private fun WatchWorkoutImportSurfaceState.isImportInFlight(): Boolean = when (this) {
     WatchWorkoutImportSurfaceState.Idle,
@@ -404,6 +418,7 @@ private fun ChampionNavDisplay(
                 onOpenDevice = { onNavigateTo(AppDestination.Device) },
                 onOpenProfile = { onNavigateTo(AppDestination.Profile) },
                 onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+                onOpenExercises = { onNavigateTo(AppDestination.Exercises) },
             )
             AppDestination.Health -> HealthScreen(
                 onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
@@ -424,7 +439,20 @@ private fun ChampionNavDisplay(
                 onNavigateBack = { onNavigateTo(AppDestination.Health) },
             )
             AppDestination.Calendar -> CalendarScreen()
-            AppDestination.Exercises -> ExercisesScreen(viewModel = exercisesViewModel)
+            AppDestination.Exercises -> ExercisesScreen(
+                viewModel = exercisesViewModel,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
+            )
+            is AppDestination.ExerciseDetail -> ExercisesScreen(
+                viewModel = exercisesViewModel,
+                openedActivityId = destination.activityId.toWorkoutActivityId(),
+                onNavigateBack = onBackRequested,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
+            )
             AppDestination.Device -> DeviceScreen()
             AppDestination.Profile -> ProfileScreen()
             AppDestination.Settings -> SettingsScreen()
@@ -448,6 +476,10 @@ private fun MutableList<AppDestination>.removeHealthDestinations() {
     removeAll { it.isHealthDestination() }
 }
 
+private fun MutableList<AppDestination>.removeExercisesDestinations() {
+    removeAll { it.isExercisesDestination() }
+}
+
 private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
     AppDestination.Health,
     AppDestination.HealthHeartRate,
@@ -461,6 +493,14 @@ private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
 
 private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppDestination.HealthHeartRate
 
+private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
+    AppDestination.Exercises,
+    is AppDestination.ExerciseDetail,
+    -> true
+
+    else -> false
+}
+
 private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.Home,
     AppDestination.Health,
@@ -471,6 +511,7 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.Settings,
     -> true
 
+    is AppDestination.ExerciseDetail,
     AppDestination.HealthHeartRate,
     AppDestination.HealthWeight,
     AppDestination.HealthSteps,
@@ -509,3 +550,5 @@ private fun NavigationAnimationDirection.contentTransform(): ContentTransform {
         }
     }
 }
+
+private fun String.toWorkoutActivityId(): WorkoutActivityId = WorkoutActivityId(UUID.fromString(this))

@@ -1493,7 +1493,7 @@ D3/D4 deverão funcionar com os mesmos treinos da baseline.
 
 ## Objetivo
 
-Permitir revisão completa antes da sincronização.
+Permitir revisão completa local e calibrar, quando necessário, até `READY_TO_SYNC`.
 
 ## Home
 
@@ -1533,8 +1533,7 @@ Exibir:
 - BPM máximo;
 - gráfico;
 - intervalos;
-- calibração;
-- Health Connect.
+- calibração.
 
 ## Edição
 
@@ -1543,7 +1542,6 @@ Permitir:
 - tipo;
 - título;
 - observações;
-- distância;
 - classificação.
 
 ## Calibração de esteira
@@ -1578,13 +1576,15 @@ Armazenar:
 ## Fluxo
 
 ```text
+PENDING_REVIEW
+        ↓
+Confirmar tipo esteira
+        ↓
 PENDING_CALIBRATION
         ↓
 Usuário informa distância
         ↓
 Recalcular
-        ↓
-PENDING_REVIEW
         ↓
 READY_TO_SYNC
 ```
@@ -1595,10 +1595,18 @@ READY_TO_SYNC
 - editar;
 - salvar;
 - marcar revisada;
-- sincronizar;
-- tentar novamente;
 - descartar;
 - diagnosticar.
+
+## Fronteira da fase
+
+Saída da Fase 11:
+
+```text
+READY_TO_SYNC
+```
+
+Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 ## Critérios de aceite
 
@@ -1606,7 +1614,8 @@ READY_TO_SYNC
 - tipo editável;
 - esteira calibrável;
 - ritmo recalculado;
-- Health Connect recebe calibrado;
+- revisão não esteira produz `READY_TO_SYNC`;
+- revisão de esteira produz `PENDING_CALIBRATION` e depois `READY_TO_SYNC`;
 - sem envio antes da confirmação;
 - falhas não apagam dados.
 
@@ -1616,7 +1625,7 @@ READY_TO_SYNC
 
 ## Objetivo
 
-Implementar integração direta.
+Implementar integração direta consumindo backlog local `READY_TO_SYNC` e pendências D1 já persistidas.
 
 ## Tipos
 
@@ -1659,6 +1668,11 @@ Implementar integração direta.
 - escrever todas amostras D1 válidas ainda não sincronizadas;
 - manter falhas parciais como pendentes ou failed sem desfazer dados locais.
 
+## Entrada da fase
+
+- atividades D3/D4 revisadas em `READY_TO_SYNC`;
+- backlog D1 `PENDING` acumulado desde a Fase 09.
+
 ## IDs
 
 Cada registro terá:
@@ -1697,6 +1711,7 @@ Usar a distância calibrada.
 ## Critérios de aceite
 
 - atividade revisada é enviada;
+- atividade `READY_TO_SYNC` é consumida sem reabrir revisão local;
 - backlog D1 pendente da Fase 09 é processado integralmente;
 - reenvio não duplica;
 - atualização funciona;

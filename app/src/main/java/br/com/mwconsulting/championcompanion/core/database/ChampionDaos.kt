@@ -127,14 +127,53 @@ interface HeartRateDao {
 
 @Dao
 interface WorkoutActivityDao {
-    @Query("SELECT * FROM workout_activities WHERE workflowState = 'PENDING_REVIEW' ORDER BY importedAtEpochMillis")
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "ORDER BY activity.startedAtEpochMillis DESC, activity.importedAtEpochMillis DESC",
+    )
+    fun observeAll(): Flow<List<WorkoutActivityEntity>>
+
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE activity.workflowState = 'PENDING_REVIEW' " +
+            "ORDER BY activity.importedAtEpochMillis",
+    )
     fun observePendingReview(): Flow<List<WorkoutActivityEntity>>
+
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE activity.workflowState IN (:workflowStates) " +
+            "ORDER BY activity.startedAtEpochMillis DESC, activity.importedAtEpochMillis DESC",
+    )
+    fun observeByWorkflowStates(workflowStates: List<String>): Flow<List<WorkoutActivityEntity>>
+
+    @Query("SELECT * FROM workout_activities WHERE id = :id LIMIT 1")
+    fun observeById(id: String): Flow<WorkoutActivityEntity?>
+
+    @Query(
+        "SELECT " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'PENDING_REVIEW' THEN 1 ELSE 0 END), 0) AS pendingReviewCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'PENDING_CALIBRATION' THEN 1 ELSE 0 END), 0) AS pendingCalibrationCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'READY_TO_SYNC' THEN 1 ELSE 0 END), 0) AS readyToSyncCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'SYNCED' THEN 1 ELSE 0 END), 0) AS syncedCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'SYNC_FAILED' THEN 1 ELSE 0 END), 0) AS syncFailedCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'DISCARDED' THEN 1 ELSE 0 END), 0) AS discardedCount " +
+            "FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id",
+    )
+    fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummaryRecord>
 
     @Query("SELECT * FROM workout_activities WHERE id = :id")
     suspend fun findById(id: String): WorkoutActivityEntity?
 
     @Query("SELECT activity.* FROM workout_activities activity INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id WHERE importRecord.deviceId = :deviceId AND importRecord.origin = :origin AND importRecord.crc = :crc")
     suspend fun findByImportKey(deviceId: String, origin: String, crc: Int): WorkoutActivityEntity?
+
+    @Query("SELECT * FROM workout_activities WHERE deviceId = :deviceId AND origin = :origin AND startedAtEpochMillis = :startedAtEpochMillis ORDER BY importedAtEpochMillis DESC LIMIT 1")
+    suspend fun findByStartedAt(deviceId: String, origin: String, startedAtEpochMillis: Long): WorkoutActivityEntity?
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(activity: WorkoutActivityEntity)
@@ -145,6 +184,15 @@ interface WorkoutActivityDao {
     @Query("UPDATE workout_activities SET workflowState = :nextState WHERE id = :id AND workflowState IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String): Int
 }
+
+data class WorkoutWorkflowSummaryRecord(
+    val pendingReviewCount: Int,
+    val pendingCalibrationCount: Int,
+    val readyToSyncCount: Int,
+    val syncedCount: Int,
+    val syncFailedCount: Int,
+    val discardedCount: Int,
+)
 
 @Dao
 interface WatchWorkoutImportDao {
@@ -199,6 +247,9 @@ interface WorkoutDetailDao {
 interface TreadmillCalibrationDao {
     @Query("SELECT * FROM treadmill_calibrations WHERE activityId = :activityId ORDER BY revision DESC LIMIT 1")
     suspend fun findLatestForActivity(activityId: String): TreadmillCalibrationEntity?
+
+    @Query("SELECT * FROM treadmill_calibrations WHERE activityId = :activityId ORDER BY revision DESC LIMIT 1")
+    fun observeLatestForActivity(activityId: String): Flow<TreadmillCalibrationEntity?>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(calibration: TreadmillCalibrationEntity)
