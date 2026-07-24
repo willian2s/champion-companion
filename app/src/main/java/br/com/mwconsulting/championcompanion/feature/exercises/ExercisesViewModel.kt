@@ -1,5 +1,4 @@
 package br.com.mwconsulting.championcompanion.feature.exercises
-
 import androidx.lifecycle.ViewModel
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
@@ -54,7 +53,7 @@ class ExercisesViewModel internal constructor(
     private val importState = MutableStateFlow<WatchWorkoutImportSurfaceState>(WatchWorkoutImportSurfaceState.Idle)
     private val latestImportMetadata = MutableStateFlow<WatchWorkoutImportMetadata?>(null)
     private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
-    private val selectedFilter = MutableStateFlow(WorkoutActivityFilter.PENDING_REVIEW)
+    private val selectedFilter = MutableStateFlow(WorkoutActivityFilter.ALL)
     private val activityList = MutableStateFlow<List<WorkoutActivity>>(emptyList())
     private val workflowSummary = MutableStateFlow(WorkoutWorkflowSummary())
     private val selectedActivityId = MutableStateFlow<WorkoutActivityId?>(null)

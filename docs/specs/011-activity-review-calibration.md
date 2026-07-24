@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07` e `011-08` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08` e `011-09` concluídas.
 
 Observação de execução real:
 
@@ -109,6 +109,12 @@ Atualização de `011-08`:
 - `ExercisesViewModel` agora já observa filtro, lista, resumo por workflow, detalhe de atividade e calibração mais recente da atividade selecionada.
 - `ExercisesViewModel` agora já envia ações de `submitReview`, `calibrateImportedActivity` e `discard`, mantendo importação D3/D4 separada do fluxo local de revisão.
 - Formulários de revisão e calibração agora já vivem no estado da feature, sem persistência a cada tecla.
+
+Atualização de `011-09`:
+
+- `AppDestination` agora já possui destino específico de detalhe por `activityId`, sem transportar objeto completo na navegação.
+- `ChampionNavigation.kt` agora já trata `Exercícios -> detalhe` como subfluxo manual do back stack e mantém seleção correta da aba Exercícios durante detalhe.
+- `ExercisesScreen.kt` agora preserva área de importação D3/D4 e adiciona resumo, filtros, lista clicável e shell inicial de detalhe.
 
 ## Objetivo
 

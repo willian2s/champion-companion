@@ -63,6 +63,8 @@ import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import java.util.UUID
 
 private data class NavigationItem(
     val destination: AppDestination,
@@ -117,6 +119,9 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         if (destination.isTopLevelDestination()) {
             if (currentDestination.isHealthDestination()) {
                 backStack.removeHealthDestinations()
+            }
+            if (currentDestination.isExercisesDestination()) {
+                backStack.removeExercisesDestinations()
             }
             backStack.navigateToTopLevel(destination)
         } else {
@@ -281,6 +286,8 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                     NavigationBarItem(
                         selected = if (item.destination == AppDestination.Health) {
                             currentDestination.isHealthDestination()
+                        } else if (item.destination == AppDestination.Exercises) {
+                            currentDestination.isExercisesDestination()
                         } else {
                             currentDestination == item.destination
                         },
@@ -424,7 +431,20 @@ private fun ChampionNavDisplay(
                 onNavigateBack = { onNavigateTo(AppDestination.Health) },
             )
             AppDestination.Calendar -> CalendarScreen()
-            AppDestination.Exercises -> ExercisesScreen(viewModel = exercisesViewModel)
+            AppDestination.Exercises -> ExercisesScreen(
+                viewModel = exercisesViewModel,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
+            )
+            is AppDestination.ExerciseDetail -> ExercisesScreen(
+                viewModel = exercisesViewModel,
+                openedActivityId = destination.activityId.toWorkoutActivityId(),
+                onNavigateBack = onBackRequested,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
+            )
             AppDestination.Device -> DeviceScreen()
             AppDestination.Profile -> ProfileScreen()
             AppDestination.Settings -> SettingsScreen()
@@ -448,6 +468,10 @@ private fun MutableList<AppDestination>.removeHealthDestinations() {
     removeAll { it.isHealthDestination() }
 }
 
+private fun MutableList<AppDestination>.removeExercisesDestinations() {
+    removeAll { it.isExercisesDestination() }
+}
+
 private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
     AppDestination.Health,
     AppDestination.HealthHeartRate,
@@ -461,6 +485,14 @@ private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
 
 private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppDestination.HealthHeartRate
 
+private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
+    AppDestination.Exercises,
+    is AppDestination.ExerciseDetail,
+    -> true
+
+    else -> false
+}
+
 private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.Home,
     AppDestination.Health,
@@ -471,6 +503,7 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.Settings,
     -> true
 
+    is AppDestination.ExerciseDetail,
     AppDestination.HealthHeartRate,
     AppDestination.HealthWeight,
     AppDestination.HealthSteps,
@@ -509,3 +542,5 @@ private fun NavigationAnimationDirection.contentTransform(): ContentTransform {
         }
     }
 }
+
+private fun String.toWorkoutActivityId(): WorkoutActivityId = WorkoutActivityId(UUID.fromString(this))

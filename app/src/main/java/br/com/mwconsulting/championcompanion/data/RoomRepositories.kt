@@ -1,5 +1,4 @@
 package br.com.mwconsulting.championcompanion.data
-
 import androidx.room3.withWriteTransaction
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
 import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase

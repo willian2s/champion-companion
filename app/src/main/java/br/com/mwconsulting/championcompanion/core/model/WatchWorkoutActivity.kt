@@ -143,8 +143,11 @@ data class WorkoutActivity private constructor(
     val calibrationId: TreadmillCalibrationId?,
 ) {
     fun submitReview(input: SubmitWorkoutReviewInput): DomainResult<WorkoutActivity> {
-        val normalizedTitle = normalizeTitle(input.title) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
-        val normalizedNotes = normalizeNotes(input.notes) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val normalizedTitle = normalizeTitle(input.title)
+        val normalizedNotes = normalizeNotes(input.notes)
+        if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText()) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
         if (input.activityId != id || input.confirmedType == WorkoutType.UNKNOWN) {
             return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
         }
@@ -307,12 +310,25 @@ data class WorkoutActivity private constructor(
             reviewedAt: Instant?,
             calibrationId: TreadmillCalibrationId?,
         ): DomainResult<WorkoutActivity> {
-            val created = createFromImport(id, input, importedAt).valueOrNull()
-                ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
-            val normalizedTitle = normalizeTitle(title) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
-            val normalizedNotes = normalizeNotes(notes) ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            val normalizedTitle = normalizeTitle(title)
+            val normalizedNotes = normalizeNotes(notes)
+            if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText()) {
+                return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            }
             return DomainResult.Success(
-                created.copy(
+                WorkoutActivity(
+                    id = id,
+                    origin = DataOrigin.WATCH_D3_D4,
+                    deviceId = input.deviceId,
+                    importKey = WatchWorkoutImportKey(input.deviceId, DataOrigin.WATCH_D3_D4, input.crc),
+                    parserValidity = input.parserValidity,
+                    importedAt = importedAt,
+                    parserVersion = input.parserVersion,
+                    diagnosticPayloadId = input.diagnosticPayloadId,
+                    metrics = input.metrics,
+                    intervals = input.intervals,
+                    heartRateSamples = input.heartRateSamples,
+                    suggestedType = suggestType(input.metrics.steps),
                     title = normalizedTitle,
                     notes = normalizedNotes,
                     confirmedType = confirmedType,
@@ -328,13 +344,15 @@ data class WorkoutActivity private constructor(
 
         private fun normalizeTitle(value: String?): String? {
             val trimmed = value?.trim() ?: return null
-            if (trimmed.isEmpty() || trimmed.length > TITLE_MAX_LENGTH) return null
+            if (trimmed.isEmpty()) return null
+            if (trimmed.length > TITLE_MAX_LENGTH) return INVALID_NORMALIZED_TEXT
             return trimmed
         }
 
         private fun normalizeNotes(value: String?): String? {
             val trimmed = value?.trim() ?: return null
-            if (trimmed.isEmpty() || trimmed.length > NOTES_MAX_LENGTH) return null
+            if (trimmed.isEmpty()) return null
+            if (trimmed.length > NOTES_MAX_LENGTH) return INVALID_NORMALIZED_TEXT
             return trimmed
         }
 
@@ -388,11 +406,14 @@ data class WorkoutActivity private constructor(
         private const val STEPS_FOR_RUNNING_SUGGESTION = 1_000L
         private const val TITLE_MAX_LENGTH = 120
         private const val NOTES_MAX_LENGTH = 2_000
+        private const val INVALID_NORMALIZED_TEXT = "\u0000"
     }
 }
 
 private inline fun WorkoutActivity.mapSuccess(transform: (WorkoutActivity) -> WorkoutActivity): DomainResult<WorkoutActivity> =
     DomainResult.Success(transform(this))
+
+private fun String?.isInvalidNormalizedText(): Boolean = this == "\u0000"
 
 private inline fun DomainResult<WorkoutActivity>.mapSuccess(
     transform: (WorkoutActivity) -> WorkoutActivity,

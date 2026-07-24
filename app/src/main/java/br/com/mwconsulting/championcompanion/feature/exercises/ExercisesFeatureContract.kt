@@ -21,7 +21,7 @@ interface ExercisesFeatureContract : UiStateStore<ExercisesUiState> {
 data class ExercisesUiState(
     val importState: WatchWorkoutImportSurfaceState = WatchWorkoutImportSurfaceState.Idle,
     val latestImportMetadata: WatchWorkoutImportMetadata? = null,
-    val selectedFilter: WorkoutActivityFilter = WorkoutActivityFilter.PENDING_REVIEW,
+    val selectedFilter: WorkoutActivityFilter = WorkoutActivityFilter.ALL,
     val activityList: List<WorkoutActivity> = emptyList(),
     val workflowSummary: WorkoutWorkflowSummary = WorkoutWorkflowSummary(),
     val selectedActivity: WorkoutActivity? = null,

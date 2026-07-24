@@ -127,13 +127,27 @@ interface HeartRateDao {
 
 @Dao
 interface WorkoutActivityDao {
-    @Query("SELECT * FROM workout_activities ORDER BY startedAtEpochMillis DESC, importedAtEpochMillis DESC")
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "ORDER BY activity.startedAtEpochMillis DESC, activity.importedAtEpochMillis DESC",
+    )
     fun observeAll(): Flow<List<WorkoutActivityEntity>>
 
-    @Query("SELECT * FROM workout_activities WHERE workflowState = 'PENDING_REVIEW' ORDER BY importedAtEpochMillis")
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE activity.workflowState = 'PENDING_REVIEW' " +
+            "ORDER BY activity.importedAtEpochMillis",
+    )
     fun observePendingReview(): Flow<List<WorkoutActivityEntity>>
 
-    @Query("SELECT * FROM workout_activities WHERE workflowState IN (:workflowStates) ORDER BY startedAtEpochMillis DESC, importedAtEpochMillis DESC")
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE activity.workflowState IN (:workflowStates) " +
+            "ORDER BY activity.startedAtEpochMillis DESC, activity.importedAtEpochMillis DESC",
+    )
     fun observeByWorkflowStates(workflowStates: List<String>): Flow<List<WorkoutActivityEntity>>
 
     @Query("SELECT * FROM workout_activities WHERE id = :id LIMIT 1")
@@ -141,13 +155,14 @@ interface WorkoutActivityDao {
 
     @Query(
         "SELECT " +
-            "COALESCE(SUM(CASE WHEN workflowState = 'PENDING_REVIEW' THEN 1 ELSE 0 END), 0) AS pendingReviewCount, " +
-            "COALESCE(SUM(CASE WHEN workflowState = 'PENDING_CALIBRATION' THEN 1 ELSE 0 END), 0) AS pendingCalibrationCount, " +
-            "COALESCE(SUM(CASE WHEN workflowState = 'READY_TO_SYNC' THEN 1 ELSE 0 END), 0) AS readyToSyncCount, " +
-            "COALESCE(SUM(CASE WHEN workflowState = 'SYNCED' THEN 1 ELSE 0 END), 0) AS syncedCount, " +
-            "COALESCE(SUM(CASE WHEN workflowState = 'SYNC_FAILED' THEN 1 ELSE 0 END), 0) AS syncFailedCount, " +
-            "COALESCE(SUM(CASE WHEN workflowState = 'DISCARDED' THEN 1 ELSE 0 END), 0) AS discardedCount " +
-            "FROM workout_activities",
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'PENDING_REVIEW' THEN 1 ELSE 0 END), 0) AS pendingReviewCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'PENDING_CALIBRATION' THEN 1 ELSE 0 END), 0) AS pendingCalibrationCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'READY_TO_SYNC' THEN 1 ELSE 0 END), 0) AS readyToSyncCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'SYNCED' THEN 1 ELSE 0 END), 0) AS syncedCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'SYNC_FAILED' THEN 1 ELSE 0 END), 0) AS syncFailedCount, " +
+            "COALESCE(SUM(CASE WHEN activity.workflowState = 'DISCARDED' THEN 1 ELSE 0 END), 0) AS discardedCount " +
+            "FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id",
     )
     fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummaryRecord>
 

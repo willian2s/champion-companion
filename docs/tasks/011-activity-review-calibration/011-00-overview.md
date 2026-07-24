@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07` e `011-08` concluídas; `011-09` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08` e `011-09` concluídas; `011-10` a `011-13` pendentes.
 
 Observação de ordem real:
 
@@ -108,6 +108,15 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `ExercisesFeatureContract.kt` e `ExercisesViewModel.kt` agora possuem intents para filtro, abertura/fechamento de detalhe, edição local de formulários, submit de review, submit de calibração, descarte e dismiss de erro.
 - Importação D3/D4 permaneceu separada do fluxo local e continuou usando `watchWorkoutImportCoordinator` apenas para importação.
 
+## Achados de `011-09`
+
+- `AppDestination.kt` agora inclui destino de detalhe parametrizado por `activityId` em formato string estável.
+- `ChampionNavigation.kt` agora mantém subárvore manual de Exercícios, remove destinos de detalhe ao trocar de aba e preserva seleção da aba Exercícios durante o detalhe.
+- `ExercisesScreen.kt` agora preserva área de importação, exibe resumo por workflow, filtros planejados, cards clicáveis e shell inicial do detalhe para preparar `011-10`.
+- Hotspots confirmados: `ExercisesScreen.kt` concentra formatação e fallback visual da lista; `ChampionNavigation.kt` concentra regras de subfluxo e limpeza do back stack de Exercícios.
+- Ajuste posterior: `ExercisesViewModel.kt` e `ExercisesScreen.kt` precisaram alinhar filtro inicial em `ALL` e trocar faixa aberta de chips por seletor em modal para evitar ruído visual e inconsistência entre contagem e lista.
+- Ajuste posterior adicional: `ChampionDaos.kt` precisou alinhar lista e resumo ao mesmo subconjunto de atividades importadas com `watch_workout_imports`, evitando contagem visível sem itens carregáveis na lista.
+
 ## Estado herdado da Fase 10
 
 - Importação D3/D4 local-first entregue até `PENDING_REVIEW`.
@@ -210,7 +219,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-06` implementar review atômico, descarte e preservação na reimportação
 - [x] `011-07` implementar calibração atômica e métricas derivadas
 - [x] `011-08` evoluir `ExercisesViewModel` e contratos da feature
-- [ ] `011-09` implementar filtros, lista clicável e navegação para detalhe
+- [x] `011-09` implementar filtros, lista clicável e navegação para detalhe
 - [ ] `011-10` implementar detalhe, gráfico, intervalos e formulários
 - [ ] `011-11` integrar banner Home, confirmações, validações e erros seguros
 - [ ] `011-12` executar gate e validação manual em Galaxy S22

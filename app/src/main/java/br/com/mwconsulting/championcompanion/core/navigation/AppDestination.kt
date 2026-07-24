@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.core.navigation
 
+import java.util.UUID
 import kotlinx.serialization.Serializable
 
 /** Parameter-free destinations safe to place in navigation state. */
@@ -43,6 +44,15 @@ sealed class AppDestination {
     @Serializable
     data object Exercises : AppDestination() {
         override val route = "exercises"
+    }
+
+    @Serializable
+    data class ExerciseDetail(val activityId: String) : AppDestination() {
+        override val route = "exercises/$activityId"
+
+        init {
+            UUID.fromString(activityId)
+        }
     }
 
     @Serializable
