@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05` e `011-06` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06` e `011-07` concluídas.
 
 Observação de execução real:
 
@@ -97,6 +97,12 @@ Atualização de `011-06`:
 - `WorkoutActivity.submitReview(input)` agora já existe no domínio como confirmação completa de revisão, validando `activityId`, `confirmedType`, `parserValidity`, `reviewedAt`, `title` e `notes`.
 - `RoomRepositories.submitReview(input)` agora já executa persistência atômica de `confirmedType`, `title`, `notes`, `reviewedAt` e transição de workflow para `READY_TO_SYNC` ou `PENDING_CALIBRATION`.
 - `RoomRepositories.review(...)` foi mantido por compatibilidade, delegando ao contrato novo sem perder `title` e `notes` já persistidos.
+
+Atualização de `011-07`:
+
+- `RoomRepositories.calibrateImportedActivity(input)` agora já implementa fluxo atômico completo para atividade importada.
+- A revisão da calibração usa `latest revision + 1`, com `revision = 1` para primeira calibração.
+- `TreadmillCalibrationRepository` agora já oferece operação funcional de calibração atômica, além da observação da calibração ativa.
 
 ## Objetivo
 

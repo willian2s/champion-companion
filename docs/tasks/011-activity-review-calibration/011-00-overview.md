@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05` e `011-06` concluídas; `011-07` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06` e `011-07` concluídas; `011-08` a `011-13` pendentes.
 
 Observação de ordem real:
 
@@ -94,6 +94,13 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `RoomRepositories.submitReview(input)` agora persiste `confirmedType`, `title`, `notes`, `reviewedAt` e transição de workflow na mesma transação.
 - `RoomRepositories.review(...)` foi mantido por compatibilidade e passou a delegar ao contrato novo sem apagar `title` ou `notes` existentes.
 - Reimportação continua preservando `title`, `notes` e decisões já persistidas.
+
+## Achados de `011-07`
+
+- `RoomRepositories.calibrateImportedActivity(input)` agora executa fluxo atômico completo de calibração para atividade importada.
+- A próxima revisão usa `latest + 1`, preservando `revision = 1` como primeira calibração.
+- Fator segue `original`, senão `estimated`, senão ausente, sem bloquear distância calibrada.
+- A atividade é atualizada para `READY_TO_SYNC` no mesmo write da calibração.
 
 ## Estado herdado da Fase 10
 
@@ -195,7 +202,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
 - [x] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
 - [x] `011-06` implementar review atômico, descarte e preservação na reimportação
-- [ ] `011-07` implementar calibração atômica e métricas derivadas
+- [x] `011-07` implementar calibração atômica e métricas derivadas
 - [ ] `011-08` evoluir `ExercisesViewModel` e contratos da feature
 - [ ] `011-09` implementar filtros, lista clicável e navegação para detalhe
 - [ ] `011-10` implementar detalhe, gráfico, intervalos e formulários

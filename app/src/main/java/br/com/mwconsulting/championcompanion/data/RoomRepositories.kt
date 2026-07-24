@@ -550,6 +550,42 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(Unit)
     }
 
+    override suspend fun calibrateImportedActivity(
+        input: br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput,
+    ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot> = write {
+        val activityEntity = database.workoutActivityDao().findById(input.activityId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(activityEntity.id)
+            ?: return@write RepositoryResult.NotFound
+        val activity = activityEntity.toDomain(
+            importRecord,
+            database.workoutDetailDao().findIntervalsForActivity(activityEntity.id),
+            database.workoutDetailDao().findHeartRateSamplesForActivity(activityEntity.id),
+        ) ?: return@write RepositoryResult.UnexpectedState
+        if (activity.workflowState != br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState.PENDING_CALIBRATION) {
+            return@write RepositoryResult.UnexpectedState
+        }
+
+        val latest = database.treadmillCalibrationDao().findLatestForActivity(activityEntity.id)
+        val revision = (latest?.revision ?: 0) + 1
+        val calibration = br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration.forImportedActivity(
+            id = br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationId(ids.next()),
+            activity = activity,
+            revision = revision,
+            reportedMeters = input.reportedMeters,
+            appliedAt = input.appliedAt,
+        ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+
+        val updatedActivity = activity.applyCalibration(calibration).valueOrNull()
+            ?: return@write RepositoryResult.UnexpectedState
+        val calibrationEntity = calibration.toEntity() ?: return@write RepositoryResult.UnexpectedState
+
+        database.treadmillCalibrationDao().insert(calibrationEntity)
+        database.workoutActivityDao().update(updatedActivity.toEntity())
+
+        RepositoryResult.Success(calibrationEntity.toSnapshot() ?: return@write RepositoryResult.UnexpectedState)
+    }
+
     override fun observeLatestCalibration(activityId: WorkoutActivityId) =
         database.treadmillCalibrationDao()
             .observeLatestForActivity(activityId.value.toString())
