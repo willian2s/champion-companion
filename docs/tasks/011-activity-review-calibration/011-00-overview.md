@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24. `011-01` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01` concluída; `011-02` a `011-13` pendentes.
 
 ## Objetivo
 
@@ -36,6 +36,20 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `HomeViewModel.kt` e `HomeScreen.kt` ainda mostram pendências de `AppWorkoutSession`.
 - `ChampionNavigation.kt` ainda não possui rota de detalhe de atividade importada.
 - `RoomRepositories.kt` já preserva revisão e calibração na reimportação, mas não pode preservar `title` e `notes`.
+
+## Achados de `011-01`
+
+- `WorkoutActivity` já possui estados de workflow suficientes para a fase, mas ainda não possui `title` nem `notes` no domínio persistido.
+- `WorkoutActivity.confirmReview(...)` já bloqueia `parserValidity != VALID` e já separa não esteira (`READY_TO_SYNC`) de esteira (`PENDING_CALIBRATION`).
+- `TreadmillCalibration.forImportedActivity(...)` ainda exige `originalMeters > 0`; falta fallback por `estimatedMeters` e caminho com fator ausente para atividade importada.
+- `WorkoutActivityEntity` ainda não possui `title` nem `notes`; `ChampionDatabase` continua em `v3`.
+- `WorkoutActivityDao` ainda só observa `PENDING_REVIEW`; faltam lista ampla por workflow, detalhe observável por ID e resumo por workflow.
+- `TreadmillCalibrationDao.findLatestForActivity(...)` já existe, mas ainda não sobe ao contract público.
+- `RoomRepositories.planWatchWorkoutPersistence(...)` já preserva `confirmedType`, `workflowState`, `reviewedAt`, `calibrationId` e métricas calibradas na reimportação; ainda não pode preservar `title` e `notes`.
+- `ExercisesFeatureContract.kt`, `ExercisesViewModel.kt` e `ExercisesScreen.kt` ainda cobrem só importação D3/D4 e lista read-only de pendências.
+- `HomeViewModel.kt` e `HomeScreen.kt` ainda observam pendências de `AppWorkoutSession`, não `WorkoutActivity`.
+- `AppDestination.kt` e `ChampionNavigation.kt` ainda não possuem destino por `activityId`.
+- Baseline MotionLog confirma revisão manual e calibração antes do sync, mas descarte lá é exclusão persistida e fator separado de calibração não foi confirmado.
 
 ## Estado herdado da Fase 10
 
@@ -131,7 +145,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 
 ## Checklist
 
-- [ ] `011-01` auditar domínio, Room, queries, Home, filtros, navegação, MotionLog e fronteira F11/F12
+- [x] `011-01` auditar domínio, Room, queries, Home, filtros, navegação, MotionLog e fronteira F11/F12
 - [ ] `011-02` planejar ADR e corrigir roadmap durante implementação
 - [ ] `011-03` congelar contratos, filtros, estados e limites funcionais
 - [ ] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado

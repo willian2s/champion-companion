@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Em andamento em 2026-07-24. Auditoria `011-01` concluída.
 
 ## Contexto
 
@@ -40,7 +40,7 @@ READY_TO_SYNC
 
 ## Estado real após Fase 10
 
-- `core/model/WatchWorkoutActivity.kt` já contém `title` e `notes` ausentes no domínio atual; hoje só existem `suggestedType`, `confirmedType`, `workflowState`, `reviewedAt` e `calibrationId` como decisões persistidas de revisão.
+- `core/model/WatchWorkoutActivity.kt` ainda não contém `title` nem `notes`; hoje só existem `suggestedType`, `confirmedType`, `workflowState`, `reviewedAt` e `calibrationId` como decisões persistidas de revisão.
 - `WorkoutActivity.confirmReview(...)` já bloqueia confirmação quando `parserValidity != VALID` e já distingue esteira de não esteira.
 - `WorkoutActivityEntity` ainda não possui `title` nem `notes`; `ChampionDatabase` está na versão `3`.
 - `RoomRepositories.planWatchWorkoutPersistence(...)` já preserva `confirmedType`, `workflowState`, `reviewedAt`, `calibrationId` e métricas calibradas na reimportação, mas ainda não pode preservar `title` e `notes`.
@@ -49,6 +49,16 @@ READY_TO_SYNC
 - `HomeViewModel.kt` e `HomeScreen.kt` ainda tratam pendências como sessões locais de `AppWorkoutSession`, não como atividades importadas de `WorkoutActivity`.
 - Navegação real usa `AppDestination` e `ChampionNavigation.kt` com back stack manual; ainda não existe rota de detalhe de atividade importada.
 - `TreadmillCalibration.kt` já persiste registro imutável, mas hoje exige `originalMeters > 0` para atividade importada e não cobre fallback por `estimatedMeters` ou sem fator.
+
+Atualização de `011-01`:
+
+- `WorkoutActivityRepository` real ainda só expõe `persistImported(...)`, `observePendingReview()`, lookup por CRC, metadata D3/D4, `review(...)` e `discard(...)`.
+- `TreadmillCalibrationRepository` real ainda só expõe `register(calibration)`.
+- `WorkoutActivityDao` ainda só observa `PENDING_REVIEW`; faltam lista ampla por workflow, detalhe observável por ID e resumo por workflow.
+- `TreadmillCalibrationDao.findLatestForActivity(...)` já existe e favorece `observeLatestCalibration(activityId)` futuro, mas ainda não sobe ao contract público.
+- `ExercisesFeatureContract.kt` ainda não separa `selectedFilter`, `workflowSummary`, `selectedActivity`, `detailState`, `reviewFormState` ou `calibrationFormState`.
+- `AppDestination.kt` ainda não possui destino específico de detalhe por `activityId`.
+- Baseline MotionLog confirma revisão manual e calibração de esteira antes do sync, mas também confirma diferença importante: descarte na baseline antiga é exclusão persistida, enquanto a Fase 11 do app novo adotará `DISCARDED` como descarte lógico.
 
 ## Objetivo
 
