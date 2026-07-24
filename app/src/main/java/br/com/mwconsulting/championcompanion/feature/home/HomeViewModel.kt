@@ -32,6 +32,8 @@ import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepositor
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.toLocalDateIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Duration
@@ -61,6 +63,7 @@ class HomeViewModel @Inject constructor(
     private val appPreferencesRepository: AppPreferencesRepository,
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
+    private val workoutActivityRepository: WorkoutActivityRepository,
     private val dailyStepsSyncCoordinator: DailyStepsSyncCoordinator,
     private val foregroundBleOperationGate: ForegroundBleOperationGate,
     private val heartRateRepository: HeartRateRepository,
@@ -97,16 +100,18 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 contentFlow,
+                workoutActivityRepository.observeWorkflowSummary(),
                 appWorkoutSessionRepository.observeRecoverable(),
                 connectionManager.state,
                 refreshState,
-            ) { content, pending, bleState, refresh ->
+            ) { content, workflowSummary, pending, bleState, refresh ->
                 HomeUiState(
                     surfaceState = deriveSurfaceState(content.summary, content.device, bleState, refresh),
                     observedDate = content.observedDate,
                     summary = content.summary?.toHomeDailySummaryModel(content.device, content.dailyGoal),
                     latestHeartRate = content.latestHeartRate?.toHomeLatestHeartRateModel(),
                     watch = content.device.toHomeWatchSnapshot(bleState),
+                    workoutPendingBanner = workflowSummary.toWorkoutPendingBanner(),
                     pendingActivities = pending.map { it.toPendingActivityModel() },
                     refresh = refresh,
                 )
@@ -133,6 +138,7 @@ class HomeViewModel @Inject constructor(
 
             HomeIntent.DismissError -> refreshState.update { current -> current.copy(error = null, activeOperation = null) }
             HomeIntent.OpenDevice -> Unit
+            HomeIntent.OpenExercises -> Unit
         }
     }
 
@@ -386,6 +392,34 @@ class HomeViewModel @Inject constructor(
             else -> "Sessao pendente"
         },
     )
+
+    private fun WorkoutWorkflowSummary.toWorkoutPendingBanner(): HomeWorkoutPendingBanner? {
+        if (pendingReviewCount <= 0 && pendingCalibrationCount <= 0) return null
+        return if (pendingCalibrationCount > 0) {
+            HomeWorkoutPendingBanner(
+                title = "Calibração pendente",
+                message = buildString {
+                    append(pendingCalibrationCount)
+                    append(" treino(s) aguardando calibração. ")
+                    if (pendingReviewCount > 0) {
+                        append(pendingReviewCount)
+                        append(" também aguardam revisão.")
+                    }
+                },
+                pendingReviewCount = pendingReviewCount,
+                pendingCalibrationCount = pendingCalibrationCount,
+                isCalibrationPriority = true,
+            )
+        } else {
+            HomeWorkoutPendingBanner(
+                title = "Revisão pendente",
+                message = "$pendingReviewCount treino(s) aguardando revisão local antes da sincronização futura.",
+                pendingReviewCount = pendingReviewCount,
+                pendingCalibrationCount = pendingCalibrationCount,
+                isCalibrationPriority = false,
+            )
+        }
+    }
 
     private fun ChampionBleError.toHomeRefreshError(): HomeRefreshError = when (this) {
         ChampionBleError.BluetoothDisabled -> HomeRefreshError(

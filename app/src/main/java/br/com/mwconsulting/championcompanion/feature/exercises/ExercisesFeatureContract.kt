@@ -30,6 +30,8 @@ data class ExercisesUiState(
     val calibrationFormState: ExerciseCalibrationFormState = ExerciseCalibrationFormState(),
     val operationError: ExerciseOperationError? = null,
     val pendingActivities: List<WorkoutActivity> = emptyList(),
+    val hasUnsavedDetailChanges: Boolean = false,
+    val canDiscardSelectedActivity: Boolean = false,
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
@@ -96,6 +98,7 @@ sealed interface ExercisesIntent {
     data class EditCalibrationDistance(val distance: String) : ExercisesIntent
     data object SubmitCalibration : ExercisesIntent
     data object DiscardSelectedActivity : ExercisesIntent
+    data object ConfirmExitDetail : ExercisesIntent
     data object DismissOperationError : ExercisesIntent
     data object StartImport : ExercisesIntent
     data object CancelImport : ExercisesIntent

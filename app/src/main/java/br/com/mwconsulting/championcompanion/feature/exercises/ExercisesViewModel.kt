@@ -166,6 +166,13 @@ class ExercisesViewModel internal constructor(
                     calibrationFormState = calibrationForm,
                     operationError = error,
                     pendingActivities = activities.filter { it.workflowState == ActivityWorkflowState.PENDING_REVIEW },
+                    hasUnsavedDetailChanges = reviewForm.hasUnsavedChanges ||
+                        (calibrationForm.loadedActivityId == activity?.id && calibrationForm.reportedDistanceInput.isNotBlank()),
+                    canDiscardSelectedActivity = activity?.workflowState in setOf(
+                        ActivityWorkflowState.PENDING_REVIEW,
+                        ActivityWorkflowState.PENDING_CALIBRATION,
+                        ActivityWorkflowState.READY_TO_SYNC,
+                    ),
                     dailyStepsGoal = goal,
                     hasAssociatedDevice = device != null,
                     associatedDeviceName = device?.name,
@@ -206,6 +213,7 @@ class ExercisesViewModel internal constructor(
             is ExercisesIntent.EditCalibrationDistance -> updateCalibrationDistance(intent.distance)
             ExercisesIntent.SubmitCalibration -> submitCalibration()
             ExercisesIntent.DiscardSelectedActivity -> discardSelectedActivity()
+            ExercisesIntent.ConfirmExitDetail -> closeSelectedActivity()
             ExercisesIntent.DismissOperationError -> operationError.value = null
             ExercisesIntent.StartImport -> startImport()
             ExercisesIntent.CancelImport -> cancelImport(WatchWorkoutImportCancellationReason.USER_REQUESTED)

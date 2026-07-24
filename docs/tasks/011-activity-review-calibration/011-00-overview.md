@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09` e `011-10` concluídas; `011-11` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09`, `011-10` e `011-11` concluídas; `011-12` e `011-13` pendentes.
 
 Observação de ordem real:
 
@@ -126,6 +126,15 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - Ajuste posterior: `PARTIAL` voltou a poder seguir revisão local e alcançar `READY_TO_SYNC`, alinhando fluxo ao comportamento anterior do app e removendo bloqueio excessivo introduzido na Fase 11.
 - Ajuste posterior adicional: detalhe passou a tratar treino livre com métricas mais enxutas, intervalos em modal sob demanda e chips empilhados em coluna para evitar quebra visual.
 
+## Achados de `011-11`
+
+- `HomeViewModel.kt` agora observa `WorkoutWorkflowSummary` e produz banner de pendências locais com prioridade para calibração.
+- `HomeScreen.kt` agora oferece atalho direto `Home -> Exercícios` pelo banner, sem acoplar Home ao detalhe de uma atividade específica.
+- `ChampionNavigation.kt` agora diferencia confirmação de saída para importação em andamento e para rascunho não salvo do detalhe de Exercícios.
+- `ExercisesScreen.kt` agora confirma descarte explicitamente antes de marcar treino como descartado.
+- Risco residual aceito antes da validação manual final: ainda existe warning antigo de unchecked cast em `ExercisesViewModel.kt` sem relação funcional com a task.
+- Follow-up técnico pendente: substituir o `combine(...)` indexado de `ExercisesViewModel.kt` por composição tipada para remover warning de unchecked cast em `values[3] as List<WorkoutActivity>`.
+
 ## Estado herdado da Fase 10
 
 - Importação D3/D4 local-first entregue até `PENDING_REVIEW`.
@@ -230,7 +239,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-08` evoluir `ExercisesViewModel` e contratos da feature
 - [x] `011-09` implementar filtros, lista clicável e navegação para detalhe
 - [x] `011-10` implementar detalhe, gráfico, intervalos e formulários
-- [ ] `011-11` integrar banner Home, confirmações, validações e erros seguros
+- [x] `011-11` integrar banner Home, confirmações, validações e erros seguros
 - [ ] `011-12` executar gate e validação manual em Galaxy S22
 - [ ] `011-13` fechar spec, overview, roadmap, ADR e documentação factual necessária
 

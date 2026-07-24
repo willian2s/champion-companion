@@ -187,6 +187,7 @@ fun ExercisesScreen(
                     onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
                     onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
                     onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
+                    onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
                 )
             }
         }
@@ -758,7 +759,9 @@ private fun ExerciseDetailShell(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    onDiscardActivity: () -> Unit,
 ) {
+    var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
@@ -806,6 +809,7 @@ private fun ExerciseDetailShell(
                             reviewFormState = state.reviewFormState,
                             calibrationFormState = state.calibrationFormState,
                             operationError = state.operationError,
+                            canDiscardSelectedActivity = state.canDiscardSelectedActivity,
                             onDismissError = onDismissError,
                             onReviewTypeChange = onReviewTypeChange,
                             onReviewTitleChange = onReviewTitleChange,
@@ -813,11 +817,33 @@ private fun ExerciseDetailShell(
                             onSubmitReview = onSubmitReview,
                             onCalibrationDistanceChange = onCalibrationDistanceChange,
                             onSubmitCalibration = onSubmitCalibration,
+                            onRequestDiscard = { showDiscardConfirmation = true },
                         )
                     }
                 }
             }
         }
+    }
+
+    if (showDiscardConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmation = false },
+            title = { Text("Descartar treino?") },
+            text = { Text("O treino será marcado como descartado e continuará disponível apenas para auditoria local.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardConfirmation = false
+                    onDiscardActivity()
+                }) {
+                    Text("Descartar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmation = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
     }
 }
 
@@ -828,6 +854,7 @@ private fun WorkoutActivityDetailContent(
     reviewFormState: ExerciseReviewFormState,
     calibrationFormState: ExerciseCalibrationFormState,
     operationError: ExerciseOperationError?,
+    canDiscardSelectedActivity: Boolean,
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewTitleChange: (String) -> Unit,
@@ -835,6 +862,7 @@ private fun WorkoutActivityDetailContent(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    onRequestDiscard: () -> Unit,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
@@ -875,6 +903,11 @@ private fun WorkoutActivityDetailContent(
 
             activity.workflowState == ActivityWorkflowState.READY_TO_SYNC || activity.workflowState == ActivityWorkflowState.DISCARDED ->
                 ReadOnlyWorkflowSection(activity, latestCalibration)
+        }
+        if (canDiscardSelectedActivity) {
+            TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
+                Text("Descartar treino")
+            }
         }
     }
 }

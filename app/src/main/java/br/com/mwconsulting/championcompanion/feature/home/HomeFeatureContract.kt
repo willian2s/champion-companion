@@ -14,6 +14,7 @@ data class HomeUiState(
     val summary: HomeDailySummaryModel? = null,
     val latestHeartRate: HomeLatestHeartRateModel? = null,
     val watch: HomeWatchSnapshot = HomeWatchSnapshot(),
+    val workoutPendingBanner: HomeWorkoutPendingBanner? = null,
     val pendingActivities: List<HomePendingActivityModel> = emptyList(),
     val refresh: HomeRefreshState = HomeRefreshState(),
 )
@@ -24,6 +25,7 @@ sealed interface HomeIntent {
     data object Retry : HomeIntent
     data object DismissError : HomeIntent
     data object OpenDevice : HomeIntent
+    data object OpenExercises : HomeIntent
 }
 
 enum class HomeSurfaceState {
@@ -117,4 +119,12 @@ data class HomePendingActivityModel(
     val id: String,
     val title: String,
     val subtitle: String?,
+)
+
+data class HomeWorkoutPendingBanner(
+    val title: String,
+    val message: String,
+    val pendingReviewCount: Int,
+    val pendingCalibrationCount: Int,
+    val isCalibrationPriority: Boolean,
 )

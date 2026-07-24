@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09` e `011-10` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09`, `011-10` e `011-11` concluídas.
 
 Observação de execução real:
 
@@ -121,6 +121,12 @@ Atualização de `011-10`:
 - `ExercisesScreen.kt` agora já renderiza detalhe completo com cabeçalho, métricas, gráfico com amostras reais de BPM, intervalos e formulários de revisão/calibração.
 - A associação intervalo ↔ BPM agora usa janela temporal segura por duração acumulada do treino; quando não houver amostras na janela, a UI degrada para mensagem explícita sem inventar BPM.
 - Estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `PARTIAL`, `Loading`, `NotFound` e `Failed` agora já possuem representação dedicada no detalhe.
+
+Atualização de `011-11`:
+
+- `HomeViewModel` e `HomeScreen` agora já exibem banner de pendências locais com prioridade visual para calibração pendente e navegação direta para Exercícios.
+- `ChampionNavigation.kt` agora já confirma saída tanto para importação D3/D4 em andamento quanto para rascunho não salvo do detalhe de Exercícios.
+- `ExercisesScreen.kt` agora já exige confirmação explícita para descarte e mantém mensagens seguras para conflito, not found, validação e erro de persistência.
 - Ajuste posterior: `PARTIAL` deixou de bloquear revisão, calibração e avanço para `READY_TO_SYNC`, alinhando Champion Companion ao comportamento histórico aceito do app anterior.
 - Ajuste posterior: treinos livres passaram a exibir conjunto mais enxuto de métricas, intervalos migraram para modal sob demanda e gráfico de BPM foi aproximado ao padrão visual já usado na tela de frequência cardíaca.
 

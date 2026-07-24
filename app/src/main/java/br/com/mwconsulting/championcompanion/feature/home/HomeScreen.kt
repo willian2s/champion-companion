@@ -75,6 +75,7 @@ fun HomeScreen(
     onOpenDevice: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenHeartRate: () -> Unit,
+    onOpenExercises: () -> Unit,
     homeViewModel: HomeViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -176,6 +177,7 @@ fun HomeScreen(
                         state = state,
                         onOpenDevice = onOpenDevice,
                         onOpenHeartRate = onOpenHeartRate,
+                        onOpenExercises = onOpenExercises,
                         onRefresh = { homeViewModel.onIntent(HomeIntent.Refresh) },
                         onRetry = { homeViewModel.onIntent(HomeIntent.Retry) },
                     )
@@ -190,6 +192,7 @@ private fun HomeSurface(
     state: HomeUiState,
     onOpenDevice: () -> Unit,
     onOpenHeartRate: () -> Unit,
+    onOpenExercises: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -198,8 +201,10 @@ private fun HomeSurface(
             summary = summary,
             latestHeartRate = state.latestHeartRate,
             watch = state.watch,
+            workoutPendingBanner = state.workoutPendingBanner,
             pendingActivities = state.pendingActivities,
             onOpenHeartRate = onOpenHeartRate,
+            onOpenExercises = onOpenExercises,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -268,8 +273,10 @@ private fun HomeSummaryContent(
     summary: HomeDailySummaryModel,
     latestHeartRate: HomeLatestHeartRateModel?,
     watch: HomeWatchSnapshot,
+    workoutPendingBanner: HomeWorkoutPendingBanner?,
     pendingActivities: List<HomePendingActivityModel>,
     onOpenHeartRate: () -> Unit,
+    onOpenExercises: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -301,6 +308,13 @@ private fun HomeSummaryContent(
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        workoutPendingBanner?.let { banner ->
+            HomeWorkoutPendingBannerCard(
+                banner = banner,
+                onOpenExercises = onOpenExercises,
             )
         }
 
@@ -352,6 +366,49 @@ private fun HomeSummaryContent(
         HomeMetadataFooter(
             lastImportedAt = watch.lastImportedAt,
         )
+    }
+}
+
+@Composable
+private fun HomeWorkoutPendingBannerCard(
+    banner: HomeWorkoutPendingBanner,
+    onOpenExercises: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenExercises),
+        colors = CardDefaults.cardColors(
+            containerColor = if (banner.isCalibrationPriority) {
+                MaterialTheme.colorScheme.tertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.secondaryContainer
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = banner.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = banner.message,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = if (banner.isCalibrationPriority) {
+                    "Toque para abrir Exercícios e concluir a calibração prioritária."
+                } else {
+                    "Toque para abrir Exercícios e revisar os treinos pendentes."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
