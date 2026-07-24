@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08` e `011-09` concluídas; `011-10` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09` e `011-10` concluídas; `011-11` a `011-13` pendentes.
 
 Observação de ordem real:
 
@@ -117,6 +117,15 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - Ajuste posterior: `ExercisesViewModel.kt` e `ExercisesScreen.kt` precisaram alinhar filtro inicial em `ALL` e trocar faixa aberta de chips por seletor em modal para evitar ruído visual e inconsistência entre contagem e lista.
 - Ajuste posterior adicional: `ChampionDaos.kt` precisou alinhar lista e resumo ao mesmo subconjunto de atividades importadas com `watch_workout_imports`, evitando contagem visível sem itens carregáveis na lista.
 
+## Achados de `011-10`
+
+- `ExercisesScreen.kt` agora concentra tela de detalhe real com cabeçalho, métricas, gráfico local de BPM, intervalos e formulários conectados ao `ExercisesViewModel`.
+- Risco visual conhecido: `ExercisesScreen.kt` ficou hotspot ainda maior, acumulando lista, detalhe, gráfico e formulários no mesmo arquivo até extração futura consciente.
+- Risco de acessibilidade conhecido: gráfico tem resumo textual explícito, mas ainda depende de validação manual final em device para legibilidade e densidade visual.
+- Regra de associação intervalo/BPM ficou conservadora: só usa amostras dentro da janela temporal acumulada de cada intervalo; fora disso, mostra degradação segura sem inventar média.
+- Ajuste posterior: `PARTIAL` voltou a poder seguir revisão local e alcançar `READY_TO_SYNC`, alinhando fluxo ao comportamento anterior do app e removendo bloqueio excessivo introduzido na Fase 11.
+- Ajuste posterior adicional: detalhe passou a tratar treino livre com métricas mais enxutas, intervalos em modal sob demanda e chips empilhados em coluna para evitar quebra visual.
+
 ## Estado herdado da Fase 10
 
 - Importação D3/D4 local-first entregue até `PENDING_REVIEW`.
@@ -220,7 +229,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-07` implementar calibração atômica e métricas derivadas
 - [x] `011-08` evoluir `ExercisesViewModel` e contratos da feature
 - [x] `011-09` implementar filtros, lista clicável e navegação para detalhe
-- [ ] `011-10` implementar detalhe, gráfico, intervalos e formulários
+- [x] `011-10` implementar detalhe, gráfico, intervalos e formulários
 - [ ] `011-11` integrar banner Home, confirmações, validações e erros seguros
 - [ ] `011-12` executar gate e validação manual em Galaxy S22
 - [ ] `011-13` fechar spec, overview, roadmap, ADR e documentação factual necessária

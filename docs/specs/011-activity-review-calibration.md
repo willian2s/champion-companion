@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08` e `011-09` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09` e `011-10` concluídas.
 
 Observação de execução real:
 
@@ -116,6 +116,14 @@ Atualização de `011-09`:
 - `ChampionNavigation.kt` agora já trata `Exercícios -> detalhe` como subfluxo manual do back stack e mantém seleção correta da aba Exercícios durante detalhe.
 - `ExercisesScreen.kt` agora preserva área de importação D3/D4 e adiciona resumo, filtros, lista clicável e shell inicial de detalhe.
 
+Atualização de `011-10`:
+
+- `ExercisesScreen.kt` agora já renderiza detalhe completo com cabeçalho, métricas, gráfico com amostras reais de BPM, intervalos e formulários de revisão/calibração.
+- A associação intervalo ↔ BPM agora usa janela temporal segura por duração acumulada do treino; quando não houver amostras na janela, a UI degrada para mensagem explícita sem inventar BPM.
+- Estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `PARTIAL`, `Loading`, `NotFound` e `Failed` agora já possuem representação dedicada no detalhe.
+- Ajuste posterior: `PARTIAL` deixou de bloquear revisão, calibração e avanço para `READY_TO_SYNC`, alinhando Champion Companion ao comportamento histórico aceito do app anterior.
+- Ajuste posterior: treinos livres passaram a exibir conjunto mais enxuto de métricas, intervalos migraram para modal sob demanda e gráfico de BPM foi aproximado ao padrão visual já usado na tela de frequência cardíaca.
+
 ## Objetivo
 
 Permitir que o usuário:
@@ -152,8 +160,8 @@ Permitir que o usuário:
 14. Confirmar revisão de atividade não esteira faz `PENDING_REVIEW -> READY_TO_SYNC`.
 15. Confirmar revisão de atividade como esteira faz `PENDING_REVIEW -> PENDING_CALIBRATION`.
 16. A operação de revisão é atômica.
-17. `parserValidity != VALID` bloqueia confirmação, calibração e `READY_TO_SYNC`.
-18. Atividade `PARTIAL` continua visível, detalhável, descartável e reimportável.
+17. `parserValidity = PARTIAL` não bloqueia confirmação, calibração nem avanço para `READY_TO_SYNC` quando o restante do fluxo estiver válido.
+18. Atividade `PARTIAL` continua visível, detalhável, descartável, reimportável e elegível para sincronização futura após revisão local.
 19. O usuário não pode alterar manualmente `parserValidity`, origem, CRC, timestamps importados, métricas importadas ou diagnóstico.
 20. `UNKNOWN` não pode ser tipo final confirmado.
 21. `CalibrateImportedActivityInput(activityId, reportedMeters, appliedAt)` deve existir em contrato equivalente no domínio de repositórios.
@@ -289,7 +297,7 @@ Fallbacks visuais planejados:
 ## Validade do parser
 
 - `VALID`: permite revisão.
-- `PARTIAL`: permite visualização, descarte e reimportação; bloqueia revisão, calibração e `READY_TO_SYNC`.
+- `PARTIAL`: permite visualização, descarte, reimportação, revisão, calibração quando necessária e avanço até `READY_TO_SYNC`.
 - `INVALID`: não deve nascer na Fase 10; se registro legado ou inconsistente surgir, a UI mostra erro seguro e não inventa dados.
 
 ## State machine
@@ -589,7 +597,7 @@ Roteiro manual obrigatório no Galaxy S22 com atividades reais D3/D4:
 17. reiniciar app e confirmar persistência da calibração;
 18. reimportar mesmo treino;
 19. confirmar preservação de decisões;
-20. abrir atividade `PARTIAL` e confirmar bloqueios;
+20. abrir atividade `PARTIAL` e confirmar que o fluxo local continua disponível com aviso informativo;
 21. descartar atividade;
 22. confirmar filtro `Descartadas`;
 23. confirmar ausência de Health Connect funcional;
@@ -615,7 +623,7 @@ Roteiro manual obrigatório no Galaxy S22 com atividades reais D3/D4:
 - revisão não esteira produz `READY_TO_SYNC`;
 - revisão de esteira produz `PENDING_CALIBRATION`;
 - calibração produz `READY_TO_SYNC`;
-- atividade `PARTIAL` continua visível, mas bloqueada para revisão/calibração;
+- atividade `PARTIAL` continua visível e pode seguir fluxo local até `READY_TO_SYNC`;
 - descarte é lógico;
 - reimportação preserva decisões;
 - dados persistem após reinício;

@@ -30,7 +30,7 @@ Essa mistura conflita com princípios já aceitos no projeto:
 - revisão local não depende de provider externo;
 - falha futura do provider não deve desfazer dado local válido;
 - Health Connect não substitui Room/repositories locais como fonte visual primária;
-- `PARTIAL` continua bloqueando avanço até pronto.
+- `PARTIAL` continua persistido localmente e pode seguir revisão local até pronto quando o restante do fluxo estiver válido.
 
 ## Decisão
 
@@ -42,7 +42,7 @@ Fase 11 deve:
 
 - listar atividades importadas e filtrar por workflow;
 - permitir revisão local com tipo confirmado, título e observações;
-- bloquear confirmação quando `parserValidity != VALID`;
+- permitir confirmação de `VALID` e `PARTIAL`, preservando bloqueios apenas para estados realmente inválidos;
 - avançar atividade não esteira de `PENDING_REVIEW` para `READY_TO_SYNC`;
 - avançar atividade de esteira de `PENDING_REVIEW` para `PENDING_CALIBRATION` e depois para `READY_TO_SYNC`;
 - persistir calibração como camada derivada local;
@@ -107,12 +107,12 @@ Regras:
 - não apagar atividade, import record, intervalos, amostras, calibração nem diagnóstico;
 - descarte impede sync futuro enquanto estado permanecer descartado.
 
-### 7. Bloqueio de PARTIAL
+### 7. Tratamento de PARTIAL
 
-Atividade `PARTIAL` continua visível, descartável e reimportável, mas não pode:
+Atividade `PARTIAL` continua visível, descartável e reimportável e também pode:
 
 - ser confirmada como revisada;
-- ser calibrada;
+- ser calibrada quando o tipo confirmado exigir;
 - avançar para `READY_TO_SYNC`.
 
 ### 8. Preservação de revisão na reimportação
@@ -137,7 +137,7 @@ No mínimo:
 - protege Fase 11 como entrega local-first utilizável sem provider;
 - preserva Room/repositories locais como fonte visual primária;
 - prepara backlog consistente para Fase 12;
-- formaliza descarte lógico e bloqueio de `PARTIAL` sem reabrir parser.
+- formaliza descarte lógico sem impedir que `PARTIAL` siga fluxo local já aceito historicamente.
 
 ### Negativas
 
@@ -149,7 +149,7 @@ No mínimo:
 
 - manter sync real e retry do provider dentro da Fase 11;
 - tratar revisão como se já fosse sincronização;
-- deixar `PARTIAL` avançar manualmente por ação do usuário;
+- manter bloqueio artificial de `PARTIAL` apesar do comportamento histórico já aceito;
 - apagar fisicamente atividades descartadas;
 - recalcular e substituir métricas importadas em vez de mantê-las imutáveis.
 

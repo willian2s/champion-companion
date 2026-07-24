@@ -159,7 +159,7 @@ data class WorkoutActivity private constructor(
 
     fun confirmReview(type: WorkoutType, reviewedAt: Instant): DomainResult<WorkoutActivity> {
         if (workflowState != ActivityWorkflowState.PENDING_REVIEW ||
-            parserValidity != ParserValidity.VALID || reviewedAt.isBefore(importedAt) ||
+            reviewedAt.isBefore(importedAt) ||
             type == WorkoutType.UNKNOWN
         ) {
             return DomainResult.Failure(DomainValidationError.INVALID_STATE)

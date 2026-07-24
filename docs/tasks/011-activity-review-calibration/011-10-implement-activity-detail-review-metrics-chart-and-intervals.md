@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
