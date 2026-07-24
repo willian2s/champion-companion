@@ -1,0 +1,747 @@
+# Spec 012 - Health Connect nativo write-only com fila persistida
+
+## Status
+
+Planejada em 2026-07-24.
+
+## Contexto
+
+As Fases 07 a 11 já entregaram persistência local operacional para resumo diário, medição manual de frequência cardíaca, histórico D1, importação D3/D4, revisão de atividades, calibração de esteira, descarte lógico e atividades em `READY_TO_SYNC`.
+
+A Fase 12 implementa a primeira integração real do Champion Companion com o Health Connect, preservando a arquitetura local-first:
+
+```text
+Dados locais
+    ↓
+Fila persistida
+    ↓
+Health Connect
+    ↓
+SYNCED ou FAILED
+```
+
+Room permanece fonte operacional e visual primária. O Health Connect é destino derivado de escrita.
+
+## Documentos autoritativos
+
+- `AGENTS.md`
+- `docs/specs/_inputs/phase-12-native-health-connect-direction.md`
+- `docs/roadmap/champion-companion-roadmap.md`
+- `docs/baseline/current-baseline.md`
+- `docs/baseline/health-connect-mapping.md`
+- `docs/baseline/database-reference.md`
+- `docs/baseline/feature-parity-checklist.md`
+- `docs/baseline/gaps-and-open-questions.md`
+- ADRs vigentes em `docs/decisions/`
+- `docs/decisions/adr-010-d1-local-first-and-health-connect-phase-boundary.md`
+- `docs/decisions/adr-011-activity-ready-to-sync-phase-boundary.md`
+- `docs/specs/011-activity-review-calibration.md`
+- `docs/tasks/011-activity-review-calibration/011-00-overview.md`
+
+## Estado pós-Fase 11
+
+- `DailySummary` já persiste passos locais por dia.
+- `HeartRateMeasurement` já persiste medições manuais e D1.
+- `HealthSyncOperation` já existe, mas ainda cobre apenas `HEART_RATE` e backlog D1.
+- `WorkoutActivity` já possui `READY_TO_SYNC`, `SYNCING`, `SYNCED`, `SYNC_FAILED` e `DISCARDED` no domínio.
+- `TreadmillCalibration` já preserva camada derivada local sem sobrescrever métricas importadas.
+- `AppPreferences.healthSyncEnabled` já existe, mas ainda não participa do fluxo funcional.
+- `SettingsScreen` ainda é placeholder.
+- `ChampionDatabase` está em `v4`.
+
+## Reconciliação documental herdada
+
+A primeira task da fase deve reconciliar documentação atrasada da Fase 11 sem reabrir implementação funcional:
+
+- overview da Fase 11;
+- baseline factual;
+- checklist de paridade;
+- lacunas e perguntas abertas;
+- task de fechamento pendente;
+- visão factual de backlog local herdado.
+
+## SDK
+
+Dependência planejada:
+
+```text
+androidx.health.connect:connect-client:1.1.0
+```
+
+Regras:
+
+- usar versão estável;
+- não usar alpha sem requisito comprovado e ADR própria;
+- integrar via version catalog e dependência do módulo `:app`.
+
+## Disponibilidade
+
+Estados mínimos planejados:
+
+- `Available`
+- `ProviderUpdateRequired`
+- `Unavailable`
+
+Comportamento:
+
+- `Available`: permite ler permissões concedidas, abrir conexão e processar fila.
+- `ProviderUpdateRequired`: mantém backlog local, informa correção e oferece abertura do destino apropriado.
+- `Unavailable`: não pede permissão, não tenta escrita e preserva fila local.
+
+## Provider
+
+O app deve encapsular `HealthConnectClient` atrás de gateway Android-free. A integração é write-only nesta fase.
+
+Não implementar:
+
+- leitura do Health Connect;
+- leitura de dados de terceiros;
+- `ChangeLogs`;
+- reconciliação baseada em leitura remota.
+
+## Permissões
+
+Solicitar apenas permissões de escrita, agrupadas por capacidade amigável:
+
+- Passos
+- Frequência cardíaca
+- Exercícios
+- Distância
+- Calorias
+- Peso
+- Altura
+
+Regras:
+
+- não pedir leitura;
+- não exigir peso e altura para passos ou BPM;
+- não exigir distância e calorias para escrever sessão de exercício;
+- pedir peso e altura somente quando houver dado local elegível.
+
+## Rationale
+
+Deve existir Activity de rationale de privacidade, explicando:
+
+- quais tipos são enviados;
+- por que são enviados;
+- que Room continua sendo fonte operacional;
+- que nenhuma rota é enviada;
+- como pausar sincronização;
+- como gerenciar permissões;
+- como os dados são tratados.
+
+## Preferência
+
+Reutilizar `AppPreferences.healthSyncEnabled`.
+
+Regras:
+
+- desativada: persistir local, manter `PENDING` ou `FAILED`, não tentar automaticamente;
+- ativada: verificar disponibilidade, pedir permissões em contexto explícito, reconciliar backlog e processar tipos autorizados;
+- desativar não apaga dados locais nem records já escritos.
+
+## Arquitetura
+
+```mermaid
+flowchart TD
+    Home[Home] --> Coord[HealthConnectSyncCoordinator]
+    Saude[Saúde] --> Coord
+    Exercicios[Exercícios] --> Coord
+    Settings[Configurações] --> Coord
+    Coord --> SyncRepo[HealthSyncRepository]
+    Coord --> Prefs[AppPreferencesRepository]
+    Coord --> DailyRepo[DailySummaryRepository]
+    Coord --> HrRepo[HeartRateRepository]
+    Coord --> WorkoutRepo[WorkoutActivityRepository]
+    Coord --> MetricsRepo[PersonalMetricsRepository]
+    Coord --> Mapper[HealthRecordMapper]
+    Coord --> Gateway[HealthConnectGateway]
+    Gateway --> HC[Health Connect]
+```
+
+Fronteiras:
+
+- Compose não acessa `HealthConnectClient`;
+- ViewModel não cria records;
+- mapper não acessa Room;
+- gateway não interpreta regra de produto;
+- repository não acessa APIs Android do Health Connect;
+- coordinator controla fila, transições, retry foreground e resultado seguro.
+
+## Fila persistida
+
+```mermaid
+flowchart LR
+    Persistencia[Persistência local] --> Ensure[ensureOperation]
+    Ensure --> Queue[(health_sync_operations)]
+    Queue --> Find[findProcessable]
+    Find --> Start[markStarted]
+    Start --> Map[Mapear record]
+    Map --> Insert[insertRecords]
+    Insert --> Synced[markSynced]
+    Insert --> Failed[markFailed]
+```
+
+Contratos planejados:
+
+- `ensureOperation(...)`
+- `findProcessable(...)`
+- `observeSyncSummary(...)`
+- `findOperationsForAggregate(...)`
+- `markStarted(...)`
+- `markSynced(...)`
+- `markFailed(...)`
+- `resetInterrupted(...)`
+
+Regras:
+
+- chave natural por agregado e tipo de record;
+- duplicata não cria nova operação;
+- `SYNCED` não volta para `PENDING` sem nova versão local;
+- `FAILED` é repetível;
+- `SYNCING` abandonado volta a estado recuperável;
+- limite inicial foreground: 100 operações por execução.
+
+## Migration
+
+Base atual: schema `v4`.
+
+Próxima migration deve contemplar:
+
+- expansão de `health_sync_operations`;
+- `clientRecordId`;
+- `clientRecordVersion`;
+- `syncedAt`;
+- índices adicionais necessários;
+- possível congelamento de timezone para `DailySummary`.
+
+Regras:
+
+- operações D1 existentes não podem ser perdidas;
+- campos impossíveis de preencher em migration podem nascer nullable;
+- repository deve fazer repair idempotente antes de processar operação antiga.
+
+## Aggregates
+
+Aggregates planejados para fila:
+
+- `DailySummary`
+- `HeartRateMeasurement`
+- `WorkoutActivity`
+- `WeightMeasurement`
+- `UserProfileHeight`
+
+## Record types
+
+Tipos planejados:
+
+- `STEPS`
+- `HEART_RATE`
+- `EXERCISE_SESSION`
+- `DISTANCE`
+- `TOTAL_CALORIES_BURNED`
+- `WEIGHT`
+- `HEIGHT`
+
+## IDs estáveis
+
+Formato determinístico planejado:
+
+```text
+<applicationId>:<aggregateType>:<aggregateId>:<recordType>
+```
+
+Regras:
+
+- não usar valor aleatório por tentativa;
+- não usar timestamp atual como ID;
+- retry usa mesmo ID;
+- não incluir BPM, passos, distância, peso, altura, título ou notas.
+
+## Versões
+
+- resumo diário: derivada de `updatedAt`;
+- BPM manual e D1: estável por registro local imutável;
+- atividade: derivada da revisão mais recente entre importação, revisão e calibração;
+- peso: `measuredAt` ou equivalente local monotônico;
+- altura: `updatedAt` do perfil.
+
+Atualização local deve produzir versão maior que a já enviada.
+
+## Upsert
+
+Usar `insertRecords` com:
+
+- `clientRecordId`
+- `clientRecordVersion`
+
+Não depender de leitura prévia remota.
+
+Não apagar `Steps` por intervalo antes de inserir.
+
+## Passos
+
+Origem local: `DailySummary`.
+
+```mermaid
+flowchart TD
+    Refresh[Pull-to-refresh da Home] --> Merge[mergeWatchDailySummary]
+    Merge --> Op[ensureOperation STEPS]
+    Op --> Release[Liberar BLE]
+    Release --> Try[Tentar sync]
+    Try --> Record[StepsRecord único do dia]
+```
+
+Regras:
+
+- um único `StepsRecord` por resumo diário;
+- mesmo `clientRecordId` em todos os refreshes do mesmo dia;
+- refresh repetido atualiza o mesmo record;
+- não criar `StepsRecord` separado para atividade;
+- para dia corrente, usar fim no instante coletado;
+- para dia encerrado, usar fim no início do dia seguinte no timezone congelado.
+
+## BPM manual
+
+Origem local: `MANUAL_MEASUREMENT`.
+
+```mermaid
+flowchart TD
+    Manual[Medição manual concluída] --> Persist[Persistir resultado final]
+    Persist --> Op[ensureOperation HEART_RATE]
+    Op --> Release[Liberar BLE]
+    Release --> Try[Tentar sync]
+    Try --> HR[HeartRateRecord com uma amostra]
+```
+
+Regras:
+
+- uma operação por medição persistida;
+- uma amostra por record;
+- usar timestamp exato da medição;
+- manter idempotência por `clientRecordId`.
+
+## D1
+
+Origem local: `WATCH_D1_HISTORY`.
+
+```mermaid
+flowchart TD
+    D1[Lote D1 persistido] --> Pending[Operações PENDING garantidas]
+    Pending --> Release[Liberar BLE]
+    Release --> Backlog[Processar backlog HEART_RATE]
+    Backlog --> HC[HeartRateRecord por medição válida]
+```
+
+Regras:
+
+- enviar todos os pontos válidos persistidos;
+- uma operação por medição persistida;
+- sem seleção individual;
+- repair idempotente para operações antigas sem identidade nova.
+
+## Atividade
+
+Atividade local só sincroniza por ação explícita do usuário.
+
+```mermaid
+flowchart TD
+    Ready[READY_TO_SYNC] --> Tap[Usuário toca Sincronizar]
+    Tap --> Ensure[Garantir operações da atividade]
+    Ensure --> Session[ExerciseSessionRecord]
+    Session --> Distance[DistanceRecord opcional]
+    Distance --> Calories[TotalCaloriesBurnedRecord opcional]
+    Calories --> Hr[HeartRateRecord opcional]
+```
+
+### Sessão
+
+Usar:
+
+- início;
+- fim;
+- tipo confirmado;
+- título;
+- observações.
+
+Exigir:
+
+- `READY_TO_SYNC` ou `SYNC_FAILED`;
+- tipo confirmado;
+- duração positiva;
+- sessão temporal válida.
+
+### Tipo de exercício
+
+Mapeamento explícito:
+
+- `WALKING`
+- `RUNNING`
+- `TREADMILL`
+- `FREE_WORKOUT`
+
+Quando não houver correspondência exata, usar tipo conservador.
+
+### Distância
+
+Prioridade:
+
+1. calibrada
+2. original
+3. estimada
+4. ausente
+
+Não criar record quando valor for ausente, não finito ou não positivo.
+
+### Calorias
+
+Criar somente quando valor existir, for finito, positivo e a permissão correspondente estiver concedida.
+
+### BPM da atividade
+
+Usar amostras reais persistidas dentro da sessão.
+
+Quando não houver amostras:
+
+- omitir record;
+- não inventar amostra a partir de média.
+
+### Passos da atividade
+
+Não criar record separado. Os passos do treino continuam apenas como dado local exibido no detalhe.
+
+### PARTIAL
+
+`ParserValidity.PARTIAL` pode sincronizar somente dados realmente presentes.
+
+Regras:
+
+- não inventar métricas ausentes;
+- exigir sessão temporal válida;
+- falhar com erro seguro quando dados mínimos não formarem record válido.
+
+## Granularidade e falha parcial
+
+```mermaid
+flowchart TD
+    Bundle[Bundle da atividade] --> SessionOk[Sessão sincronizada]
+    Bundle --> DistanceFail[Distância falhou]
+    Bundle --> CaloriesSkip[Calorias sem permissão]
+    Bundle --> HrPending[BPM pendente]
+    SessionOk --> State[Atividade segue SYNC_FAILED até tudo elegível concluir]
+    DistanceFail --> State
+    CaloriesSkip --> State
+    HrPending --> State
+```
+
+Regras:
+
+- sessão sincronizada não deve ser apagada se complemento falhar;
+- marcar somente operação complementar como `FAILED`;
+- retry processa apenas pendentes ou falhas;
+- atividade só vira `SYNCED` quando todas as operações elegíveis concluírem.
+
+## Peso
+
+Record planejado: `WeightRecord`.
+
+Origem local: `weight_measurements` existentes.
+
+Regras:
+
+- valor positivo e finito;
+- timestamp persistido;
+- uma operação por medida;
+- não usar `Instant.now()` como fallback silencioso.
+
+## Altura
+
+Record planejado: `HeightRecord`.
+
+Origem local: altura persistida no perfil.
+
+Regras:
+
+- converter centímetros para metros;
+- valor positivo e finito;
+- usar `updatedAt`;
+- não solicitar permissão quando não houver altura local.
+
+## Gatilhos
+
+Gatilhos exatos da fase:
+
+```text
+Passos:
+persistir -> liberar BLE -> tentar sync
+
+BPM manual:
+persistir -> liberar BLE -> tentar sync
+
+D1:
+persistir lote -> liberar BLE -> processar backlog
+
+Atividade:
+READY_TO_SYNC -> ação explícita -> sync
+```
+
+Com `healthSyncEnabled` desativado:
+
+```text
+persistir -> manter PENDING -> não tentar
+```
+
+## Backlog
+
+Reconciliação genérica em habilitar integração ou `Sincronizar agora`:
+
+- operações D1 existentes;
+- medições manuais válidas sem operação;
+- resumos diários válidos sem operação;
+- peso persistido elegível;
+- altura persistida elegível.
+
+Atividades `READY_TO_SYNC` não entram em reconciliação genérica. Exigem ação explícita própria.
+
+## Workflow
+
+- `PENDING` -> `SYNCING` -> `SYNCED`
+- `PENDING` -> `SYNCING` -> `FAILED`
+- `FAILED` -> retry -> `SYNCING`
+- atividade: `READY_TO_SYNC` ou `SYNC_FAILED` -> `SYNCING` -> `SYNCED|SYNC_FAILED`
+
+## Coordinator
+
+Responsabilidades planejadas de `HealthConnectSyncCoordinator`:
+
+- reconciliar backlog;
+- verificar `healthSyncEnabled`;
+- verificar disponibilidade;
+- verificar permissões por record;
+- marcar início;
+- carregar agregado;
+- mapear record;
+- executar upsert;
+- marcar sucesso ou falha;
+- atualizar workflow de atividade;
+- limitar processamento;
+- não executar BLE.
+
+## Gateway
+
+Interface planejada de `HealthConnectGateway`:
+
+- `getAvailability()`
+- `getGrantedPermissions()`
+- `insert(records)`
+- `openProviderUpdate()`
+- `openManageAccess()`
+
+Delete por `clientRecordId` pode existir como infraestrutura, mas não é fluxo obrigatório desta fase.
+
+## Settings
+
+`SettingsScreen` deve deixar de ser placeholder e exibir:
+
+- status de disponibilidade;
+- integração ativada ou pausada;
+- permissões concedidas e faltantes;
+- provider;
+- ação `Conectar`;
+- ação `Sincronizar agora`;
+- ação `Gerenciar acesso`;
+- pendentes;
+- falhas;
+- última sincronização.
+
+## Home
+
+- resumo local continua mensagem principal;
+- Health Connect aparece como estado secundário;
+- falha do provider não desfaz resumo diário;
+- pull-to-refresh não deve esperar fim do processamento HC.
+
+## Saúde
+
+- medição manual e D1 continuam locais-first;
+- Health Connect aparece como contagem secundária segura;
+- falha do provider não transforma sucesso local em falha principal.
+
+## Exercícios
+
+- detalhe deve expor CTA explícita `Sincronizar com Health Connect` em `READY_TO_SYNC`;
+- `SYNCING` mostra progresso/estado;
+- `SYNCED` mostra data da sincronização;
+- `SYNC_FAILED` mostra erro seguro, grupos pendentes e retry.
+
+## Lifecycle
+
+- sincronização foreground pode continuar enquanto ViewModel dono estiver ativo;
+- não iniciar serviço;
+- não iniciar `WorkManager`;
+- morte de processo preserva fila;
+- operações `SYNCING` abandonadas devem ser reparadas.
+
+## Recuperação após morte de processo
+
+```mermaid
+flowchart TD
+    Open[Abrir app ou Configurações] --> Scan[Localizar operações SYNCING antigas]
+    Scan --> Reset[Marcar FAILED com erro INTERRUPTED]
+    Reset --> Retry[Retry reutiliza mesmo clientRecordId]
+    Retry --> Upsert[insertRecords idempotente]
+```
+
+Atividades em `SYNCING` sem operação ativa correspondente voltam para `SYNC_FAILED`.
+
+## Erros seguros
+
+Categorias mínimas planejadas:
+
+- `PERMISSION_REQUIRED`
+- `PROVIDER_UNAVAILABLE`
+- `PROVIDER_UPDATE_REQUIRED`
+- `INVALID_LOCAL_DATA`
+- `WRITE_REJECTED`
+- `RETRY_LATER`
+- `INTERRUPTED`
+- `INTERNAL`
+
+Não persistir stack trace nem mensagens completas do provider.
+
+## Logging
+
+Pode registrar:
+
+- disponibilidade;
+- categoria da permissão;
+- quantidade de operações;
+- tipo de record;
+- transição de estado;
+- duração da execução;
+- categoria do erro.
+
+Não registrar:
+
+- valores de saúde;
+- payloads completos;
+- `clientRecordId` completo;
+- IDs locais completos;
+- título;
+- notas.
+
+## Privacidade
+
+- manter `allowBackup=false`;
+- manter ausência de servidor;
+- manter ausência de rota;
+- não expor dados sensíveis em logs;
+- solicitar somente tipos usados por funcionalidades visíveis.
+
+## Gate C
+
+Validação física obrigatória no Galaxy S22 com Health Connect real para:
+
+- disponibilidade;
+- permissões parciais;
+- passos;
+- update sem duplicação;
+- BPM manual;
+- backlog D1;
+- atividade explícita;
+- atividade calibrada;
+- ausência de `StepsRecord` da atividade;
+- ausência de rota;
+- falha parcial;
+- retry;
+- preferência pausada;
+- recuperação após processo encerrado;
+- peso e altura quando elegíveis;
+- privacidade.
+
+## Fronteira com Fase 14
+
+```mermaid
+flowchart LR
+    F12[Fase 12\nForeground manual e explícito] --> F14[Fase 14\nWorkManager e background controlado]
+```
+
+A Fase 12 não implementa `WorkManager`, retry em background, foreground service ou sync periódico. Essa fronteira deve permanecer explícita.
+
+## Critérios de aceite
+
+- SDK estável integrado;
+- disponibilidade funcional;
+- provider ausente ou desatualizado tratado;
+- rationale existente;
+- `Settings` funcional;
+- preferência pausar/retomar funcional;
+- permissões por capacidade;
+- fila suportando tipos planejados;
+- operações D1 preservadas;
+- `clientRecordId` estável;
+- versões monotônicas;
+- passos sincronizando após refresh persistido;
+- BPM manual sincronizando após persistência;
+- backlog D1 processado sem seleção individual;
+- atividades não sincronizando automaticamente;
+- atividade `READY_TO_SYNC` sincronizada por ação explícita;
+- sessão usando tipo, título e observações confirmados;
+- esteira usando distância calibrada;
+- distância, calorias e BPM como records granulares;
+- passos de atividade não enviados separadamente;
+- falha parcial retomável;
+- morte de processo sem perda de fila;
+- peso e altura sincronizando quando elegíveis;
+- nenhuma rota enviada;
+- nenhum teste automatizado criado, alterado, executado ou planejado;
+- `lint`, `assembleDebug`, `assembleRelease` e `installDebug` concluídos na execução da fase;
+- Gate C físico validado;
+- documentação refletindo estado final.
+
+## Fora do escopo
+
+- leitura do Health Connect;
+- importação de dados de outros apps;
+- `ChangeLogs`;
+- `WorkManager`;
+- retry em background;
+- foreground service;
+- sincronização periódica;
+- sincronização ao abrir app;
+- rota;
+- GPS;
+- `ExerciseRoute`;
+- backup;
+- formulário completo de perfil;
+- exercícios iniciados pelo app;
+- testes automatizados.
+
+## Definition of Done
+
+- spec, overview e tasks atualizados;
+- backlog herdado reconciliado documentalmente;
+- ADR da fase criada;
+- roadmap e baseline alinhados no fechamento da fase;
+- build e instalação registrados nas tasks de implementação;
+- evidências manuais e screenshots visuais registradas quando aplicáveis;
+- nenhum teste automatizado criado, alterado, executado ou recomendado.
+
+## Matriz de rastreabilidade
+
+| Tema | Tasks principais |
+| --- | --- |
+| Reconciliação Fase 11 | `012-01`, `012-14` |
+| Política arquitetural e ADR | `012-02` |
+| SDK, manifesto, rationale, disponibilidade | `012-03` |
+| Record types, IDs, versões, schema, migration | `012-04` |
+| Fila persistida e backlog | `012-05` |
+| Gateway e mapeadores de passos, BPM, peso e altura | `012-06` |
+| Mapeadores de atividade e complementos | `012-07` |
+| Coordinator, partial, retry, interrupted | `012-08` |
+| Triggers pós-persistência para passos, manual e D1 | `012-09` |
+| Sync explícito de atividade e workflow | `012-10` |
+| Settings, permissões e manage access | `012-11` |
+| Feedback secundário em Home, Saúde e Exercícios | `012-12` |
+| Gate C físico | `012-13` |
+| Fechamento documental da fase | `012-14` |
