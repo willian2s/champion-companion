@@ -11,6 +11,12 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionD4WorkoutPar
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
 import br.com.mwconsulting.championcompanion.core.bluetooth.toSafeMessage
 import br.com.mwconsulting.championcompanion.core.common.BleDispatcher
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticCaptureFlow
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticParseResult
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayload
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadCapture
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadId
+import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadRepository
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationAcquireResult
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
@@ -33,6 +39,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepositor
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportId
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.ZonedDateTime
 import kotlinx.coroutines.CancellationException
@@ -55,6 +62,7 @@ import kotlin.time.Duration
 class ChampionWatchWorkoutImportCoordinator(
     private val connectionManager: ChampionConnectionManager,
     private val connectionBootstrap: DeviceConnectionBootstrap,
+    private val diagnosticPayloadRepository: DiagnosticPayloadRepository,
     private val foregroundBleOperationGate: ForegroundBleOperationGate,
     private val workoutActivityRepository: WorkoutActivityRepository,
     @BleDispatcher bleDispatcher: CoroutineDispatcher,
@@ -63,6 +71,7 @@ class ChampionWatchWorkoutImportCoordinator(
     private val d3Timeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d3WorkoutIndex,
     private val d4Timeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d4WorkoutBlock,
     private val civilNow: () -> Instant = Instant::now,
+    private val isDebugBuild: Boolean,
 ) : WatchWorkoutImportCoordinator {
     private val scope = CoroutineScope(SupervisorJob() + bleDispatcher)
     private val mutableState = MutableStateFlow<WatchWorkoutImportSurfaceState>(WatchWorkoutImportSurfaceState.Idle)
@@ -289,6 +298,7 @@ class ChampionWatchWorkoutImportCoordinator(
                         block = d4Outcome,
                     ),
                 )
+                val diagnosticPayloadId = storeDiagnosticPayloadIfNeeded(request, d4Outcome, parsed)
 
                 when (parsed) {
                     is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Invalid -> {
@@ -297,11 +307,11 @@ class ChampionWatchWorkoutImportCoordinator(
 
                     is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Partial -> {
                         active.summary.partialCount += 1
-                        persistParsedBlock(active, activeSession, parsed.input)
+                        persistParsedBlock(active, activeSession, parsed.input.copy(diagnosticPayloadId = diagnosticPayloadId))
                     }
 
                     is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Valid -> {
-                        persistParsedBlock(active, activeSession, parsed.input)
+                        persistParsedBlock(active, activeSession, parsed.input.copy(diagnosticPayloadId = diagnosticPayloadId))
                     }
                 }
                 active.summary.processedBlockCount += 1
@@ -451,6 +461,41 @@ class ChampionWatchWorkoutImportCoordinator(
                     isRetryable = true,
                 ),
             )
+        }
+    }
+
+    private suspend fun storeDiagnosticPayloadIfNeeded(
+        request: WatchWorkoutImportRequest,
+        outcome: ChampionD4WorkoutBlockProtocol.D4BlockCollectionOutcome,
+        parsed: br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult,
+    ): DiagnosticPayloadId? {
+        if (!isDebugBuild) return null
+        val parseResult = when (parsed) {
+            is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Valid -> DiagnosticParseResult.COMPLETED
+            is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Partial -> DiagnosticParseResult.PARTIAL
+            is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Invalid -> DiagnosticParseResult.INVALID
+        }
+        val payloadId = DiagnosticPayloadId(ids.next())
+        val payload = DiagnosticPayload.create(
+            id = payloadId,
+            capture = DiagnosticPayloadCapture(
+                command = "WATCH_WORKOUT_D4_BLOCK",
+                flow = DiagnosticCaptureFlow.WATCH_WORKOUT,
+                privateBytes = outcome.toDiagnosticBytes(),
+                deviceId = request.associatedDevice.id,
+                firmware = request.associatedDevice.firmware,
+                parserVersion = parserVersion,
+                capturedAt = civilNow(),
+            ),
+            result = parseResult,
+        ).valueOrNull() ?: return null
+        return when (diagnosticPayloadRepository.store(payload)) {
+            is RepositoryResult.Success -> payloadId
+            RepositoryResult.Conflict,
+            RepositoryResult.NotFound,
+            RepositoryResult.StorageUnavailable,
+            RepositoryResult.UnexpectedState,
+            -> null
         }
     }
 
@@ -661,6 +706,27 @@ class ChampionWatchWorkoutImportCoordinator(
         totalPacketsInBlock = totalPacketsInBlock,
         missingPacketCount = active.summary.missingPacketCount,
     )
+
+    // Binary envelope keeps packet boundaries for later local SQL hex inspection.
+    private fun ChampionD4WorkoutBlockProtocol.D4BlockCollectionOutcome.toDiagnosticBytes(): ByteArray =
+        ByteArrayOutputStream().use { output ->
+            output.write(byteArrayOf('D'.code.toByte(), '4'.code.toByte(), 'B'.code.toByte(), '1'.code.toByte()))
+            output.writeUInt16LittleEndian(blockIndex)
+            output.writeUInt16LittleEndian(packets.size)
+            packets.forEach { packet ->
+                val rawBytes = packet.rawBytesCopy()
+                output.writeUInt16LittleEndian(packet.packetIndex)
+                output.writeUInt16LittleEndian(packet.totalPackets)
+                output.writeUInt16LittleEndian(rawBytes.size)
+                output.write(rawBytes)
+            }
+            output.toByteArray()
+        }
+
+    private fun ByteArrayOutputStream.writeUInt16LittleEndian(value: Int) {
+        write(value and 0xFF)
+        write((value shr 8) and 0xFF)
+    }
 
     private suspend fun ensureStillActive(active: ActiveImport) {
         lifecycleMutex.withLock {

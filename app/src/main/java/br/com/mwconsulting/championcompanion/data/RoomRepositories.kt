@@ -427,8 +427,20 @@ class RoomRepositories @Inject constructor(
     override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = write {
         val activityEntity = activity.toEntity()
         val importEntity = importRecord.toEntity()
-        val existingImport = database.watchWorkoutImportDao().findByNaturalKey(importEntity.deviceId, importEntity.origin, importEntity.crc)
-        val existingActivity = existingImport?.let { database.workoutActivityDao().findById(it.activityId) }
+        val exactImport = database.watchWorkoutImportDao().findByNaturalKey(importEntity.deviceId, importEntity.origin, importEntity.crc)
+        val existingActivity = when {
+            exactImport != null -> database.workoutActivityDao().findById(exactImport.activityId)
+            else -> database.workoutActivityDao().findByStartedAt(
+                deviceId = activityEntity.deviceId,
+                origin = activityEntity.origin,
+                startedAtEpochMillis = activityEntity.startedAtEpochMillis,
+            )
+        }
+        val existingImport = when {
+            exactImport != null -> exactImport
+            existingActivity != null -> database.watchWorkoutImportDao().findByActivityId(existingActivity.id)
+            else -> null
+        }
         val plan = planWatchWorkoutPersistence(
             incomingActivity = activityEntity,
             incomingImport = importEntity,

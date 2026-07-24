@@ -127,6 +127,7 @@ Atualização de `011-11`:
 - `HomeViewModel` e `HomeScreen` agora já exibem banner de pendências locais com prioridade visual para calibração pendente e navegação direta para Exercícios.
 - `ChampionNavigation.kt` agora já confirma saída tanto para importação D3/D4 em andamento quanto para rascunho não salvo do detalhe de Exercícios.
 - `ExercisesScreen.kt` agora já exige confirmação explícita para descarte e mantém mensagens seguras para conflito, not found, validação e erro de persistência.
+- Ajuste posterior: persistência de reimport D3/D4 agora também usa fallback por `deviceId + origin + startedAt` quando o mesmo treino reaparece com CRC diferente no relógio.
 - Ajuste posterior: `PARTIAL` deixou de bloquear revisão, calibração e avanço para `READY_TO_SYNC`, alinhando Champion Companion ao comportamento histórico aceito do app anterior.
 - Ajuste posterior: treinos livres passaram a exibir conjunto mais enxuto de métricas, intervalos migraram para modal sob demanda e gráfico de BPM foi aproximado ao padrão visual já usado na tela de frequência cardíaca.
 

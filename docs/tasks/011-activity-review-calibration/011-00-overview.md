@@ -134,6 +134,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `ExercisesScreen.kt` agora confirma descarte explicitamente antes de marcar treino como descartado.
 - Risco residual aceito antes da validação manual final: ainda existe warning antigo de unchecked cast em `ExercisesViewModel.kt` sem relação funcional com a task.
 - Follow-up técnico pendente: substituir o `combine(...)` indexado de `ExercisesViewModel.kt` por composição tipada para remover warning de unchecked cast em `values[3] as List<WorkoutActivity>`.
+- Ajuste posterior adicional: `RoomRepositories.persistImported(...)` agora também tenta reimport por `deviceId + origin + startedAt` quando o relógio reapresenta o mesmo treino com CRC diferente, reduzindo duplicação indevida.
 
 ## Estado herdado da Fase 10
 

@@ -172,6 +172,9 @@ interface WorkoutActivityDao {
     @Query("SELECT activity.* FROM workout_activities activity INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id WHERE importRecord.deviceId = :deviceId AND importRecord.origin = :origin AND importRecord.crc = :crc")
     suspend fun findByImportKey(deviceId: String, origin: String, crc: Int): WorkoutActivityEntity?
 
+    @Query("SELECT * FROM workout_activities WHERE deviceId = :deviceId AND origin = :origin AND startedAtEpochMillis = :startedAtEpochMillis ORDER BY importedAtEpochMillis DESC LIMIT 1")
+    suspend fun findByStartedAt(deviceId: String, origin: String, startedAtEpochMillis: Long): WorkoutActivityEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(activity: WorkoutActivityEntity)
 
