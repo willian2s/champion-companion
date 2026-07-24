@@ -2,12 +2,16 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-04` e `011-05` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04` e `011-05` concluídas.
 
 Observação de execução real:
 
 - `011-04` e `011-05` foram executadas antes de `011-03`.
 - `011-03` continua pendente para formalizar contratos duradouros de revisão, calibração e estado de UI da feature, além de alinhar documentalmente o que já entrou no domínio de repositórios.
+
+Atualização posterior:
+
+- `011-03` foi concluída depois de `011-04` e `011-05`, consolidando formalmente os contratos que já tinham sido introduzidos parcialmente e adicionando o estado de UI ainda ausente da feature.
 
 ## Contexto
 
@@ -81,6 +85,12 @@ Atualização de `011-05`:
 - `TreadmillCalibrationDao` agora já possui observação reativa da calibração mais recente por atividade.
 - `DatabaseMappers.kt` agora já reconstrói `WorkoutActivity` para múltiplos workflows observáveis, sem depender apenas do caminho específico de `PENDING_REVIEW`.
 - `011-03` permanece necessária para consolidar formalmente esses contratos e completar a parte ainda pendente de estado de UI e inputs equivalentes de review/calibração.
+
+Atualização de `011-03`:
+
+- `RepositoryContracts.kt` agora já formaliza `SubmitWorkoutReviewInput` e `CalibrateImportedActivityInput` como contratos equivalentes da fase.
+- `TreadmillCalibration.forImportedActivity(...)` agora já suporta fator por `originalMeters`, fallback por `estimatedMeters` e fator ausente quando não houver distância-base positiva.
+- `ExercisesFeatureContract.kt` agora já separa `selectedFilter`, `activityList`, `workflowSummary`, `selectedActivity`, `detailState`, `reviewFormState`, `calibrationFormState` e `operationError`.
 
 ## Objetivo
 

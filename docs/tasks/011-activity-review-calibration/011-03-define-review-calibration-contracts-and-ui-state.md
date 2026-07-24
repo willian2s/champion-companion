@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -101,7 +101,62 @@ Os contratos reais ainda cobrem apenas importação D3/D4 e observação de pend
 - marcar `011-03` como concluída;
 - liberar `011-04`, `011-05`, `011-06` e `011-07` com contratos estáveis.
 
+## Execução
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/TreadmillCalibration.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`
+- `docs/specs/011-activity-review-calibration.md`
+- `docs/tasks/011-activity-review-calibration/011-00-overview.md`
+- `docs/tasks/011-activity-review-calibration/011-03-define-review-calibration-contracts-and-ui-state.md`
+
+### Resultado nos contratos de domínio
+
+- `RepositoryContracts.kt` passou a formalizar:
+  - `SubmitWorkoutReviewInput`
+  - `CalibrateImportedActivityInput`
+  - `WorkoutActivityFilter`
+  - `WorkoutWorkflowSummary`
+  - `TreadmillCalibrationSnapshot`
+- `WorkoutActivityRepository` já fica alinhado com a superfície planejada da fase para lista, detalhe, resumo e review futuro.
+- `TreadmillCalibrationRepository` já fica alinhado com a superfície planejada da fase para calibração futura e observação da calibração ativa.
+
+### Resultado no domínio puro
+
+- `WorkoutActivity` já estava evoluído por `011-04` com `title` e `notes`; esta task consolidou esse fato documentalmente.
+- `TreadmillCalibration.forImportedActivity(...)` agora suporta:
+  - fator por `originalMeters` quando positivo;
+  - fallback por `estimatedMeters` quando positivo;
+  - fator ausente quando não houver distância-base positiva.
+
+### Resultado no estado de UI
+
+- `ExercisesFeatureContract.kt` agora separa explicitamente:
+  - `importState`
+  - `selectedFilter`
+  - `activityList`
+  - `workflowSummary`
+  - `selectedActivity`
+  - `detailState`
+  - `reviewFormState`
+  - `calibrationFormState`
+  - `operationError`
+- Também foram formalizados estados equivalentes de detalhe, formulário de revisão, formulário de calibração e erro seguro da feature.
+
+### Observação de ordem real
+
+- `011-03` foi concluída depois de `011-04` e `011-05`.
+- Nesta execução, ela consolidou formalmente contratos e estado de UI já parcialmente antecipados nessas tasks anteriores.
+
+### Gate executado
+
+- `./gradlew assembleDebug`
+- resultado: sucesso.
+
 ## Validação final
 
 - Não criar, alterar ou executar testes automatizados.
 - Task executável em sessão nova, sem depender de contexto anterior.
+- Confirmado: nenhuma persistência, migration, Home, navegação ou UI final foi implementada nesta task.

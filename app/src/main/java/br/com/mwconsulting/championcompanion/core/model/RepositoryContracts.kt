@@ -203,6 +203,7 @@ interface WorkoutActivityRepository {
     suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = RepositoryResult.UnexpectedState
     fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> = flowOf(null)
     suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
+    suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
 }
@@ -226,6 +227,14 @@ data class WorkoutWorkflowSummary(
     val discardedCount: Int = 0,
 )
 
+data class SubmitWorkoutReviewInput(
+    val activityId: WorkoutActivityId,
+    val confirmedType: WorkoutType,
+    val title: String?,
+    val notes: String?,
+    val reviewedAt: Instant,
+)
+
 data class WatchWorkoutImportLookup(
     val activityId: WorkoutActivityId,
     val importId: WatchWorkoutImportId,
@@ -244,8 +253,15 @@ data class WatchWorkoutImportLookup(
 
 interface TreadmillCalibrationRepository {
     suspend fun register(calibration: TreadmillCalibration): RepositoryResult<Unit>
+    suspend fun calibrateImportedActivity(input: CalibrateImportedActivityInput): RepositoryResult<TreadmillCalibrationSnapshot> = RepositoryResult.UnexpectedState
     fun observeLatestCalibration(activityId: WorkoutActivityId): Flow<TreadmillCalibrationSnapshot?> = flowOf(null)
 }
+
+data class CalibrateImportedActivityInput(
+    val activityId: WorkoutActivityId,
+    val reportedMeters: Double,
+    val appliedAt: Instant,
+)
 
 data class TreadmillCalibrationSnapshot(
     val activityId: WorkoutActivityId,

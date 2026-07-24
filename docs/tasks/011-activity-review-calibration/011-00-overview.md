@@ -2,12 +2,12 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-04` e `011-05` concluídas; `011-03`, `011-06` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04` e `011-05` concluídas; `011-06` a `011-13` pendentes.
 
 Observação de ordem real:
 
 - `011-04` e `011-05` foram executadas antes de `011-03`.
-- `011-03` permanece necessária para formalizar contratos e estado de UI de forma documental e explícita, alinhando o que já foi introduzido parcialmente em `RepositoryContracts.kt` e o que ainda falta na feature.
+- `011-03` foi concluída depois para formalizar contratos e estado de UI de forma documental e explícita, alinhando o que já havia sido introduzido parcialmente em `RepositoryContracts.kt` e o que ainda faltava na feature.
 
 ## Objetivo
 
@@ -80,6 +80,13 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - `DatabaseMappers.kt` deixou de depender apenas do caminho específico de `toPendingReviewDomain(...)` e já reconstrói `WorkoutActivity` para múltiplos workflows observáveis.
 - Hotspot confirmado: `RepositoryContracts.kt`, `ChampionDaos.kt`, `DatabaseMappers.kt` e `RoomRepositories.kt` ficam ainda mais compartilhados entre `011-05`, `011-06` e `011-07`.
 - Como `011-05` ocorreu antes de `011-03`, a task `011-03` precisa consolidar e revisar formalmente os contratos já introduzidos, sem assumir automaticamente que a parte de UI state da fase já está resolvida.
+
+## Achados de `011-03`
+
+- `RepositoryContracts.kt` agora formaliza `SubmitWorkoutReviewInput` e `CalibrateImportedActivityInput` como inputs equivalentes da fase.
+- `ExercisesFeatureContract.kt` agora separa explicitamente `selectedFilter`, `activityList`, `workflowSummary`, `selectedActivity`, `detailState`, `reviewFormState`, `calibrationFormState` e `operationError`, preservando `importState` como estado independente.
+- `TreadmillCalibration.kt` agora já suporta fallback puro de fator por `estimatedMeters` e fator ausente quando não houver base positiva, alinhando o domínio ao escopo planejado sem tocar persistência nesta task.
+- `011-03` consolidou documentalmente e em contratos o que `011-04` e `011-05` já haviam antecipado parcialmente.
 
 ## Estado herdado da Fase 10
 
@@ -177,7 +184,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 
 - [x] `011-01` auditar domínio, Room, queries, Home, filtros, navegação, MotionLog e fronteira F11/F12
 - [x] `011-02` planejar ADR e corrigir roadmap durante implementação
-- [ ] `011-03` congelar contratos, filtros, estados e limites funcionais
+- [x] `011-03` congelar contratos, filtros, estados e limites funcionais
 - [x] `011-04` adicionar `title` e `notes` com migration v4 e schema exportado
 - [x] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
 - [ ] `011-06` implementar review atômico, descarte e preservação na reimportação
