@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06` e `011-07` concluídas.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07` e `011-08` concluídas.
 
 Observação de execução real:
 
@@ -103,6 +103,12 @@ Atualização de `011-07`:
 - `RoomRepositories.calibrateImportedActivity(input)` agora já implementa fluxo atômico completo para atividade importada.
 - A revisão da calibração usa `latest revision + 1`, com `revision = 1` para primeira calibração.
 - `TreadmillCalibrationRepository` agora já oferece operação funcional de calibração atômica, além da observação da calibração ativa.
+
+Atualização de `011-08`:
+
+- `ExercisesViewModel` agora já observa filtro, lista, resumo por workflow, detalhe de atividade e calibração mais recente da atividade selecionada.
+- `ExercisesViewModel` agora já envia ações de `submitReview`, `calibrateImportedActivity` e `discard`, mantendo importação D3/D4 separada do fluxo local de revisão.
+- Formulários de revisão e calibração agora já vivem no estado da feature, sem persistência a cada tecla.
 
 ## Objetivo
 

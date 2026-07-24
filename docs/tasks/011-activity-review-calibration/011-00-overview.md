@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06` e `011-07` concluídas; `011-08` a `011-13` pendentes.
+Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07` e `011-08` concluídas; `011-09` a `011-13` pendentes.
 
 Observação de ordem real:
 
@@ -101,6 +101,12 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - A próxima revisão usa `latest + 1`, preservando `revision = 1` como primeira calibração.
 - Fator segue `original`, senão `estimated`, senão ausente, sem bloquear distância calibrada.
 - A atividade é atualizada para `READY_TO_SYNC` no mesmo write da calibração.
+
+## Achados de `011-08`
+
+- `ExercisesViewModel` agora concentra estado do fluxo local de review/calibração, sem acoplar formulários ao coordinator BLE.
+- `ExercisesFeatureContract.kt` e `ExercisesViewModel.kt` agora possuem intents para filtro, abertura/fechamento de detalhe, edição local de formulários, submit de review, submit de calibração, descarte e dismiss de erro.
+- Importação D3/D4 permaneceu separada do fluxo local e continuou usando `watchWorkoutImportCoordinator` apenas para importação.
 
 ## Estado herdado da Fase 10
 
@@ -203,7 +209,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-05` implementar queries de lista, detalhe, resumo e calibração ativa
 - [x] `011-06` implementar review atômico, descarte e preservação na reimportação
 - [x] `011-07` implementar calibração atômica e métricas derivadas
-- [ ] `011-08` evoluir `ExercisesViewModel` e contratos da feature
+- [x] `011-08` evoluir `ExercisesViewModel` e contratos da feature
 - [ ] `011-09` implementar filtros, lista clicável e navegação para detalhe
 - [ ] `011-10` implementar detalhe, gráfico, intervalos e formulários
 - [ ] `011-11` integrar banner Home, confirmações, validações e erros seguros

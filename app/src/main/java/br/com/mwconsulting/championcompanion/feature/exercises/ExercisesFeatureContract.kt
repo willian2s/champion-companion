@@ -86,6 +86,17 @@ enum class ExerciseOperationErrorCategory {
 
 sealed interface ExercisesIntent {
     data object Load : ExercisesIntent
+    data class SelectFilter(val filter: WorkoutActivityFilter) : ExercisesIntent
+    data class OpenActivity(val activityId: WorkoutActivityId) : ExercisesIntent
+    data object CloseActivity : ExercisesIntent
+    data class EditReviewType(val type: WorkoutType) : ExercisesIntent
+    data class EditReviewTitle(val title: String) : ExercisesIntent
+    data class EditReviewNotes(val notes: String) : ExercisesIntent
+    data object SubmitReview : ExercisesIntent
+    data class EditCalibrationDistance(val distance: String) : ExercisesIntent
+    data object SubmitCalibration : ExercisesIntent
+    data object DiscardSelectedActivity : ExercisesIntent
+    data object DismissOperationError : ExercisesIntent
     data object StartImport : ExercisesIntent
     data object CancelImport : ExercisesIntent
     data object RetryImport : ExercisesIntent

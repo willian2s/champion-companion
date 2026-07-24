@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -103,7 +103,54 @@ Hoje `ExercisesViewModel` só observa pendências `PENDING_REVIEW`, metadata D3/
 - marcar `011-08` como concluída;
 - registrar novos hotspots de feature.
 
+## Execução
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
+- `docs/specs/011-activity-review-calibration.md`
+- `docs/tasks/011-activity-review-calibration/011-00-overview.md`
+- `docs/tasks/011-activity-review-calibration/011-08-extend-exercises-viewmodel-for-filters-review-and-calibration.md`
+
+### Resultado no FeatureContract
+
+- `ExercisesIntent` passou a incluir intents para:
+  - filtro;
+  - abertura/fechamento de detalhe;
+  - edição de tipo, título e observações;
+  - submit de review;
+  - edição de distância de calibração;
+  - submit de calibração;
+  - descarte;
+  - dismiss de erro.
+
+### Resultado no ViewModel
+
+- `ExercisesViewModel` passou a observar:
+  - `observeActivities(filter)`;
+  - `observeWorkflowSummary()`;
+  - `observeActivity(activityId)`;
+  - `observeLatestCalibration(activityId)`.
+- `ExercisesViewModel` agora mantém:
+  - filtro selecionado;
+  - lista;
+  - resumo por workflow;
+  - atividade selecionada;
+  - detalhe carregado;
+  - formulário de review;
+  - formulário de calibração;
+  - erro seguro da operação.
+- Importação D3/D4 permaneceu separada e sem acoplamento ao fluxo local de review/calibração.
+- Submit duplo foi bloqueado por `isSaving` nos formulários.
+
+### Gate executado
+
+- `./gradlew lint assembleDebug assembleRelease`
+- resultado: sucesso.
+
 ## Validação final
 
 - Não criar, alterar ou executar testes automatizados.
 - Task executável em sessão nova, sem depender de contexto anterior.
+- Confirmado: nenhuma renderização Compose final, Home ou navegação real foi implementada nesta task.
