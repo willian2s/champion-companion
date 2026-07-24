@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -102,6 +102,35 @@ Após a expansão do domínio e do schema, a fase precisa transformar o estado a
 
 - marcar `012-05` como concluída;
 - registrar estabilização dos contratos da fila.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-05-implement-sync-queue-reconciliation-and-repository-contracts.md`
+
+### Implementação concluída
+
+- `HealthSyncRepository` foi estabilizado com contratos de ensure, busca processável, resumo observado, consulta por agregado, transições, reset de interrupção e reconciliação de backlog.
+- `HealthSyncOperationDao` passou a expor consultas por agregado, resumo agregado da fila, lote processável e operações `SYNCING` para repair.
+- `RoomRepositories` agora reconcilia backlog herdado de resumo diário, BPM manual, D1, peso e altura do perfil atual sem enfileirar atividades `READY_TO_SYNC`.
+- operações legadas sem `clientRecordId`, versão ou timestamps novos agora recebem repair idempotente na mesma camada de repositório.
+- novas operações D1 criadas pela persistência já nascem com identidade estável e metadados coerentes com a fila expandida.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- `clientRecordId` estável foi fixado no formato `<applicationId>:<aggregateType>:<aggregateId>:<recordType>` usando prefixo estável do app.
+- workflow explícito de atividades permaneceu fora da reconciliação genérica e segue para tasks posteriores da fase.
 
 ## Validação final
 

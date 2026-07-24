@@ -283,11 +283,33 @@ interface AppWorkoutSessionRepository {
     suspend fun finish(sessionId: AppWorkoutSessionId, activityId: WorkoutActivityId, at: Instant): RepositoryResult<AppWorkoutSession>
 }
 
+data class HealthSyncSummary(
+    val pendingCount: Int = 0,
+    val syncingCount: Int = 0,
+    val failedCount: Int = 0,
+    val syncedCount: Int = 0,
+    val lastSyncedAt: Instant? = null,
+)
+
+data class HealthSyncBacklogReconciliationResult(
+    val ensuredOperationCount: Int = 0,
+    val repairedOperationCount: Int = 0,
+    val dailySummaryCount: Int = 0,
+    val heartRateCount: Int = 0,
+    val weightCount: Int = 0,
+    val heightCount: Int = 0,
+)
+
 interface HealthSyncRepository {
-    suspend fun findFailed(): RepositoryResult<List<HealthSyncOperation>>
+    suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
+    suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
+    fun observeSyncSummary(): Flow<HealthSyncSummary>
+    suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
     suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
-    suspend fun markSynced(operationId: HealthSyncOperationId): RepositoryResult<Unit>
-    suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError): RepositoryResult<Unit>
+    suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
+    suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError, at: Instant): RepositoryResult<Unit>
+    suspend fun resetInterrupted(at: Instant): RepositoryResult<Int>
+    suspend fun reconcileBacklog(): RepositoryResult<HealthSyncBacklogReconciliationResult>
 }
 
 interface DiagnosticPayloadRepository {

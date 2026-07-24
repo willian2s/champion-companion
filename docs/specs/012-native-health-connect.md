@@ -81,6 +81,13 @@ Achados confirmados por `012-03` e `012-04`:
 - `DailySummaryEntity` ganhou `collectedZoneId` nullable para preparar congelamento futuro de timezone.
 - `HealthSyncOperationEntity` ganhou metadados nullable de identidade, versão, sincronização, timezone e auditoria temporal, preservando backlog D1 existente.
 
+Achados confirmados por `012-05`:
+
+- `HealthSyncRepository` foi ampliado para cobrir `ensureOperation`, `findProcessable`, `observeSyncSummary`, `findOperationsForAggregate`, `markStarted`, `markSynced`, `markFailed`, `resetInterrupted` e `reconcileBacklog`.
+- `RoomRepositories` passou a reconciliar backlog herdado de resumo diário, BPM manual, D1, peso e altura sem duplicar operações já persistidas.
+- operações antigas sem `clientRecordId`, versão ou timestamps novos agora recebem repair idempotente antes do processamento normal da fila.
+- atividades `READY_TO_SYNC` continuam excluídas da reconciliação genérica.
+
 ## SDK
 
 Dependência planejada:
@@ -232,7 +239,7 @@ flowchart LR
     Insert --> Failed[markFailed]
 ```
 
-Contratos planejados:
+Contratos estabilizados em `012-05`:
 
 - `ensureOperation(...)`
 - `findProcessable(...)`
@@ -242,6 +249,7 @@ Contratos planejados:
 - `markSynced(...)`
 - `markFailed(...)`
 - `resetInterrupted(...)`
+- `reconcileBacklog(...)`
 
 Regras:
 
@@ -549,6 +557,8 @@ Reconciliação genérica em habilitar integração ou `Sincronizar agora`:
 - altura persistida elegível.
 
 Atividades `READY_TO_SYNC` não entram em reconciliação genérica. Exigem ação explícita própria.
+
+Implementação atual de `012-05` preserva operações D1 existentes, repara metadados legados quando faltantes e deixa workflow explícito de atividade para `012-10`.
 
 ## Workflow
 

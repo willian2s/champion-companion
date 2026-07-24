@@ -68,6 +68,14 @@ Planejada em 2026-07-24.
 - `health_sync_operations` ganhou metadados de identidade estável, versão, sincronização, timezone e auditoria temporal, todos nullable para preservar backlog D1 existente.
 - `DatabaseMappers.kt` agora reconstrói aggregates de sync além de `HeartRateMeasurement`, preparando a fila granular da Fase 12.
 
+## Achados de `012-05`
+
+- `HealthSyncRepository` foi estabilizado como API única da fila persistida, cobrindo ensure, busca processável, resumo observado, consulta por agregado, transições de estado, reset de interrupção e reconciliação de backlog.
+- `RoomRepositories` passou a derivar `clientRecordId`, versão e metadados temporais por agregado compatível, incluindo repair idempotente de operações antigas sem identidade nova.
+- A reconciliação genérica agora cobre backlog D1, medições manuais válidas, resumos diários válidos, pesos elegíveis e altura elegível do perfil atual.
+- Atividades em `READY_TO_SYNC` continuam fora da reconciliação genérica e preservam trigger explícito próprio.
+- `./gradlew :app:compileDebugKotlin` foi validado com sucesso após estabilização da fila.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.
@@ -172,22 +180,22 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 - possível congelamento de timezone para `DailySummary`;
 - repair idempotente para operações antigas sem campos novos.
 
-## Checklist da fase
+## Checklist
 
-- reconciliar fechamento documental da Fase 11;
-- formalizar ADR de política da Fase 12;
-- atualizar roadmap e baseline durante a fase;
-- integrar SDK estável `connect-client:1.1.0`;
-- modelar disponibilidade, permissões e rationale;
-- expandir schema e contratos para fila granular;
-- implementar gateway e mapeadores de passos, BPM, atividade, peso e altura;
-- implementar coordinator foreground com partial e retry;
-- integrar triggers pós-persistência de passos, manual e D1;
-- integrar sync explícito de atividade;
-- substituir placeholder de `Settings`;
-- expor feedback secundário em Home, Saúde e Exercícios;
-- registrar Gate C físico;
-- fechar documentação final da fase.
+- [x] `012-01` reconciliar fechamento documental da Fase 11 e auditar backlogs atuais
+- [x] `012-02` formalizar ADR de política write-only e alinhar roadmap
+- [x] `012-03` integrar SDK estável `connect-client:1.1.0`, manifesto, rationale e disponibilidade
+- [x] `012-04` expandir domínio de sync, record types, identidades e schema Room
+- [x] `012-05` implementar fila de sync, reconciliação de backlog e contratos de repositório
+- [ ] `012-06` implementar gateway e mapeadores de passos, BPM e perfil
+- [ ] `012-07` implementar mapeadores de sessão de exercício e records complementares
+- [ ] `012-08` implementar coordinator foreground com partial e retry
+- [ ] `012-09` integrar triggers pós-persistência de passos, manual e D1
+- [ ] `012-10` integrar sync explícito de atividade e transições de workflow
+- [ ] `012-11` criar tela de Settings, permissões e gerenciamento de acesso
+- [ ] `012-12` integrar feedback secundário em Home, Saúde e Exercícios
+- [ ] `012-13` rodar Gate C físico com Health Connect real
+- [ ] `012-14` fechar documentação final da fase
 
 ## Gate C
 

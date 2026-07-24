@@ -9,6 +9,7 @@ import br.com.mwconsulting.championcompanion.core.database.DeviceImportMetadataE
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
@@ -50,6 +51,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateDeduplicationKey
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
@@ -397,6 +399,23 @@ internal fun AppWorkoutSession.toEntity() = AppWorkoutSessionEntity(
     aggregates.averageBpm.valueOrNull(), aggregates.minimumBpm.valueOrNull(), aggregates.maximumBpm.valueOrNull(), workoutActivityId?.value?.toString(),
 )
 
+internal fun HealthSyncOperation.toEntity() = HealthSyncOperationEntity(
+    id = id.value.toString(),
+    aggregateId = key.aggregate.id.toString(),
+    aggregateType = key.aggregate.type.name,
+    recordType = key.recordType.name,
+    state = state.name,
+    attemptCount = attemptCount,
+    lastAttemptAtEpochMillis = lastAttemptAt?.toEpochMilli(),
+    lastError = lastError?.name,
+    clientRecordId = clientRecordId,
+    clientRecordVersion = clientRecordVersion,
+    syncedAtEpochMillis = syncedAt?.toEpochMilli(),
+    timeZoneId = timeZoneId,
+    createdAtEpochMillis = createdAt?.toEpochMilli(),
+    updatedAtEpochMillis = updatedAt?.toEpochMilli(),
+)
+
 internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     val aggregate = toHealthSyncAggregate(aggregateType, aggregateId) ?: return null
     var operation = HealthSyncOperation.create(
@@ -420,6 +439,14 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     }
     return operation
 }
+
+internal fun HealthSyncSummaryRecord.toDomain() = HealthSyncSummary(
+    pendingCount = pendingCount,
+    syncingCount = syncingCount,
+    failedCount = failedCount,
+    syncedCount = syncedCount,
+    lastSyncedAt = lastSyncedAtEpochMillis?.let(Instant::ofEpochMilli),
+)
 
 private fun toHealthSyncAggregate(
     aggregateType: String,
