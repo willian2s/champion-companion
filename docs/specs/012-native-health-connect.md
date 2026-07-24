@@ -70,6 +70,17 @@ Achados confirmados por `012-01`:
 - `AppPreferences.healthSyncEnabled` já existe, persiste em DataStore e ainda não participa do fluxo funcional.
 - Backlog herdado real está distribuído por tipo: D1 com operação persistida, medição manual sem operação garantida, resumo diário sem operação garantida, atividades `READY_TO_SYNC` e dados locais de peso/altura elegíveis sem pipeline funcional de sync.
 
+Achados confirmados por `012-03` e `012-04`:
+
+- SDK `androidx.health.connect:connect-client:1.1.0` foi integrado ao catálogo e ao módulo `:app`.
+- `AndroidManifest.xml` passou a declarar permissões write-only para passos, frequência cardíaca, exercício, distância, calorias totais, peso e altura.
+- `AndroidManifest.xml` passou a declarar `queries` para `com.google.android.apps.healthdata`.
+- rationale Activity foi adicionada com `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE` e alias compatível com Android 14+ para `android.intent.action.VIEW_PERMISSION_USAGE` com categoria `android.intent.category.HEALTH_PERMISSIONS`.
+- disponibilidade Android passou a ser modelada via `HealthConnectClient.getSdkStatus(...)`.
+- `ChampionDatabase` subiu para `v5`.
+- `DailySummaryEntity` ganhou `collectedZoneId` nullable para preparar congelamento futuro de timezone.
+- `HealthSyncOperationEntity` ganhou metadados nullable de identidade, versão, sincronização, timezone e auditoria temporal, preservando backlog D1 existente.
+
 ## SDK
 
 Dependência planejada:
@@ -98,9 +109,17 @@ Comportamento:
 - `ProviderUpdateRequired`: mantém backlog local, informa correção e oferece abertura do destino apropriado.
 - `Unavailable`: não pede permissão, não tenta escrita e preserva fila local.
 
+Infra Android real desta fase usa `HealthConnectClient.getSdkStatus(context, providerPackageName)` para modelar esses estados.
+
 ## Provider
 
 O app deve encapsular `HealthConnectClient` atrás de gateway Android-free. A integração é write-only nesta fase.
+
+Package do provider integrado no manifesto e na infra Android:
+
+```text
+com.google.android.apps.healthdata
+```
 
 Não implementar:
 
@@ -139,6 +158,11 @@ Deve existir Activity de rationale de privacidade, explicando:
 - como pausar sincronização;
 - como gerenciar permissões;
 - como os dados são tratados.
+
+Integração real desta fase também passou a declarar:
+
+- Activity para `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`;
+- alias para Android 14+ com `android.intent.action.VIEW_PERMISSION_USAGE` e categoria `android.intent.category.HEALTH_PERMISSIONS`.
 
 ## Política formalizada
 
@@ -230,16 +254,13 @@ Regras:
 
 ## Migration
 
-Base atual: schema `v4`.
+Base atual após `012-04`: schema `v5`.
 
-Próxima migration deve contemplar:
+Migration `v4 -> v5` contemplou:
 
-- expansão de `health_sync_operations`;
-- `clientRecordId`;
-- `clientRecordVersion`;
-- `syncedAt`;
-- índices adicionais necessários;
-- possível congelamento de timezone para `DailySummary`.
+- expansão de `health_sync_operations` com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt` nullable;
+- índices adicionais para `clientRecordId` e ordenação por estado/atualização;
+- `collectedZoneId` nullable em `daily_summaries` para preparar congelamento futuro de timezone.
 
 Regras:
 

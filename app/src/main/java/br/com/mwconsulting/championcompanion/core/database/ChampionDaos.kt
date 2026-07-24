@@ -281,7 +281,7 @@ interface HealthSyncOperationDao {
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND recordType = :recordType")
     suspend fun findByNaturalKey(aggregateId: String, recordType: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY lastAttemptAtEpochMillis")
+    @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")
     suspend fun findFailed(): List<HealthSyncOperationEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)

@@ -53,6 +53,21 @@ Planejada em 2026-07-24.
 - `health-connect-mapping.md` deixou de ser apenas leitura comparativa do MotionLog e passou a registrar explicitamente as diferenças deliberadas do app novo para a Fase 12.
 - Fronteira documental da fase ficou estável para início da implementação funcional sem ambiguidades sobre IDs, versões, fila, atividade explícita e falha parcial.
 
+## Achados de `012-03`
+
+- SDK `connect-client:1.1.0` foi integrado ao catálogo e ao módulo `:app`.
+- Manifesto passou a declarar permissões write-only do escopo da fase, `queries` do provider e rationale Activity com alias compatível com Android 14+.
+- Nova infraestrutura Android de Health Connect foi criada em `core/healthconnect` para disponibilidade e intents de provider.
+- `installDebug` foi validado com sucesso no dispositivo físico já conectado.
+
+## Achados de `012-04`
+
+- Domínio de sync agora comporta passos, BPM, atividade, peso e altura.
+- `ChampionDatabase` subiu para `v5` com `AutoMigration(from = 4, to = 5)`.
+- `daily_summaries` ganhou `collectedZoneId` nullable.
+- `health_sync_operations` ganhou metadados de identidade estável, versão, sincronização, timezone e auditoria temporal, todos nullable para preservar backlog D1 existente.
+- `DatabaseMappers.kt` agora reconstrói aggregates de sync além de `HeartRateMeasurement`, preparando a fila granular da Fase 12.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -111,6 +111,41 @@ A fase precisa preparar a fronteira Android do Health Connect antes de mapeadore
 
 - marcar `012-03` como concluída;
 - registrar readiness Android do Health Connect.
+
+## Execução
+
+### Arquivos atualizados
+
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectPlatform.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectModule.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectPermissionsRationaleActivity.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-03-add-health-connect-sdk-manifest-rationale-and-availability.md`
+
+### Implementação concluída
+
+- `androidx.health.connect:connect-client:1.1.0` foi adicionada ao version catalog e ao módulo `:app`.
+- `AndroidManifest.xml` passou a declarar permissões write-only para `WRITE_STEPS`, `WRITE_HEART_RATE`, `WRITE_EXERCISE`, `WRITE_DISTANCE`, `WRITE_TOTAL_CALORIES_BURNED`, `WRITE_WEIGHT` e `WRITE_HEIGHT`.
+- `AndroidManifest.xml` passou a declarar `queries` para `com.google.android.apps.healthdata`.
+- foi criada rationale Activity exportada para `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`.
+- foi criado alias compatível com Android 14+ para `android.intent.action.VIEW_PERMISSION_USAGE` com categoria `android.intent.category.HEALTH_PERMISSIONS`.
+- `core/healthconnect/HealthConnectPlatform.kt` passou a modelar `Available`, `ProviderUpdateRequired` e `Unavailable` via `HealthConnectClient.getSdkStatus(...)`.
+- `core/healthconnect/HealthConnectPlatform.kt` também passou a fornecer intents para abrir settings do provider e update via Play Store.
+- `core/healthconnect/HealthConnectModule.kt` passou a expor binding Hilt para a plataforma Android do Health Connect.
+
+### Validação executada
+
+- `./gradlew lint assembleDebug assembleRelease` concluído com sucesso.
+- `./gradlew installDebug` concluído com sucesso em `SM-S901E - 16`.
+
+### Observações
+
+- nenhuma escrita real no provider foi executada nesta task.
+- screenshot da rationale não foi registrada nesta execução.
 
 ## Validação final
 

@@ -175,16 +175,60 @@ data class HeartRateMeasurement private constructor(
 }
 
 enum class HealthSyncRecordType {
+    STEPS,
     HEART_RATE,
+    EXERCISE_SESSION,
+    DISTANCE,
+    TOTAL_CALORIES_BURNED,
+    WEIGHT,
+    HEIGHT,
+}
+
+enum class HealthSyncAggregateType {
+    DAILY_SUMMARY,
+    HEART_RATE_MEASUREMENT,
+    WORKOUT_ACTIVITY,
+    WEIGHT_MEASUREMENT,
+    USER_PROFILE_HEIGHT,
 }
 
 sealed interface HealthSyncAggregate {
     val id: UUID
+    val type: HealthSyncAggregateType
+
+    data class DailySummary(
+        val summaryId: DailySummaryId,
+    ) : HealthSyncAggregate {
+        override val id: UUID = summaryId.value
+        override val type: HealthSyncAggregateType = HealthSyncAggregateType.DAILY_SUMMARY
+    }
 
     data class HeartRateMeasurement(
         val measurementId: HeartRateMeasurementId,
     ) : HealthSyncAggregate {
         override val id: UUID = measurementId.value
+        override val type: HealthSyncAggregateType = HealthSyncAggregateType.HEART_RATE_MEASUREMENT
+    }
+
+    data class WorkoutActivity(
+        val activityId: WorkoutActivityId,
+    ) : HealthSyncAggregate {
+        override val id: UUID = activityId.value
+        override val type: HealthSyncAggregateType = HealthSyncAggregateType.WORKOUT_ACTIVITY
+    }
+
+    data class WeightMeasurement(
+        val measurementId: WeightMeasurementId,
+    ) : HealthSyncAggregate {
+        override val id: UUID = measurementId.value
+        override val type: HealthSyncAggregateType = HealthSyncAggregateType.WEIGHT_MEASUREMENT
+    }
+
+    data class UserProfileHeight(
+        val profileId: UserProfileId,
+    ) : HealthSyncAggregate {
+        override val id: UUID = profileId.value
+        override val type: HealthSyncAggregateType = HealthSyncAggregateType.USER_PROFILE_HEIGHT
     }
 }
 
@@ -363,8 +407,12 @@ enum class SyncOperationState {
 enum class SafeSyncError {
     PERMISSION_REQUIRED,
     PROVIDER_UNAVAILABLE,
+    PROVIDER_UPDATE_REQUIRED,
+    INVALID_LOCAL_DATA,
     WRITE_REJECTED,
     RETRY_LATER,
+    INTERRUPTED,
+    INTERNAL,
 }
 
 @ConsistentCopyVisibility
@@ -375,6 +423,12 @@ data class HealthSyncOperation private constructor(
     val attemptCount: Int,
     val lastAttemptAt: Instant?,
     val lastError: SafeSyncError?,
+    val clientRecordId: String?,
+    val clientRecordVersion: Long?,
+    val syncedAt: Instant?,
+    val timeZoneId: String?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?,
 ) {
     val isPending: Boolean
         get() = state == SyncOperationState.PENDING || state == SyncOperationState.FAILED
@@ -392,31 +446,68 @@ data class HealthSyncOperation private constructor(
             attemptCount = attemptCount + 1,
             lastAttemptAt = at,
             lastError = null,
+            updatedAt = at,
         ))
     }
 
-    fun markSynced(): DomainResult<HealthSyncOperation> =
+    fun markSynced(at: Instant = lastAttemptAt ?: Instant.EPOCH): DomainResult<HealthSyncOperation> =
         if (state == SyncOperationState.SYNCING) {
-            DomainResult.Success(copy(state = SyncOperationState.SYNCED, lastError = null))
+            DomainResult.Success(copy(
+                state = SyncOperationState.SYNCED,
+                lastError = null,
+                syncedAt = at,
+                updatedAt = at,
+            ))
         } else {
             DomainResult.Failure(DomainValidationError.INVALID_STATE)
         }
 
-    fun markFailed(error: SafeSyncError): DomainResult<HealthSyncOperation> =
+    fun markFailed(
+        error: SafeSyncError,
+        at: Instant = lastAttemptAt ?: Instant.EPOCH,
+    ): DomainResult<HealthSyncOperation> =
         if (state == SyncOperationState.SYNCING) {
-            DomainResult.Success(copy(state = SyncOperationState.FAILED, lastError = error))
+            DomainResult.Success(copy(
+                state = SyncOperationState.FAILED,
+                lastError = error,
+                updatedAt = at,
+            ))
         } else {
             DomainResult.Failure(DomainValidationError.INVALID_STATE)
         }
+
+    fun withIdentity(
+        clientRecordId: String?,
+        clientRecordVersion: Long?,
+        timeZoneId: String?,
+        updatedAt: Instant?,
+    ): DomainResult<HealthSyncOperation> {
+        if (clientRecordId != null && clientRecordId.isBlank()) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+        if (clientRecordVersion != null && clientRecordVersion < 0L) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
+        return DomainResult.Success(copy(
+            clientRecordId = clientRecordId,
+            clientRecordVersion = clientRecordVersion,
+            timeZoneId = timeZoneId,
+            updatedAt = updatedAt,
+        ))
+    }
 
     companion object {
         fun create(
             id: HealthSyncOperationId,
             key: HealthSyncOperationKey,
+            clientRecordId: String? = null,
+            clientRecordVersion: Long? = null,
+            syncedAt: Instant? = null,
+            timeZoneId: String? = null,
+            createdAt: Instant? = null,
+            updatedAt: Instant? = null,
         ): DomainResult<HealthSyncOperation> =
-            if (key.aggregate is HealthSyncAggregate.HeartRateMeasurement &&
-                key.recordType == HealthSyncRecordType.HEART_RATE
-            ) {
+            if (supports(key) && isValidIdentityMetadata(clientRecordId, clientRecordVersion)) {
                 DomainResult.Success(
                     HealthSyncOperation(
                         id = id,
@@ -425,10 +516,36 @@ data class HealthSyncOperation private constructor(
                         attemptCount = 0,
                         lastAttemptAt = null,
                         lastError = null,
+                        clientRecordId = clientRecordId,
+                        clientRecordVersion = clientRecordVersion,
+                        syncedAt = syncedAt,
+                        timeZoneId = timeZoneId,
+                        createdAt = createdAt,
+                        updatedAt = updatedAt,
                     ),
                 )
             } else {
                 DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
             }
+
+        private fun supports(key: HealthSyncOperationKey): Boolean = when (key.aggregate) {
+            is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
+            is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
+            is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
+                HealthSyncRecordType.EXERCISE_SESSION,
+                HealthSyncRecordType.DISTANCE,
+                HealthSyncRecordType.TOTAL_CALORIES_BURNED,
+                HealthSyncRecordType.HEART_RATE,
+            )
+
+            is HealthSyncAggregate.WeightMeasurement -> key.recordType == HealthSyncRecordType.WEIGHT
+            is HealthSyncAggregate.UserProfileHeight -> key.recordType == HealthSyncRecordType.HEIGHT
+        }
+
+        private fun isValidIdentityMetadata(
+            clientRecordId: String?,
+            clientRecordVersion: Long?,
+        ): Boolean = (clientRecordId == null || clientRecordId.isNotBlank()) &&
+            (clientRecordVersion == null || clientRecordVersion >= 0L)
     }
 }

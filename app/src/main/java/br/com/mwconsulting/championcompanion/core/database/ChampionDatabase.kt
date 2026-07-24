@@ -126,6 +126,7 @@ data class DailySummaryEntity(
     val collectedAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     val validity: String,
+    val collectedZoneId: String? = null,
 )
 
 @Entity(
@@ -387,7 +388,11 @@ data class HeartRateMeasurementEntity(
 /** No foreign key: aggregate is polymorphic and validated by repository transaction. */
 @Entity(
     tableName = "health_sync_operations",
-    indices = [Index(value = ["aggregateId", "recordType"], unique = true), Index(value = ["state"])],
+    indices = [
+        Index(value = ["aggregateId", "recordType"], unique = true),
+        Index(value = ["state", "updatedAtEpochMillis"]),
+        Index(value = ["clientRecordId"]),
+    ],
 )
 data class HealthSyncOperationEntity(
     @PrimaryKey val id: String,
@@ -398,6 +403,12 @@ data class HealthSyncOperationEntity(
     val attemptCount: Int,
     val lastAttemptAtEpochMillis: Long?,
     val lastError: String?,
+    val clientRecordId: String? = null,
+    val clientRecordVersion: Long? = null,
+    val syncedAtEpochMillis: Long? = null,
+    val timeZoneId: String? = null,
+    val createdAtEpochMillis: Long? = null,
+    val updatedAtEpochMillis: Long? = null,
 )
 
 @Entity(
@@ -444,11 +455,12 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 4,
+    version = 5,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
+        AutoMigration(from = 4, to = 5),
     ],
     exportSchema = true,
 )
