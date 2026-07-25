@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -109,6 +109,33 @@ Substituir o placeholder de Configurações por uma superfície funcional de Hea
 
 - marcar `012-11` como concluída;
 - registrar que `Settings` deixou de ser placeholder.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/settings/SettingsFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/settings/SettingsViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/settings/SettingsScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-11-create-health-connect-settings-permissions-and-manage-access-ui.md`
+
+### Implementação concluída
+
+- `Settings` deixou de ser placeholder e passou a exibir disponibilidade do provider, toggle de integração, permissões por capacidade amigável, provider, fila local e última sincronização.
+- `SettingsViewModel` passou a integrar preferência `healthSyncEnabled`, resumo da fila, elegibilidade de peso/altura, permissões concedidas e ação `Sincronizar agora`.
+- a tela agora suporta `Conectar`, `Sincronizar agora` e `Gerenciar acesso`, usando launcher de permissões write-only do Health Connect e intents reais do provider.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- screenshot obrigatória da tela não foi capturada nesta execução.
+- peso e altura não aparecem como capacidade pedível quando não há dado local elegível.
 
 ## Validação final
 

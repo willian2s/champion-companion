@@ -207,6 +207,9 @@ interface WorkoutActivityDao {
 
     @Query("UPDATE workout_activities SET workflowState = :nextState WHERE id = :id AND workflowState IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String): Int
+
+    @Query("UPDATE workout_activities SET workflowState = :nextState WHERE workflowState = :expectedState")
+    suspend fun transitionAllByState(expectedState: String, nextState: String): Int
 }
 
 data class WorkoutWorkflowSummaryRecord(

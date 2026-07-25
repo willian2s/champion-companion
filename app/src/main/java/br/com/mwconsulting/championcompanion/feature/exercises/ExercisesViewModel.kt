@@ -1,5 +1,8 @@
 package br.com.mwconsulting.championcompanion.feature.exercises
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncOutcome
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
@@ -44,6 +47,7 @@ class ExercisesViewModel internal constructor(
     private val workoutActivityRepository: WorkoutActivityRepository,
     private val treadmillCalibrationRepository: TreadmillCalibrationRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
+    private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
     private val scope: CoroutineScope,
     private val ids: UuidV7Generator,
@@ -79,11 +83,21 @@ class ExercisesViewModel internal constructor(
                 workoutActivityRepository.observeActivities(filter)
             }.collect { activities ->
                 activityList.value = activities
+                logWorkflowDbSnapshot(
+                    source = "activity_list",
+                    activities = activities,
+                    summary = workflowSummary.value,
+                )
             }
         }
         scope.launch {
             workoutActivityRepository.observeWorkflowSummary().collect { summary ->
                 workflowSummary.value = summary
+                logWorkflowDbSnapshot(
+                    source = "workflow_summary",
+                    activities = activityList.value,
+                    summary = summary,
+                )
             }
         }
         scope.launch {
@@ -167,7 +181,11 @@ class ExercisesViewModel internal constructor(
                     operationError = error,
                     pendingActivities = activities.filter { it.workflowState == ActivityWorkflowState.PENDING_REVIEW },
                     hasUnsavedDetailChanges = reviewForm.hasUnsavedChanges ||
-                        (calibrationForm.loadedActivityId == activity?.id && calibrationForm.reportedDistanceInput.isNotBlank()),
+                        (
+                            calibrationForm.loadedActivityId == activity?.id &&
+                                calibrationForm.reportedDistanceInput.isNotBlank() &&
+                                calibrationForm.completedAt == null
+                            ),
                     canDiscardSelectedActivity = activity?.workflowState in setOf(
                         ActivityWorkflowState.PENDING_REVIEW,
                         ActivityWorkflowState.PENDING_CALIBRATION,
@@ -187,12 +205,14 @@ class ExercisesViewModel internal constructor(
         workoutActivityRepository: WorkoutActivityRepository,
         treadmillCalibrationRepository: TreadmillCalibrationRepository,
         appPreferencesRepository: AppPreferencesRepository,
+        healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
     ) : this(
         deviceRepository = deviceRepository,
         workoutActivityRepository = workoutActivityRepository,
         treadmillCalibrationRepository = treadmillCalibrationRepository,
         appPreferencesRepository = appPreferencesRepository,
+        healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         watchWorkoutImportCoordinator = watchWorkoutImportCoordinator,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
@@ -212,6 +232,7 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.SubmitReview -> submitReview()
             is ExercisesIntent.EditCalibrationDistance -> updateCalibrationDistance(intent.distance)
             ExercisesIntent.SubmitCalibration -> submitCalibration()
+            ExercisesIntent.SyncSelectedActivity -> syncSelectedActivity()
             ExercisesIntent.DiscardSelectedActivity -> discardSelectedActivity()
             ExercisesIntent.ConfirmExitDetail -> closeSelectedActivity()
             ExercisesIntent.DismissOperationError -> operationError.value = null
@@ -392,6 +413,61 @@ class ExercisesViewModel internal constructor(
         }
     }
 
+    private fun syncSelectedActivity() {
+        val activity = selectedActivity.value ?: return
+        if (activity.workflowState !in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED)) {
+            operationError.value = ExerciseOperationError(
+                ExerciseOperationErrorCategory.INVALID_STATE,
+                "A atividade precisa estar pronta ou com erro para sincronizar com o Health Connect.",
+            )
+            return
+        }
+        scope.launch {
+            when (val outcome = healthConnectSyncCoordinator.syncActivity(activity.id)) {
+                is HealthConnectSyncOutcome.Completed -> operationError.value = null
+                is HealthConnectSyncOutcome.NothingToSync -> operationError.value = null
+                is HealthConnectSyncOutcome.CompletedWithFailures -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.PARTIAL_BLOCKED,
+                        "Alguns records do treino foram sincronizados, mas ${outcome.failures.size} ainda precisam de retry.",
+                    )
+                }
+
+                is HealthConnectSyncOutcome.PermissionRequired -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.PERMISSION_REQUIRED,
+                        "Permissões do Health Connect ainda faltam para concluir a sincronização deste treino.",
+                    )
+                }
+
+                is HealthConnectSyncOutcome.ProviderUnavailable -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.PROVIDER_UNAVAILABLE,
+                        if (outcome.updateRequired) {
+                            "Atualize o Health Connect para sincronizar este treino."
+                        } else {
+                            "Health Connect indisponível neste dispositivo no momento."
+                        },
+                    )
+                }
+
+                is HealthConnectSyncOutcome.Disabled -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.SYNC_DISABLED,
+                        "Ative a integração com Health Connect em Configurações para sincronizar este treino.",
+                    )
+                }
+
+                is HealthConnectSyncOutcome.Failed -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.SYNC_FAILED,
+                        outcome.reason,
+                    )
+                }
+            }
+        }
+    }
+
     private fun syncFormsWithSelectedActivity(activity: WorkoutActivity?) {
         if (activity == null) {
             reviewFormState.value = ExerciseReviewFormState()
@@ -407,13 +483,20 @@ class ExercisesViewModel internal constructor(
             )
         }
         if (calibrationFormState.value.loadedActivityId != activity.id || !calibrationFormState.value.isSaving) {
-            val input = if (calibrationFormState.value.loadedActivityId == activity.id) calibrationFormState.value.reportedDistanceInput else ""
+            val previous = calibrationFormState.value
+            val preserveCompleted = previous.loadedActivityId == activity.id && previous.completedAt != null
+            val input = when {
+                preserveCompleted -> ""
+                previous.loadedActivityId == activity.id -> previous.reportedDistanceInput
+                else -> ""
+            }
             calibrationFormState.value = ExerciseCalibrationFormState(
                 loadedActivityId = activity.id,
                 reportedDistanceInput = input,
                 previewDistanceMeters = previewDistanceMeters(activity, input),
                 previewAveragePaceSecondsPerKilometer = previewAveragePace(activity, input),
                 previewAverageSpeedMetersPerSecond = previewAverageSpeed(activity, input),
+                completedAt = previous.completedAt.takeIf { preserveCompleted },
             )
         }
     }
@@ -425,6 +508,7 @@ class ExercisesViewModel internal constructor(
             previewDistanceMeters = previewDistanceMeters(activity, distance),
             previewAveragePaceSecondsPerKilometer = previewAveragePace(activity, distance),
             previewAverageSpeedMetersPerSecond = previewAverageSpeed(activity, distance),
+            completedAt = null,
             validationError = null,
         )
     }
@@ -468,5 +552,25 @@ class ExercisesViewModel internal constructor(
         val durationSeconds = activity?.metrics?.duration?.seconds ?: return null
         if (durationSeconds <= 0L) return null
         return reportedMeters / durationSeconds.toDouble()
+    }
+
+    private fun logWorkflowDbSnapshot(
+        source: String,
+        activities: List<WorkoutActivity>,
+        summary: WorkoutWorkflowSummary,
+    ) {
+        val syncingCount = activities.count { it.workflowState == ActivityWorkflowState.SYNCING }
+        val readyCount = activities.count { it.workflowState == ActivityWorkflowState.READY_TO_SYNC }
+        val syncedCount = activities.count { it.workflowState == ActivityWorkflowState.SYNCED }
+        val failedCount = activities.count { it.workflowState == ActivityWorkflowState.SYNC_FAILED }
+        val discardedCount = activities.count { it.workflowState == ActivityWorkflowState.DISCARDED }
+        val pendingReviewCount = activities.count { it.workflowState == ActivityWorkflowState.PENDING_REVIEW }
+        val pendingCalibrationCount = activities.count { it.workflowState == ActivityWorkflowState.PENDING_CALIBRATION }
+        Log.d(
+            "ChampionCompanion",
+            "ExercisesDbStatus source=$source filter=${selectedFilter.value.name} " +
+                "summary[pendingReview=${summary.pendingReviewCount},pendingCalibration=${summary.pendingCalibrationCount},ready=${summary.readyToSyncCount},synced=${summary.syncedCount},failed=${summary.syncFailedCount},discarded=${summary.discardedCount}] " +
+                "list[count=${activities.size},pendingReview=$pendingReviewCount,pendingCalibration=$pendingCalibrationCount,ready=$readyCount,syncing=$syncingCount,synced=$syncedCount,failed=$failedCount,discarded=$discardedCount]",
+        )
     }
 }

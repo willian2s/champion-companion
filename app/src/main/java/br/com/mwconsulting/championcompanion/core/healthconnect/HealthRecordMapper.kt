@@ -262,7 +262,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         start: Instant,
         end: Instant,
     ): HealthRecordMappingResult {
-        if (activity.workflowState !in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED)) {
+        if (activity.workflowState !in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED, ActivityWorkflowState.SYNCING)) {
             return invalid("Atividade fora de estado elegível para sessão.")
         }
         val confirmedType = activity.confirmedType ?: return invalid("Atividade sem tipo confirmado.")

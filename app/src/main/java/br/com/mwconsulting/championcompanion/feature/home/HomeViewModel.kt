@@ -7,6 +7,7 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBlePrerequis
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleState
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidBleEnvironment
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
@@ -25,6 +26,8 @@ import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGa
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationPermit
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
@@ -64,7 +67,9 @@ class HomeViewModel @Inject constructor(
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
     private val workoutActivityRepository: WorkoutActivityRepository,
+    private val healthSyncRepository: HealthSyncRepository,
     private val dailyStepsSyncCoordinator: DailyStepsSyncCoordinator,
+    private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val foregroundBleOperationGate: ForegroundBleOperationGate,
     private val heartRateRepository: HeartRateRepository,
     private val connectionManager: ChampionConnectionManager,
@@ -98,19 +103,27 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            combine(
+            val statusFlow = combine(
                 contentFlow,
                 workoutActivityRepository.observeWorkflowSummary(),
+                healthSyncRepository.observeSyncSummary(),
+            ) { content: HomeObservedContent, workflowSummary, healthSyncSummary ->
+                Triple(content, workflowSummary, healthSyncSummary)
+            }
+            combine(
+                statusFlow,
                 appWorkoutSessionRepository.observeRecoverable(),
                 connectionManager.state,
                 refreshState,
-            ) { content, workflowSummary, pending, bleState, refresh ->
+            ) { status, pending, bleState, refresh ->
+                val (content, workflowSummary, healthSyncSummary) = status
                 HomeUiState(
                     surfaceState = deriveSurfaceState(content.summary, content.device, bleState, refresh),
                     observedDate = content.observedDate,
                     summary = content.summary?.toHomeDailySummaryModel(content.device, content.dailyGoal),
                     latestHeartRate = content.latestHeartRate?.toHomeLatestHeartRateModel(),
                     watch = content.device.toHomeWatchSnapshot(bleState),
+                    healthConnectSync = healthSyncSummary.toHomeHealthConnectSyncModel(),
                     workoutPendingBanner = workflowSummary.toWorkoutPendingBanner(),
                     pendingActivities = pending.map { it.toPendingActivityModel() },
                     refresh = refresh,
@@ -147,6 +160,7 @@ class HomeViewModel @Inject constructor(
 
         val previousSuccess = refreshState.value.lastSuccessfulRefreshAt
         var gatePermit: ForegroundBleOperationPermit? = null
+        var shouldTriggerHealthConnectSync = false
         try {
             if (refreshState.value.isRefreshing) return
             refreshObservedDate()
@@ -269,6 +283,7 @@ class HomeViewModel @Inject constructor(
                 is RepositoryResult.Success -> {
                     observedDate.value = refreshResult.collectedAt.toLocalDateIn(ZoneId.systemDefault())
                     refreshState.value = HomeRefreshState(lastSuccessfulRefreshAt = updatedAt)
+                    shouldTriggerHealthConnectSync = true
                 }
 
                 RepositoryResult.StorageUnavailable -> {
@@ -298,10 +313,18 @@ class HomeViewModel @Inject constructor(
             }
         } finally {
             gatePermit?.let { foregroundBleOperationGate.release(it) }
+            if (shouldTriggerHealthConnectSync) {
+                viewModelScope.launch { triggerHealthConnectSyncIfEnabled() }
+            }
             refreshObservedDate()
             refreshState.update { current -> current.copy(activeOperation = null) }
             refreshMutex.unlock()
         }
+    }
+
+    private suspend fun triggerHealthConnectSyncIfEnabled() {
+        if (!appPreferencesRepository.observe().first().healthSyncEnabled) return
+        healthConnectSyncCoordinator.syncPending()
     }
 
     private fun deriveSurfaceState(
@@ -501,6 +524,14 @@ class HomeViewModel @Inject constructor(
         observedDate.value = Instant.now().toLocalDateIn(ZoneId.systemDefault())
         environment.value = bleEnvironment.snapshot()
     }
+
+    private fun HealthSyncSummary.toHomeHealthConnectSyncModel() = HomeHealthConnectSyncModel(
+        pendingCount = pendingCount,
+        failedCount = failedCount,
+        syncingCount = syncingCount,
+        syncedCount = syncedCount,
+        lastSyncedAt = lastSyncedAt,
+    )
 
     private fun millisUntilNextMidnight(now: Instant = Instant.now(), zoneId: ZoneId = ZoneId.systemDefault()): Long {
         val nextMidnight = now

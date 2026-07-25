@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -103,6 +103,32 @@ As atividades já chegam a `READY_TO_SYNC` localmente. Falta acoplar ação cons
 
 - marcar `012-10` como concluída;
 - registrar workflow explícito de atividade integrado.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-10-integrate-explicit-workout-sync-and-workflow-transitions.md`
+
+### Implementação concluída
+
+- detalhe da atividade passou a exibir CTA explícita `Sincronizar com Health Connect` para `READY_TO_SYNC` e retry para `SYNC_FAILED`.
+- `ExercisesViewModel` passou a acionar `syncActivity(...)` do coordinator e traduzir resultados tipados em mensagens seguras para permissão, provider, disabled e falha parcial.
+- workflow explícito agora suporta `READY_TO_SYNC|SYNC_FAILED -> SYNCING -> SYNCED|SYNC_FAILED` sem introduzir sync automático ao atingir prontidão.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- screenshot da UI não foi capturada nesta execução.
+- a ação opcional de lista `Sincronizar atividades prontas` não foi adicionada; somente CTA explícita do detalhe foi integrada.
 
 ## Validação final
 

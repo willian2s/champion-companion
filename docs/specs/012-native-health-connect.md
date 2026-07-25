@@ -95,6 +95,27 @@ Achados confirmados por `012-06` e `012-07`:
 - granularidade de atividade foi estabilizada por record independente: sessão obrigatória, distância/calorias/BPM opcionais quando elegíveis, sem `StepsRecord` e sem rota.
 - `ParserValidity.PARTIAL` passou a ser tratado por presença real de dados complementares, sem inventar métricas ausentes.
 
+Achados confirmados por `012-08`:
+
+- `HealthConnectSyncCoordinator` foi adicionado com resultados `Completed`, `CompletedWithFailures`, `NothingToSync`, `PermissionRequired`, `ProviderUnavailable`, `Disabled` e `Failed`.
+- o coordinator passou a combinar reset de `SYNCING` interrompido, reconciliação de backlog, checagem de preferência, disponibilidade, permissões e processamento foreground limitado da fila.
+- retry agora reutiliza `clientRecordId` da fila, processa apenas `PENDING|FAILED` e preserva records já sincronizados em cenários de falha parcial.
+- workflow local de atividade passou a ser reconciliado a partir do estado real das operações granulares, permitindo que `012-09`, `012-10` e `012-11` avancem em paralelo sobre coordinator estável.
+
+Achados confirmados por `012-09`, `012-10` e `012-11`:
+
+- triggers automáticos pós-persistência foram conectados em Home e Saúde para passos, medição manual e backlog D1, sempre após liberação do gate BLE.
+- sync explícito de atividade foi integrado no detalhe de Exercícios, com CTA dedicada, retry por atividade e preservação de falha parcial sem duplicar records já enviados.
+- `Settings` deixou de ser placeholder e passou a mostrar disponibilidade, preferência, permissões por capacidade amigável, provider, fila local, `Sincronizar agora` e `Gerenciar acesso`.
+- peso e altura continuam fora do pedido de permissão quando não há dado local elegível.
+
+Achados confirmados por `012-12`:
+
+- Home passou a mostrar Health Connect como estado secundário explícito e separado do refresh local do relógio.
+- Saúde passou a expor sincronização do Health Connect como feedback subordinado ao sucesso local de medição manual, D1, passos e distância.
+- Exercícios passou a resumir estados de sync do Health Connect com segurança na lista e no detalhe, incluindo falha parcial e retry seguro.
+- falhas do provider não rebaixam sucesso local já persistido em nenhuma das três features.
+
 ## SDK
 
 Dependência planejada:

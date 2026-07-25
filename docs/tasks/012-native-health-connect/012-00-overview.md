@@ -89,6 +89,42 @@ Planejada em 2026-07-24.
 - `ParserValidity.PARTIAL` permanece elegível apenas quando sessão temporal é válida e os complementos realmente existem no aggregate local.
 - `./gradlew :app:compileDebugKotlin` foi validado com sucesso após gateway e mapeadores.
 
+## Achados de `012-08`
+
+- `HealthConnectSyncCoordinator` foi estabilizado com mutex foreground, limite padrão de 100 operações, repair de interrupção e resultados tipados para backlog geral e sync explícito de atividade.
+- o coordinator agora orquestra preferência `healthSyncEnabled`, disponibilidade do provider, permissões write-only, mapeamento por agregado, `insertRecords`, retry idempotente e transições da fila.
+- falha parcial de atividade passou a preservar operações já sincronizadas, marcar complementos falhos individualmente e reconciliar workflow final em `SYNCED` ou `SYNC_FAILED`.
+- `resetInterrupted` da fila foi combinado com repair do workflow local de atividades em `SYNCING`, evitando estados presos após morte de processo.
+- `012-09`, `012-10` e `012-11` podem avançar em paralelo a partir deste ponto, usando coordinator já estabilizado.
+- `./gradlew :app:compileDebugKotlin` foi validado com sucesso após coordinator e wiring.
+
+## Achados de `012-09`
+
+- Home e Saúde passaram a disparar `syncPending()` do Health Connect apenas após persistência local bem-sucedida e liberação do `ForegroundBleOperationGate`.
+- gatilhos automáticos agora cobrem resumo diário, medição manual persistida e backlog D1 com dados realmente salvos.
+- quando `healthSyncEnabled=false`, os fluxos continuam locais-first e não iniciam tentativa de sync secundário.
+
+## Achados de `012-10`
+
+- detalhe de Exercícios passou a expor CTA explícita `Sincronizar com Health Connect` para `READY_TO_SYNC` e retry para `SYNC_FAILED`.
+- `ExercisesViewModel` passou a consumir o coordinator e mapear resultados seguros de permissão, provider, disabled e falha parcial em feedback local do detalhe.
+- workflow explícito da atividade agora percorre `READY_TO_SYNC|SYNC_FAILED -> SYNCING -> SYNCED|SYNC_FAILED` sem sync automático ao atingir prontidão.
+
+## Achados de `012-11`
+
+- `Settings` deixou de ser placeholder e agora mostra disponibilidade, toggle de integração, permissões amigáveis, provider, fila local e última sincronização.
+- `SettingsViewModel` passou a integrar preferência, resumo da fila, elegibilidade de peso/altura, permissões concedidas e ação `Sincronizar agora`.
+- tela passou a suportar `Conectar`, `Sincronizar agora` e `Gerenciar acesso`, usando launcher real de permissões write-only do Health Connect.
+- `./gradlew :app:compileDebugKotlin` foi validado com sucesso após 012-09, 012-10 e 012-11.
+
+## Achados de `012-12`
+
+- Home passou a mostrar estado secundário de Health Connect separado do refresh local, evitando confusão entre persistência do relógio e envio ao provider.
+- Saúde passou a exibir feedback secundário do Health Connect no hub e no detalhe de frequência cardíaca, preservando medição manual e D1 como mensagem principal.
+- Exercícios passou a resumir estados `READY_TO_SYNC`, `SYNCING`, `SYNCED` e `SYNC_FAILED` com linguagem segura na lista e no detalhe.
+- falhas do provider permanecem subordinadas ao dado local já persistido nas três superfícies.
+- `./gradlew :app:compileDebugKotlin` foi validado com sucesso após 012-12.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.
@@ -202,11 +238,11 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 - [x] `012-05` implementar fila de sync, reconciliação de backlog e contratos de repositório
 - [x] `012-06` implementar gateway e mapeadores de passos, BPM e perfil
 - [x] `012-07` implementar mapeadores de sessão de exercício e records complementares
-- [ ] `012-08` implementar coordinator foreground com partial e retry
-- [ ] `012-09` integrar triggers pós-persistência de passos, manual e D1
-- [ ] `012-10` integrar sync explícito de atividade e transições de workflow
-- [ ] `012-11` criar tela de Settings, permissões e gerenciamento de acesso
-- [ ] `012-12` integrar feedback secundário em Home, Saúde e Exercícios
+- [x] `012-08` implementar coordinator foreground com partial e retry
+- [x] `012-09` integrar triggers pós-persistência de passos, manual e D1
+- [x] `012-10` integrar sync explícito de atividade e transições de workflow
+- [x] `012-11` criar tela de Settings, permissões e gerenciamento de acesso
+- [x] `012-12` integrar feedback secundário em Home, Saúde e Exercícios
 - [ ] `012-13` rodar Gate C físico com Health Connect real
 - [ ] `012-14` fechar documentação final da fase
 

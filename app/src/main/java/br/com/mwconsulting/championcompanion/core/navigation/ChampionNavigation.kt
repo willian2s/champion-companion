@@ -63,6 +63,7 @@ import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
+import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import java.util.UUID
 
@@ -103,6 +104,9 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     }
     val exercisesViewModel = remember(activity) {
         ViewModelProvider(activity)[ExercisesViewModel::class.java]
+    }
+    val settingsViewModel = remember(activity) {
+        ViewModelProvider(activity)[SettingsViewModel::class.java]
     }
     val backStack = remember { mutableStateListOf<AppDestination>(AppDestination.Home) }
     val currentDestination = backStack.lastOrNull()
@@ -336,6 +340,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             onBackRequested = ::requestBackNavigation,
             onNavigateTo = ::requestNavigation,
             exercisesViewModel = exercisesViewModel,
+            settingsViewModel = settingsViewModel,
             animationDirection = animationDirection,
         )
     }
@@ -403,6 +408,7 @@ private fun ChampionNavDisplay(
     onBackRequested: () -> Unit,
     onNavigateTo: (AppDestination) -> Unit,
     exercisesViewModel: ExercisesViewModel,
+    settingsViewModel: SettingsViewModel,
     animationDirection: NavigationAnimationDirection,
 ) {
     AnimatedContent(
@@ -455,7 +461,7 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Device -> DeviceScreen()
             AppDestination.Profile -> ProfileScreen()
-            AppDestination.Settings -> SettingsScreen()
+            AppDestination.Settings -> SettingsScreen(viewModel = settingsViewModel)
         }
     }
 }

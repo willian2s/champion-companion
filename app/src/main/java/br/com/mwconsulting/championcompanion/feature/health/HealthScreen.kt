@@ -102,6 +102,9 @@ fun HealthScreen(
                 },
                 onClick = onOpenDistance,
             )
+            if (state.healthConnectSync.hasVisibleState) {
+                HealthConnectHubStatusCard(state.healthConnectSync)
+            }
         }
     }
 }
@@ -172,6 +175,45 @@ private fun HealthMetricSummaryCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun HealthConnectHubStatusCard(sync: HealthConnectSyncUiModel) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                when {
+                    sync.syncingCount > 0 -> "Sincronização secundária em andamento. Os dados locais continuam como mensagem principal."
+                    sync.failedCount > 0 -> "Há falhas pendentes no Health Connect, sem rebaixar os dados locais já persistidos."
+                    sync.pendingCount > 0 -> "Existem registros aguardando envio ao Health Connect."
+                    else -> "Sincronização secundária sem pendências visíveis no momento."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "Pendentes ${sync.pendingCount} • Falhas ${sync.failedCount} • Sincronizando ${sync.syncingCount}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            sync.lastSyncedAt?.let {
+                Text(
+                    "Último envio ao Health Connect: ${formatMoment(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -105,6 +105,36 @@ Depois de estabilizar fila e mapeadores, a fase precisa de orquestração única
 
 - marcar `012-08` como concluída;
 - registrar coordinator estabilizado e pronto para integrações de feature.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectModule.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-08-implement-health-connect-sync-coordinator-partial-results-and-retry.md`
+
+### Implementação concluída
+
+- `HealthConnectSyncCoordinator` e `DefaultHealthConnectSyncCoordinator` foram adicionados com mutex foreground, limite padrão de 100 operações e suporte a backlog geral e sync explícito de atividade.
+- resultados tipados `Completed`, `CompletedWithFailures`, `NothingToSync`, `PermissionRequired`, `ProviderUnavailable`, `Disabled` e `Failed` foram formalizados com relatório agregado da execução.
+- o coordinator agora combina repair de operações interrompidas, repair de atividades locais presas em `SYNCING`, reconciliação de backlog, verificação de `healthSyncEnabled`, disponibilidade do provider, permissões e insert idempotente.
+- falhas parciais passaram a marcar somente operações problemáticas como `FAILED`, preservar `SYNCED` já concluídos e recalcular workflow final de atividade a partir do conjunto de operações granulares.
+- `WorkoutActivityRepository` ganhou transições mínimas de sync e reset de `SYNCING`, destravando integrações posteriores sem tocar UI nesta task.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- coordinator não executa BLE.
+- com coordinator estabilizado, as tasks `012-09`, `012-10` e `012-11` podem avançar em paralelo.
 
 ## Validação final
 

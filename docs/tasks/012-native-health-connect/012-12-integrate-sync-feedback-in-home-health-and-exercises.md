@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -105,6 +105,38 @@ Depois dos triggers e do sync explícito, a fase precisa fechar a experiência d
 
 - marcar `012-12` como concluída;
 - registrar feedback de sync integrado nas features.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-12-integrate-sync-feedback-in-home-health-and-exercises.md`
+
+### Implementação concluída
+
+- Home passou a observar resumo da fila do Health Connect e exibir card secundário separado do refresh local do relógio.
+- Saúde passou a observar o mesmo resumo da fila e exibi-lo no hub e no detalhe de frequência cardíaca, sempre subordinado ao estado local já persistido.
+- Exercícios ganhou card resumido de sync no fluxo de lista e textos detalhados de `READY_TO_SYNC`, `SYNCING`, `SYNCED` e `SYNC_FAILED` no detalhe.
+- linguagem de falha parcial e falha do provider foi ajustada para não rebaixar sucesso local já persistido.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- screenshots obrigatórias não foram capturadas nesta execução.
+- nenhuma coleta BLE nova foi introduzida.
 
 ## Validação final
 

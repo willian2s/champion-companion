@@ -26,4 +26,10 @@ abstract class HealthConnectModule {
     abstract fun bindHealthRecordMapper(
         mapper: DefaultHealthRecordMapper,
     ): HealthRecordMapper
+
+    @Binds
+    @Singleton
+    abstract fun bindHealthConnectSyncCoordinator(
+        coordinator: DefaultHealthConnectSyncCoordinator,
+    ): HealthConnectSyncCoordinator
 }

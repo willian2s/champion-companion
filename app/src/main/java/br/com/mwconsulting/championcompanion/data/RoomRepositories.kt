@@ -588,6 +588,27 @@ class RoomRepositories @Inject constructor(
         )
     }
 
+    override suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = write {
+        transitionWorkoutSync(activityId) { it.startSync() }
+    }
+
+    override suspend fun markSynced(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = write {
+        transitionWorkoutSync(activityId) { it.markSynced() }
+    }
+
+    override suspend fun markSyncFailed(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = write {
+        transitionWorkoutSync(activityId) { it.markSyncFailed() }
+    }
+
+    override suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = write {
+        RepositoryResult.Success(
+            database.workoutActivityDao().transitionAllByState(
+                expectedState = "SYNCING",
+                nextState = "SYNC_FAILED",
+            ),
+        )
+    }
+
     override suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit> = write {
         when (database.workoutActivityDao().transitionState(activityId.value.toString(), listOf("PENDING_REVIEW", "PENDING_CALIBRATION", "READY_TO_SYNC"), "DISCARDED")) {
             1 -> RepositoryResult.Success(Unit)
@@ -849,6 +870,17 @@ class RoomRepositories @Inject constructor(
             intervals = database.workoutDetailDao().findIntervalsForActivity(activity.id),
             samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id),
         )
+    }
+
+    private suspend fun transitionWorkoutSync(
+        activityId: WorkoutActivityId,
+        transition: (WorkoutActivity) -> br.com.mwconsulting.championcompanion.core.model.DomainResult<WorkoutActivity>,
+    ): RepositoryResult<WorkoutActivity> {
+        val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return RepositoryResult.NotFound
+        val activity = loadWorkoutActivity(entity) ?: return RepositoryResult.UnexpectedState
+        val updated = transition(activity).valueOrNull() ?: return RepositoryResult.UnexpectedState
+        database.workoutActivityDao().update(updated.toEntity())
+        return RepositoryResult.Success(updated)
     }
 
     private fun createWatchDailySummary(input: MergeWatchDailySummaryInput): DailySummary? = when (

@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -98,6 +98,31 @@ Home e Saúde já persistem dados locais corretamente. A Fase 12 deve acoplar o 
 
 - marcar `012-09` como concluída;
 - registrar triggers automáticos pós-persistência integrados.
+
+## Execução
+
+### Arquivos atualizados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthViewModel.kt`
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-09-integrate-post-persistence-steps-manual-bpm-and-d1-triggers.md`
+
+### Implementação concluída
+
+- Home passou a disparar `syncPending()` do Health Connect apenas após merge persistido com sucesso e liberação do `ForegroundBleOperationGate`.
+- Saúde passou a disparar `syncPending()` após persistência final da medição manual e após conclusão persistida da importação D1 com dados efetivamente salvos.
+- os gatilhos automáticos agora respeitam `healthSyncEnabled` antes de iniciar tentativa secundária de sync foreground.
+
+### Validação executada
+
+- `./gradlew :app:compileDebugKotlin` concluído com sucesso.
+
+### Observações
+
+- sucesso local continua independente do provider.
+- nenhum sync é iniciado enquanto BLE ainda está retido pelo gate foreground.
 
 ## Validação final
 

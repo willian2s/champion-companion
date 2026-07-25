@@ -34,7 +34,19 @@ data class HealthUiState(
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
+    val healthConnectSync: HealthConnectSyncUiModel = HealthConnectSyncUiModel(),
 )
+
+data class HealthConnectSyncUiModel(
+    val pendingCount: Int = 0,
+    val failedCount: Int = 0,
+    val syncingCount: Int = 0,
+    val syncedCount: Int = 0,
+    val lastSyncedAt: Instant? = null,
+) {
+    val hasVisibleState: Boolean
+        get() = pendingCount > 0 || failedCount > 0 || syncingCount > 0 || syncedCount > 0 || lastSyncedAt != null
+}
 
 data class HealthWeightSnapshot(
     val kilograms: Double,
