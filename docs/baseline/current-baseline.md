@@ -4,7 +4,7 @@
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.
 
-Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4 e Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC`.
+Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4, Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC` e Fase 12 concluída com integração nativa write-only ao Health Connect em foreground.
 
 Escopo factual atual já inclui:
 
@@ -21,11 +21,20 @@ Escopo factual atual já inclui:
 - detalhe de atividade importada com revisão local, tipo confirmado, título, observações, gráfico de BPM, intervalos, calibração de esteira, descarte lógico e estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `SYNCED` e `SYNC_FAILED` observáveis;
 - banner de pendências locais na Home com prioridade para calibração.
 
+Escopo factual atual já inclui também na Fase 12:
+
+- SDK `androidx.health.connect:connect-client:1.1.0` integrado ao app;
+- provider, disponibilidade e rationale Android do Health Connect;
+- fila persistida granular de sync para passos, BPM, treino, peso e altura;
+- `clientRecordId` determinístico e `clientRecordVersion` monotônico por agregado elegível;
+- reconciliação de backlog herdado de resumo diário, medição manual, D1, peso e altura;
+- gatilhos foreground pós-persistência para passos, BPM manual e backlog D1;
+- sync explícito de atividade com records granulares e falha parcial retomável;
+- `Settings` funcional para disponibilidade, permissões, `Sincronizar agora` e `Gerenciar acesso`;
+- feedback secundário de Health Connect em Home, Saúde e Exercícios.
+
 Escopo factual atual ainda não inclui:
 
-- escrita real no Health Connect para passos, BPM, D1, treinos, peso ou altura;
-- SDK Health Connect integrado ao app;
-- permissões, provider, rationale ou UI funcional de Configurações para Health Connect;
 - leitura do Health Connect;
 - GPS, localização persistida, rotas ou `ExerciseRoute`;
 - foreground service;
@@ -33,15 +42,11 @@ Escopo factual atual ainda não inclui:
 - background BLE permanente;
 - sync agressivo ou automático ao abrir o app.
 
-Backlog local herdado para a Fase 12 já existe no código, mas ainda não é processado funcionalmente:
+Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela fila persistida do Health Connect, com retry foreground e preservação de sucesso local.
 
-- operações D1 `PENDING` ou `FAILED` persistidas em `health_sync_operations`;
-- medições manuais válidas sem operação de sync garantida;
-- resumos diários válidos sem operação de sync garantida;
-- atividades locais em `READY_TO_SYNC` aguardando ação explícita futura;
-- infraestrutura local de peso e altura disponível para futura elegibilidade, sem fluxo funcional de sync.
+- atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` continua placeholder. `AppPreferences.healthSyncEnabled` já existe em DataStore, mas ainda não participa de fluxo funcional. `ChampionDatabase` permanece em `v4`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v5`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
 ## Ambiente e validação
 

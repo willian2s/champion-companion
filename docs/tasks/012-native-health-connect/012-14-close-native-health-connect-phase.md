@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 2026-07-24.
 
 ## Objetivo
 
@@ -109,6 +109,32 @@ A fase altera decisões arquiteturais duradouras, schema, UI, manifesto e integr
 
 - marcar `012-14` como concluída;
 - marcar Fase 12 como concluída.
+
+## Execução
+
+### Arquivos atualizados
+
+- `docs/specs/012-native-health-connect.md`
+- `docs/tasks/012-native-health-connect/012-00-overview.md`
+- `docs/tasks/012-native-health-connect/012-14-close-native-health-connect-phase.md`
+- `docs/baseline/current-baseline.md`
+- `docs/baseline/health-connect-mapping.md`
+- `docs/baseline/database-reference.md`
+- `docs/baseline/feature-parity-checklist.md`
+- `docs/baseline/gaps-and-open-questions.md`
+- `docs/roadmap/champion-companion-roadmap.md`
+
+### Fechamento consolidado
+
+- Fase 12 foi consolidada como concluída documentalmente após integração funcional write-only, fila persistida, triggers foreground, sync explícito de atividade, Settings funcional e feedback secundário nas features.
+- Gate C foi tratado como validado manualmente no Galaxy S22 com provider real, conforme instrução do fechamento desta sessão.
+- baseline factual, mapping, checklist, gaps e roadmap foram alinhados ao estado realmente entregue, preservando fronteira explícita sem leitura remota, sem `WorkManager` e sem sync automático ao abrir.
+
+### Riscos residuais
+
+- screenshots obrigatórias de tasks visuais da fase não foram consolidadas neste fechamento;
+- política futura de fator separado de calibração de esteira continua fora da fase;
+- temas de backup/restauração, cleanup avançado e Fase 14 continuam pendentes por escopo.
 
 ## Validação final
 

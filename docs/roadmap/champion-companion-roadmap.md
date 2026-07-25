@@ -1623,6 +1623,8 @@ Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 # Fase 12 — Health Connect nativo
 
+Status de fechamento: concluida em 2026-07-24 com Gate C tratado como validado manualmente no Galaxy S22 nesta sessao de fechamento.
+
 ## Objetivo
 
 Implementar integração nativa write-only com Health Connect, consumindo backlog local persistido e mantendo Room como fonte operacional e visual primária.

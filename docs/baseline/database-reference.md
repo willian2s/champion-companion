@@ -6,13 +6,13 @@ Este documento descreve SQLite do MotionLog na baseline `feat/015-watch-workouts
 
 Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de dados, compatibilidade de schema, leitura do `motionlog.db`, importador ou transferencia do MotionLog. Documento e referencia conceitual; nao e schema Room nem plano de migrations.
 
-## Atualizacao Factual Pre-Fase 12
+## Atualizacao Factual Pos-Fase 12
 
-- Banco real do Champion Companion esta em `ChampionDatabase` schema `v4`.
-- Fase 11 ja adicionou `title` e `notes` a `workout_activities` e concluiu fluxo local ate `READY_TO_SYNC`.
-- `health_sync_operations` real do Champion Companion ainda esta limitado a backlog D1 de `HEART_RATE`, com estado persistido e sem `clientRecordId`, `clientRecordVersion` ou `syncedAt`.
-- `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja formam backlog local factual para futura fila expandida da Fase 12.
-- Esta task nao altera schema Room; apenas registra ponto de partida factual para migration futura a partir do `v4`.
+- Banco real do Champion Companion esta em `ChampionDatabase` schema `v5`.
+- `workout_activities` ja cobre fluxo local ate `SYNCED` e `SYNC_FAILED`, incluindo sync explicito de Health Connect.
+- `health_sync_operations` ja cobre backlog e sincronizacao granular para passos, BPM, sessao de exercicio, distancia, calorias, peso e altura, com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt`.
+- `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
+- Esta task de fechamento nao altera schema Room; apenas registra estado factual apos migration e fila funcional da fase.
 
 Classificacao: itens de schema, SQL e fluxo marcados como `Confirmado pelo codigo`. Recomendacoes para banco novo sao `Decisao ja definida` quando derivam de roadmap/spec/ADR; demais sao `Inferido a partir do codigo`.
 

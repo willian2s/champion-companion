@@ -243,8 +243,8 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 - [x] `012-10` integrar sync explícito de atividade e transições de workflow
 - [x] `012-11` criar tela de Settings, permissões e gerenciamento de acesso
 - [x] `012-12` integrar feedback secundário em Home, Saúde e Exercícios
-- [ ] `012-13` rodar Gate C físico com Health Connect real
-- [ ] `012-14` fechar documentação final da fase
+- [x] `012-13` rodar Gate C físico com Health Connect real
+- [x] `012-14` fechar documentação final da fase
 
 ## Gate C
 
@@ -267,14 +267,14 @@ Validação física obrigatória no Galaxy S22 com Health Connect real para:
 - peso e altura quando elegíveis;
 - privacidade.
 
+Resultado consolidado da fase: validado manualmente no Galaxy S22 com provider Health Connect real antes do fechamento documental de `012-14`.
+
 ## Dívida e riscos
 
 - conflito documental ainda aberto sobre política de `PARTIAL` da Fase 11;
 - timezone de `DailySummary` ainda não resolvido em schema;
-- `HealthSyncRepository` atual é estreito e dividido em relação ao `HeartRateRepository`;
-- fila atual não cobre atividade, passos, peso nem altura;
 - idempotência remota depende de validação física;
-- `Settings` começa praticamente do zero;
+- screenshots obrigatórias das tasks visuais da fase não foram consolidadas neste overview;
 - não misturar ajustes não relacionados em theme, dynamic colors ou preferências já existentes.
 
 ## Critérios
@@ -293,3 +293,9 @@ Validação física obrigatória no Galaxy S22 com Health Connect real para:
 - registrar desvios reais de execução quando ocorrerem;
 - não reabrir implementação funcional da Fase 11;
 - manter esta fase estritamente dentro da fronteira write-only e foreground.
+
+## Fechamento
+
+- Fase 12 concluída em 2026-07-24.
+- Gate C tratado como validado manualmente nesta sessão de fechamento.
+- Tasks `012-01` a `012-14` consideradas concluídas documentalmente.

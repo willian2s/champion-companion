@@ -35,13 +35,13 @@ Classificacao:
 | G-15 | Paridade de telas e estados | Media | Implementacao UI/validacao | Nao inicialmente |
 | G-16 | Arquitetura/nomenclatura Android | Media | Inicio implementacao Android | Nao |
 
-## Atualizacao Factual Pre-Fase 12
+## Atualizacao Factual Pos-Fase 12
 
 - Fase 11 foi concluida no codigo com revisao, calibracao, descarte logico e atividades locais em `READY_TO_SYNC`.
 - Documentacao atrasada da Fase 11 foi reconciliada em `012-01` sem reabrir implementacao funcional.
-- Backlog local herdado para Health Connect agora inclui quatro grupos principais: operacoes D1 persistidas, medicoes manuais validas sem operacao garantida, resumos diarios validos sem operacao garantida e atividades `READY_TO_SYNC` aguardando acao explicita futura.
-- `SettingsScreen` ainda e placeholder, `healthSyncEnabled` ja existe em DataStore e segue sem fluxo funcional, e `ChampionDatabase` permanece em `v4` antes da migration da Fase 12.
-- G-08, G-09 e G-10 continuam sendo lacunas centrais da Fase 12. G-07 deixa de ser bloqueio funcional da Fase 11 e passa a risco residual apenas para politica futura de reuse de fator e envio Health Connect.
+- Backlog local herdado para Health Connect passou a ser reconciliado e processado por fila persistida foreground.
+- `SettingsScreen` deixou de ser placeholder, `healthSyncEnabled` participa de fluxo funcional e `ChampionDatabase` esta em `v5`.
+- G-08, G-09 e G-10 deixaram de ser lacunas centrais de implementacao da Fase 12 e passam a riscos residuais apenas para evolucoes futuras, regressao e validacoes adicionais de longo prazo.
 
 ## G-01 — GATT, Scan E Notifications
 

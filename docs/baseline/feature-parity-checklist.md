@@ -7,7 +7,7 @@ Validar, em fases futuras, paridade funcional segura entre Champion Companion e 
 ## Baseline E Uso
 
 - Baseline: MotionLog `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`.
-- Status de cada item: verificar checkbox individual. Fase 11 concluiu entregas locais de revisao, calibracao, descarte logico e `READY_TO_SYNC`; integracao funcional com Health Connect segue pendente para a Fase 12.
+- Status de cada item: verificar checkbox individual. Fase 11 concluiu entregas locais de revisao, calibracao, descarte logico e `READY_TO_SYNC`; Fase 12 concluiu integracao funcional write-only com Health Connect em foreground.
 - Evidencia `Confirmado pelo codigo` descreve baseline. Nao confirma comportamento do Champion Companion nem validacao no dispositivo.
 - Itens `Ainda nao confirmado` exigem decisao ou validacao fisica antes de aceitacao; nao devem ser inferidos como requisito implementado.
 - Validacao deve registrar versao Champion Companion, firmware/dispositivo, dados de entrada, resultado esperado, resultado obtido e evidencia.
@@ -97,7 +97,7 @@ Fontes: `feature-inventory.md`, `health-connect-mapping.md`, `database-reference
 Fontes: `feature-inventory.md`, `health-connect-mapping.md`.
 
 - [x] Usuario informa tempo e distancia validos do painel; app recalcula fim, distancia, ritmo e velocidade segundo regra local escolhida, sem envio funcional ainda.
-- [ ] Distancia calibrada, em metros, torna-se unica distancia usada no envio Health Connect de esteira.
+- [x] Distancia calibrada, em metros, torna-se unica distancia usada no envio Health Connect de esteira.
 - [x] Treino importado revisado como esteira fica bloqueado de sync ate calibracao concluida.
 - [ ] Fator de calibracao separado nao e exigido nem declarado atingido: baseline nao o confirmou. Decisao futura deve definir calculo/persistencia, se necessario.
 
@@ -105,12 +105,12 @@ Fontes: `feature-inventory.md`, `health-connect-mapping.md`.
 
 Fontes: `health-connect-mapping.md`, `feature-inventory.md`, `database-reference.md`.
 
-- [ ] Permissoes e disponibilidade bloqueiam escrita de modo explicavel; permissoes opcionais nao invalidam registros independentes.
-- [ ] `Steps`, `HeartRate`, `ExerciseSession`, `Distance`, `TotalCaloriesBurned`, `Weight` e `Height` usam campos, unidades e tempos documentados quando aplicaveis.
-- [ ] IDs estaveis proprios, versoes e estrategia de update/retry sao decididos e validados; prefixos `motionlog:` nao sao contrato do novo app.
-- [ ] Fila local registra pendente, sucesso, falha e dados invalidos por entidade/record; escrita parcial nao mascara records restantes.
-- [ ] D3/D4 somente enviam apos revisao manual; `free` nao envia distancia; esteira usa distancia calibrada.
-- [ ] Nenhum fluxo grava ou envia `ExerciseRoute`, coordenadas, rotas ou polylines.
+- [x] Permissoes e disponibilidade bloqueiam escrita de modo explicavel; permissoes opcionais nao invalidam registros independentes.
+- [x] `Steps`, `HeartRate`, `ExerciseSession`, `Distance`, `TotalCaloriesBurned`, `Weight` e `Height` usam campos, unidades e tempos documentados quando aplicaveis.
+- [x] IDs estaveis proprios, versoes e estrategia de update/retry sao decididos e validados; prefixos `motionlog:` nao sao contrato do novo app.
+- [x] Fila local registra pendente, sucesso, falha e dados invalidos por entidade/record; escrita parcial nao mascara records restantes.
+- [x] D3/D4 somente enviam apos revisao manual; `free` nao envia distancia; esteira usa distancia calibrada.
+- [x] Nenhum fluxo grava ou envia `ExerciseRoute`, coordenadas, rotas ou polylines.
 
 ## Dados, Backup, Restauracao E Limpeza
 
@@ -118,7 +118,7 @@ Fontes: `database-reference.md`, `feature-inventory.md`, `000-phase-zero-baselin
 
 - [ ] Banco proprio inicia vazio; nao le `motionlog.db`, nao migra schema, nao importa nem transfere dados MotionLog.
 - [ ] Modelo novo exclui dados proibidos: latitude, longitude, rotas, polylines e coordenadas brutas.
-- [ ] Dados locais operacionais suportam deduplicacao, revisao e fila Health Connect sem depender de banco MotionLog.
+- [x] Dados locais operacionais suportam deduplicacao, revisao e fila Health Connect sem depender de banco MotionLog.
 - [ ] Backup proprio, se implementado, cobre somente dados Champion Companion e possui restauracao verificavel.
 - [ ] Backup/restauracao nao exige compatibilidade, importacao ou exportacao do MotionLog; baseline atual de Firebase nao foi confirmada no codigo.
 - [ ] Limpeza de dados define alvo, efeito em fila Health Connect e confirmacao de usuario antes de execucao; nao remove dados externos do Health Connect sem regra futura explicitada.
