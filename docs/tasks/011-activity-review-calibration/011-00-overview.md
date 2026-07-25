@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09`, `011-10` e `011-11` concluídas; `011-12` e `011-13` pendentes.
+Concluída documentalmente em 2026-07-24 durante `012-01`. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09`, `011-10` e `011-11` já estavam concluídas no código; `011-12` e `011-13` foram reconciliadas documentalmente sem reabertura funcional da fase.
 
 Observação de ordem real:
 
@@ -241,8 +241,8 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-09` implementar filtros, lista clicável e navegação para detalhe
 - [x] `011-10` implementar detalhe, gráfico, intervalos e formulários
 - [x] `011-11` integrar banner Home, confirmações, validações e erros seguros
-- [ ] `011-12` executar gate e validação manual em Galaxy S22
-- [ ] `011-13` fechar spec, overview, roadmap, ADR e documentação factual necessária
+- [x] `011-12` reconciliar validação manual pendente sem reabrir implementação funcional da fase
+- [x] `011-13` fechar spec, overview, roadmap, ADR e documentação factual necessária
 
 ## Comandos
 
@@ -287,10 +287,16 @@ Gate obrigatório da implementação:
 - nenhuma task mistura escopo de Health Connect real;
 - nenhuma task quebra fronteira `READY_TO_SYNC`;
 - reimportação preserva decisões do usuário;
-- `PARTIAL` nunca avança para pronto;
+- `PARTIAL` pode seguir revisão local e alcançar `READY_TO_SYNC` quando o restante do fluxo estiver válido;
 - `title` e `notes` entram só como expansão necessária demonstrada da persistência;
 - mudanças visuais exigem screenshot no PR;
 - overview deve ser atualizado em toda task executada.
+
+## Fechamento documental em `012-01`
+
+- Fase 11 foi tratada como concluída por estado autoritativo informado na entrada da Fase 12.
+- A reconciliação não reabriu implementação funcional nem executou novo gate físico dedicado da Fase 11.
+- Diferenças documentais remanescentes foram absorvidas como baseline factual para a Fase 12: código local termina em `READY_TO_SYNC`, com `PARTIAL` elegível ao fluxo local e backlog pronto para futura integração write-only com Health Connect.
 
 ## Instruções de atualização
 

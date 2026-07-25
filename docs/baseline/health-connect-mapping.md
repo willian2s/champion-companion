@@ -6,6 +6,61 @@ Mapear integração Health Connect da baseline MotionLog `feat/015-watch-workout
 
 Salvo indicação contrária, itens são `Confirmado pelo código` em `../motionlog-app`. Regras marcadas `Decisão já definida` vêm de spec/requisitos Fase 0. Prefixos `motionlog:` são referência legada, não contrato para novo app.
 
+## Atualizacao Factual Pos-Fase 12
+
+No estado atual do Champion Companion apos a integracao nativa real:
+
+- passos, BPM manual, backlog D1, peso e altura ja possuem fila persistida funcional com IDs estaveis e retry foreground;
+- atividades revisadas e calibradas continuam exigindo acao explicita para sync, agora com records granulares independentes;
+- `SettingsScreen` ja expõe provider, disponibilidade, permissões, `Sincronizar agora` e `Gerenciar acesso`;
+- SDK Android do Health Connect, provider e rationale Android ja estao integrados.
+
+Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
+
+## Politica Champion Companion Formalizada Na Fase 12
+
+As decisoes abaixo passam a ser consideradas contrato documental do app novo para a Fase 12:
+
+- integracao write-only;
+- Room como fonte operacional e visual primaria;
+- fila persistida granular por agregado e tipo de record;
+- retries foreground com o mesmo `clientRecordId`;
+- `clientRecordVersion` monotônico para agregados mutaveis;
+- passos sem delete amplo por intervalo;
+- atividade sincronizada somente por acao explicita;
+- atividade sem `StepsRecord` separado;
+- atividade sem rota;
+- falha parcial mantida por record complementar, sem desfazer sessao ja sincronizada;
+- peso e altura so quando houver dado local elegivel;
+- ausencia de `WorkManager` e leitura remota nesta fase.
+
+## Mapeamento Planejado Champion Companion
+
+| Origem local Champion Companion | Record planejado | Politica Champion Companion Fase 12 |
+| --- | --- | --- |
+| `daily_summaries` | `Steps` | um record por resumo diario, mesmo `clientRecordId` em refreshes do mesmo dia, sem `delete` amplo por intervalo |
+| `heart_rate_measurements` manual | `HeartRate` | uma operacao por medicao persistida, timestamp exato, retry idempotente |
+| `heart_rate_measurements` D1 | `HeartRate` | uma operacao por ponto persistido valido, sem selecao manual |
+| `workout_activities` | `ExerciseSession` | sessao obrigatoria, so por acao explicita do usuario |
+| `workout_activities` | `Distance` | complementar opcional e independente, usando distancia final calibrada > original > estimada |
+| `workout_activities` | `TotalCaloriesBurned` | complementar opcional e independente |
+| `workout_activities` + `workout_heart_rate_samples` | `HeartRate` | complementar opcional com amostras reais da sessao |
+| `weight_measurements` | `Weight` | so quando houver dado local elegivel |
+| `user_profiles.heightCentimeters` | `Height` | so quando houver altura local elegivel |
+
+## IDs E Versoes Planejados Champion Companion
+
+- `clientRecordId` deterministico por `applicationId + aggregateType + aggregateId + recordType`.
+- `clientRecordVersion` obrigatorio para agregados mutaveis do app novo.
+- IDs `motionlog:` deixam de ser referencia de implementacao e permanecem apenas como baseline comparativa legada.
+
+## Diferencas Deliberadas Em Relacao Ao MotionLog
+
+- Champion Companion nao apagara `Steps` por intervalo antes de inserir.
+- Champion Companion nao criara `Steps` separado para atividade.
+- Champion Companion tratara falha parcial de atividade de forma granular por record, nao como item unico indivisivel.
+- Champion Companion nao usara fallback silencioso por `now` para peso ou altura sem decisao local valida.
+
 ## Permissões E Disponibilidade
 
 | Classe | Permissões de escrita MotionLog | Situação |

@@ -468,6 +468,20 @@ private fun HeartRateOverviewCard(
             onRetry = onRetryD1Import,
             onDismiss = onDismissD1Import,
         )
+
+        if (state.healthConnectSync.hasVisibleState) {
+            Text(
+                text = when {
+                    state.healthConnectSync.syncingCount > 0 -> "Health Connect sincronizando em segundo plano. Medição manual e importação D1 locais já foram preservadas."
+                    state.healthConnectSync.failedCount > 0 -> "Health Connect com falhas pendentes. O sucesso local de medição ou D1 continua preservado."
+                    state.healthConnectSync.pendingCount > 0 -> "Há dados de Saúde aguardando envio ao Health Connect."
+                    else -> "Sincronização secundária do Health Connect sem pendências visíveis agora."
+                },
+                modifier = Modifier.padding(top = ChampionSpacing.medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 

@@ -35,6 +35,14 @@ Classificacao:
 | G-15 | Paridade de telas e estados | Media | Implementacao UI/validacao | Nao inicialmente |
 | G-16 | Arquitetura/nomenclatura Android | Media | Inicio implementacao Android | Nao |
 
+## Atualizacao Factual Pos-Fase 12
+
+- Fase 11 foi concluida no codigo com revisao, calibracao, descarte logico e atividades locais em `READY_TO_SYNC`.
+- Documentacao atrasada da Fase 11 foi reconciliada em `012-01` sem reabrir implementacao funcional.
+- Backlog local herdado para Health Connect passou a ser reconciliado e processado por fila persistida foreground.
+- `SettingsScreen` deixou de ser placeholder, `healthSyncEnabled` participa de fluxo funcional e `ChampionDatabase` esta em `v5`.
+- G-08, G-09 e G-10 deixaram de ser lacunas centrais de implementacao da Fase 12 e passam a riscos residuais apenas para evolucoes futuras, regressao e validacoes adicionais de longo prazo.
+
 ## G-01 — GATT, Scan E Notifications
 
 - Impacto: Alta. UUID ou propriedade GATT incorreta impede conexao, notificacao ou leitura.

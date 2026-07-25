@@ -1623,9 +1623,27 @@ Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 # Fase 12 — Health Connect nativo
 
+Status de fechamento: concluida em 2026-07-24 com Gate C tratado como validado manualmente no Galaxy S22 nesta sessao de fechamento.
+
 ## Objetivo
 
-Implementar integração direta consumindo backlog local `READY_TO_SYNC` e pendências D1 já persistidas.
+Implementar integração nativa write-only com Health Connect, consumindo backlog local persistido e mantendo Room como fonte operacional e visual primária.
+
+Fluxo principal da fase:
+
+```text
+Persistência local
+        ↓
+Fila persistida
+        ↓
+Disponibilidade e permissão
+        ↓
+Mapeamento Health Connect
+        ↓
+Upsert idempotente
+        ↓
+SYNCED ou FAILED
+```
 
 ## Tipos
 
@@ -1647,31 +1665,51 @@ Implementar integração direta consumindo backlog local `READY_TO_SYNC` e pend�
 - TCX;
 - FIT.
 
+## Princípios
+
+- write-only;
+- local-first;
+- sem leitura de dados de outros apps;
+- sem `WorkManager`;
+- sem foreground service;
+- sem sync ao abrir o app;
+- sem `Steps` separado para atividade;
+- sem rota.
+
 ## Tarefas
 
 - detectar disponibilidade;
-- solicitar permissões;
+- solicitar permissões de escrita por capacidade;
 - mostrar permissões faltantes;
 - criar repository;
 - criar mapeadores;
 - criar IDs estáveis;
 - criar versões;
 - insert;
-- update;
-- delete quando necessário;
+- update idempotente por `clientRecordVersion`;
 - fila;
-- retry;
+- retry foreground;
 - erros;
-- reenvio;
+- rationale de privacidade;
+- manage access;
 - data de sincronização;
 - processar todas operações D1 `PENDING` acumuladas desde a Fase 09;
 - escrever todas amostras D1 válidas ainda não sincronizadas;
+- tentar sync automático de passos após refresh persistido;
+- tentar sync automático de BPM manual após persistência;
+- tentar backlog D1 após importação persistida;
+- sincronizar atividade somente por ação explícita;
+- mapear atividade em records granulares independentes;
+- sincronizar peso e altura somente quando houver dados locais elegíveis;
 - manter falhas parciais como pendentes ou failed sem desfazer dados locais.
 
 ## Entrada da fase
 
 - atividades D3/D4 revisadas em `READY_TO_SYNC`;
-- backlog D1 `PENDING` acumulado desde a Fase 09.
+- backlog D1 `PENDING` acumulado desde a Fase 09;
+- medições manuais válidas já persistidas;
+- resumos diários válidos já persistidos;
+- peso e altura locais elegíveis.
 
 ## IDs
 
@@ -1682,6 +1720,12 @@ clientRecordId
 clientRecordVersion
 ```
 
+Formato determinístico esperado:
+
+```text
+<applicationId>:<aggregateType>:<aggregateId>:<recordType>
+```
+
 ## BPM
 
 Enviar amostras com timestamps.
@@ -1689,6 +1733,8 @@ Enviar amostras com timestamps.
 Não enviar apenas média quando houver amostras.
 
 Para D1, fila local da Fase 09 e fonte de verdade para backlog de escrita.
+
+Para medição manual, usar dado local persistido como origem de uma operação por medição.
 
 ## Sessão
 
@@ -1699,14 +1745,65 @@ Enviar:
 - tipo confirmado;
 - título;
 - notas;
+
+Complementos da atividade são granulares e independentes:
+
 - distância final;
 - calorias;
-- passos;
 - BPM.
+
+Passos da atividade não geram `StepsRecord` separado.
 
 ## Esteira
 
 Usar a distância calibrada.
+
+## Permissões
+
+- passos exigem apenas escrita de passos;
+- BPM manual e D1 exigem apenas escrita de frequência cardíaca;
+- sessão de exercício exige apenas escrita de exercício;
+- distância, calorias e BPM da atividade exigem permissões próprias e independentes;
+- peso e altura só são pedidos quando houver dado local elegível.
+
+## Triggers
+
+```text
+Passos:
+persistir -> liberar BLE -> tentar sync
+
+BPM manual:
+persistir -> liberar BLE -> tentar sync
+
+D1:
+persistir lote -> liberar BLE -> processar backlog
+
+Atividade:
+READY_TO_SYNC -> ação explícita -> sync
+```
+
+Quando `healthSyncEnabled` estiver desativado:
+
+```text
+persistir -> manter PENDING -> não tentar
+```
+
+## Falha parcial
+
+- sessão já sincronizada não deve ser apagada quando complemento falhar;
+- retry processa apenas pendentes ou falhos;
+- atividade só vai para `SYNCED` quando todas as operações elegíveis concluírem.
+
+## Fora do escopo
+
+- leitura do Health Connect;
+- importação de dados de outros apps;
+- `ChangeLogs`;
+- `WorkManager`;
+- retry em background;
+- foreground service;
+- sincronização periódica;
+- sincronização ao abrir o app.
 
 ## Critérios de aceite
 
@@ -1716,8 +1813,14 @@ Usar a distância calibrada.
 - reenvio não duplica;
 - atualização funciona;
 - erros aparecem;
+- passos sincronizam sem duplicação por resumo diário;
+- BPM manual sincroniza sem rebaixar sucesso local;
+- atividade não cria `Steps` separado;
+- falha parcial é retomável por record granular;
+- peso e altura sincronizam somente quando elegíveis;
 - nenhuma rota;
 - sincronização controlada;
+- integração permanece write-only;
 - integração Health Connect não substitui Room/repositories locais como fonte visual primária da área Saúde.
 
 ## Gate C

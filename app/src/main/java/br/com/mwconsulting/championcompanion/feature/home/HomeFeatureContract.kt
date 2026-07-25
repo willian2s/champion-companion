@@ -14,6 +14,7 @@ data class HomeUiState(
     val summary: HomeDailySummaryModel? = null,
     val latestHeartRate: HomeLatestHeartRateModel? = null,
     val watch: HomeWatchSnapshot = HomeWatchSnapshot(),
+    val healthConnectSync: HomeHealthConnectSyncModel = HomeHealthConnectSyncModel(),
     val workoutPendingBanner: HomeWorkoutPendingBanner? = null,
     val pendingActivities: List<HomePendingActivityModel> = emptyList(),
     val refresh: HomeRefreshState = HomeRefreshState(),
@@ -90,6 +91,17 @@ data class HomeWatchSnapshot(
     val lastSuccessfulConnectionAt: Instant? = null,
     val lastImportedAt: Instant? = null,
 )
+
+data class HomeHealthConnectSyncModel(
+    val pendingCount: Int = 0,
+    val failedCount: Int = 0,
+    val syncingCount: Int = 0,
+    val syncedCount: Int = 0,
+    val lastSyncedAt: Instant? = null,
+) {
+    val hasVisibleState: Boolean
+        get() = pendingCount > 0 || failedCount > 0 || syncingCount > 0 || syncedCount > 0 || lastSyncedAt != null
+}
 
 enum class HomeWatchConnectionState {
     Unknown,

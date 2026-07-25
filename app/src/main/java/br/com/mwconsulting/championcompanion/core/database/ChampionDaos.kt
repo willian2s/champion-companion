@@ -63,14 +63,29 @@ interface DeviceAssociationDao {
 
 @Dao
 interface UserProfileDao {
+    @Query("SELECT * FROM user_profiles WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): UserProfileEntity?
+
     @Query("SELECT * FROM user_profiles ORDER BY updatedAtEpochMillis DESC LIMIT 1")
     fun observeCurrent(): Flow<UserProfileEntity?>
+
+    @Query("SELECT * FROM user_profiles ORDER BY updatedAtEpochMillis DESC LIMIT 1")
+    suspend fun findCurrent(): UserProfileEntity?
 
     @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC LIMIT 1")
     fun observeLatestWeight(profileId: String): Flow<WeightMeasurementEntity?>
 
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC LIMIT 1")
+    suspend fun findLatestWeight(profileId: String): WeightMeasurementEntity?
+
+    @Query("SELECT * FROM weight_measurements WHERE id = :id LIMIT 1")
+    suspend fun findWeightById(id: String): WeightMeasurementEntity?
+
     @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC")
     fun observeWeights(profileId: String): Flow<List<WeightMeasurementEntity>>
+
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis")
+    suspend fun findWeights(profileId: String): List<WeightMeasurementEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(profile: UserProfileEntity)
@@ -84,8 +99,14 @@ interface UserProfileDao {
 
 @Dao
 interface DailySummaryDao {
+    @Query("SELECT * FROM daily_summaries WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): DailySummaryEntity?
+
     @Query("SELECT * FROM daily_summaries WHERE deviceId IS :deviceId AND origin = :origin AND localDateIso = :localDateIso")
     suspend fun findByNaturalKey(deviceId: String?, origin: String, localDateIso: String): DailySummaryEntity?
+
+    @Query("SELECT * FROM daily_summaries WHERE origin = 'WATCH_DAILY_SUMMARY' AND validity = 'VALID' AND deviceId IS NOT NULL ORDER BY updatedAtEpochMillis, collectedAtEpochMillis, id")
+    suspend fun findValidWatchBacklog(): List<DailySummaryEntity>
 
     @Query("SELECT * FROM daily_summaries WHERE localDateIso BETWEEN :fromLocalDateIso AND :toLocalDateIso ORDER BY localDateIso")
     fun observeBetween(fromLocalDateIso: String, toLocalDateIso: String): Flow<List<DailySummaryEntity>>
@@ -107,6 +128,9 @@ interface HeartRateDao {
 
     @Query("SELECT measurement.* FROM heart_rate_measurements measurement LEFT JOIN health_sync_operations sync ON sync.aggregateId = measurement.id AND sync.recordType = 'HEART_RATE' WHERE measurement.source = 'WATCH_D1_HISTORY' AND measurement.validity = 'VALID' AND measurement.measuredAtEpochMillis IS NOT NULL AND (sync.id IS NULL OR sync.state IN ('PENDING', 'FAILED')) ORDER BY measurement.measuredAtEpochMillis")
     suspend fun findValidPendingForSync(): List<HeartRateMeasurementEntity>
+
+    @Query("SELECT * FROM heart_rate_measurements WHERE validity = 'VALID' AND measuredAtEpochMillis IS NOT NULL AND source IN ('MANUAL_MEASUREMENT', 'WATCH_D1_HISTORY') ORDER BY measuredAtEpochMillis, id")
+    suspend fun findValidHealthConnectBacklog(): List<HeartRateMeasurementEntity>
 
     @Query("SELECT * FROM heart_rate_measurements WHERE validity = 'VALID' AND measuredAtEpochMillis IS NOT NULL ORDER BY measuredAtEpochMillis DESC, id DESC LIMIT 1")
     fun observeLatestValidMeasurement(): Flow<HeartRateMeasurementEntity?>
@@ -183,6 +207,9 @@ interface WorkoutActivityDao {
 
     @Query("UPDATE workout_activities SET workflowState = :nextState WHERE id = :id AND workflowState IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String): Int
+
+    @Query("UPDATE workout_activities SET workflowState = :nextState WHERE workflowState = :expectedState")
+    suspend fun transitionAllByState(expectedState: String, nextState: String): Int
 }
 
 data class WorkoutWorkflowSummaryRecord(
@@ -192,6 +219,14 @@ data class WorkoutWorkflowSummaryRecord(
     val syncedCount: Int,
     val syncFailedCount: Int,
     val discardedCount: Int,
+)
+
+data class HealthSyncSummaryRecord(
+    val pendingCount: Int,
+    val syncingCount: Int,
+    val failedCount: Int,
+    val syncedCount: Int,
+    val lastSyncedAtEpochMillis: Long?,
 )
 
 @Dao
@@ -278,14 +313,37 @@ interface HealthSyncOperationDao {
     @Query("SELECT * FROM health_sync_operations WHERE id = :id")
     suspend fun findById(id: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND recordType = :recordType")
-    suspend fun findByNaturalKey(aggregateId: String, recordType: String): HealthSyncOperationEntity?
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType")
+    suspend fun findByNaturalKey(aggregateId: String, aggregateType: String, recordType: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY lastAttemptAtEpochMillis")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType")
+    suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
+
+    @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")
     suspend fun findFailed(): List<HealthSyncOperationEntity>
+
+    @Query("SELECT * FROM health_sync_operations WHERE state IN ('PENDING', 'FAILED') ORDER BY COALESCE(updatedAtEpochMillis, createdAtEpochMillis, lastAttemptAtEpochMillis, 0), id LIMIT :limit")
+    suspend fun findProcessable(limit: Int): List<HealthSyncOperationEntity>
+
+    @Query("SELECT * FROM health_sync_operations WHERE state = 'SYNCING' ORDER BY COALESCE(updatedAtEpochMillis, createdAtEpochMillis, lastAttemptAtEpochMillis, 0), id")
+    suspend fun findSyncing(): List<HealthSyncOperationEntity>
+
+    @Query(
+        "SELECT " +
+            "COALESCE(SUM(CASE WHEN state = 'PENDING' THEN 1 ELSE 0 END), 0) AS pendingCount, " +
+            "COALESCE(SUM(CASE WHEN state = 'SYNCING' THEN 1 ELSE 0 END), 0) AS syncingCount, " +
+            "COALESCE(SUM(CASE WHEN state = 'FAILED' THEN 1 ELSE 0 END), 0) AS failedCount, " +
+            "COALESCE(SUM(CASE WHEN state = 'SYNCED' THEN 1 ELSE 0 END), 0) AS syncedCount, " +
+            "MAX(syncedAtEpochMillis) AS lastSyncedAtEpochMillis " +
+            "FROM health_sync_operations",
+    )
+    fun observeSummary(): Flow<HealthSyncSummaryRecord>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(operation: HealthSyncOperationEntity)
+
+    @Update
+    suspend fun update(operation: HealthSyncOperationEntity): Int
 
     @Query("UPDATE health_sync_operations SET state = :nextState, lastAttemptAtEpochMillis = :attemptedAtEpochMillis, lastError = :lastError, attemptCount = attemptCount + :attemptIncrement WHERE id = :id AND state IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String, attemptedAtEpochMillis: Long?, lastError: String?, attemptIncrement: Int = 0): Int

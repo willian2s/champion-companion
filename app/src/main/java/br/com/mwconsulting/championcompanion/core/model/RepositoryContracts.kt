@@ -39,6 +39,7 @@ interface DailySummaryRepository {
     fun observeSummaries(from: LocalDate, to: LocalDate): Flow<List<DailySummary>>
     fun observeSummaryForDate(localDate: LocalDate): Flow<DailySummary?> =
         observeSummaries(localDate, localDate).map { it.firstOrNull() }
+    suspend fun findById(summaryId: DailySummaryId): RepositoryResult<DailySummary> = RepositoryResult.UnexpectedState
     suspend fun save(summary: DailySummary): RepositoryResult<Unit>
     suspend fun mergeWatchDailySummary(input: MergeWatchDailySummaryInput): RepositoryResult<DailySummary> =
         RepositoryResult.UnexpectedState
@@ -57,6 +58,8 @@ data class MergeWatchDailySummaryInput(
 
 interface PersonalMetricsRepository {
     fun observeSnapshot(): Flow<PersonalMetricsSnapshot>
+    suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
+    suspend fun findWeightById(measurementId: WeightMeasurementId): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
 }
 
 data class PersonalMetricsSnapshot(
@@ -176,6 +179,7 @@ data class SaveD1HeartRateMeasurementsInput(
 interface HeartRateRepository {
     suspend fun import(measurements: List<HeartRateMeasurement>): RepositoryResult<Unit>
     suspend fun findPendingSync(): RepositoryResult<List<HeartRateMeasurement>>
+    suspend fun findById(measurementId: HeartRateMeasurementId): RepositoryResult<HeartRateMeasurement> = RepositoryResult.UnexpectedState
     suspend fun saveManualMeasurement(input: SaveManualHeartRateMeasurementInput): RepositoryResult<HeartRateMeasurement> =
         RepositoryResult.UnexpectedState
 
@@ -199,12 +203,17 @@ interface WorkoutActivityRepository {
     fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
     fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = flowOf(emptyList())
     fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> = flowOf(null)
+    suspend fun findById(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummary> = flowOf(WorkoutWorkflowSummary())
     suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = RepositoryResult.UnexpectedState
     fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> = flowOf(null)
     suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
     suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
+    suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
+    suspend fun markSynced(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
+    suspend fun markSyncFailed(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
+    suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = RepositoryResult.UnexpectedState
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
 }
 
@@ -283,11 +292,33 @@ interface AppWorkoutSessionRepository {
     suspend fun finish(sessionId: AppWorkoutSessionId, activityId: WorkoutActivityId, at: Instant): RepositoryResult<AppWorkoutSession>
 }
 
+data class HealthSyncSummary(
+    val pendingCount: Int = 0,
+    val syncingCount: Int = 0,
+    val failedCount: Int = 0,
+    val syncedCount: Int = 0,
+    val lastSyncedAt: Instant? = null,
+)
+
+data class HealthSyncBacklogReconciliationResult(
+    val ensuredOperationCount: Int = 0,
+    val repairedOperationCount: Int = 0,
+    val dailySummaryCount: Int = 0,
+    val heartRateCount: Int = 0,
+    val weightCount: Int = 0,
+    val heightCount: Int = 0,
+)
+
 interface HealthSyncRepository {
-    suspend fun findFailed(): RepositoryResult<List<HealthSyncOperation>>
+    suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
+    suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
+    fun observeSyncSummary(): Flow<HealthSyncSummary>
+    suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
     suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
-    suspend fun markSynced(operationId: HealthSyncOperationId): RepositoryResult<Unit>
-    suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError): RepositoryResult<Unit>
+    suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
+    suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError, at: Instant): RepositoryResult<Unit>
+    suspend fun resetInterrupted(at: Instant): RepositoryResult<Int>
+    suspend fun reconcileBacklog(): RepositoryResult<HealthSyncBacklogReconciliationResult>
 }
 
 interface DiagnosticPayloadRepository {

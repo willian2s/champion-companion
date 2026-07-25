@@ -20,9 +20,14 @@ import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayload
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadId
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadRepository
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncBacklogReconciliationResult
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartPoint
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartResolution
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartSeries
@@ -32,6 +37,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryQuery
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
+import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
@@ -43,12 +49,15 @@ import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
+import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
+import br.com.mwconsulting.championcompanion.core.model.UserProfileId
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -61,6 +70,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -72,6 +82,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
+
+private const val SYNC_CLIENT_RECORD_APPLICATION_ID = "br.com.mwconsulting.championcompanion"
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -222,6 +234,12 @@ class RoomRepositories @Inject constructor(
             .map { entities -> entities.mapNotNull { it.toDomain() } }
             .flowOn(ioDispatcher)
 
+    override suspend fun findById(summaryId: DailySummaryId): RepositoryResult<DailySummary> = withContext(ioDispatcher) {
+        val summary = database.dailySummaryDao().findById(summaryId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(summary)
+    }
+
     override suspend fun save(summary: DailySummary): RepositoryResult<Unit> = write {
         val entity = summary.toEntity()
         val existing = database.dailySummaryDao().findByNaturalKey(entity.deviceId, entity.origin, entity.localDateIso)
@@ -275,10 +293,20 @@ class RoomRepositories @Inject constructor(
             if (database.heartRateDao().findByDeduplicationKey(entity.deduplicationKey) == null) {
                 database.heartRateDao().insert(entity)
                 if (measurement.isEligibleForSync) {
-                    database.healthSyncOperationDao().insert(HealthSyncOperationEntity(
-                        id = ids.next().toString(), aggregateId = entity.id, aggregateType = "HEART_RATE_MEASUREMENT",
-                        recordType = "HEART_RATE", state = "PENDING", attemptCount = 0,
-                        lastAttemptAtEpochMillis = null, lastError = null,
+                    database.healthSyncOperationDao().insert(newPendingOperationEntity(
+                        key = HealthSyncOperationKey(
+                            aggregate = HealthSyncAggregate.HeartRateMeasurement(HeartRateMeasurementId(parseUuid(entity.id) ?: return@write RepositoryResult.UnexpectedState)),
+                            recordType = HealthSyncRecordType.HEART_RATE,
+                        ),
+                        metadata = (resolveHeartRateSyncMetadata(entity)
+                            ?: return@write RepositoryResult.UnexpectedState).copy(
+                            clientRecordId = stableClientRecordId(
+                                HealthSyncOperationKey(
+                                    aggregate = HealthSyncAggregate.HeartRateMeasurement(HeartRateMeasurementId(parseUuid(entity.id) ?: return@write RepositoryResult.UnexpectedState)),
+                                    recordType = HealthSyncRecordType.HEART_RATE,
+                                ),
+                            ),
+                        ),
                     ))
                 }
             }
@@ -288,6 +316,14 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun findPendingSync(): RepositoryResult<List<HeartRateMeasurement>> = withContext(ioDispatcher) {
         RepositoryResult.Success(database.heartRateDao().findValidPendingForSync().mapNotNull { it.toDomain() })
+    }
+
+    override suspend fun findById(
+        measurementId: HeartRateMeasurementId,
+    ): RepositoryResult<HeartRateMeasurement> = withContext(ioDispatcher) {
+        val measurement = database.heartRateDao().findById(measurementId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(measurement)
     }
 
     override suspend fun saveManualMeasurement(
@@ -378,7 +414,7 @@ class RoomRepositories @Inject constructor(
             if (existingMeasurementsByKey.containsKey(entity.deduplicationKey)) return@forEach
             val existing = measurementDao.findByDeduplicationKey(entity.deduplicationKey) ?: return@forEach
             existingMeasurementsByKey[entity.deduplicationKey] = existing
-            if (syncDao.findByNaturalKey(existing.id, "HEART_RATE") != null) {
+            if (syncDao.findByNaturalKey(existing.id, "HEART_RATE_MEASUREMENT", "HEART_RATE") != null) {
                 existingPendingAggregateIds += existing.id
             }
         }
@@ -391,15 +427,21 @@ class RoomRepositories @Inject constructor(
 
         plan.measurementsToInsert.forEach { measurementDao.insert(it) }
         plan.pendingOperationAggregateIdsToCreate.forEach { aggregateId ->
-            syncDao.insert(HealthSyncOperationEntity(
-                id = ids.next().toString(),
-                aggregateId = aggregateId,
-                aggregateType = "HEART_RATE_MEASUREMENT",
-                recordType = "HEART_RATE",
-                state = "PENDING",
-                attemptCount = 0,
-                lastAttemptAtEpochMillis = null,
-                lastError = null,
+            val measurement = measurementDao.findById(aggregateId) ?: return@write RepositoryResult.NotFound
+            syncDao.insert(newPendingOperationEntity(
+                key = HealthSyncOperationKey(
+                    aggregate = HealthSyncAggregate.HeartRateMeasurement(HeartRateMeasurementId(parseUuid(aggregateId) ?: return@write RepositoryResult.UnexpectedState)),
+                    recordType = HealthSyncRecordType.HEART_RATE,
+                ),
+                metadata = (resolveHeartRateSyncMetadata(measurement)
+                    ?: return@write RepositoryResult.UnexpectedState).copy(
+                    clientRecordId = stableClientRecordId(
+                        HealthSyncOperationKey(
+                            aggregate = HealthSyncAggregate.HeartRateMeasurement(HeartRateMeasurementId(parseUuid(aggregateId) ?: return@write RepositoryResult.UnexpectedState)),
+                            recordType = HealthSyncRecordType.HEART_RATE,
+                        ),
+                    ),
+                ),
             ))
         }
 
@@ -500,6 +542,13 @@ class RoomRepositories @Inject constructor(
             .map { it?.toWatchWorkoutImportMetadata() }
             .flowOn(ioDispatcher)
 
+    override suspend fun findById(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = withContext(ioDispatcher) {
+        val activity = database.workoutActivityDao().findById(activityId.value.toString())
+            ?.let { loadWorkoutActivity(it) }
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(activity)
+    }
+
     override suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = write {
         val metadataDao = database.deviceImportMetadataDao()
         val existing = metadataDao.findByDeviceAndImportType(metadata.deviceId.value.toString(), WATCH_D3_D4_IMPORT_TYPE)
@@ -535,6 +584,27 @@ class RoomRepositories @Inject constructor(
                 title = existing.title,
                 notes = existing.notes,
                 reviewedAt = reviewedAt,
+            ),
+        )
+    }
+
+    override suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = write {
+        transitionWorkoutSync(activityId) { it.startSync() }
+    }
+
+    override suspend fun markSynced(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = write {
+        transitionWorkoutSync(activityId) { it.markSynced() }
+    }
+
+    override suspend fun markSyncFailed(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = write {
+        transitionWorkoutSync(activityId) { it.markSyncFailed() }
+    }
+
+    override suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = write {
+        RepositoryResult.Success(
+            database.workoutActivityDao().transitionAllByState(
+                expectedState = "SYNCING",
+                nextState = "SYNC_FAILED",
             ),
         )
     }
@@ -603,6 +673,20 @@ class RoomRepositories @Inject constructor(
             .map { it?.toSnapshot() }
             .flowOn(ioDispatcher)
 
+    override suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.UserProfile> = withContext(ioDispatcher) {
+        val profile = database.userProfileDao().findById(profileId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(profile)
+    }
+
+    override suspend fun findWeightById(
+        measurementId: WeightMeasurementId,
+    ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.WeightMeasurement> = withContext(ioDispatcher) {
+        val weight = database.userProfileDao().findWeightById(measurementId.value.toString())?.toDomain()
+            ?: return@withContext RepositoryResult.NotFound
+        RepositoryResult.Success(weight)
+    }
+
     override fun observeRecoverable(): Flow<List<AppWorkoutSession>> = database.appWorkoutSessionDao().observeRecoverable()
         .map { it.mapNotNull { entity -> entity.toDomain() } }
         .flowOn(ioDispatcher)
@@ -624,13 +708,96 @@ class RoomRepositories @Inject constructor(
         updated.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
     }
 
-    override suspend fun findFailed(): RepositoryResult<List<HealthSyncOperation>> = withContext(ioDispatcher) {
-        RepositoryResult.Success(database.healthSyncOperationDao().findFailed().mapNotNull { it.toDomain() })
+    override suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation> = write {
+        ensureOperationInternal(key)
     }
 
-    override suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> = transitionSync(operationId, listOf("PENDING", "FAILED"), "SYNCING", at, null, 1)
-    override suspend fun markSynced(operationId: HealthSyncOperationId): RepositoryResult<Unit> = transitionSync(operationId, listOf("SYNCING"), "SYNCED", null, null)
-    override suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError): RepositoryResult<Unit> = transitionSync(operationId, listOf("SYNCING"), "FAILED", null, error.name)
+    override suspend fun findProcessable(limit: Int): RepositoryResult<List<HealthSyncOperation>> = write {
+        if (limit <= 0) return@write RepositoryResult.Success(emptyList())
+        val repaired = database.healthSyncOperationDao().findProcessable(limit)
+            .mapNotNull { entity ->
+                val key = entity.toDomain()?.key ?: return@mapNotNull null
+                when (val ensured = ensureOperationInternal(key)) {
+                    is RepositoryResult.Success -> ensured.value
+                    else -> null
+                }
+            }
+        RepositoryResult.Success(repaired.filter { it.state != SyncOperationState.SYNCED })
+    }
+
+    override fun observeSyncSummary(): Flow<HealthSyncSummary> =
+        database.healthSyncOperationDao().observeSummary()
+            .map { it.toDomain() }
+            .flowOn(ioDispatcher)
+
+    override suspend fun findOperationsForAggregate(
+        aggregate: HealthSyncAggregate,
+    ): RepositoryResult<List<HealthSyncOperation>> = withContext(ioDispatcher) {
+        RepositoryResult.Success(
+            database.healthSyncOperationDao()
+                .findByAggregate(aggregate.id.toString(), aggregate.type.name)
+                .mapNotNull { it.toDomain() },
+        )
+    }
+
+    override suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =
+        transitionSync(operationId) { operation ->
+            if (operation.state != SyncOperationState.PENDING.name && operation.state != SyncOperationState.FAILED.name) null
+            else operation.copy(
+                state = SyncOperationState.SYNCING.name,
+                attemptCount = operation.attemptCount + 1,
+                lastAttemptAtEpochMillis = at.toEpochMilli(),
+                lastError = null,
+                updatedAtEpochMillis = at.toEpochMilli(),
+            )
+        }
+
+    override suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =
+        transitionSync(operationId) { operation ->
+            if (operation.state != SyncOperationState.SYNCING.name) null
+            else operation.copy(
+                state = SyncOperationState.SYNCED.name,
+                lastError = null,
+                syncedAtEpochMillis = at.toEpochMilli(),
+                updatedAtEpochMillis = at.toEpochMilli(),
+            )
+        }
+
+    override suspend fun markFailed(
+        operationId: HealthSyncOperationId,
+        error: SafeSyncError,
+        at: Instant,
+    ): RepositoryResult<Unit> = transitionSync(operationId) { operation ->
+        if (operation.state != SyncOperationState.SYNCING.name) null
+        else operation.copy(
+            state = SyncOperationState.FAILED.name,
+            lastError = error.name,
+            updatedAtEpochMillis = at.toEpochMilli(),
+        )
+    }
+
+    override suspend fun resetInterrupted(at: Instant): RepositoryResult<Int> = write {
+        val syncDao = database.healthSyncOperationDao()
+        val syncing = syncDao.findSyncing()
+        var resetCount = 0
+        syncing.forEach { operation ->
+            if (operation.lastAttemptAtEpochMillis != null && operation.lastAttemptAtEpochMillis > at.toEpochMilli()) return@forEach
+            if (!aggregateExists(operation)) return@forEach
+            syncDao.update(
+                operation.copy(
+                    state = SyncOperationState.FAILED.name,
+                    lastError = SafeSyncError.INTERRUPTED.name,
+                    updatedAtEpochMillis = at.toEpochMilli(),
+                ),
+            )
+            resetCount += 1
+        }
+        RepositoryResult.Success(resetCount)
+    }
+
+    override suspend fun reconcileBacklog(): RepositoryResult<HealthSyncBacklogReconciliationResult> = write {
+        RepositoryResult.Success(reconcileBacklogInternal())
+    }
 
     override suspend fun store(payload: DiagnosticPayload): RepositoryResult<Unit> = write {
         val payloadDao = database.diagnosticPayloadDao()
@@ -705,6 +872,17 @@ class RoomRepositories @Inject constructor(
         )
     }
 
+    private suspend fun transitionWorkoutSync(
+        activityId: WorkoutActivityId,
+        transition: (WorkoutActivity) -> br.com.mwconsulting.championcompanion.core.model.DomainResult<WorkoutActivity>,
+    ): RepositoryResult<WorkoutActivity> {
+        val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return RepositoryResult.NotFound
+        val activity = loadWorkoutActivity(entity) ?: return RepositoryResult.UnexpectedState
+        val updated = transition(activity).valueOrNull() ?: return RepositoryResult.UnexpectedState
+        database.workoutActivityDao().update(updated.toEntity())
+        return RepositoryResult.Success(updated)
+    }
+
     private fun createWatchDailySummary(input: MergeWatchDailySummaryInput): DailySummary? = when (
         val created = DailySummary.create(
             id = DailySummaryId(ids.next()),
@@ -734,15 +912,279 @@ class RoomRepositories @Inject constructor(
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
         runCatching { enumValueOf<T>(value) }.getOrNull()
 
-    private suspend fun transitionSync(id: HealthSyncOperationId, expected: List<String>, next: String, at: Instant?, error: String?, increment: Int = 0): RepositoryResult<Unit> = write {
-        val operation = database.healthSyncOperationDao().findById(id.value.toString())
-        if (operation == null) return@write RepositoryResult.NotFound
-        if (operation.aggregateType != "HEART_RATE_MEASUREMENT") return@write RepositoryResult.UnexpectedState
-        // Sync aggregate identity has no FK. Confirm subject exists before every transition.
-        if (database.heartRateDao().findById(operation.aggregateId) == null) return@write RepositoryResult.NotFound
-        if (database.healthSyncOperationDao().transitionState(operation.id, expected, next, at?.toEpochMilli(), error, increment) == 1) RepositoryResult.Success(Unit)
-        else RepositoryResult.UnexpectedState
+    private suspend fun ensureOperationInternal(
+        key: HealthSyncOperationKey,
+    ): RepositoryResult<HealthSyncOperation> {
+        val metadata = resolveSyncMetadata(key) ?: return RepositoryResult.NotFound
+        val syncDao = database.healthSyncOperationDao()
+        val existing = syncDao.findByNaturalKey(
+            aggregateId = key.aggregate.id.toString(),
+            aggregateType = key.aggregate.type.name,
+            recordType = key.recordType.name,
+        )
+        val nextEntity = when (existing) {
+            null -> newPendingOperationEntity(key, metadata)
+            else -> mergeOperationEntity(existing, metadata)
+        }
+        when (existing) {
+            null -> syncDao.insert(nextEntity)
+            else -> if (nextEntity != existing) syncDao.update(nextEntity)
+        }
+        return nextEntity.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
     }
+
+    private suspend fun ensureReconciledOperation(key: HealthSyncOperationKey): ReconciledOperation? {
+        val metadata = resolveSyncMetadata(key) ?: return null
+        val existing = database.healthSyncOperationDao().findByNaturalKey(
+            aggregateId = key.aggregate.id.toString(),
+            aggregateType = key.aggregate.type.name,
+            recordType = key.recordType.name,
+        )
+        val repaired = existing?.needsRepair(metadata) == true
+        return when (val ensured = ensureOperationInternal(key)) {
+            is RepositoryResult.Success -> ReconciledOperation(ensured.value, repaired)
+            else -> null
+        }
+    }
+
+    private suspend fun reconcileBacklogInternal(): HealthSyncBacklogReconciliationResult {
+        var ensuredCount = 0
+        var repairedCount = 0
+        var dailySummaryCount = 0
+        var heartRateCount = 0
+        var weightCount = 0
+        var heightCount = 0
+
+        database.dailySummaryDao().findValidWatchBacklog().forEach { summary ->
+            val result = ensureReconciledOperation(
+                HealthSyncOperationKey(
+                    aggregate = HealthSyncAggregate.DailySummary(DailySummaryId(parseUuid(summary.id) ?: return@forEach)),
+                    recordType = HealthSyncRecordType.STEPS,
+                ),
+            )
+            if (result != null) {
+                ensuredCount += 1
+                dailySummaryCount += 1
+                if (result.repaired) repairedCount += 1
+            }
+        }
+
+        database.heartRateDao().findValidHealthConnectBacklog().forEach { measurement ->
+            val result = ensureReconciledOperation(
+                HealthSyncOperationKey(
+                    aggregate = HealthSyncAggregate.HeartRateMeasurement(HeartRateMeasurementId(parseUuid(measurement.id) ?: return@forEach)),
+                    recordType = HealthSyncRecordType.HEART_RATE,
+                ),
+            )
+            if (result != null) {
+                ensuredCount += 1
+                heartRateCount += 1
+                if (result.repaired) repairedCount += 1
+            }
+        }
+
+        val profile = database.userProfileDao().findCurrent()
+        if (profile != null) {
+            val profileId = parseUuid(profile.id)
+            database.userProfileDao().findWeights(profile.id).forEach { weight ->
+                val result = ensureReconciledOperation(
+                    HealthSyncOperationKey(
+                        aggregate = HealthSyncAggregate.WeightMeasurement(WeightMeasurementId(parseUuid(weight.id) ?: return@forEach)),
+                        recordType = HealthSyncRecordType.WEIGHT,
+                    ),
+                )
+                if (result != null) {
+                    ensuredCount += 1
+                    weightCount += 1
+                    if (result.repaired) repairedCount += 1
+                }
+            }
+            if (profile.heightCentimeters?.takeIf { it.isFinite() && it > 0.0 } != null && profileId != null) {
+                val result = ensureReconciledOperation(
+                    HealthSyncOperationKey(
+                        aggregate = HealthSyncAggregate.UserProfileHeight(UserProfileId(profileId)),
+                        recordType = HealthSyncRecordType.HEIGHT,
+                    ),
+                )
+                if (result != null) {
+                    ensuredCount += 1
+                    heightCount += 1
+                    if (result.repaired) repairedCount += 1
+                }
+            }
+        }
+
+        return HealthSyncBacklogReconciliationResult(
+            ensuredOperationCount = ensuredCount,
+            repairedOperationCount = repairedCount,
+            dailySummaryCount = dailySummaryCount,
+            heartRateCount = heartRateCount,
+            weightCount = weightCount,
+            heightCount = heightCount,
+        )
+    }
+
+    private suspend fun transitionSync(
+        id: HealthSyncOperationId,
+        transform: (HealthSyncOperationEntity) -> HealthSyncOperationEntity?,
+    ): RepositoryResult<Unit> = write {
+        val syncDao = database.healthSyncOperationDao()
+        val current = syncDao.findById(id.value.toString()) ?: return@write RepositoryResult.NotFound
+        if (!aggregateExists(current)) return@write RepositoryResult.NotFound
+        val next = transform(current) ?: return@write RepositoryResult.UnexpectedState
+        if (syncDao.update(next) == 1) RepositoryResult.Success(Unit) else RepositoryResult.UnexpectedState
+    }
+
+    private suspend fun aggregateExists(operation: HealthSyncOperationEntity): Boolean = when (operation.aggregateType) {
+        "DAILY_SUMMARY" -> database.dailySummaryDao().findById(operation.aggregateId) != null
+        "HEART_RATE_MEASUREMENT" -> database.heartRateDao().findById(operation.aggregateId) != null
+        "WORKOUT_ACTIVITY" -> database.workoutActivityDao().findById(operation.aggregateId) != null
+        "WEIGHT_MEASUREMENT" -> database.userProfileDao().findWeightById(operation.aggregateId) != null
+        "USER_PROFILE_HEIGHT" -> database.userProfileDao().findById(operation.aggregateId) != null
+        else -> false
+    }
+
+    private suspend fun resolveSyncMetadata(key: HealthSyncOperationKey): ResolvedSyncMetadata? {
+        return when (val aggregate = key.aggregate) {
+            is HealthSyncAggregate.DailySummary -> {
+                val entity = database.dailySummaryDao().findById(aggregate.summaryId.value.toString()) ?: return null
+                if (entity.origin != DataOrigin.WATCH_DAILY_SUMMARY.name || entity.validity != "VALID" || entity.deviceId == null) return null
+                if (key.recordType != HealthSyncRecordType.STEPS) return null
+                ResolvedSyncMetadata(
+                    clientRecordId = stableClientRecordId(key),
+                    clientRecordVersion = entity.updatedAtEpochMillis,
+                    timeZoneId = entity.collectedZoneId,
+                    createdAtEpochMillis = entity.collectedAtEpochMillis,
+                    updatedAtEpochMillis = entity.updatedAtEpochMillis,
+                )
+            }
+
+            is HealthSyncAggregate.HeartRateMeasurement -> {
+                val entity = database.heartRateDao().findById(aggregate.measurementId.value.toString()) ?: return null
+                resolveHeartRateSyncMetadata(entity)?.takeIf { key.recordType == HealthSyncRecordType.HEART_RATE }
+                    ?.copy(clientRecordId = stableClientRecordId(key))
+            }
+
+            is HealthSyncAggregate.WorkoutActivity -> {
+                val entity = database.workoutActivityDao().findById(aggregate.activityId.value.toString()) ?: return null
+                val version = maxOf(
+                    entity.importedAtEpochMillis,
+                    entity.reviewedAtEpochMillis ?: Long.MIN_VALUE,
+                )
+                ResolvedSyncMetadata(
+                    clientRecordId = stableClientRecordId(key),
+                    clientRecordVersion = version,
+                    timeZoneId = null,
+                    createdAtEpochMillis = entity.importedAtEpochMillis,
+                    updatedAtEpochMillis = version,
+                )
+            }
+
+            is HealthSyncAggregate.WeightMeasurement -> {
+                val entity = database.userProfileDao().findWeightById(aggregate.measurementId.value.toString()) ?: return null
+                val kilograms = entity.toKilogramsOrNull() ?: return null
+                if (kilograms <= 0.0) return null
+                if (key.recordType != HealthSyncRecordType.WEIGHT) return null
+                ResolvedSyncMetadata(
+                    clientRecordId = stableClientRecordId(key),
+                    clientRecordVersion = entity.measuredAtEpochMillis,
+                    timeZoneId = null,
+                    createdAtEpochMillis = entity.measuredAtEpochMillis,
+                    updatedAtEpochMillis = entity.measuredAtEpochMillis,
+                )
+            }
+
+            is HealthSyncAggregate.UserProfileHeight -> {
+                val entity = database.userProfileDao().findById(aggregate.profileId.value.toString()) ?: return null
+                if (entity.heightCentimeters?.takeIf { it.isFinite() && it > 0.0 } == null) return null
+                if (key.recordType != HealthSyncRecordType.HEIGHT) return null
+                ResolvedSyncMetadata(
+                    clientRecordId = stableClientRecordId(key),
+                    clientRecordVersion = entity.updatedAtEpochMillis,
+                    timeZoneId = null,
+                    createdAtEpochMillis = entity.updatedAtEpochMillis,
+                    updatedAtEpochMillis = entity.updatedAtEpochMillis,
+                )
+            }
+        }
+    }
+
+    private fun resolveHeartRateSyncMetadata(
+        entity: br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity,
+    ): ResolvedSyncMetadata? {
+        if (entity.validity != "VALID" || entity.measuredAtEpochMillis == null) return null
+        if (entity.source !in setOf(HeartRateSource.MANUAL_MEASUREMENT.name, HeartRateSource.WATCH_D1_HISTORY.name)) return null
+        return ResolvedSyncMetadata(
+            clientRecordId = null,
+            clientRecordVersion = entity.measuredAtEpochMillis,
+            timeZoneId = null,
+            createdAtEpochMillis = entity.measuredAtEpochMillis,
+            updatedAtEpochMillis = entity.measuredAtEpochMillis,
+        )
+    }
+
+    private fun mergeOperationEntity(
+        existing: HealthSyncOperationEntity,
+        metadata: ResolvedSyncMetadata,
+    ): HealthSyncOperationEntity {
+        val repairedClientRecordId = metadata.clientRecordId ?: existing.clientRecordId
+        val repairedVersion = when {
+            existing.clientRecordVersion == null -> metadata.clientRecordVersion
+            metadata.clientRecordVersion == null -> existing.clientRecordVersion
+            metadata.clientRecordVersion >= existing.clientRecordVersion -> metadata.clientRecordVersion
+            else -> existing.clientRecordVersion
+        }
+        val nextUpdatedAt = listOfNotNull(existing.updatedAtEpochMillis, metadata.updatedAtEpochMillis).maxOrNull()
+        val shouldResetForNewVersion =
+            existing.clientRecordVersion != null &&
+                metadata.clientRecordVersion != null &&
+                metadata.clientRecordVersion > existing.clientRecordVersion &&
+                existing.state != SyncOperationState.SYNCING.name
+        return existing.copy(
+            state = if (shouldResetForNewVersion) SyncOperationState.PENDING.name else existing.state,
+            attemptCount = if (shouldResetForNewVersion) 0 else existing.attemptCount,
+            lastAttemptAtEpochMillis = if (shouldResetForNewVersion) null else existing.lastAttemptAtEpochMillis,
+            lastError = if (shouldResetForNewVersion) null else existing.lastError,
+            clientRecordId = repairedClientRecordId,
+            clientRecordVersion = repairedVersion,
+            syncedAtEpochMillis = if (shouldResetForNewVersion) null else existing.syncedAtEpochMillis,
+            timeZoneId = metadata.timeZoneId ?: existing.timeZoneId,
+            createdAtEpochMillis = existing.createdAtEpochMillis ?: metadata.createdAtEpochMillis ?: metadata.updatedAtEpochMillis,
+            updatedAtEpochMillis = if (shouldResetForNewVersion) metadata.updatedAtEpochMillis else nextUpdatedAt,
+        )
+    }
+
+    private fun HealthSyncOperationEntity.needsRepair(metadata: ResolvedSyncMetadata): Boolean =
+        (clientRecordId == null && metadata.clientRecordId != null) ||
+            (clientRecordVersion == null && metadata.clientRecordVersion != null) ||
+            (timeZoneId == null && metadata.timeZoneId != null) ||
+            (createdAtEpochMillis == null && metadata.createdAtEpochMillis != null) ||
+            (updatedAtEpochMillis == null && metadata.updatedAtEpochMillis != null)
+
+    private fun newPendingOperationEntity(
+        key: HealthSyncOperationKey,
+        metadata: ResolvedSyncMetadata,
+    ): HealthSyncOperationEntity = HealthSyncOperationEntity(
+        id = ids.next().toString(),
+        aggregateId = key.aggregate.id.toString(),
+        aggregateType = key.aggregate.type.name,
+        recordType = key.recordType.name,
+        state = SyncOperationState.PENDING.name,
+        attemptCount = 0,
+        lastAttemptAtEpochMillis = null,
+        lastError = null,
+        clientRecordId = metadata.clientRecordId,
+        clientRecordVersion = metadata.clientRecordVersion,
+        syncedAtEpochMillis = null,
+        timeZoneId = metadata.timeZoneId,
+        createdAtEpochMillis = metadata.createdAtEpochMillis ?: metadata.updatedAtEpochMillis,
+        updatedAtEpochMillis = metadata.updatedAtEpochMillis,
+    )
+
+    private fun stableClientRecordId(key: HealthSyncOperationKey): String =
+        "$SYNC_CLIENT_RECORD_APPLICATION_ID:${key.aggregate.type.name}:${key.aggregate.id}:${key.recordType.name}"
+
+    private fun parseUuid(value: String): UUID? = br.com.mwconsulting.championcompanion.core.model.UuidV7.parse(value).valueOrNull()
 
     private suspend fun <T> write(block: suspend () -> RepositoryResult<T>): RepositoryResult<T> = withContext(ioDispatcher) {
         database.withWriteTransaction { block() }
@@ -754,6 +1196,19 @@ class RoomRepositories @Inject constructor(
 
     private fun generateIds(count: Int): Iterator<java.util.UUID> = List(count) { ids.next() }.iterator()
 }
+
+private data class ResolvedSyncMetadata(
+    val clientRecordId: String?,
+    val clientRecordVersion: Long?,
+    val timeZoneId: String?,
+    val createdAtEpochMillis: Long?,
+    val updatedAtEpochMillis: Long?,
+)
+
+private data class ReconciledOperation(
+    val operation: HealthSyncOperation,
+    val repaired: Boolean,
+)
 
 internal data class PlannedWatchWorkoutPersistence(
     val persistedActivity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity,

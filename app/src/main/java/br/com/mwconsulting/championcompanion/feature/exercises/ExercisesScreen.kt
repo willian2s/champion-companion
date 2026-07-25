@@ -165,6 +165,9 @@ fun ExercisesScreen(
                     onDismissImport = { viewModel.onIntent(ExercisesIntent.DismissImport) },
                 )
                 WorkflowSummarySection(state = state)
+                if (!state.importState.isImportInFlight()) {
+                    ExerciseSyncFeedbackCard(state.activityList, state.workflowSummary)
+                }
                 WorkoutFiltersSection(
                     selectedFilter = state.selectedFilter,
                     workflowSummary = state.workflowSummary,
@@ -187,6 +190,7 @@ fun ExercisesScreen(
                     onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
                     onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
                     onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
+                    onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
                     onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
                 )
             }
@@ -691,6 +695,46 @@ private fun ExercisesListSection(
 }
 
 @Composable
+private fun ExerciseSyncFeedbackCard(
+    activities: List<WorkoutActivity>,
+    workflowSummary: br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary,
+) {
+    val syncingCount = activities.count { it.workflowState == ActivityWorkflowState.SYNCING }
+    if (workflowSummary.readyToSyncCount <= 0 && syncingCount <= 0 && workflowSummary.syncedCount <= 0 && workflowSummary.syncFailedCount <= 0) {
+        return
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                when {
+                    syncingCount > 0 -> "Há treino(s) sincronizando com o Health Connect. Os dados locais continuam disponíveis normalmente."
+                    workflowSummary.syncFailedCount > 0 -> "Alguns treinos ficaram com erro ou falha parcial no Health Connect. Os detalhes mostram retry seguro por atividade."
+                    workflowSummary.readyToSyncCount > 0 -> "Existem treinos prontos para sincronização explícita com o Health Connect."
+                    workflowSummary.syncedCount > 0 -> "Treinos já sincronizados continuam visíveis localmente sem depender do provider."
+                    else -> "Sem feedback secundário de sincronização no momento."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "Prontas ${workflowSummary.readyToSyncCount} • Sincronizando $syncingCount • Sincronizadas ${workflowSummary.syncedCount} • Com erro ${workflowSummary.syncFailedCount}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun WorkoutActivityCard(
     activity: WorkoutActivity,
     onClick: () -> Unit,
@@ -759,6 +803,7 @@ private fun ExerciseDetailShell(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    onSyncActivity: () -> Unit,
     onDiscardActivity: () -> Unit,
 ) {
     var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
@@ -817,6 +862,7 @@ private fun ExerciseDetailShell(
                             onSubmitReview = onSubmitReview,
                             onCalibrationDistanceChange = onCalibrationDistanceChange,
                             onSubmitCalibration = onSubmitCalibration,
+                            onSyncActivity = onSyncActivity,
                             onRequestDiscard = { showDiscardConfirmation = true },
                         )
                     }
@@ -862,6 +908,7 @@ private fun WorkoutActivityDetailContent(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    onSyncActivity: () -> Unit,
     onRequestDiscard: () -> Unit,
 ) {
     Column(
@@ -901,8 +948,13 @@ private fun WorkoutActivityDetailContent(
                 onSubmitCalibration = onSubmitCalibration,
             )
 
-            activity.workflowState == ActivityWorkflowState.READY_TO_SYNC || activity.workflowState == ActivityWorkflowState.DISCARDED ->
-                ReadOnlyWorkflowSection(activity, latestCalibration)
+            activity.workflowState in setOf(
+                ActivityWorkflowState.READY_TO_SYNC,
+                ActivityWorkflowState.SYNCING,
+                ActivityWorkflowState.SYNCED,
+                ActivityWorkflowState.SYNC_FAILED,
+                ActivityWorkflowState.DISCARDED,
+            ) -> ReadOnlyWorkflowSection(activity, latestCalibration, onSyncActivity)
         }
         if (canDiscardSelectedActivity) {
             TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
@@ -1379,6 +1431,7 @@ private fun CalibrationFormSection(
 private fun ReadOnlyWorkflowSection(
     activity: WorkoutActivity,
     latestCalibration: TreadmillCalibrationSnapshot?,
+    onSyncActivity: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1394,7 +1447,10 @@ private fun ReadOnlyWorkflowSection(
             Text("Estado atual", style = MaterialTheme.typography.titleLarge)
             Text(
                 text = when (activity.workflowState) {
-                    ActivityWorkflowState.READY_TO_SYNC -> "Treino pronto para sincronizar em fase futura. Nenhum envio funcional acontece nesta tela."
+                    ActivityWorkflowState.READY_TO_SYNC -> "Treino pronto para sincronizar com o Health Connect por ação explícita."
+                    ActivityWorkflowState.SYNCING -> "Sincronização em andamento no Health Connect."
+                    ActivityWorkflowState.SYNCED -> "Treino sincronizado com sucesso no Health Connect."
+                    ActivityWorkflowState.SYNC_FAILED -> "A sincronização anterior falhou ou ficou parcial. Você pode tentar novamente sem duplicar records já enviados."
                     ActivityWorkflowState.DISCARDED -> "Treino descartado localmente. Dados permanecem visíveis apenas para auditoria local."
                     else -> "Sem ações editáveis neste estado."
                 },
@@ -1405,6 +1461,20 @@ private fun ReadOnlyWorkflowSection(
             activity.notes?.let { Text("Observações: $it", style = MaterialTheme.typography.bodyMedium) }
             latestCalibration?.let {
                 Text("Calibração ativa: revisão ${it.revision}", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (activity.workflowState in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED, ActivityWorkflowState.SYNCING)) {
+                PrimaryActionButton(
+                    label = when (activity.workflowState) {
+                        ActivityWorkflowState.READY_TO_SYNC -> "Sincronizar com Health Connect"
+                        ActivityWorkflowState.SYNC_FAILED -> "Tentar novamente no Health Connect"
+                        ActivityWorkflowState.SYNCING -> "Sincronizando com Health Connect"
+                        else -> "Sincronizar com Health Connect"
+                    },
+                    onClick = onSyncActivity,
+                    enabled = activity.workflowState != ActivityWorkflowState.SYNCING,
+                    isLoading = activity.workflowState == ActivityWorkflowState.SYNCING,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

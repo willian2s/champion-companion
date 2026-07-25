@@ -78,6 +78,10 @@ enum class ExerciseOperationErrorCategory {
     NOT_FOUND,
     INVALID_STATE,
     PARTIAL_BLOCKED,
+    PERMISSION_REQUIRED,
+    PROVIDER_UNAVAILABLE,
+    SYNC_DISABLED,
+    SYNC_FAILED,
     INVALID_TYPE,
     INVALID_TITLE,
     INVALID_NOTES,
@@ -97,6 +101,7 @@ sealed interface ExercisesIntent {
     data object SubmitReview : ExercisesIntent
     data class EditCalibrationDistance(val distance: String) : ExercisesIntent
     data object SubmitCalibration : ExercisesIntent
+    data object SyncSelectedActivity : ExercisesIntent
     data object DiscardSelectedActivity : ExercisesIntent
     data object ConfirmExitDetail : ExercisesIntent
     data object DismissOperationError : ExercisesIntent

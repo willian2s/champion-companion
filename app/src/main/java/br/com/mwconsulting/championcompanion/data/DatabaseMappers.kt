@@ -9,6 +9,7 @@ import br.com.mwconsulting.championcompanion.core.database.DeviceImportMetadataE
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
@@ -45,10 +46,12 @@ import br.com.mwconsulting.championcompanion.core.model.DiagnosticParseResult
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateDeduplicationKey
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
@@ -65,12 +68,16 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnap
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationId
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationOrigin
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
+import br.com.mwconsulting.championcompanion.core.model.UserProfileId
+import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportId
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
@@ -234,6 +241,25 @@ internal fun DailySummaryEntity.toDomain(): DailySummary? {
     ).successOrNull()
 }
 
+internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity.toDomain(): WeightMeasurement? {
+    val unit = enum<br.com.mwconsulting.championcompanion.core.model.WeightUnit>(unit) ?: return null
+    return WeightMeasurement.create(
+        id = uuid(id)?.let(::WeightMeasurementId) ?: return null,
+        value = value,
+        unit = unit,
+        measuredAt = Instant.ofEpochMilli(measuredAtEpochMillis),
+        origin = enum<DataOrigin>(origin) ?: return null,
+    ).successOrNull()
+}
+
+internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEntity.toDomain(): UserProfile? {
+    return UserProfile.create(
+        id = uuid(id)?.let(::UserProfileId) ?: return null,
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+        heightCentimeters = heightCentimeters,
+    ).successOrNull()
+}
+
 internal fun HeartRateMeasurement.toEntity() = HeartRateMeasurementEntity(
     id.value.toString(), source.name, bpm, measuredAt?.toEpochMilli(), observedAt?.localDateTime?.toString(), validity.name,
     deviceId?.value?.toString(), importedAt?.toEpochMilli(), parserVersion?.value,
@@ -394,10 +420,35 @@ internal fun AppWorkoutSession.toEntity() = AppWorkoutSessionEntity(
     aggregates.averageBpm.valueOrNull(), aggregates.minimumBpm.valueOrNull(), aggregates.maximumBpm.valueOrNull(), workoutActivityId?.value?.toString(),
 )
 
+internal fun HealthSyncOperation.toEntity() = HealthSyncOperationEntity(
+    id = id.value.toString(),
+    aggregateId = key.aggregate.id.toString(),
+    aggregateType = key.aggregate.type.name,
+    recordType = key.recordType.name,
+    state = state.name,
+    attemptCount = attemptCount,
+    lastAttemptAtEpochMillis = lastAttemptAt?.toEpochMilli(),
+    lastError = lastError?.name,
+    clientRecordId = clientRecordId,
+    clientRecordVersion = clientRecordVersion,
+    syncedAtEpochMillis = syncedAt?.toEpochMilli(),
+    timeZoneId = timeZoneId,
+    createdAtEpochMillis = createdAt?.toEpochMilli(),
+    updatedAtEpochMillis = updatedAt?.toEpochMilli(),
+)
+
 internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
-    val aggregate = HealthSyncAggregate.HeartRateMeasurement(uuid(aggregateId)?.let(::HeartRateMeasurementId) ?: return null)
-    var operation = HealthSyncOperation.create(uuid(id)?.let(::HealthSyncOperationId) ?: return null,
-        HealthSyncOperationKey(aggregate, enum<HealthSyncRecordType>(recordType) ?: return null)).successOrNull() ?: return null
+    val aggregate = toHealthSyncAggregate(aggregateType, aggregateId) ?: return null
+    var operation = HealthSyncOperation.create(
+        id = uuid(id)?.let(::HealthSyncOperationId) ?: return null,
+        key = HealthSyncOperationKey(aggregate, enum<HealthSyncRecordType>(recordType) ?: return null),
+        clientRecordId = clientRecordId,
+        clientRecordVersion = clientRecordVersion,
+        syncedAt = syncedAtEpochMillis?.let(Instant::ofEpochMilli),
+        timeZoneId = timeZoneId,
+        createdAt = createdAtEpochMillis?.let(Instant::ofEpochMilli),
+        updatedAt = updatedAtEpochMillis?.let(Instant::ofEpochMilli),
+    ).successOrNull() ?: return null
     if (state != SyncOperationState.PENDING.name) {
         operation = operation.start(lastAttemptAtEpochMillis?.let(Instant::ofEpochMilli) ?: return null).successOrNull() ?: return null
         operation = when (enum<SyncOperationState>(state)) {
@@ -408,6 +459,26 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
         } ?: return null
     }
     return operation
+}
+
+internal fun HealthSyncSummaryRecord.toDomain() = HealthSyncSummary(
+    pendingCount = pendingCount,
+    syncingCount = syncingCount,
+    failedCount = failedCount,
+    syncedCount = syncedCount,
+    lastSyncedAt = lastSyncedAtEpochMillis?.let(Instant::ofEpochMilli),
+)
+
+private fun toHealthSyncAggregate(
+    aggregateType: String,
+    aggregateId: String,
+): HealthSyncAggregate? = when (enum<HealthSyncAggregateType>(aggregateType)) {
+    HealthSyncAggregateType.DAILY_SUMMARY -> uuid(aggregateId)?.let(::DailySummaryId)?.let(HealthSyncAggregate::DailySummary)
+    HealthSyncAggregateType.HEART_RATE_MEASUREMENT -> uuid(aggregateId)?.let(::HeartRateMeasurementId)?.let(HealthSyncAggregate::HeartRateMeasurement)
+    HealthSyncAggregateType.WORKOUT_ACTIVITY -> uuid(aggregateId)?.let(::WorkoutActivityId)?.let(HealthSyncAggregate::WorkoutActivity)
+    HealthSyncAggregateType.WEIGHT_MEASUREMENT -> uuid(aggregateId)?.let(::WeightMeasurementId)?.let(HealthSyncAggregate::WeightMeasurement)
+    HealthSyncAggregateType.USER_PROFILE_HEIGHT -> uuid(aggregateId)?.let(::UserProfileId)?.let(HealthSyncAggregate::UserProfileHeight)
+    null -> null
 }
 
 internal fun DiagnosticPayload.toEntity() = DiagnosticPayloadEntity(

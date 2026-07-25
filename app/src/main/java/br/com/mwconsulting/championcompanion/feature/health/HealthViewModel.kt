@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
 import androidx.lifecycle.ViewModel
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
@@ -8,6 +9,8 @@ import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadat
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryQuery
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
@@ -36,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -51,6 +55,8 @@ class HealthViewModel internal constructor(
     private val dailySummaryRepository: DailySummaryRepository,
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
+    private val healthSyncRepository: HealthSyncRepository,
+    private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val manualHeartRateCoordinator: ManualHeartRateCoordinator,
     private val d1HeartRateSyncCoordinator: D1HeartRateSyncCoordinator,
     private val scope: CoroutineScope,
@@ -70,8 +76,10 @@ class HealthViewModel internal constructor(
     private val observedDate = MutableStateFlow(LocalDate.now())
     private val todaySummary = MutableStateFlow<DailySummary?>(null)
     private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
+    private val healthConnectSync = MutableStateFlow(HealthConnectSyncUiModel())
     private val persistedCompletedSessions = linkedSetOf<String>()
     private val persistingCompletedSessions = linkedSetOf<String>()
+    private val triggeredD1SyncAttempts = linkedSetOf<String>()
 
     internal var ownsScope: Boolean = false
 
@@ -134,6 +142,11 @@ class HealthViewModel internal constructor(
             }
         }
         scope.launch {
+            healthSyncRepository.observeSyncSummary().collect { summary ->
+                healthConnectSync.value = summary.toHealthConnectSyncUiModel()
+            }
+        }
+        scope.launch {
             manualHeartRateCoordinator.state.collect(::handleCoordinatorState)
         }
         scope.launch {
@@ -183,7 +196,8 @@ class HealthViewModel internal constructor(
                 personalMetrics,
                 todaySummary,
                 dailyStepsGoal,
-            ) { core, metrics, summary, goal ->
+                healthConnectSync,
+            ) { core, metrics, summary, goal, sync ->
                 HealthUiState(
                     surfaceState = core.surfaceState,
                     d1ImportState = core.d1ImportState,
@@ -197,6 +211,7 @@ class HealthViewModel internal constructor(
                     dailyStepsGoal = goal,
                     hasAssociatedDevice = core.associatedDevice != null,
                     associatedDeviceName = core.associatedDevice?.name,
+                    healthConnectSync = sync,
                 )
             }.collect { mutableState.value = it }
         }
@@ -209,7 +224,9 @@ class HealthViewModel internal constructor(
         dailySummaryRepository: DailySummaryRepository,
         personalMetricsRepository: PersonalMetricsRepository,
         appPreferencesRepository: AppPreferencesRepository,
+        healthSyncRepository: HealthSyncRepository,
         manualHeartRateCoordinator: ManualHeartRateCoordinator,
+        healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         d1HeartRateSyncCoordinator: D1HeartRateSyncCoordinator,
     ) : this(
         heartRateRepository = heartRateRepository,
@@ -217,7 +234,9 @@ class HealthViewModel internal constructor(
         dailySummaryRepository = dailySummaryRepository,
         personalMetricsRepository = personalMetricsRepository,
         appPreferencesRepository = appPreferencesRepository,
+        healthSyncRepository = healthSyncRepository,
         manualHeartRateCoordinator = manualHeartRateCoordinator,
+        healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         d1HeartRateSyncCoordinator = d1HeartRateSyncCoordinator,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
@@ -380,6 +399,10 @@ class HealthViewModel internal constructor(
 
     private fun handleD1CoordinatorState(next: D1HeartRateImportSurfaceState) {
         d1ImportState.value = next
+        val session = next.completedSessionOrNull() ?: return
+        val summary = session.result?.summary ?: return
+        if (!summary.hasPersistedData || !triggeredD1SyncAttempts.add(session.importAttemptId)) return
+        scope.launch { triggerHealthConnectSyncIfEnabled() }
     }
 
     private fun persistCompletedSession(session: ManualHeartRateSessionState) {
@@ -416,6 +439,7 @@ class HealthViewModel internal constructor(
                 is RepositoryResult.Success -> {
                     persistingCompletedSessions.remove(session.manualMeasurementSessionId)
                     surfaceState.value = HealthSurfaceState.Completed(session)
+                    triggerHealthConnectSyncIfEnabled()
                 }
 
                 RepositoryResult.StorageUnavailable,
@@ -462,6 +486,11 @@ class HealthViewModel internal constructor(
     private fun shouldPresentImmediateD1Error(error: HealthD1ImportError): Boolean =
         error.category != HealthD1ImportErrorCategory.BLE_OPERATION_IN_PROGRESS &&
             !isD1FailureForCurrentSession(error)
+
+    private suspend fun triggerHealthConnectSyncIfEnabled() {
+        if (!appPreferencesRepository.observe().first().healthSyncEnabled) return
+        healthConnectSyncCoordinator.syncPending()
+    }
 
     private fun isD1FailureForCurrentSession(error: HealthD1ImportError): Boolean {
         val current = d1ImportState.value as? D1HeartRateImportSurfaceState.Failed ?: return false
@@ -569,4 +598,19 @@ class HealthViewModel internal constructor(
         val recentMeasurements: List<HeartRateMeasurement>,
         val associatedDevice: Device?,
     )
+
+    private fun HealthSyncSummary.toHealthConnectSyncUiModel() = HealthConnectSyncUiModel(
+        pendingCount = pendingCount,
+        failedCount = failedCount,
+        syncingCount = syncingCount,
+        syncedCount = syncedCount,
+        lastSyncedAt = lastSyncedAt,
+    )
+}
+
+private fun D1HeartRateImportSurfaceState.completedSessionOrNull(): D1HeartRateImportSessionState? = when (this) {
+    is D1HeartRateImportSurfaceState.Completed -> session
+    is D1HeartRateImportSurfaceState.CompletedWithGaps -> session
+    is D1HeartRateImportSurfaceState.Partial -> session
+    else -> null
 }

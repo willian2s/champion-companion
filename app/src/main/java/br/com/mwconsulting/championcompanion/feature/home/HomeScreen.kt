@@ -170,6 +170,7 @@ fun HomeScreen(
 
                     HomeRefreshStatus(
                         refresh = state.refresh,
+                        healthConnectSync = state.healthConnectSync,
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -438,11 +439,13 @@ private fun HomeLatestHeartRateCard(
 @Composable
 private fun HomeRefreshStatus(
     refresh: HomeRefreshState,
+    healthConnectSync: HomeHealthConnectSyncModel,
     modifier: Modifier = Modifier,
 ) {
     val message = when {
         refresh.isRefreshing -> refresh.refreshStage.toStatusMessage()
         refresh.error != null -> "Não foi possível atualizar os dados."
+        healthConnectSync.syncingCount > 0 -> "Health Connect sincronizando em segundo plano."
         else -> null
     } ?: return
 
