@@ -202,7 +202,6 @@ private fun HomeSurface(
             summary = summary,
             latestHeartRate = state.latestHeartRate,
             watch = state.watch,
-            healthConnectSync = state.healthConnectSync,
             workoutPendingBanner = state.workoutPendingBanner,
             pendingActivities = state.pendingActivities,
             onOpenHeartRate = onOpenHeartRate,
@@ -275,7 +274,6 @@ private fun HomeSummaryContent(
     summary: HomeDailySummaryModel,
     latestHeartRate: HomeLatestHeartRateModel?,
     watch: HomeWatchSnapshot,
-    healthConnectSync: HomeHealthConnectSyncModel,
     workoutPendingBanner: HomeWorkoutPendingBanner?,
     pendingActivities: List<HomePendingActivityModel>,
     onOpenHeartRate: () -> Unit,
@@ -312,10 +310,6 @@ private fun HomeSummaryContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
-        }
-
-        if (healthConnectSync.hasVisibleState) {
-            HomeHealthConnectStatusCard(healthConnectSync)
         }
 
         workoutPendingBanner?.let { banner ->
@@ -464,46 +458,6 @@ private fun HomeRefreshStatus(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodyMedium,
     )
-}
-
-@Composable
-private fun HomeHealthConnectStatusCard(sync: HomeHealthConnectSyncModel) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                when {
-                    sync.syncingCount > 0 -> "Sincronização secundária em andamento. O resumo local já foi salvo."
-                    sync.failedCount > 0 -> "Há falhas pendentes no Health Connect, mas o resumo local continua válido."
-                    sync.pendingCount > 0 -> "Existem dados aguardando sincronização no Health Connect."
-                    sync.syncedCount > 0 -> "Dados locais recentes já possuem sincronização registrada no Health Connect."
-                    else -> "Sem atividade recente de sincronização no Health Connect."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "Pendentes ${sync.pendingCount} • Falhas ${sync.failedCount} • Sincronizando ${sync.syncingCount}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            sync.lastSyncedAt?.let {
-                Text(
-                    "Último envio ao Health Connect: ${formatDateTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
 }
 
 @Composable
