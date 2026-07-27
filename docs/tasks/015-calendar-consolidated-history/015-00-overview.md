@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 0/13 subtarefas concluídas
+- **Progresso:** 2/13 subtarefas concluídas
 
 ## Estado herdado
 
@@ -88,8 +88,8 @@ registrada separadamente, com justificativa e decisão própria.
 
 ## Checklist
 
-- [ ] [015-01-audit-post-health-connect-data-sources-and-deferred-phase-boundaries.md](015-01-audit-post-health-connect-data-sources-and-deferred-phase-boundaries.md)
-- [ ] [015-02-formalize-local-calendar-read-model-adr-and-roadmap.md](015-02-formalize-local-calendar-read-model-adr-and-roadmap.md)
+- [x] [015-01-audit-post-health-connect-data-sources-and-deferred-phase-boundaries.md](015-01-audit-post-health-connect-data-sources-and-deferred-phase-boundaries.md)
+- [x] [015-02-formalize-local-calendar-read-model-adr-and-roadmap.md](015-02-formalize-local-calendar-read-model-adr-and-roadmap.md)
 - [ ] [015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md](015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md)
 - [ ] [015-04-add-calendar-range-queries-and-repository-projections.md](015-04-add-calendar-range-queries-and-repository-projections.md)
 - [ ] [015-05-implement-calendar-read-model-and-daily-consolidation.md](015-05-implement-calendar-read-model-and-daily-consolidation.md)
@@ -102,6 +102,15 @@ registrada separadamente, com justificativa e decisão própria.
 - [ ] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
 - [ ] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
 
+## Observações
+
+- `015-01` concluída com relatório documental reproduzível.
+- `015-02` concluída com ADR-013 e roadmap alinhado à decisão de produto.
+- Não há bloqueio para `015-03`; status `Planejada` no cabeçalho de `012-00`,
+  status conflitante de `012-13` e evidência incompleta do Gate C permanecem
+  riscos documentais da Fase 12.
+- Nenhuma subtarefa seguinte foi iniciada.
+
 ## Validação manual
 
 No Galaxy S22, com Bluetooth desligado, relógio desconectado e Health Connect
@@ -113,10 +122,12 @@ Não criar, alterar ou executar testes automatizados.
 
 ## Dívida e riscos
 
-- `012-13` mantém status textual antigo apesar do fechamento da Fase 12.
-- Roadmap ainda precisa registrar adiamento de Fases 13 e 14.
+- `012-00` e `012-13` mantêm status textuais antigos apesar do fechamento da
+  Fase 12; evidência do Gate C permanece incompleta.
+- Roadmap registra Fases 13 e 14 como adiadas e Fase 15 como próxima.
 - Query atual de resumo diário usa `BETWEEN` inclusivo.
-- Seleção de dispositivo ainda não está formalizada no read model.
+- Política de seleção de dispositivo está formalizada na ADR-013; implementação
+  ainda depende das subtarefas de contratos, queries e read model.
 - `ExerciseDetail` é filho compartilhado e exige cuidado no back stack.
 - Índices preventivos não serão adicionados sem evidência de necessidade.
 - Timezone atual pode reprojetar atividades, BPM e peso para outra data civil.

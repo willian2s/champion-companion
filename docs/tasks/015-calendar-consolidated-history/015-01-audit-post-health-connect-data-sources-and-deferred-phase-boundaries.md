@@ -1,6 +1,6 @@
 # 015-01 — Auditar fontes pós-Health Connect e fronteiras adiadas
 
-- **Status:** pending
+- **Status:** concluída em 27/07/2026.
 - **Objetivo:** registrar baseline factual para Fase 15 sem implementar funcionalidade.
 - **Resultado esperado:** auditoria reproduzível de Fase 12, dados locais,
   calendário placeholder, contratos, queries, timezone, dispositivos, agregados,
@@ -87,11 +87,47 @@ Fase 15 parte de dados locais pós-Fase 12, mas o calendário ainda é placehold
 
 ## Arquivos alterados
 
-Inicialmente nenhum; registrar arquivos documentais alterados durante execução.
+- `docs/tasks/015-calendar-consolidated-history/audit-report-015-01.md`;
+- este arquivo;
+- `docs/tasks/015-calendar-consolidated-history/015-00-overview.md`.
 
 ## Decisões e desvios
 
-Registrar decisões de escopo, divergências factuais e qualquer desvio aprovado.
+- Auditoria permaneceu read-only para runtime, conforme escopo permitido.
+- Fase 12 foi tratada como concluída para fins de planejamento, apesar do status
+  textual atrasado de `012-13` e da evidência incompleta do Gate C.
+- Não foram alterados ADRs, roadmap, specs concluídas, código ou testes. A
+  atualização de ADR-013 e roadmap fica planejada para 015-02.
+
+## Comandos executados
+
+- `git status --short`
+- `git branch --show-current`
+- `git log --oneline -5`
+- `git diff --stat main...HEAD`
+
+Não foram executados build, lint ou testes automatizados. A task determina
+auditoria documental sem build e proíbe testes.
+
+## Resultados e evidências
+
+- Relatório reproduzível em
+  `docs/tasks/015-calendar-consolidated-history/audit-report-015-01.md`.
+- `CalendarScreen` confirmado como placeholder em
+  `feature/calendar/CalendarScreen.kt:3-7`.
+- `DailySummary`, BPM, atividades, peso e fila local foram mapeados com
+  entities, DAOs, contracts, repositories e mappers reais.
+- Intervalo inclusivo atual de resumo, intervalo semiaberto já existente para
+  BPM, timezone baseado em `systemDefault()`, seleção ausente de dispositivo e
+  riscos N+1 foram registrados com caminhos e símbolos.
+- Fila Health Connect foi tratada somente como fonte de status local; provider
+  externo não participa da projeção temporal.
+- Fases 13 e 14 foram confirmadas como adiadas na spec/direção/overview da
+  Fase 15; desalinhamento do roadmap foi registrado como trabalho futuro.
+- Comparação com `main` confirmou ausência de implementação de calendário na
+  branch atual e em `main`.
+- Diff final deve permanecer restrito a documentação desta subtarefa e do
+  overview.
 
 ## Screenshot
 
@@ -99,8 +135,13 @@ Não aplicável; task documental.
 
 ## Riscos residuais
 
-Status conflitante de `012-13` e evidências incompletas do Gate C podem exigir
-revisão documental posterior.
+- `012-00` mantém `Planejada` no cabeçalho apesar do fechamento no próprio
+  documento; `012-13` também mantém status textual conflitante com o fechamento
+  da Fase 12.
+- Evidências do Gate C são declarativas e incompletas para reprodução.
+- Roadmap ainda precisa registrar adiamento de Fases 13 e 14 em 015-02.
+- Seleção de dispositivo, queries de intervalo para atividades/pesos, sync em
+  lote e resolução dos hotspots N+1 continuam pendentes.
 
 ## Atualização do overview
 

@@ -1623,7 +1623,8 @@ Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 # Fase 12 — Health Connect nativo
 
-Status de fechamento: concluida em 2026-07-24 com Gate C tratado como validado manualmente no Galaxy S22 nesta sessao de fechamento.
+Status de fechamento: concluída em 24/07/2026. Gate C foi tratado como validado
+manualmente no Galaxy S22; evidências reproduzíveis permanecem incompletas.
 
 ## Objetivo
 
@@ -1841,6 +1842,8 @@ Health Connect
 
 # Fase 13 — Exercícios iniciados pelo Champion Companion
 
+**Status:** adiada por decisão de produto, sem renumeração.
+
 ## Objetivo
 
 Portar os exercícios do aplicativo.
@@ -1933,6 +1936,8 @@ Health Connect
 
 # Fase 14 — Foreground Service e tarefas em segundo plano
 
+**Status:** adiada por decisão de produto, sem renumeração.
+
 ## Objetivo
 
 Usar os mecanismos Android corretos.
@@ -1986,6 +1991,10 @@ Usar em:
 ---
 
 # Fase 15 — Calendário e histórico consolidado
+
+**Status:** próxima fase em execução.
+
+A fase usa somente dados locais e não depende funcionalmente das Fases 13 e 14.
 
 ## Objetivo
 
@@ -2673,10 +2682,10 @@ Fase 8  — BPM manual
 Fase 9  — D1 e BPM completo
 Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
-Fase 12 — Health Connect
-Fase 13 — Exercícios
-Fase 14 — Background
-Fase 15 — Calendário
+Fase 12 — Health Connect (concluída)
+Fase 13 — Exercícios (adiada)
+Fase 14 — Background (adiada)
+Fase 15 — Calendário (próxima fase em execução)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
 Fase 18 — Transição sem migração
@@ -2692,6 +2701,9 @@ Fase 25 — Lançamento
 ---
 
 # 13. Priorização
+
+Prioridade de execução vigente: Fase 15. Itens das Fases 13 e 14 permanecem
+registrados como backlog histórico, mas estão adiados.
 
 ## Crítica
 

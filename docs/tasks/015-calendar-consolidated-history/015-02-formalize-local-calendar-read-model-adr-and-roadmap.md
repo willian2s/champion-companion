@@ -1,6 +1,6 @@
 # 015-02 — Formalizar read model local, ADR e roadmap
 
-- **Status:** pending
+- **Status:** concluída em 27/07/2026.
 - **Objetivo:** formalizar decisão arquitetural e ordem de roadmap.
 - **Resultado esperado:** ADR-013 criada e roadmap atualizado durante a execução
   desta subtarefa, registrando Fases 13/14 adiadas e Fase 15 próxima.
@@ -76,16 +76,49 @@ escopo desta subtarefa. Não criar, alterar ou executar testes automatizados.
 
 ## Contexto
 
-A direção exige ADR-013 e atualização de roadmap durante implementação futura,
-mas esta execução cria somente o planejamento.
+A direção exigia ADR-013 e atualização do roadmap nesta subtarefa documental.
+Esta execução concluiu ambas as entregas sem alterar runtime.
 
 ## Arquivos alterados
 
-Inicialmente nenhum; registrar documentos alterados durante execução futura.
+- `docs/decisions/adr-013-local-calendar-temporal-read-model.md`;
+- `docs/roadmap/champion-companion-roadmap.md`;
+- este arquivo;
+- `docs/tasks/015-calendar-consolidated-history/015-00-overview.md`.
 
 ## Decisões e desvios
 
-Registrar decisão sobre compatibilidade com ADR-005 e qualquer desvio aprovado.
+- ADR-013 foi criada como especialização compatível com ADR-005: a rota
+  parametrizada `CalendarDay(localDateIso)` atende requisito concreto sem
+  trocar Navigation 3, back stack manual, `NavHost` ou `NavController`.
+- ADRs 003, 009, 010, 011 e 012 permanecem compatíveis; nenhuma ADR existente
+  foi alterada.
+- Roadmap preserva conteúdo de Fases 13 e 14 e adiciona apenas estados de
+  conclusão/adiamento/prioridade.
+- Ressalva de evidência incompleta do Gate C foi preservada no status da Fase
+  12; não bloqueia Fase 15.
+
+## Comandos executados
+
+- `git status --short`
+- `git branch --show-current`
+- `git log --oneline -5`
+
+Não foram executados build, lint ou testes automatizados. Esta subtarefa é
+documental e determina explicitamente não executar testes.
+
+## Resultados e evidências
+
+- ADR-013 aceita formaliza read model local derivado, fluxo de camadas, ausência
+  de tabela/migration/índice preventivo, semântica temporal, timezone,
+  múltiplos dispositivos, fontes, fila, ausência/zero, navegação e proibições.
+- ADR-013 referencia compatibilidade com ADRs 003, 005, 009, 010, 011 e 012.
+- Roadmap marca Fase 12 como concluída, Fases 13/14 como adiadas e Fase 15 como
+  próxima em execução, sem renumerar ou remover backlog.
+- `CalendarDay(localDateIso)` foi reconciliada como extensão concreta da
+  navegação manual existente, sem alteração de ADR-005.
+- Diff documental não inclui Kotlin, Compose, Room, migration, teste, BLE,
+  Health Connect ou outro arquivo de runtime.
 
 ## Screenshot
 
@@ -93,12 +126,20 @@ Não aplicável; task documental.
 
 ## Riscos residuais
 
-Roadmap e ADR podem permanecer temporariamente desalinhados até execução desta
-task.
+- Gate C da Fase 12 continua com evidência documental incompleta; a ressalva foi
+  preservada no roadmap.
+- ADR-005 continua exigindo manutenção manual do back stack para a rota
+  parametrizada concreta.
+- Desempate de dispositivos, consistência eventual entre fontes e desempenho
+  de queries em lote serão validados nas subtarefas de contratos, queries e
+  read model.
+- Implementação ainda precisa resolver N+1, timezone operacional e consultas
+  temporais sem alterar schema.
 
 ## Atualização do overview
 
-Marcar somente o item 015-02 após revisão e aceite de 015-01.
+Item 015-02 marcado `[x]`; progresso recalculado para `2/13`. Demais itens
+permanecem `[ ]` e nenhuma subtarefa seguinte foi iniciada.
 
 ## Regra de testes
 
