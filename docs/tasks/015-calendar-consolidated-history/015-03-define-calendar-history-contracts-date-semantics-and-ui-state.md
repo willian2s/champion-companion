@@ -1,6 +1,6 @@
 # 015-03 — Definir contratos, datas e estado temporal
 
-- **Status:** pending
+- **Status:** concluída em 27/07/2026.
 - **Objetivo:** estabilizar modelos e contratos antes de tocar Room ou UI.
 - **Resultado esperado:** modelos imutáveis, APIs, estados e intents prontos para
   implementação independente.
@@ -88,12 +88,65 @@ temporal de atividades e pesos exposto pela camada de domínio.
 
 ## Arquivos alterados
 
-Inicialmente nenhum; registrar arquivos de domínio e contrato alterados durante
-execução.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/CalendarHistory.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarFeatureContract.kt`;
+- `docs/tasks/015-calendar-consolidated-history/015-00-overview.md`;
+- este arquivo.
 
 ## Decisões e desvios
 
-Registrar decisões de compatibilidade da API inclusiva e qualquer desvio aprovado.
+- O contrato inclusivo existente de `DailySummaryRepository.observeSummaries`
+  foi preservado. A API semiaberta foi adicionada como
+  `observeSummariesBetween`, adaptada ao contrato antigo sem alterar consumidores.
+- APIs temporais novas em BPM, atividades, peso e fila possuem implementações
+  padrão vazias para preservar implementações e fakes existentes; 015-04 deve
+  substituí-las por projeções Room em lote.
+- `CalendarHistoryQuery` usa fim exclusivo explícito e deriva somente janelas de
+  7, 30 ou 90 dias. Queries de mês e dia derivam início do período seguinte, sem
+  fim de dia artificial.
+- Snapshots mensais exigem presenças ordenadas, únicas e dentro do mês; snapshots
+  históricos exigem uma entrada por data da janela, em ordem, e derivam agregados
+  das entradas para preservar ausência, zero e contagens coerentes.
+- Estado de calendário rejeita seleção fora do mês e snapshots incompatíveis com
+  mês, data ou `ZoneId`; somas históricas rejeitam overflow numérico.
+- Ausência usa tipos anuláveis, listas vazias e `NO_OPERATIONS`; zero persistido
+  permanece valor real. Falhas parciais usam `CalendarDataIssue`, sem mensagem,
+  payload ou identificador sensível.
+- `CalendarSyncSummary.state` implementa a precedência exata da fila local.
+  Modelos temporais não usam `syncedAt` como data.
+- Atividades expõem distância somente no card/projeção e não expõem passos;
+  totais históricos permanecem exclusivos de `DailySummary`.
+- Nenhum DAO, entity, mapper, repository persistente, módulo DI, Compose,
+  navegação, migration ou teste foi alterado.
+
+## Comandos executados
+
+- `git status --short && git diff --stat && git diff && git log --oneline -10`
+- `git diff --check`
+- `./gradlew :app:compileDebugKotlin :app:lintDebug`
+- `./gradlew :app:compileDebugKotlin`
+- `./gradlew lint assembleDebug assembleRelease`
+
+Não foram criados, alterados ou executados testes automatizados, conforme regra da
+spec e desta subtarefa.
+
+## Resultados e evidências
+
+- Compilação Kotlin debug e lint debug concluíram com `BUILD SUCCESSFUL` em
+  1 minuto e 52 segundos; 31 tasks, 13 executadas e 18 `UP-TO-DATE`.
+- Recompilação final concluiu com `BUILD SUCCESSFUL` em 18 segundos; 7 tasks,
+  2 executadas e 5 `UP-TO-DATE`.
+- `lint assembleDebug assembleRelease` concluiu com `BUILD SUCCESSFUL`; lint,
+  APKs debug/release e compilação Kotlin foram validados sem testes automatizados.
+- `CalendarRepository` expõe `observeMonth`, `observeDay`, históricos de passos
+  e distância.
+- Read models cobrem presença mensal, detalhe diário, BPM manual/D1, atividades,
+  pesos, fila, falha parcial e históricos 7/30/90.
+- `CalendarUiState` cobre seleção, zona congelada, snapshots, loadings e erro
+  seguro; `CalendarIntent` contém os oito intents especificados.
+- Revisão independente final aprovou escopo, invariantes e critérios de aceite;
+  `git diff --check` concluiu sem erros.
 
 ## Screenshot
 
@@ -101,11 +154,16 @@ Não aplicável; task de domínio e contrato.
 
 ## Riscos residuais
 
-Consumidores antigos podem manter semântica inclusiva e exigir adaptação aditiva.
+- Implementações padrão das novas APIs temporais retornam vazio até 015-04
+  adicionar queries e projeções persistentes.
+- Seleção determinística entre dispositivos, agrupamento por timezone e
+  associação em lote da fila continuam para 015-05.
+- ViewModel, telas e navegação continuam ausentes, conforme escopo.
 
 ## Atualização do overview
 
-Marcar somente o item 015-03 após aceite de 015-02.
+Item `015-03` marcado `[x]`; progresso recalculado para `3/13`. Demais itens
+permanecem `[ ]` e nenhuma subtarefa seguinte foi iniciada.
 
 ## Regra de testes
 

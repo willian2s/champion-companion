@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 2/13 subtarefas concluídas
+- **Progresso:** 3/13 subtarefas concluídas
 
 ## Estado herdado
 
@@ -90,7 +90,7 @@ registrada separadamente, com justificativa e decisão própria.
 
 - [x] [015-01-audit-post-health-connect-data-sources-and-deferred-phase-boundaries.md](015-01-audit-post-health-connect-data-sources-and-deferred-phase-boundaries.md)
 - [x] [015-02-formalize-local-calendar-read-model-adr-and-roadmap.md](015-02-formalize-local-calendar-read-model-adr-and-roadmap.md)
-- [ ] [015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md](015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md)
+- [x] [015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md](015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md)
 - [ ] [015-04-add-calendar-range-queries-and-repository-projections.md](015-04-add-calendar-range-queries-and-repository-projections.md)
 - [ ] [015-05-implement-calendar-read-model-and-daily-consolidation.md](015-05-implement-calendar-read-model-and-daily-consolidation.md)
 - [ ] [015-06-implement-temporal-viewmodels-and-isolate-history-shells.md](015-06-implement-temporal-viewmodels-and-isolate-history-shells.md)
@@ -106,6 +106,8 @@ registrada separadamente, com justificativa e decisão própria.
 
 - `015-01` concluída com relatório documental reproduzível.
 - `015-02` concluída com ADR-013 e roadmap alinhado à decisão de produto.
+- `015-03` concluída com contratos temporais, read models imutáveis, semântica de
+  datas, históricos 7/30/90 e estado/intents do calendário.
 - Não há bloqueio para `015-03`; status `Planejada` no cabeçalho de `012-00`,
   status conflitante de `012-13` e evidência incompleta do Gate C permanecem
   riscos documentais da Fase 12.

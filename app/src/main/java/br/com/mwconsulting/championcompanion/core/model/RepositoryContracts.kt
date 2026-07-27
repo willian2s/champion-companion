@@ -37,6 +37,9 @@ interface DeviceRepository {
 
 interface DailySummaryRepository {
     fun observeSummaries(from: LocalDate, to: LocalDate): Flow<List<DailySummary>>
+    /** API aditiva semiaberta; contrato inclusivo antigo permanece disponível. */
+    fun observeSummariesBetween(range: CalendarDateRange): Flow<List<DailySummary>> =
+        observeSummaries(range.fromInclusive, range.untilExclusive.minusDays(1))
     fun observeSummaryForDate(localDate: LocalDate): Flow<DailySummary?> =
         observeSummaries(localDate, localDate).map { it.firstOrNull() }
     suspend fun findById(summaryId: DailySummaryId): RepositoryResult<DailySummary> = RepositoryResult.UnexpectedState
@@ -58,6 +61,9 @@ data class MergeWatchDailySummaryInput(
 
 interface PersonalMetricsRepository {
     fun observeSnapshot(): Flow<PersonalMetricsSnapshot>
+    /** Pesos cujo measuredAt pertence ao intervalo semiaberto informado. */
+    fun observeWeightsBetween(range: CalendarInstantRange): Flow<List<CalendarWeightMeasurementSummary>> =
+        flowOf(emptyList())
     suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
     suspend fun findWeightById(measurementId: WeightMeasurementId): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
 }
@@ -195,6 +201,11 @@ interface HeartRateRepository {
         HeartRateHistorySnapshot(period = query.period),
     )
 
+    fun observeMeasurementsBetween(
+        range: CalendarInstantRange,
+        sources: Set<HeartRateSource> = CALENDAR_HEART_RATE_SOURCES,
+    ): Flow<List<HeartRateMeasurement>> = flowOf(emptyList())
+
     fun observeD1ImportMetadata(deviceId: DeviceId): Flow<D1HeartRateImportMetadata?> = flowOf(null)
 }
 
@@ -202,6 +213,9 @@ interface WorkoutActivityRepository {
     suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit>
     fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
     fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = flowOf(emptyList())
+    /** Atividades não descartadas cujo startedAt pertence ao intervalo semiaberto. */
+    fun observeActivitiesBetween(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
+        flowOf(emptyList())
     fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> = flowOf(null)
     suspend fun findById(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummary> = flowOf(WorkoutWorkflowSummary())
@@ -314,11 +328,26 @@ interface HealthSyncRepository {
     suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
     fun observeSyncSummary(): Flow<HealthSyncSummary>
     suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
+    /** Consulta em lote; data civil continua pertencendo ao aggregate, nunca à operação. */
+    fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> =
+        flowOf(emptyList())
     suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
     suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
     suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError, at: Instant): RepositoryResult<Unit>
     suspend fun resetInterrupted(at: Instant): RepositoryResult<Int>
     suspend fun reconcileBacklog(): RepositoryResult<HealthSyncBacklogReconciliationResult>
+}
+
+interface CalendarRepository {
+    /** [query] congela mês e ZoneId durante formação de cada emissão. */
+    fun observeMonth(query: CalendarMonthQuery): Flow<CalendarMonthSnapshot>
+
+    /** Forma janela do início deste dia ao início do próximo, no ZoneId informado. */
+    fun observeDay(localDate: LocalDate, zoneId: ZoneId): Flow<CalendarDaySummary>
+
+    fun observeStepsHistory(query: CalendarHistoryQuery): Flow<CalendarStepsHistorySnapshot>
+
+    fun observeDistanceHistory(query: CalendarHistoryQuery): Flow<CalendarDistanceHistorySnapshot>
 }
 
 interface DiagnosticPayloadRepository {
