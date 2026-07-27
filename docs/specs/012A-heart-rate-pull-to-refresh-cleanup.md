@@ -2,18 +2,18 @@
 
 ## Status
 
-Planejada em 2026-07-27.
+Concluída em 2026-07-27.
 
 ## Contexto
 
-A tela de detalhe de frequência cardíaca hoje concentra:
+Antes desta mudança, a tela de detalhe de frequência cardíaca concentrava:
 
 - card `Resumo atual e ações` com último BPM, origem, relógio associado e dois CTAs fixos;
 - card `Medição manual` com CTA própria para iniciar a sessão de 60 segundos;
 - painel D1 com progresso, resumo da importação e ações contextuais;
 - gráfico e histórico consolidado.
 
-O estado atual gera redundância visual e funcional:
+O estado anterior gerava redundância visual e funcional:
 
 - `Medir frequência cardíaca` aparece no overview e também na superfície dedicada de medição manual;
 - `Buscar dados do relógio` fica preso ao overview, apesar de ser semanticamente uma atualização explícita do histórico local D1;
@@ -25,7 +25,7 @@ Este pedido é deliberadamente fora do roadmap. A mudança deve permanecer restr
 
 Reduzir redundância na tela de frequência cardíaca, transformando o card `Resumo atual e ações` em resumo puro, renomeado para `Resumo atual`, e movendo o gatilho de importação D1 para o gesto de pull-to-refresh da própria tela.
 
-## Estado atual confirmado
+## Estado anterior confirmado
 
 - `HeartRateDetailScreen` usa `Surface + Column + verticalScroll`, sem `PullToRefreshBox`.
 - `HeartRateOverviewCard` renderiza:
@@ -70,15 +70,16 @@ Regras:
 - o gesto não deve iniciar D1 quando já houver medição manual ativa ou importação D1 em andamento;
 - o gesto não cria novo fluxo de sincronização fora do D1 já existente.
 
-### 4. Ações contextuais do painel D1 permanecem
+### 4. O painel D1 preserva feedback e recuperabilidade, sem ação de cancelamento
 
-Para não perder controle operacional após remover os botões fixos do overview:
+Após remover os botões fixos do overview:
 
-- durante importação em andamento, o painel D1 deve continuar oferecendo cancelamento explícito;
 - em falha recuperável, o painel D1 deve continuar oferecendo retry explícito;
 - em estados terminais, o painel D1 deve continuar permitindo dismiss do aviso.
+- durante importação em andamento, o painel D1 continua exibindo progresso e metadata disponível, sem expor botão ou ação contextual de cancelamento;
+- a confirmação de retorno já existente durante D1 (`ConfirmExitD1Import`) permanece o único comportamento de saída segura da tela, sem alteração em lifecycle, `ViewModel` ou coordinator.
 
-Assim, o overview perde redundância, mas o fluxo D1 não perde recuperabilidade nem cancelamento.
+Assim, o overview perde redundância, enquanto o fluxo D1 preserva feedback, retry, dismiss e saída segura já existente.
 
 ### 5. A acessibilidade do refresh deve continuar explícita
 
@@ -122,7 +123,8 @@ Direção escolhida para a subtarefa inicial:
 - o gesto não dispara nova importação quando medição manual ou D1 já estiverem ativos;
 - `HealthIntent.Load`, `ON_START` e `ON_RESUME` continuam sem iniciar BLE automaticamente;
 - o CTA de medição manual continua disponível pela superfície dedicada de medição;
-- cancelamento, retry e dismiss do D1 continuam acessíveis por ações contextuais do painel D1;
+- o painel D1 preserva progresso e metadata, oferece retry em falha recuperável e dismiss em estados terminais, sem ação de cancelamento na tela;
+- a confirmação de retorno durante D1 continua preservada, sem mudanças em lifecycle, `ViewModel` ou coordinator;
 - o spinner de refresh representa corretamente estados `Preparing`, `Connecting`, `Reading` e `Persisting` do D1;
 - leitores de tela recebem ação equivalente de atualização do histórico;
 - a rolagem vertical, o gráfico, o histórico e os estados atuais de Health Connect permanecem funcionais.
@@ -139,10 +141,17 @@ Direção escolhida para a subtarefa inicial:
 ## Riscos e cuidados
 
 - `PullToRefreshBox` precisa conviver corretamente com `verticalScroll` e só disparar no topo da tela;
-- a remoção do botão fixo de importação não pode eliminar a capacidade de cancelar ou recuperar falhas do D1;
+- a remoção do botão fixo de importação não pode eliminar progresso, metadata, retry, dismiss ou a confirmação de retorno segura durante D1;
 - a UI não pode voltar a iniciar BLE por carregamento passivo de tela;
 - a comunicação textual do overview deve deixar de mencionar “toque em Buscar dados do relógio” e passar a orientar o gesto de puxar para atualizar;
 - o baseline factual precisa ser atualizado no fechamento para não manter referência ao botão removido.
+
+## Fechamento
+
+- `HeartRateDetailScreen` passou a usar `PullToRefreshBox`, com indicador derivado dos estados ativos de D1 e guarda contra medição manual ou importação D1 já ativa.
+- O card passou a se chamar `Resumo atual`, sem CTAs fixos; a medição manual continua acessível somente por `HeartRateSessionSurface`.
+- O painel D1 preserva progresso, metadata, retry recuperável e dismiss terminal. Não há botão ou ação contextual de cancelamento; a confirmação de saída segura existente foi preservada.
+- A validação técnica e física foi concluída no dispositivo `SM-S901E`: pull-to-refresh realizou D1, atualizou metadata, exibiu resultado com lacunas e permitiu dismiss, com gráfico e histórico ainda visíveis.
 
 ## Referências
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-pending
+completed em 2026-07-27
 
 ## Objetivo
 
@@ -77,3 +77,44 @@ Validação manual esperada nesta subtarefa:
 - não quebrar a convivência entre `PullToRefreshBox` e `verticalScroll`;
 - não iniciar BLE por eventos passivos de lifecycle;
 - não permitir múltiplas importações D1 concorrentes.
+
+## Implementação concluída
+
+- `HeartRateDetailScreen` passou a usar `PullToRefreshBox`, preservando a rolagem vertical, o tratamento de retorno e os eventos de lifecycle existentes.
+- `isRefreshing` deriva dos estados ativos `Preparing`, `Connecting`, `Reading` e `Persisting` do D1.
+- O callback compartilhado de refresh só envia `HealthIntent.StartD1Import` quando não há medição manual nem importação D1 em andamento.
+- A raiz semântica da tela expõe a ação acessível `Atualizar histórico do relógio`, reutilizando o mesmo callback guardado.
+- Os CTAs, o painel D1 e os textos atuais foram preservados para a subtarefa `012A-02`.
+
+## Comandos executados
+
+```bash
+git diff --check
+./gradlew :app:compileDebugKotlin --console=plain
+./gradlew app:lintDebug --console=plain
+./gradlew lint assembleDebug assembleRelease --console=plain
+./gradlew installDebug --console=plain
+adb devices
+adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity
+adb shell input swipe 540 500 540 1500 700
+adb shell am force-stop br.com.mwconsulting.championcompanion.dev
+```
+
+## Testes e resultados
+
+- `git diff --check`: concluído sem erros.
+- `:app:compileDebugKotlin`: `BUILD SUCCESSFUL`.
+- `app:lintDebug`: `BUILD SUCCESSFUL`.
+- `lint assembleDebug assembleRelease`: primeira execução falhou por estado incremental transitório, com referências internas existentes temporariamente não resolvidas; após o daemon ficar ocioso e a compilação focada restaurar os outputs, a repetição concluiu com `BUILD SUCCESSFUL`.
+- `installDebug`: `BUILD SUCCESSFUL`; APK instalado no dispositivo `SM-S901E`.
+- Validação física: a tela abriu sem iniciar D1 automaticamente; o gesto no topo iniciou a importação e apresentou a ação contextual `Cancelar importação`.
+- Bloqueio durante medição manual e ausência de múltiplos disparos foram conferidos pela guarda compartilhada no callback; não houve sessão física manual completa nesta subtarefa.
+- A ação acessível foi conferida na árvore semântica declarada no código; não houve sessão manual com TalkBack.
+- Nenhum teste automatizado foi criado ou executado, conforme regra do projeto.
+
+## Evidências
+
+- Arquivo de produção alterado: `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- O diff ficou restrito à integração do pull-to-refresh e à ação semântica da `012A-01`.
+- `HealthIntent.Load`, `ON_START` e `ON_RESUME` continuam apenas recarregando estado local.
+- Nenhum contrato, `ViewModel`, coordinator BLE, repository, banco, navegação, baseline, roadmap ou ADR foi alterado.

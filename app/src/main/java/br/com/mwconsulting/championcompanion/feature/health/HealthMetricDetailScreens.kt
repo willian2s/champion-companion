@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -20,12 +21,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -39,8 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -78,6 +83,7 @@ import kotlin.time.Duration
 
 private const val HEART_RATE_HISTORY_PAGE_SIZE = 10
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeartRateDetailScreen(
     onNavigateBack: () -> Unit,
@@ -110,6 +116,11 @@ fun HeartRateDetailScreen(
     val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
     val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
     val isBlockingExit = isMeasurementInFlight || isD1ImportInFlight
+    val triggerD1Refresh = {
+        if (!isMeasurementInFlight && !isD1ImportInFlight) {
+            healthViewModel.onIntent(HealthIntent.StartD1Import)
+        }
+    }
 
     BackHandler(enabled = isBlockingExit) {
         showExitConfirmation = true
@@ -161,48 +172,64 @@ fun HeartRateDetailScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge)
-                .heightIn(min = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+        PullToRefreshBox(
+            isRefreshing = isD1ImportInFlight,
+            onRefresh = triggerD1Refresh,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            MetricDetailHeader(
-                title = "Frequência cardíaca",
-                description = "Esta tela concentra medição manual, importação D1 local, gráfico funcional e histórico consolidado sem iniciar BLE automaticamente.",
-            )
-            HeartRateOverviewCard(
-                state = state,
-                onStartMeasurement = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
-                onStartD1Import = { healthViewModel.onIntent(HealthIntent.StartD1Import) },
-                onCancelD1Import = { healthViewModel.onIntent(HealthIntent.CancelD1Import) },
-                onRetryD1Import = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
-                onDismissD1Import = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
-            )
-            HeartRateSessionSurface(
-                state = state,
-                onStart = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
-                onCancel = { healthViewModel.onIntent(HealthIntent.CancelMeasurement) },
-                onRetry = { healthViewModel.onIntent(HealthIntent.Retry) },
-                onDismiss = { healthViewModel.onIntent(HealthIntent.DismissError) },
-            )
-            HeartRateHistoryChartSection(
-                state = state,
-                onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
-            )
-            HealthMetricHistorySection(
-                title = "Histórico completo",
-                emptyMessage = "Ainda não há medições consolidadas para o período selecionado.",
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics {
+                        customActions = listOf(
+                            CustomAccessibilityAction("Atualizar histórico do relógio") {
+                                triggerD1Refresh()
+                                true
+                            },
+                        )
+                    },
             ) {
-                HeartRateHistoryList(
-                    entries = state.history.entries,
-                    associatedDeviceName = state.associatedDeviceName,
-                )
-            }
-            TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Voltar para Saúde")
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(ChampionSpacing.extraLarge)
+                        .heightIn(min = 1.dp),
+                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+                ) {
+                    MetricDetailHeader(
+                        title = "Frequência cardíaca",
+                        description = "Esta tela concentra medição manual, importação D1 local, gráfico funcional e histórico consolidado sem iniciar BLE automaticamente.",
+                    )
+                    HeartRateOverviewCard(
+                        state = state,
+                        onRetryD1Import = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
+                        onDismissD1Import = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
+                    )
+                    HeartRateSessionSurface(
+                        state = state,
+                        onStart = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
+                        onCancel = { healthViewModel.onIntent(HealthIntent.CancelMeasurement) },
+                        onRetry = { healthViewModel.onIntent(HealthIntent.Retry) },
+                        onDismiss = { healthViewModel.onIntent(HealthIntent.DismissError) },
+                    )
+                    HeartRateHistoryChartSection(
+                        state = state,
+                        onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
+                    )
+                    HealthMetricHistorySection(
+                        title = "Histórico completo",
+                        emptyMessage = "Ainda não há medições consolidadas para o período selecionado.",
+                    ) {
+                        HeartRateHistoryList(
+                            entries = state.history.entries,
+                            associatedDeviceName = state.associatedDeviceName,
+                        )
+                    }
+                    TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
+                        Text("Voltar para Saúde")
+                    }
+                }
             }
         }
     }
@@ -381,23 +408,18 @@ private fun MetricDetailHeader(
 @Composable
 private fun HeartRateOverviewCard(
     state: HealthUiState,
-    onStartMeasurement: () -> Unit,
-    onStartD1Import: () -> Unit,
-    onCancelD1Import: () -> Unit,
     onRetryD1Import: () -> Unit,
     onDismissD1Import: () -> Unit,
 ) {
-    val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
-    val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
     val latestMeasurement = state.latestMeasurement
 
-    HealthCard(title = "Resumo atual e ações", modifier = Modifier.fillMaxWidth()) {
+    HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
         if (latestMeasurement == null) {
             Text(
                 text = if (state.hasAssociatedDevice) {
-                    "Ainda não há frequência cardíaca persistida. Use a medição manual ou toque em Buscar dados do relógio para importar o histórico local."
+                    "Ainda não há frequência cardíaca persistida. Faça uma medição manual abaixo ou puxe para atualizar e importar o histórico local."
                 } else {
-                    "Associe um relógio para medir ou importar o histórico local de frequência cardíaca."
+                    "Associe um relógio para fazer uma medição manual ou puxar para atualizar o histórico local de frequência cardíaca."
                 },
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -430,35 +452,6 @@ private fun HeartRateOverviewCard(
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
                 style = MaterialTheme.typography.bodyMedium,
             )
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            PrimaryActionButton(
-                label = "Medir frequência cardíaca",
-                onClick = onStartMeasurement,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.hasAssociatedDevice && !isD1ImportInFlight,
-            )
-            OutlinedButton(
-                onClick = when {
-                    isD1ImportInFlight -> onCancelD1Import
-                    state.d1ImportState.isRetryableFailure() -> onRetryD1Import
-                    else -> onStartD1Import
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.hasAssociatedDevice && !isMeasurementInFlight,
-            ) {
-                Text(
-                    when {
-                        isD1ImportInFlight -> "Cancelar importação"
-                        state.d1ImportState.isRetryableFailure() -> "Tentar novamente"
-                        else -> "Buscar dados do relógio"
-                    },
-                )
-            }
         }
 
         HeartRateD1ImportPanel(
@@ -1273,9 +1266,6 @@ private fun D1HeartRateImportSurfaceState.isImportInFlight(): Boolean = when (th
     -> false
 }
 
-private fun D1HeartRateImportSurfaceState.isRetryableFailure(): Boolean =
-    (this as? D1HeartRateImportSurfaceState.Failed)?.session?.error?.isRetryable == true
-
 private fun D1HeartRateImportSurfaceState.isTerminalSurface(): Boolean = when (this) {
     is D1HeartRateImportSurfaceState.Completed,
     is D1HeartRateImportSurfaceState.CompletedWithGaps,
@@ -1319,7 +1309,7 @@ private fun D1HeartRateImportSurfaceState.toUiTitle(): String = when (this) {
 }
 
 private fun D1HeartRateImportSurfaceState.toUiMessage(): String = when (this) {
-    D1HeartRateImportSurfaceState.Idle -> "A importação D1 acontece somente por toque explícito em Buscar dados do relógio."
+    D1HeartRateImportSurfaceState.Idle -> "Puxe para atualizar quando quiser importar o histórico D1 do relógio."
     is D1HeartRateImportSurfaceState.Preparing -> "Validando relógio associado e reservando a operação Bluetooth de foreground."
     is D1HeartRateImportSurfaceState.Connecting -> "Aguardando conexão e handshake A1 antes do comando D1."
     is D1HeartRateImportSurfaceState.Reading -> "Recebendo pacotes D1 e preservando dados válidos mesmo em timeout parcial."
