@@ -2,6 +2,7 @@ package br.com.mwconsulting.championcompanion.data
 
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
 import br.com.mwconsulting.championcompanion.core.database.AssociatedDeviceRecord
+import br.com.mwconsulting.championcompanion.core.database.CalendarWorkoutSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceAssociationEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
@@ -15,6 +16,7 @@ import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportLookupRecord
+import br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
@@ -26,6 +28,8 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionAggrega
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.CalibratedWorkoutMetrics
+import br.com.mwconsulting.championcompanion.core.model.CalendarWeightMeasurementSummary
+import br.com.mwconsulting.championcompanion.core.model.CalendarWorkoutSummary
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
@@ -250,6 +254,41 @@ internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasureme
         measuredAt = Instant.ofEpochMilli(measuredAtEpochMillis),
         origin = enum<DataOrigin>(origin) ?: return null,
     ).successOrNull()
+}
+
+internal fun WeightMeasurementEntity.toCalendarSummary(): CalendarWeightMeasurementSummary? =
+    toDomain()?.let { measurement ->
+        CalendarWeightMeasurementSummary(
+            measurementId = measurement.id,
+            value = measurement.value,
+            unit = measurement.unit,
+            measuredAt = measurement.measuredAt,
+            origin = measurement.origin,
+        )
+    }
+
+internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSummary? {
+    val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
+    val mappedOrigin = enum<DataOrigin>(origin) ?: return null
+    val mappedSuggestedType = enum<WorkoutType>(suggestedType) ?: return null
+    val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
+    val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    if (durationNanos < 0) return null
+
+    return CalendarWorkoutSummary(
+        activityId = mappedActivityId,
+        origin = mappedOrigin,
+        title = title,
+        suggestedType = mappedSuggestedType,
+        confirmedType = mappedConfirmedType,
+        startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+        duration = Duration.ofNanos(durationNanos),
+        distanceMeters = (calibratedDistanceMeters ?: originalDistanceMeters ?: estimatedDistanceMeters)
+            .domainValue(),
+        caloriesKilocalories = caloriesKilocalories.domainValue(),
+        averageBpm = averageBpm.domainValue(),
+        workflowState = mappedWorkflowState,
+    )
 }
 
 internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEntity.toDomain(): UserProfile? {

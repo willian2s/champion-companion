@@ -8,6 +8,9 @@ import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEn
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.CALENDAR_HEART_RATE_SOURCES
+import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
+import br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportPersistenceResult
@@ -77,6 +80,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -84,6 +88,7 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
 
 private const val SYNC_CLIENT_RECORD_APPLICATION_ID = "br.com.mwconsulting.championcompanion"
+private const val SQLITE_IN_CLAUSE_CHUNK_SIZE = 500
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -231,6 +236,12 @@ class RoomRepositories @Inject constructor(
 
     override fun observeSummaries(from: LocalDate, to: LocalDate): Flow<List<DailySummary>> =
         database.dailySummaryDao().observeBetween(from.toString(), to.toString())
+            .map { entities -> entities.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
+    override fun observeSummariesBetween(range: CalendarDateRange): Flow<List<DailySummary>> =
+        database.dailySummaryDao()
+            .observeValidBetween(range.fromInclusive.toString(), range.untilExclusive.toString())
             .map { entities -> entities.mapNotNull { it.toDomain() } }
             .flowOn(ioDispatcher)
 
@@ -395,6 +406,22 @@ class RoomRepositories @Inject constructor(
             .flowOn(ioDispatcher)
     }
 
+    override fun observeMeasurementsBetween(
+        range: CalendarInstantRange,
+        sources: Set<HeartRateSource>,
+    ): Flow<List<HeartRateMeasurement>> {
+        val allowedSources = sources.intersect(CALENDAR_HEART_RATE_SOURCES)
+        if (allowedSources.isEmpty()) return flowOf(emptyList())
+        return database.heartRateDao()
+            .observeValidHistoryBetween(
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+                sources = allowedSources.mapTo(linkedSetOf()) { it.name },
+            )
+            .map { entities -> entities.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+    }
+
     override suspend fun importD1Measurements(
         input: SaveD1HeartRateMeasurementsInput,
     ): RepositoryResult<D1HeartRateImportPersistenceResult> = write {
@@ -522,6 +549,15 @@ class RoomRepositories @Inject constructor(
     }.transformLatest { activities ->
         emit(activities.mapNotNull { activity -> loadWorkoutActivity(activity) })
     }.flowOn(ioDispatcher)
+
+    override fun observeActivitiesBetween(range: CalendarInstantRange) =
+        database.workoutActivityDao()
+            .observeCalendarSummariesBetween(
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+            )
+            .map { records -> records.mapNotNull { it.toCalendarSummary() } }
+            .flowOn(ioDispatcher)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> =
@@ -687,6 +723,15 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(weight)
     }
 
+    override fun observeWeightsBetween(range: CalendarInstantRange) =
+        database.userProfileDao()
+            .observeBetween(
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+            )
+            .map { entities -> entities.mapNotNull { it.toCalendarSummary() } }
+            .flowOn(ioDispatcher)
+
     override fun observeRecoverable(): Flow<List<AppWorkoutSession>> = database.appWorkoutSessionDao().observeRecoverable()
         .map { it.mapNotNull { entity -> entity.toDomain() } }
         .flowOn(ioDispatcher)
@@ -738,6 +783,33 @@ class RoomRepositories @Inject constructor(
                 .findByAggregate(aggregate.id.toString(), aggregate.type.name)
                 .mapNotNull { it.toDomain() },
         )
+    }
+
+    override fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> {
+        if (aggregates.isEmpty()) return flowOf(emptyList())
+
+        val queries = aggregates
+            .groupBy { it.type }
+            .values
+            .flatMap { sameTypeAggregates ->
+                sameTypeAggregates
+                    .map { it.id.toString() }
+                    .distinct()
+                    .chunked(SQLITE_IN_CLAUSE_CHUNK_SIZE)
+                    .map { aggregateIds ->
+                        database.healthSyncOperationDao().observeByAggregateIds(
+                            aggregateType = sameTypeAggregates.first().type.name,
+                            aggregateIds = aggregateIds,
+                        )
+                    }
+            }
+
+        return combine(queries) { batches ->
+            batches.asSequence()
+                .flatMap { it.asSequence() }
+                .mapNotNull { it.toDomain() }
+                .toList()
+        }.flowOn(ioDispatcher)
     }
 
     override suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =
