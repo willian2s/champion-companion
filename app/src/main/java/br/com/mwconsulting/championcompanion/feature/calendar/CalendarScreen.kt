@@ -64,6 +64,7 @@ import java.util.Locale
 
 @Composable
 fun CalendarScreen(
+    onOpenDate: (LocalDate) -> Unit = {},
     calendarViewModel: CalendarViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) { ViewModelProvider(activity)[CalendarViewModel::class.java] }
@@ -167,7 +168,7 @@ fun CalendarScreen(
                     dayLoading = state.dayLoading,
                     hasDayDetail = state.dayDetail != null,
                     dayError = state.error?.takeIf { it.scope == CalendarUiErrorScope.DAY },
-                    onOpenDate = { date -> calendarViewModel.onIntent(CalendarIntent.OpenDate(date)) },
+                    onOpenDate = onOpenDate,
                     onRetry = { calendarViewModel.onIntent(CalendarIntent.Retry) },
                 )
             }

@@ -88,6 +88,7 @@ private const val HEART_RATE_HISTORY_PAGE_SIZE = 10
 @Composable
 fun HeartRateDetailScreen(
     onNavigateBack: () -> Unit,
+    backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -158,7 +159,7 @@ fun HeartRateDetailScreen(
                         onNavigateBack()
                     },
                 ) {
-                    Text("Voltar para Saúde")
+                    Text(backLabel)
                 }
             },
             dismissButton = {
@@ -228,7 +229,7 @@ fun HeartRateDetailScreen(
                         )
                     }
                     TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                        Text("Voltar para Saúde")
+                        Text(backLabel)
                     }
                 }
             }
@@ -239,6 +240,7 @@ fun HeartRateDetailScreen(
 @Composable
 fun WeightDetailScreen(
     onNavigateBack: () -> Unit,
+    backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
     val state by healthViewModel.state.collectAsState()
@@ -246,6 +248,7 @@ fun WeightDetailScreen(
         title = "Peso",
         description = "Esta tela usa apenas último peso persistido já disponível. Cadastro, edição e histórico completo ficam para fase futura.",
         onNavigateBack = onNavigateBack,
+        backLabel = backLabel,
     ) {
         val weight = state.latestWeight
         HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
@@ -275,6 +278,7 @@ internal fun MetricDetailScaffold(
     title: String,
     description: String,
     onNavigateBack: () -> Unit,
+    backLabel: String,
     content: @Composable () -> Unit,
 ) {
     Surface(
@@ -292,7 +296,7 @@ internal fun MetricDetailScaffold(
             MetricDetailHeader(title = title, description = description)
             content()
             TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Voltar para Saúde")
+                Text(backLabel)
             }
         }
     }

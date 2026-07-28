@@ -17,6 +17,7 @@ import kotlin.math.roundToInt
 @Composable
 fun StepsDetailScreen(
     onNavigateBack: () -> Unit,
+    backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
     val state by healthViewModel.state.collectAsState()
@@ -25,6 +26,7 @@ fun StepsDetailScreen(
         title = "Passos",
         description = "Esta tela reutiliza resumo diário persistido da Fase 07. Não cria nova sincronização nem inicia BLE ao abrir.",
         onNavigateBack = onNavigateBack,
+        backLabel = backLabel,
     ) {
         HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
             if (summary == null) {

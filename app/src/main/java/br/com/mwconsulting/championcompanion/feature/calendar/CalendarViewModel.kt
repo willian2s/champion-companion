@@ -122,21 +122,24 @@ class CalendarViewModel @Inject constructor(
 
     private fun openDate(localDate: LocalDate) {
         val current = mutableState.value
-        if (YearMonth.from(localDate) != current.selectedMonth) {
-            mutableState.update {
-                it.copy(
-                    error = CalendarUiError(
-                        category = CalendarUiErrorCategory.INVALID_DATE,
-                        scope = CalendarUiErrorScope.DAY,
-                        isRetryable = false,
-                    ),
-                )
-            }
-            return
+        val targetMonth = YearMonth.from(localDate)
+        if (targetMonth != current.selectedMonth) {
+            dayObservation?.cancel()
+            mutableState.value = current.copy(
+                selectedMonth = targetMonth,
+                selectedDate = localDate,
+                monthSnapshot = null,
+                dayDetail = null,
+                monthLoading = false,
+                dayLoading = false,
+                error = null,
+            )
+            startMonthObservation(targetMonth)
         }
 
+        val updated = mutableState.value
         dayObservation?.cancel()
-        mutableState.value = current.copy(
+        mutableState.value = updated.copy(
             selectedDate = localDate,
             dayDetail = null,
             dayLoading = true,

@@ -12,6 +12,7 @@ import java.util.Locale
 @Composable
 fun DistanceDetailScreen(
     onNavigateBack: () -> Unit,
+    backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
     val state by healthViewModel.state.collectAsState()
@@ -20,6 +21,7 @@ fun DistanceDetailScreen(
         title = "Distância",
         description = "Esta tela reutiliza distância estimada já persistida no resumo diário. Quando faltarem dados pessoais, o valor permanece indisponível.",
         onNavigateBack = onNavigateBack,
+        backLabel = backLabel,
     ) {
         HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
             if (summary == null || summary.estimatedDistanceMeters == null) {

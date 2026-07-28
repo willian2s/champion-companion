@@ -35,6 +35,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +47,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.lifecycle.ViewModelProvider
+import br.com.mwconsulting.championcompanion.feature.calendar.CalendarDayScreen
 import br.com.mwconsulting.championcompanion.feature.calendar.CalendarScreen
 import br.com.mwconsulting.championcompanion.feature.device.DeviceScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesIntent
@@ -108,7 +113,9 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     val settingsViewModel = remember(activity) {
         ViewModelProvider(activity)[SettingsViewModel::class.java]
     }
-    val backStack = remember { mutableStateListOf<AppDestination>(AppDestination.Home) }
+    val backStack = rememberSaveable(saver = appBackStackSaver) {
+        mutableStateListOf<AppDestination>(AppDestination.Home)
+    }
     val currentDestination = backStack.lastOrNull()
     var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
@@ -117,10 +124,20 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     var animationDirection by remember { mutableStateOf(NavigationAnimationDirection.Forward) }
     val healthState by healthViewModel.state.collectAsState()
     val exercisesState by exercisesViewModel.state.collectAsState()
+    val contextualBackLabel = when {
+        backStack.contains(AppDestination.Calendar) && currentDestination != AppDestination.Calendar -> {
+            "Voltar para calendário"
+        }
+        backStack.dropLast(1).lastOrNull() == AppDestination.Health -> "Voltar para Saúde"
+        else -> "Voltar"
+    }
 
     fun navigateTo(destination: AppDestination) {
         animationDirection = NavigationAnimationDirection.Forward
         if (destination.isTopLevelDestination()) {
+            if (backStack.contains(AppDestination.Calendar)) {
+                backStack.removeCalendarDestinations()
+            }
             if (currentDestination.isHealthDestination()) {
                 backStack.removeHealthDestinations()
             }
@@ -293,12 +310,17 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         bottomBar = {
             NavigationBar {
                 val navigationBarScope = this
+                val isCalendarSubtree = backStack.contains(AppDestination.Calendar) &&
+                    currentDestination != AppDestination.Calendar
                 primaryItems.forEach { item ->
                     NavigationBarItem(
                         selected = if (item.destination == AppDestination.Health) {
-                            currentDestination.isHealthDestination()
+                            !isCalendarSubtree && currentDestination.isHealthDestination()
                         } else if (item.destination == AppDestination.Exercises) {
-                            currentDestination.isExercisesDestination()
+                            !isCalendarSubtree && currentDestination.isExercisesDestination()
+                        } else if (item.destination == AppDestination.Calendar) {
+                            currentDestination == AppDestination.Calendar ||
+                                (backStack.contains(AppDestination.Calendar) && currentDestination != AppDestination.Calendar)
                         } else {
                             currentDestination == item.destination
                         },
@@ -340,9 +362,10 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             onBackRequested = ::requestBackNavigation,
             onNavigateTo = ::requestNavigation,
             exercisesViewModel = exercisesViewModel,
-            settingsViewModel = settingsViewModel,
-            animationDirection = animationDirection,
-        )
+                settingsViewModel = settingsViewModel,
+                animationDirection = animationDirection,
+                backLabel = contextualBackLabel,
+            )
     }
 }
 
@@ -410,6 +433,7 @@ private fun ChampionNavDisplay(
     exercisesViewModel: ExercisesViewModel,
     settingsViewModel: SettingsViewModel,
     animationDirection: NavigationAnimationDirection,
+    backLabel: String,
 ) {
     AnimatedContent(
         targetState = currentDestination,
@@ -433,18 +457,31 @@ private fun ChampionNavDisplay(
                 onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
             )
             AppDestination.HealthHeartRate -> HeartRateDetailScreen(
-                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
             AppDestination.HealthWeight -> WeightDetailScreen(
-                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
             AppDestination.HealthSteps -> StepsDetailScreen(
-                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
             AppDestination.HealthDistance -> DistanceDetailScreen(
-                onNavigateBack = { onNavigateTo(AppDestination.Health) },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
-            AppDestination.Calendar -> CalendarScreen()
+            AppDestination.Calendar -> CalendarScreen(
+                onOpenDate = { localDate ->
+                    onNavigateTo(AppDestination.CalendarDay(localDate.toString()))
+                },
+            )
+            is AppDestination.CalendarDay -> CalendarDayScreen(
+                localDateIso = destination.localDateIso,
+                onNavigateBack = onBackRequested,
+                onNavigateTo = onNavigateTo,
+            )
             AppDestination.Exercises -> ExercisesScreen(
                 viewModel = exercisesViewModel,
                 onOpenActivity = { activityId ->
@@ -486,6 +523,13 @@ private fun MutableList<AppDestination>.removeExercisesDestinations() {
     removeAll { it.isExercisesDestination() }
 }
 
+private fun MutableList<AppDestination>.removeCalendarDestinations() {
+    val calendarIndex = indexOf(AppDestination.Calendar)
+    if (calendarIndex >= 0) {
+        repeat(size - calendarIndex) { removeAt(calendarIndex) }
+    }
+}
+
 private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
     AppDestination.Health,
     AppDestination.HealthHeartRate,
@@ -518,6 +562,7 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     -> true
 
     is AppDestination.ExerciseDetail,
+    is AppDestination.CalendarDay,
     AppDestination.HealthHeartRate,
     AppDestination.HealthWeight,
     AppDestination.HealthSteps,
@@ -558,3 +603,48 @@ private fun NavigationAnimationDirection.contentTransform(): ContentTransform {
 }
 
 private fun String.toWorkoutActivityId(): WorkoutActivityId = WorkoutActivityId(UUID.fromString(this))
+
+private val appBackStackSaver: Saver<SnapshotStateList<AppDestination>, Any> = listSaver(
+    save = { stack: SnapshotStateList<AppDestination> -> stack.map(AppDestination::toSaveToken) },
+    restore = { tokens: List<String> ->
+        mutableStateListOf<AppDestination>().apply {
+            addAll(tokens.mapNotNull(::fromSaveToken))
+            if (isEmpty()) add(AppDestination.Home)
+        }
+    },
+)
+
+private fun AppDestination.toSaveToken(): String = when (this) {
+    AppDestination.Home -> "home"
+    AppDestination.Health -> "health"
+    AppDestination.HealthHeartRate -> "health-heart-rate"
+    AppDestination.HealthWeight -> "health-weight"
+    AppDestination.HealthSteps -> "health-steps"
+    AppDestination.HealthDistance -> "health-distance"
+    AppDestination.Calendar -> "calendar"
+    is AppDestination.CalendarDay -> "calendar-day:$localDateIso"
+    AppDestination.Exercises -> "exercises"
+    is AppDestination.ExerciseDetail -> "exercise-detail:$activityId"
+    AppDestination.Device -> "device"
+    AppDestination.Profile -> "profile"
+    AppDestination.Settings -> "settings"
+}
+
+private fun fromSaveToken(token: String): AppDestination? = runCatching {
+    when {
+        token == "home" -> AppDestination.Home
+        token == "health" -> AppDestination.Health
+        token == "health-heart-rate" -> AppDestination.HealthHeartRate
+        token == "health-weight" -> AppDestination.HealthWeight
+        token == "health-steps" -> AppDestination.HealthSteps
+        token == "health-distance" -> AppDestination.HealthDistance
+        token == "calendar" -> AppDestination.Calendar
+        token.startsWith("calendar-day:") -> AppDestination.CalendarDay(token.removePrefix("calendar-day:"))
+        token == "exercises" -> AppDestination.Exercises
+        token.startsWith("exercise-detail:") -> AppDestination.ExerciseDetail(token.removePrefix("exercise-detail:"))
+        token == "device" -> AppDestination.Device
+        token == "profile" -> AppDestination.Profile
+        token == "settings" -> AppDestination.Settings
+        else -> null
+    }
+}.getOrNull()

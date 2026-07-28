@@ -1,8 +1,8 @@
 # 015 — Calendário e histórico consolidado local
 
-- **Status geral:** pending
+- **Status geral:** em andamento
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 8/14 subtarefas concluídas
+- **Progresso:** 9/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -11,7 +11,7 @@
 - Fase 13: adiada.
 - Fase 14: adiada.
 - Fase 15: próxima fase.
-- `CalendarScreen`: placeholder.
+- `CalendarScreen`: grade mensal local, seleção e entrada para detalhe diário.
 - Saúde: BPM funcional; passos e distância ainda shells.
 - Exercícios: atividades importadas, revisadas, calibradas e com detalhe
   reutilizável.
@@ -98,7 +98,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-05-implement-calendar-read-model-and-daily-consolidation.md](015-05-implement-calendar-read-model-and-daily-consolidation.md)
 - [x] [015-06-implement-temporal-viewmodels-and-isolate-history-shells.md](015-06-implement-temporal-viewmodels-and-isolate-history-shells.md)
 - [x] [015-07-implement-month-calendar-grid-markers-and-accessibility.md](015-07-implement-month-calendar-grid-markers-and-accessibility.md)
-- [ ] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
+- [x] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
 - [ ] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
 - [ ] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
 - [ ] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
@@ -136,8 +136,15 @@ registrada separadamente, com justificativa e decisão própria.
 - `015-14` foi adicionada para o novo requisito explícito de consolidar amostras
   reais de atividades não descartadas no histórico dedicado de frequência
   cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
-  usuário confirmou funcionamento esperado. Itens `015-08` a `015-13`
-  permanecem não iniciados.
+   usuário confirmou funcionamento esperado. Itens `015-09` a `015-13`
+   permanecem não iniciados.
+- `015-08` concluída com destino `CalendarDay(localDateIso)`, detalhe diário
+  local, navegação contextual para métricas e `ExerciseDetail`, back stack
+  persistível, estados seguros para falha da fila e screenshots no Galaxy S22.
+  Validação offline com Bluetooth desligado confirmou calendário, dia com dados,
+  dia sem dados, BPM, atividade, back e rotação; parsing externo inválido e
+  morte completa do processo permanecem riscos residuais documentados na
+  subtarefa.
 
 ## Validação manual
 

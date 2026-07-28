@@ -1,5 +1,7 @@
 package br.com.mwconsulting.championcompanion.core.navigation
 
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
@@ -39,6 +41,16 @@ sealed class AppDestination {
     @Serializable
     data object Calendar : AppDestination() {
         override val route = "calendar"
+    }
+
+    @Serializable
+    data class CalendarDay(val localDateIso: String) : AppDestination() {
+        override val route = "calendar/$localDateIso"
+
+        /** Invalid external/restored arguments remain renderable as safe UI state. */
+        fun parseLocalDateOrNull(): LocalDate? = runCatching {
+            LocalDate.parse(localDateIso, DateTimeFormatter.ISO_LOCAL_DATE)
+        }.getOrNull()
     }
 
     @Serializable
