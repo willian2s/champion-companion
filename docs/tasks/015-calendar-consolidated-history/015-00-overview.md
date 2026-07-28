@@ -2,7 +2,7 @@
 
 - **Status geral:** em andamento
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 10/14 subtarefas concluídas
+- **Progresso:** 11/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -12,7 +12,8 @@
 - Fase 14: adiada.
 - Fase 15: próxima fase.
 - `CalendarScreen`: grade mensal local, seleção e entrada para detalhe diário.
-- Saúde: BPM funcional; passos e distância ainda shells.
+- Saúde: BPM funcional; históricos locais de passos e distância funcionais,
+  aguardando dados de Perfil para exibir estimativas positivas de distância.
 - Exercícios: atividades importadas, revisadas, calibradas e com detalhe
   reutilizável.
 - Room: versão 5.
@@ -100,7 +101,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-07-implement-month-calendar-grid-markers-and-accessibility.md](015-07-implement-month-calendar-grid-markers-and-accessibility.md)
 - [x] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
 - [x] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
-- [ ] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
+- [x] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
 - [ ] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
 - [ ] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
 - [ ] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
@@ -130,20 +131,26 @@ registrada separadamente, com justificativa e decisão própria.
   reduziu células para 56 dp, removeu empilhamento visual de Hoje com marcadores
   e adicionou respiro interno entre grade e bordas do card. Indicadores finais
   usam pontos azul/verde/amarelo para passos, FC e atividade física.
-- Não há bloqueio para `015-09` ou `015-10`; status `Planejada` no cabeçalho de `012-00`,
+- Não há bloqueio para `015-11`; status `Planejada` no cabeçalho de `012-00`,
   status conflitante de `012-13` e evidência incompleta do Gate C permanecem
   riscos documentais da Fase 12.
 - `015-14` foi adicionada para o novo requisito explícito de consolidar amostras
   reais de atividades não descartadas no histórico dedicado de frequência
   cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
-   usuário confirmou funcionamento esperado. Itens `015-10` a `015-13`
-   permanecem não iniciados.
+    usuário confirmou funcionamento esperado. Itens `015-11` a `015-13`
+    permanecem não iniciados.
 - `015-09` concluída com ViewModel temporal local, períodos `7D`, `30D` e `90D`,
   métricas calculadas sem preencher lacunas, gráfico de barras acessível e lista
   no padrão do histórico de FC, ordenada do mais recente para o mais antigo e
   paginada em blocos de 10 dias. Validação no Galaxy S22 registrou seis lacunas,
   um registro abaixo da meta e screenshots de chips, gráfico, lista e paginação;
   zero real, TalkBack e rotação permanecem riscos manuais residuais.
+- `015-10` concluída com ViewModel temporal local, períodos `7D`, `30D` e `90D`,
+  agregados exclusivos de `DailySummary.estimatedDistanceMeters`, gráfico com
+  lacunas e lista acessível com origem, atualização e indicação de estimativa.
+  O Galaxy S22 não possui dados pessoais suficientes para produzir valores de
+  distância; estado vazio foi preservado e a validação com valores positivos
+  ficou registrada como débito D-015-10 para a implementação de Perfil.
 - `015-08` concluída com destino `CalendarDay(localDateIso)`, detalhe diário
   local, navegação contextual para métricas e `ExerciseDetail`, back stack
   persistível, estados seguros para falha da fila e screenshots no Galaxy S22.
@@ -151,6 +158,9 @@ registrada separadamente, com justificativa e decisão própria.
   dia sem dados, BPM, atividade, back e rotação; parsing externo inválido e
   morte completa do processo permanecem riscos residuais documentados na
   subtarefa.
+- Débito D-015-10: após implementar Perfil com altura ou passada válida, gerar e
+  persistir estimativas em `DailySummary.estimatedDistanceMeters` e repetir a
+  validação física do histórico de distância com dias estimados e sem estimativa.
 
 ## Validação manual
 

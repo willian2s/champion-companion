@@ -1,6 +1,6 @@
 # 015-10 — Implementar gráfico e lista de histórico de distância
 
-- **Status:** pending
+- **Status:** concluída em 28/07/2026.
 - **Objetivo:** transformar shell de distância em histórico local funcional.
 - **Resultado esperado:** períodos de 7, 30 e 90 dias usando exclusivamente
   distância estimada diária.
@@ -87,24 +87,79 @@ possui gráfico ou histórico.
 
 ## Arquivos alterados
 
-Inicialmente nenhum; registrar componentes e ViewModel de distância alterados.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/DistanceHistoryShell.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/DistanceHistoryChart.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/DistanceHistoryFeatureContract.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/DistanceHistoryViewModel.kt`;
+- `docs/tasks/015-calendar-consolidated-history/015-00-overview.md`;
+- este arquivo.
 
 ## Decisões e desvios
 
-Registrar tratamento de dias sem estimativa e qualquer desvio aprovado.
+- `DistanceHistoryViewModel` observa `CalendarRepository.observeDistanceHistory` com
+  `ZoneId` congelado e janela semiaberta incluindo o dia atual. A observação é
+  local e passiva; nenhum BLE, Health Connect, refresh ou sync é iniciado.
+- A UI oferece `7D`, `30D` e `90D`, calcula total, média e máximo somente de
+  `estimatedDistanceMeters` não nulos e mantém dias sem estimativa como lacunas.
+- O gráfico usa barras para valores e contornos para ausência. A lista é
+  ordenada do dia mais recente para o mais antigo, paginada em blocos de 10 e
+  informa data, valor em quilômetros, origem, última atualização e estimativa.
+- Distância permanece em metros no domínio e é convertida para quilômetros
+  somente na apresentação. Distância de atividades não participa dos agregados.
+- Desvio aprovado pelo usuário: como o dispositivo não possui dados pessoais
+  suficientes, valores de distância não puderam ser reproduzidos na validação
+  física. O estado vazio seguro foi preservado e a task foi concluída com o
+  débito registrado abaixo.
 
 ## Screenshot
 
-Exigido. Registrar gráfico, lista e estado sem estimativa.
+Não foi possível registrar screenshot de gráfico com valores: o dispositivo de
+validação não possui dados pessoais suficientes para produzir estimativas. O
+estado sem estimativa permanece coberto pela UI e deve ser fotografado junto com
+dados reais quando o débito de perfil for resolvido.
 
 ## Riscos residuais
 
 Usuário pode interpretar distância estimada como medida de exercício; origem e
 rótulo devem permanecer explícitos.
 
+- **Débito D-015-10:** implementar preenchimento/edição de perfil com dados
+  necessários à política de estimativa, especialmente altura ou passada válida,
+  e então recalcular/persistir `DailySummary.estimatedDistanceMeters`. Repetir
+  validação física de dias com estimativa e sem estimativa após essa entrega.
+- TalkBack, rotação e gráfico com valores positivos permanecem validações físicas
+  pendentes até haver perfil preenchido.
+
 ## Atualização do overview
 
-Marcar somente o item 015-10 após aceite de 015-06.
+Item `015-10` marcado `[x]`; progresso recalculado para `11/14`. Itens seguintes
+permanecem `[ ]` e nenhuma subtarefa seguinte foi iniciada.
+
+## Comandos executados
+
+- `./gradlew :app:compileDebugKotlin` — primeira execução falhou por importação
+  incorreta de `LocalActivity`; import corrigido e nova execução concluiu com
+  `BUILD SUCCESSFUL`;
+- `./gradlew app:lintDebug` — `BUILD SUCCESSFUL`;
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`;
+- `./gradlew installDebug` — `BUILD SUCCESSFUL`, APK instalado no `SM-S901E`;
+- `adb shell am force-stop br.com.mwconsulting.championcompanion.dev && adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity && adb shell dumpsys activity activities` — inicialização sem `launchFailed`;
+- `git diff --check` — sem erros.
+
+Não foram criados, alterados ou executados testes automatizados, conforme regra
+da spec e desta subtarefa.
+
+## Resultados e evidências
+
+- Compilação Kotlin, lint e assemblies debug/release concluíram com sucesso.
+- `installDebug` concluiu com sucesso no Galaxy S22 `SM-S901E`.
+- Smoke de inicialização confirmou `launchFailed=false`.
+- Implementação consome exclusivamente o snapshot local de
+  `DailySummary.estimatedDistanceMeters`; não soma distância de exercícios.
+- Ausência permanece distinta de zero em agregados, gráfico, lista e estado
+  vazio. Valores físicos com estimativa aguardam resolução do débito D-015-10.
+- Revisão independente aprovou o código condicionalmente; única pendência de
+  fechamento visual é validação com perfil preenchido e screenshot correspondente.
 
 ## Regra de testes
 
