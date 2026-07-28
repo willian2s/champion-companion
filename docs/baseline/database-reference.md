@@ -14,6 +14,10 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 - `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
 - Esta task de fechamento nao altera schema Room; apenas registra estado factual apos migration e fila funcional da fase.
 
+## Fechamento Factual Da Fase 12
+
+O fechamento de 2026-07-28 confirma que o banco próprio permanece em schema `v5`, sem migração adicional nesta task. A fila `health_sync_operations` continua fonte local de estado, tentativas e falhas; Health Connect permanece destino derivado write-only. Gate C físico foi concluído no Galaxy S22 e não alterou dados legados do MotionLog nem introduziu rota, coordenadas ou backup.
+
 Classificacao: itens de schema, SQL e fluxo marcados como `Confirmado pelo codigo`. Recomendacoes para banco novo sao `Decisao ja definida` quando derivam de roadmap/spec/ADR; demais sao `Inferido a partir do codigo`.
 
 ## Runtime E Evolucao Atual

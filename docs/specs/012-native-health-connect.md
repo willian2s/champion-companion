@@ -2,7 +2,7 @@
 
 ## Status
 
-Reaberta em 2026-07-28 para corrigir a identidade de sync por variante e repetir o Gate C afetado.
+Concluída em 2026-07-28 após corrigir a identidade de sync por variante e repetir o Gate C afetado.
 
 ## Contexto
 
@@ -790,6 +790,16 @@ A Fase 12 não implementa `WorkManager`, retry em background, foreground service
 - `lint`, `assembleDebug`, `assembleRelease` e `installDebug` concluídos na execução da fase;
 - Gate C físico validado;
 - documentação refletindo estado final.
+
+## Registro de execução do Gate C
+
+Execução física realizada em 2026-07-28 no Galaxy S22 `SM-S901E`, com debug `br.com.mwconsulting.championcompanion.dev` e provider real `com.google.android.apps.healthdata`.
+
+- builds `lint`, `assembleDebug`, `assembleRelease` e `installDebug` concluídos;
+- disponibilidade, origem debug, permissões parciais, BPM manual e rationale de privacidade confirmados;
+- refresh de passos, fila, D1, atividades, falha parcial, retry, preferência pausada, recuperação de processo, peso/altura quando elegíveis, ausência de `StepsRecord` de atividade e ausência de rota foram informados como funcionando na validação manual adicional do usuário;
+- builds e instalação debug permaneceram aprovados;
+- Gate C foi concluído; `012-14` está liberada para fechamento documental.
 
 ## Fora do escopo
 

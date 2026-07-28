@@ -1625,8 +1625,8 @@ Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 # Fase 12 — Health Connect nativo
 
-Status de fechamento: concluída em 24/07/2026. Gate C foi tratado como validado
-manualmente no Galaxy S22; evidências reproduzíveis permanecem incompletas.
+Status de fechamento: concluída em 28/07/2026. Gate C foi validado manualmente
+no Galaxy S22 com Health Connect real, após correção da identidade de sync por variante.
 
 ## Objetivo
 
