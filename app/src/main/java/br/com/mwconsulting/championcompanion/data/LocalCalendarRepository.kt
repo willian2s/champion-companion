@@ -32,6 +32,7 @@ import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncQueueObservation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
@@ -285,17 +286,19 @@ class LocalCalendarRepository @Inject constructor(
         }
 
         return localSources.flatMapLatest { localWindow ->
-            healthSyncRepository.observeForAggregates(localWindow.aggregateDates.keys).asSource(
+            healthSyncRepository.observeForAggregatesWithIntegrity(localWindow.aggregateDates.keys).asSource(
                 source = CalendarDataSource.HEALTH_SYNC_QUEUE,
-                fallback = emptyList(),
+                fallback = HealthSyncQueueObservation(),
             ).map { operationsSource ->
                 val expectedAggregates = localWindow.aggregateDates.keys
-                val matchingOperations = operationsSource.value
+                val matchingOperations = operationsSource.value.operations
                     .filter { it.key.aggregate in expectedAggregates }
                 val operations = matchingOperations
                     .distinctBy { it.id }
-                val hasUnresolvedAggregate = matchingOperations.size != operationsSource.value.size
-                val hasDuplicateOperation = operations.size != matchingOperations.size
+                val hasUnresolvedAggregate = operationsSource.value.hasUnresolvedAggregate ||
+                    matchingOperations.size != operationsSource.value.operations.size
+                val hasInvalidOperation = operationsSource.value.hasInvalidOperation ||
+                    operations.size != matchingOperations.size
                 localWindow.copy(
                     operations = operations,
                     issues = localWindow.issues +
@@ -311,7 +314,7 @@ class LocalCalendarRepository @Inject constructor(
                             emptySet()
                         } +
                         invalidIssueIf(
-                            invalid = hasDuplicateOperation,
+                            invalid = hasInvalidOperation,
                             source = CalendarDataSource.HEALTH_SYNC_QUEUE,
                         ),
                 )

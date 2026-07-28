@@ -2,7 +2,7 @@
 
 - **Status geral:** em andamento
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 11/14 subtarefas concluídas
+- **Progresso:** 12/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -102,7 +102,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
 - [x] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
 - [x] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
-- [ ] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
+- [x] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
 - [ ] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
 - [ ] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
 - [x] [015-14-include-workout-heart-rate-in-dedicated-history.md](015-14-include-workout-heart-rate-in-dedicated-history.md)
@@ -131,14 +131,16 @@ registrada separadamente, com justificativa e decisão própria.
   reduziu células para 56 dp, removeu empilhamento visual de Hoje com marcadores
   e adicionou respiro interno entre grade e bordas do card. Indicadores finais
   usam pontos azul/verde/amarelo para passos, FC e atividade física.
-- Não há bloqueio para `015-11`; status `Planejada` no cabeçalho de `012-00`,
-  status conflitante de `012-13` e evidência incompleta do Gate C permanecem
-  riscos documentais da Fase 12.
+- `015-11` foi escalada por integridade de aggregate/operação órfã inicialmente
+  fora do escopo e por validação manual incompleta; status `Planejada` no
+  cabeçalho de `012-00`, status conflitante de `012-13` e evidência incompleta
+  do Gate C permanecem riscos documentais da Fase 12.
 - `015-14` foi adicionada para o novo requisito explícito de consolidar amostras
   reais de atividades não descartadas no histórico dedicado de frequência
   cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
-    usuário confirmou funcionamento esperado. Itens `015-11` a `015-13`
-    permanecem não iniciados.
+  usuário confirmou funcionamento esperado. `015-11` foi concluída com aceite
+  de cobertura manual representativa; `015-12` e `015-13` permanecem não
+  iniciadas.
 - `015-09` concluída com ViewModel temporal local, períodos `7D`, `30D` e `90D`,
   métricas calculadas sem preencher lacunas, gráfico de barras acessível e lista
   no padrão do histórico de FC, ordenada do mais recente para o mais antigo e
@@ -158,6 +160,23 @@ registrada separadamente, com justificativa e decisão própria.
   dia sem dados, BPM, atividade, back e rotação; parsing externo inválido e
   morte completa do processo permanecem riscos residuais documentados na
   subtarefa.
+- `015-11` possui implementação visual concluída para os seis estados locais de
+  sync, degradação explícita, distinção entre falha de fonte e vazio nos
+  históricos e semântica adicional de seleção/paginação. Build completo,
+  instalação e parte das capturas no Galaxy S22 passaram. Em 28/07/2026, usuário
+  autorizou revisão restrita do escopo da própria subtarefa para corrigir o
+  pipeline que mascara aggregate ausente, operação órfã ou registro inválido.
+  Estão permitidas somente mudanças aditivas mínimas em contrato, consulta Room
+  somente leitura, repository e read model; schema, sync, provider, BLE, Health
+  Connect, WorkManager e testes permanecem proibidos. Correção observa a fila e
+  todos os candidatos em lote, usa os mappers de domínio e a projeção leve de
+  calendário como fontes autoritativas de validade estrutural e diagnostica
+  globalmente operação inválida ou aggregate não resolvido. Nenhum predicado SQL
+  tenta reproduzir regras dos mappers, nenhuma data vem de `syncedAt` e o schema
+  v5 permaneceu inalterado. Item foi concluído com aceite explícito de cobertura
+  manual representativa; estados não reproduzidos, erro/retry, TalkBack, foco e
+  contraste dinâmico permanecem riscos residuais. Escala 1,3x foi validada com
+  quebra de rótulos na navegação inferior.
 - Débito D-015-10: após implementar Perfil com altura ou passada válida, gerar e
   persistir estimativas em `DailySummary.estimatedDistanceMeters` e repetir a
   validação física do histórico de distância com dias estimados e sem estimativa.

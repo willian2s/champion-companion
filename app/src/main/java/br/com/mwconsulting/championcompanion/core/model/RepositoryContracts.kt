@@ -314,6 +314,16 @@ data class HealthSyncSummary(
     val lastSyncedAt: Instant? = null,
 )
 
+/**
+ * Leitura segura da fila para superfícies locais. Flags de integridade nunca
+ * carregam identificadores, payloads ou horários de sincronização.
+ */
+data class HealthSyncQueueObservation(
+    val operations: List<HealthSyncOperation> = emptyList(),
+    val hasInvalidOperation: Boolean = false,
+    val hasUnresolvedAggregate: Boolean = false,
+)
+
 data class HealthSyncBacklogReconciliationResult(
     val ensuredOperationCount: Int = 0,
     val repairedOperationCount: Int = 0,
@@ -331,6 +341,15 @@ interface HealthSyncRepository {
     /** Consulta em lote; data civil continua pertencendo ao aggregate, nunca à operação. */
     fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> =
         flowOf(emptyList())
+    /**
+     * Variante aditiva que preserva operações válidas e sinaliza degradação da
+     * fila sem atribuir operação órfã a uma data sintética.
+     */
+    fun observeForAggregatesWithIntegrity(
+        aggregates: Set<HealthSyncAggregate>,
+    ): Flow<HealthSyncQueueObservation> = observeForAggregates(aggregates).map { operations ->
+        HealthSyncQueueObservation(operations = operations)
+    }
     suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
     suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
     suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError, at: Instant): RepositoryResult<Unit>

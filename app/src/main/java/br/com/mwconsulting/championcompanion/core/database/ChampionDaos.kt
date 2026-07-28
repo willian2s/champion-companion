@@ -63,6 +63,12 @@ interface DeviceAssociationDao {
 
 @Dao
 interface UserProfileDao {
+    @Query("SELECT * FROM user_profiles ORDER BY id")
+    fun observeAllProfiles(): Flow<List<UserProfileEntity>>
+
+    @Query("SELECT * FROM weight_measurements ORDER BY id")
+    fun observeAllWeights(): Flow<List<WeightMeasurementEntity>>
+
     @Query("SELECT * FROM user_profiles WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): UserProfileEntity?
 
@@ -102,6 +108,9 @@ interface UserProfileDao {
 
 @Dao
 interface DailySummaryDao {
+    @Query("SELECT * FROM daily_summaries ORDER BY id")
+    fun observeAll(): Flow<List<DailySummaryEntity>>
+
     @Query("SELECT * FROM daily_summaries WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): DailySummaryEntity?
 
@@ -126,6 +135,9 @@ interface DailySummaryDao {
 
 @Dao
 interface HeartRateDao {
+    @Query("SELECT * FROM heart_rate_measurements ORDER BY id")
+    fun observeAll(): Flow<List<HeartRateMeasurementEntity>>
+
     @Query("SELECT * FROM heart_rate_measurements WHERE id = :id")
     suspend fun findById(id: String): HeartRateMeasurementEntity?
 
@@ -214,6 +226,18 @@ interface WorkoutActivityDao {
         fromEpochMillis: Long,
         untilEpochMillis: Long,
     ): Flow<List<CalendarWorkoutSummaryRecord>>
+
+    @Query(
+        "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
+            "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
+            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState " +
+            "FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE activity.workflowState != 'DISCARDED' " +
+            "ORDER BY activity.startedAtEpochMillis, activity.id",
+    )
+    fun observeAllCalendarSummaries(): Flow<List<CalendarWorkoutSummaryRecord>>
 
     @Query("SELECT activity.* FROM workout_activities activity INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id WHERE importRecord.deviceId = :deviceId AND importRecord.origin = :origin AND importRecord.crc = :crc")
     suspend fun findByImportKey(deviceId: String, origin: String, crc: Int): WorkoutActivityEntity?
@@ -374,6 +398,9 @@ interface AppWorkoutSessionDao {
 
 @Dao
 interface HealthSyncOperationDao {
+    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, id")
+    fun observeAll(): Flow<List<HealthSyncOperationEntity>>
+
     @Query("SELECT * FROM health_sync_operations WHERE id = :id")
     suspend fun findById(id: String): HealthSyncOperationEntity?
 

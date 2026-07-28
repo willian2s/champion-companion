@@ -30,6 +30,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncQueueObservation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartPoint
@@ -70,6 +71,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepositor
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
+import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -820,6 +822,62 @@ class RoomRepositories @Inject constructor(
     }
 
     override fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> {
+        return observeSyncEntitiesForAggregates(aggregates)
+            .map { entities -> entities.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+    }
+
+    override fun observeForAggregatesWithIntegrity(
+        aggregates: Set<HealthSyncAggregate>,
+    ): Flow<HealthSyncQueueObservation> {
+        return combine(
+            database.healthSyncOperationDao().observeAll(),
+            observeStructurallyValidHealthSyncAggregates(),
+        ) { allEntities, validAggregates ->
+            val validOperations = allEntities.mapNotNull { it.toDomain() }
+            HealthSyncQueueObservation(
+                operations = validOperations.filter { it.key.aggregate in aggregates },
+                hasInvalidOperation = validOperations.size != allEntities.size,
+                hasUnresolvedAggregate = validOperations.any { it.key.aggregate !in validAggregates },
+            )
+        }.flowOn(ioDispatcher)
+    }
+
+    private fun observeStructurallyValidHealthSyncAggregates(): Flow<Set<HealthSyncAggregate>> = combine(
+        database.dailySummaryDao().observeAll(),
+        database.heartRateDao().observeAll(),
+        database.workoutActivityDao().observeAllCalendarSummaries(),
+        database.userProfileDao().observeAllWeights(),
+        database.userProfileDao().observeAllProfiles(),
+    ) { dailySummaries, heartRates, workouts, weights, profiles ->
+        buildSet {
+            dailySummaries.mapNotNull { entity ->
+                try {
+                    entity.toDomain()
+                } catch (_: DateTimeException) {
+                    null
+                }
+            }.forEach { add(HealthSyncAggregate.DailySummary(it.id)) }
+            heartRates.mapNotNull { entity ->
+                try {
+                    entity.toDomain()
+                } catch (_: DateTimeException) {
+                    null
+                }
+            }.forEach { add(HealthSyncAggregate.HeartRateMeasurement(it.id)) }
+            workouts.mapNotNull { it.toCalendarSummary() }
+                .forEach { add(HealthSyncAggregate.WorkoutActivity(it.activityId)) }
+            weights.mapNotNull { it.toCalendarSummary() }
+                .forEach { add(HealthSyncAggregate.WeightMeasurement(it.measurementId)) }
+            profiles.mapNotNull { it.toDomain() }
+                .filter { it.heightCentimeters != null }
+                .forEach { add(HealthSyncAggregate.UserProfileHeight(it.id)) }
+        }
+    }
+
+    private fun observeSyncEntitiesForAggregates(
+        aggregates: Set<HealthSyncAggregate>,
+    ): Flow<List<HealthSyncOperationEntity>> {
         if (aggregates.isEmpty()) return flowOf(emptyList())
 
         val queries = aggregates
@@ -841,9 +899,8 @@ class RoomRepositories @Inject constructor(
         return combine(queries) { batches ->
             batches.asSequence()
                 .flatMap { it.asSequence() }
-                .mapNotNull { it.toDomain() }
                 .toList()
-        }.flowOn(ioDispatcher)
+        }
     }
 
     override suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =

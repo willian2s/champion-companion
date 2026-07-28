@@ -21,10 +21,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
@@ -34,6 +35,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
+import br.com.mwconsulting.championcompanion.core.model.CalendarDataSource
 import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.CalendarStepsHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
@@ -119,24 +121,36 @@ private fun StepsHistoryShell(
     }
 
     state.snapshot?.let { snapshot ->
+        val hasDailySummaryIssue = snapshot.issues.any { it.source == CalendarDataSource.DAILY_SUMMARY }
+        val hasConfirmedSteps = snapshot.aggregates.recordedDayCount > 0
         if (snapshot.issues.isNotEmpty()) {
             ErrorState(
-                title = "Dados parciais do histórico",
-                message = "Parte dos resumos locais não pôde ser consultada. Dias sem resumo permanecem sem dados.",
+                title = if (hasDailySummaryIssue && !hasConfirmedSteps) {
+                    "Histórico de passos indisponível"
+                } else {
+                    "Dados parciais do histórico"
+                },
+                message = if (hasDailySummaryIssue && !hasConfirmedSteps) {
+                    "A fonte de resumos locais não pôde ser consultada. Não é possível confirmar ausência de registros."
+                } else {
+                    "Parte das fontes locais não pôde ser consultada. Dados confirmados permanecem visíveis e lacunas não viram zero."
+                },
                 actionLabel = "Tentar novamente",
                 onAction = { onIntent(StepsHistoryIntent.Retry) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        StepsHistorySummary(snapshot)
-        HealthCard(title = "Gráfico", modifier = Modifier.fillMaxWidth()) {
-            StepsHistoryChart(
-                snapshot = snapshot,
-                modifier = Modifier.padding(top = ChampionSpacing.medium),
-            )
-        }
-        HealthCard(title = "Lista acessível", modifier = Modifier.fillMaxWidth()) {
-            StepsHistoryList(snapshot)
+        if (hasConfirmedSteps || !hasDailySummaryIssue) {
+            StepsHistorySummary(snapshot)
+            HealthCard(title = "Gráfico", modifier = Modifier.fillMaxWidth()) {
+                StepsHistoryChart(
+                    snapshot = snapshot,
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                )
+            }
+            HealthCard(title = "Lista acessível", modifier = Modifier.fillMaxWidth()) {
+                StepsHistoryList(snapshot)
+            }
         }
     }
 }
@@ -166,6 +180,7 @@ private fun StepsHistoryPeriodSelector(
                     .semantics {
                         this.selected = period == selected
                         contentDescription = "Últimos ${period.windowDays} dias"
+                        stateDescription = if (period == selected) "Selecionado" else "Não selecionado"
                     }
                 OutlinedButton(onClick = { onSelect(period) }, modifier = modifier) {
                     Text(
@@ -256,7 +271,11 @@ private fun StepsHistoryList(snapshot: CalendarStepsHistorySnapshot) {
             style = MaterialTheme.typography.bodyMedium,
         )
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Página ${currentPage + 1} de $totalPages. ${entries.size} dias no período."
+                },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {

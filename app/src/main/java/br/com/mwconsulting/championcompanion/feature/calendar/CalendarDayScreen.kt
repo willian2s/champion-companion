@@ -5,6 +5,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,8 +23,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
@@ -114,22 +121,30 @@ fun CalendarDayScreen(
                         )
                     }
 
-                    dayDetail != null -> CalendarDayContent(
-                        summary = dayDetail,
-                        locale = locale,
-                        onNavigateTo = onNavigateTo,
-                    )
+                    dayDetail != null -> {
+                        if (dayDetail.issues.isNotEmpty()) {
+                            ErrorState(
+                                title = "Dados parciais",
+                                message = "Parte das fontes locais não pôde ser consultada. Ausência, zero e falha permanecem estados distintos.",
+                                actionLabel = if (dayError?.isRetryable != false) "Tentar novamente" else null,
+                                onAction = if (dayError?.isRetryable != false) {
+                                    { calendarViewModel.onIntent(CalendarIntent.Retry) }
+                                } else {
+                                    null
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        CalendarDayContent(
+                            summary = dayDetail,
+                            locale = locale,
+                            onNavigateTo = onNavigateTo,
+                        )
+                    }
 
                     else -> EmptyState(
                         title = "Detalhe diário sem dados",
                         message = "Nenhum dado local foi encontrado para esta data.",
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (dayDetail?.issues?.isNotEmpty() == true) {
-                    ErrorState(
-                        title = "Dados parciais",
-                        message = "Parte das fontes locais não pôde ser consultada. Ausências não representam zero.",
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -292,12 +307,9 @@ private fun WorkoutDayCard(
             Text("Duração: ${workout.duration.toCalendarLabel()} • Distância: ${workout.distanceMeters.toDistanceLabel()}")
             Text("Calorias: ${workout.caloriesKilocalories.toNumberLabel()} • BPM médio: ${workout.averageBpm.toBpmLabel()}")
             Text("Workflow: ${workout.workflowState.toCalendarLabel()}")
-            Text(
-                if (syncUnavailable) {
-                    "Sync: indisponível — fila local parcial"
-                } else {
-                    "Sync: ${workout.syncSummary.state.toCalendarLabel()}"
-                },
+            Text("Status da fila local", style = MaterialTheme.typography.labelLarge)
+            CalendarLocalSyncStatus(
+                state = workout.syncSummary.state.takeUnless { syncUnavailable },
             )
             Text("Abrir detalhe da atividade", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
@@ -334,21 +346,77 @@ private fun WeightDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
 @Composable
 private fun SyncDayCard(day: CalendarDaySummary) {
     val summary = day.syncSummary
-    DayCard(title = "Sincronização local") {
-        if (day.hasIssue(CalendarDataSource.HEALTH_SYNC_QUEUE)) {
-            Text("Status indisponível", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+    val syncUnavailable = day.hasIssue(CalendarDataSource.HEALTH_SYNC_QUEUE)
+    DayCard(title = "Fila local de sincronização") {
+        CalendarLocalSyncStatus(
+            state = summary.state.takeUnless { syncUnavailable },
+        )
+        if (syncUnavailable) {
             Text(
-                "A fila local não pôde ser consultada integralmente. Não é possível afirmar sem operações, pendência ou sucesso.",
+                "A fila local não pôde ser consultada integralmente ou contém operação sem dado local relacionado. Nenhum sucesso foi presumido.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else if (summary.operationCount == 0) {
-            Text(summary.state.toCalendarLabel(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text("Sem operações locais para esta data.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            Text(summary.state.toCalendarLabel(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text("Pendentes ${summary.pendingCount} • Sincronizando ${summary.syncingCount} • Falhas ${summary.failedCount} • Sincronizados ${summary.syncedCount}")
         }
-        Text("Status derivado somente da fila local; não confirma aggregate ausente.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            "Status derivado somente da fila local. Falhas não removem dados locais e nenhuma sincronização é iniciada nesta tela.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun CalendarLocalSyncStatus(
+    state: CalendarSyncState?,
+    modifier: Modifier = Modifier,
+) {
+    val label = state?.toCalendarLabel() ?: "Status indisponível"
+    val containerColor = when (state) {
+        CalendarSyncState.NO_OPERATIONS -> MaterialTheme.colorScheme.surfaceContainerHighest
+        CalendarSyncState.PENDING -> MaterialTheme.colorScheme.tertiaryContainer
+        CalendarSyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer
+        CalendarSyncState.SYNCED -> MaterialTheme.colorScheme.primaryContainer
+        CalendarSyncState.FAILED, null -> MaterialTheme.colorScheme.errorContainer
+        CalendarSyncState.PARTIAL -> MaterialTheme.colorScheme.inverseSurface
+    }
+    val contentColor = when (state) {
+        CalendarSyncState.NO_OPERATIONS -> MaterialTheme.colorScheme.onSurfaceVariant
+        CalendarSyncState.PENDING -> MaterialTheme.colorScheme.onTertiaryContainer
+        CalendarSyncState.SYNCING -> MaterialTheme.colorScheme.onSecondaryContainer
+        CalendarSyncState.SYNCED -> MaterialTheme.colorScheme.onPrimaryContainer
+        CalendarSyncState.FAILED, null -> MaterialTheme.colorScheme.onErrorContainer
+        CalendarSyncState.PARTIAL -> MaterialTheme.colorScheme.inverseOnSurface
+    }
+    val indicator = when (state) {
+        CalendarSyncState.NO_OPERATIONS -> "—"
+        CalendarSyncState.PENDING -> "…"
+        CalendarSyncState.SYNCING -> "↻"
+        CalendarSyncState.SYNCED -> "✓"
+        CalendarSyncState.FAILED, null -> "!"
+        CalendarSyncState.PARTIAL -> "◐"
+    }
+
+    Surface(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = "Status da fila local"
+            stateDescription = label
+            liveRegion = LiveRegionMode.Polite
+        },
+        color = containerColor,
+        contentColor = contentColor,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = ChampionSpacing.medium, vertical = ChampionSpacing.small),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(indicator, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
