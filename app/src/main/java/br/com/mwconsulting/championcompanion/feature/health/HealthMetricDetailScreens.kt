@@ -63,7 +63,6 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
-import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportSummary
@@ -270,86 +269,7 @@ fun WeightDetailScreen(
 }
 
 @Composable
-fun StepsDetailScreen(
-    onNavigateBack: () -> Unit,
-    healthViewModel: HealthViewModel = activityHealthViewModel(),
-) {
-    val state by healthViewModel.state.collectAsState()
-    val summary = state.todaySummary
-    MetricDetailScaffold(
-        title = "Passos",
-        description = "Esta tela reutiliza resumo diário persistido da Fase 07. Não cria nova sincronização nem inicia BLE ao abrir.",
-        onNavigateBack = onNavigateBack,
-    ) {
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
-            if (summary == null) {
-                HealthMetricEmptyState(message = "Nenhum resumo diário persistido foi encontrado para hoje.")
-            } else {
-                val progress = DailySummaryPolicy.progress(summary.steps, state.dailyStepsGoal)
-                MetricValueBlock(
-                    value = "${numberFormat().format(summary.steps)} passos",
-                    supporting = "Meta ${numberFormat().format(progress.goal)} • ${(progress.progress * 100f).roundToInt()}%",
-                    extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
-                )
-                LinearProgressIndicator(
-                    progress = { progress.progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
-                )
-            }
-        }
-        HealthMetricChartSection(
-            title = "Gráfico",
-            message = "Gráficos de passos ficam para a fase de calendário e histórico consolidado.",
-        )
-        HealthMetricHistorySection(
-            title = "Histórico",
-            emptyMessage = "Histórico completo de passos ainda não faz parte desta fase.",
-        )
-    }
-}
-
-@Composable
-fun DistanceDetailScreen(
-    onNavigateBack: () -> Unit,
-    healthViewModel: HealthViewModel = activityHealthViewModel(),
-) {
-    val state by healthViewModel.state.collectAsState()
-    val summary = state.todaySummary
-    MetricDetailScaffold(
-        title = "Distância",
-        description = "Esta tela reutiliza distância estimada já persistida no resumo diário. Quando faltarem dados pessoais, o valor permanece indisponível.",
-        onNavigateBack = onNavigateBack,
-    ) {
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
-            if (summary == null || summary.estimatedDistanceMeters == null) {
-                HealthMetricEmptyState(
-                    message = if (summary == null) {
-                        "Nenhum resumo diário persistido foi encontrado para hoje."
-                    } else {
-                        "A distância de hoje está indisponível porque ainda faltam dados pessoais suficientes para a estimativa."
-                    },
-                )
-            } else {
-                MetricValueBlock(
-                    value = "${decimalFormat().format(summary.estimatedDistanceMeters / 1000.0)} km",
-                    supporting = "Estimativa de hoje",
-                    extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
-                )
-            }
-        }
-        HealthMetricChartSection(
-            title = "Gráfico",
-            message = "Gráficos de distância ficam para a fase de calendário e histórico consolidado.",
-        )
-        HealthMetricHistorySection(
-            title = "Histórico",
-            emptyMessage = "Histórico completo de distância ainda não faz parte desta fase.",
-        )
-    }
-}
-
-@Composable
-private fun MetricDetailScaffold(
+internal fun MetricDetailScaffold(
     title: String,
     description: String,
     onNavigateBack: () -> Unit,
@@ -1165,7 +1085,7 @@ private fun RecentMeasurementsList(measurements: List<HeartRateMeasurement>) {
 }
 
 @Composable
-private fun HealthMetricChartSection(
+internal fun HealthMetricChartSection(
     title: String,
     message: String,
 ) {
@@ -1175,7 +1095,7 @@ private fun HealthMetricChartSection(
 }
 
 @Composable
-private fun HealthMetricHistorySection(
+internal fun HealthMetricHistorySection(
     title: String,
     emptyMessage: String,
     content: (@Composable () -> Unit)? = null,
@@ -1190,7 +1110,7 @@ private fun HealthMetricHistorySection(
 }
 
 @Composable
-private fun HealthMetricEmptyState(message: String) {
+internal fun HealthMetricEmptyState(message: String) {
     Text(
         text = message,
         modifier = Modifier.padding(top = ChampionSpacing.medium),
@@ -1200,7 +1120,7 @@ private fun HealthMetricEmptyState(message: String) {
 }
 
 @Composable
-private fun MetricValueBlock(
+internal fun MetricValueBlock(
     value: String,
     supporting: String,
     extra: String? = null,
@@ -1228,7 +1148,7 @@ private fun MetricValueBlock(
 }
 
 @Composable
-private fun activityHealthViewModel(): HealthViewModel {
+internal fun activityHealthViewModel(): HealthViewModel {
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
     return remember(activity) {
         ViewModelProvider(activity)[HealthViewModel::class.java]
@@ -1383,7 +1303,7 @@ private fun formatHistoryDay(date: LocalDate): String {
     }
 }
 
-private fun formatDateTime(instant: Instant): String =
+internal fun formatDateTime(instant: Instant): String =
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(Locale.getDefault())
         .withZone(ZoneId.systemDefault())
