@@ -36,6 +36,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateChartResolution
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartSeries
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryEntry
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryOrigin
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryQuery
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
@@ -390,17 +391,50 @@ class RoomRepositories @Inject constructor(
                 chart = HeartRateChartSeries(resolution = chartResolutionFor(query.period)),
             ))
         }
-        return database.heartRateDao()
-            .observeValidHistoryBetween(
+        val measurementSources = sources.intersect(HISTORY_MEASUREMENT_SOURCES)
+        val measurements = if (measurementSources.isEmpty()) {
+            flowOf(emptyList())
+        } else {
+            database.heartRateDao().observeValidHistoryBetween(
                 fromEpochMillis = window.fromInclusive.toEpochMilli(),
                 untilEpochMillis = window.untilExclusive.toEpochMilli(),
-                sources = sources.mapTo(linkedSetOf()) { it.name },
+                sources = measurementSources.mapTo(linkedSetOf()) { it.name },
             )
-            .map { entities ->
+        }
+        val workoutEntries = if (HeartRateSource.WATCH_WORKOUT_ACTIVITY in sources) {
+            database.workoutDetailDao().observeHeartRateHistoryBetween(
+                fromEpochMillis = window.fromInclusive.toEpochMilli(),
+                untilEpochMillis = window.untilExclusive.toEpochMilli(),
+            ).map { records ->
+                records.mapNotNull { record ->
+                    if (record.bpm !in 30..220) return@mapNotNull null
+                    val activityId = parseUuid(record.activityId)?.let(::WorkoutActivityId)
+                        ?: return@mapNotNull null
+                    HeartRateHistoryEntry(
+                        origin = HeartRateHistoryOrigin.WorkoutActivitySample(
+                            activityId = activityId,
+                            activityTitle = record.activityTitle,
+                            suggestedType = enumValueOfOrNull<WorkoutType>(record.suggestedType)
+                                ?: WorkoutType.UNKNOWN,
+                            confirmedType = record.confirmedType?.let {
+                                enumValueOfOrNull<WorkoutType>(it)
+                            },
+                        ),
+                        measuredAt = Instant.ofEpochMilli(record.sampledAtEpochMillis),
+                        bpm = record.bpm,
+                        source = HeartRateSource.WATCH_WORKOUT_ACTIVITY,
+                    )
+                }
+            }
+        } else {
+            flowOf(emptyList())
+        }
+        return combine(measurements, workoutEntries) { measurementEntities, activityEntries ->
                 buildHeartRateHistorySnapshot(
                     period = query.period,
                     zoneId = query.zoneId,
-                    measurements = entities.mapNotNull { it.toDomain() },
+                    measurements = measurementEntities.mapNotNull { it.toDomain() },
+                    workoutEntries = activityEntries,
                 )
             }
             .flowOn(ioDispatcher)
@@ -1361,24 +1395,31 @@ internal fun buildHeartRateHistorySnapshot(
     period: HeartRateHistoryPeriod,
     zoneId: ZoneId,
     measurements: List<HeartRateMeasurement>,
+    workoutEntries: List<HeartRateHistoryEntry> = emptyList(),
 ): HeartRateHistorySnapshot {
     val validMeasurements = measurements.filter { measurement ->
         measurement.validity == br.com.mwconsulting.championcompanion.core.model.DataValidity.VALID &&
             measurement.measuredAt != null &&
-            measurement.source in HISTORY_ALLOWED_SOURCES
+            measurement.source in HISTORY_MEASUREMENT_SOURCES
     }
-    val entries = validMeasurements.mapNotNull { measurement ->
+    val measurementEntries = validMeasurements.mapNotNull { measurement ->
         val measuredAt = measurement.measuredAt ?: return@mapNotNull null
         HeartRateHistoryEntry(
-            measurementId = measurement.id,
+            origin = HeartRateHistoryOrigin.PersistedMeasurement(measurement.id),
             measuredAt = measuredAt,
             bpm = measurement.bpm,
             source = measurement.source,
         )
     }
+    val entries = measurementEntries + workoutEntries.filter { entry ->
+        entry.source == HeartRateSource.WATCH_WORKOUT_ACTIVITY && entry.bpm in 30..220
+    }
     return HeartRateHistorySnapshot(
         period = period,
-        entries = entries.sortedByDescending { it.measuredAt },
+        entries = entries.sortedWith(
+            compareByDescending<HeartRateHistoryEntry> { it.measuredAt }
+                .thenBy { it.source.name },
+        ),
         aggregates = buildHeartRateHistoryAggregates(entries),
         chart = buildHeartRateChartSeries(period, zoneId, entries),
     )
@@ -1526,6 +1567,12 @@ private fun WorkoutActivityFilter.toStoredWorkflowStates(): List<String> = when 
 }
 
 private val HISTORY_ALLOWED_SOURCES: Set<HeartRateSource> = setOf(
+    HeartRateSource.MANUAL_MEASUREMENT,
+    HeartRateSource.WATCH_D1_HISTORY,
+    HeartRateSource.WATCH_WORKOUT_ACTIVITY,
+)
+
+private val HISTORY_MEASUREMENT_SOURCES: Set<HeartRateSource> = setOf(
     HeartRateSource.MANUAL_MEASUREMENT,
     HeartRateSource.WATCH_D1_HISTORY,
 )

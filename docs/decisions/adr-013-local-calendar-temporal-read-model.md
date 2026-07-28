@@ -11,7 +11,8 @@ Aceita
 ## Contexto
 
 As Fases 07 a 12 persistiram dados locais suficientes para uma visão temporal:
-resumos diários, frequência cardíaca manual e D1, atividades importadas,
+resumos diários, frequência cardíaca manual e D1, amostras de frequência
+cardíaca de atividades importadas,
 revisadas e calibradas, peso e operações locais de sincronização. Room permanece
 a fonte operacional e visual primária. Health Connect é write-only e não deve
 ser consultado para formar telas.
@@ -91,6 +92,7 @@ Cada fonte será associada à data civil conforme seu próprio agregado:
 |---|---|
 | `DailySummary` | `key.localDate` |
 | `HeartRateMeasurement` | `measuredAt` convertido no `ZoneId` selecionado |
+| amostra de `WorkoutActivity` | `sampledAt` convertido no `ZoneId` selecionado |
 | `WorkoutActivity` | `startedAt` convertido no `ZoneId` selecionado |
 | `WeightMeasurement` | `measuredAt` convertido no `ZoneId` selecionado |
 | `HealthSyncOperation` | data do agregado local relacionado |
@@ -144,8 +146,14 @@ formação de um snapshot.
 - Passos e distância de atividades não participam dos totais diários.
 - A meta vem de `AppPreferences.dailyStepsGoal` e deve ser rotulada **Meta
   atual**; não existe meta histórica nesta fase.
-- BPM consolida somente `MANUAL_MEASUREMENT` e `WATCH_D1_HISTORY`, excluindo
-  amostras internas de atividades.
+- O histórico dedicado de frequência cardíaca da tela Saúde consolida
+  `MANUAL_MEASUREMENT`, `WATCH_D1_HISTORY` e `WATCH_WORKOUT_ACTIVITY`.
+  Amostras de atividade são lidas da tabela própria, somente para atividades não
+  `DISCARDED`, preservam vínculo com a atividade e nunca são copiadas ou
+  representadas como `HeartRateMeasurement`.
+- O resumo de BPM do detalhe diário do calendário permanece limitado a
+  `MANUAL_MEASUREMENT` e `WATCH_D1_HISTORY`; a extensão de
+  `WATCH_WORKOUT_ACTIVITY` pertence somente ao histórico dedicado de Saúde.
 - Atividades não `DISCARDED` permanecem visíveis, inclusive pendentes de revisão
   ou calibração, associadas por `startedAt`.
 - O detalhe de atividade existente será reutilizado; o calendário não duplica

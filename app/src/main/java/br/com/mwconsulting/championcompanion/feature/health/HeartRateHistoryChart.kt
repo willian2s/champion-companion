@@ -65,7 +65,7 @@ internal fun HeartRateHistoryChart(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Use medição manual ou importação D1 para ver tendências.",
+                text = "Use medição manual, importação D1 ou atividades do relógio para ver tendências.",
                 modifier = Modifier.padding(top = ChampionSpacing.small),
                 color = onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,

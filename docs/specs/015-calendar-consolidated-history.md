@@ -8,7 +8,8 @@
 ## Contexto
 
 As Fases 07 a 12 deixaram dados locais persistidos para resumos diários, passos,
-distância estimada, frequência cardíaca manual e D1, atividades importadas,
+distância estimada, frequência cardíaca manual e D1, amostras de frequência
+cardíaca de atividades importadas,
 revisão e calibração de atividades, peso e fila local de Health Connect. Saúde
 possui shells de passos e distância; Calendário ainda é placeholder.
 
@@ -23,8 +24,9 @@ local, sem iniciar coleta, sincronização ou escrita de dados.
 - O provider não é consultado para formar telas.
 - `DailySummary`, `HeartRateMeasurement`, `WorkoutActivity`,
   `WeightMeasurement` e `HealthSyncOperation` já existem no domínio/Room.
-- Histórico local de BPM já suporta `MANUAL_MEASUREMENT` e
-  `WATCH_D1_HISTORY` com janela semiaberta.
+- Histórico local dedicado de BPM já suporta `MANUAL_MEASUREMENT` e
+  `WATCH_D1_HISTORY` com janela semiaberta; a subtarefa 015-14 deve incluir
+  também `WATCH_WORKOUT_ACTIVITY` a partir das amostras de atividades persistidas.
 - `CalendarScreen` é placeholder e não há `CalendarRepository` ou
   `CalendarViewModel`.
 - Passos e distância possuem apenas detalhes atuais e shells de histórico.
@@ -158,16 +160,25 @@ Dia sem estimativa permanece ausente/indisponível, não zero sintético.
 
 ### BPM
 
-Consolidar somente fontes:
+No histórico dedicado de frequência cardíaca da tela Saúde, consolidar somente
+fontes reais persistidas:
 
 ```text
 MANUAL_MEASUREMENT
 WATCH_D1_HISTORY
+WATCH_WORKOUT_ACTIVITY
 ```
 
-Calcular quantidade, média, mínimo, máximo e última medição. Não misturar
-amostras de atividades. Reutilizar a semântica de validade e janela do
-histórico local já existente.
+Calcular quantidade, média, mínimo, máximo e última leitura. Para
+`WATCH_WORKOUT_ACTIVITY`, ler diretamente `workout_heart_rate_samples` somente
+quando a atividade importada associada não estiver `DISCARDED`, usando
+`sampledAt` na janela semiaberta. Não copiar, duplicar ou fingir essas amostras
+como `HeartRateMeasurement`; o read model deve preservar identidade e contexto
+da atividade. Reutilizar a semântica de validade e janela do histórico local já
+existente para fontes manual e D1.
+O resumo de BPM do detalhe diário do calendário permanece limitado às fontes
+manuais e D1 previstas nesta fase; esta inclusão vale para a página dedicada de
+frequência cardíaca.
 
 ### Atividades
 
@@ -465,8 +476,12 @@ rotulada **Meta atual**, sem afirmar que era a meta histórica daquela data.
 ### BPM
 
 O resumo diário de BPM contém quantidade, média, mínimo, máximo e última
-medição, apenas de registros válidos com timestamp dentro da janela. Amostras
-de atividade continuam somente nos detalhes das atividades.
+medição, apenas de registros válidos com timestamp dentro da janela, mantendo
+as fontes manual e D1 previstas pelo read model do calendário. Amostras de
+atividade permanecem somente no histórico dedicado da tela de frequência
+cardíaca: vêm diretamente de `workout_heart_rate_samples`, permanecem
+vinculadas à atividade importada não descartada e não são materializadas em
+`heart_rate_measurements`.
 
 ### Atividades
 
@@ -522,6 +537,7 @@ Arquivos prováveis:
 - `data/RoomRepositories.kt` ou novo `LocalCalendarRepository.kt`;
 - `data/RepositoryModule.kt`;
 - `feature/health/HealthMetricDetailScreens.kt` e estados isolados;
+- `feature/health/HeartRateHistoryChart.kt`;
 - `core/navigation/AppDestination.kt`;
 - `core/navigation/ChampionNavigation.kt`.
 
@@ -567,6 +583,7 @@ demonstrar necessidade obrigatória, hipótese não prevista.
 ```text
 015-01 → 015-02 → 015-03 → 015-04 → 015-05 → 015-06
                                                     ├→ 015-07 → 015-08 ─┐
+                                                    │         └→ 015-14 ┤
                                                     ├→ 015-09 ──────────┼→ 015-11 → 015-12 → 015-13
                                                     └→ 015-10 ──────────┘
 ```
@@ -609,7 +626,9 @@ Não criar, alterar ou executar testes automatizados.
 5. Múltiplos dispositivos nunca são somados.
 6. Passos e distância usam somente `DailySummary`.
 7. Ausência, zero e erro permanecem estados distintos.
-8. BPM contém somente manual e D1; amostras de atividade ficam fora.
+8. O resumo diário de BPM contém somente manual e D1; o histórico dedicado de
+   frequência cardíaca também inclui amostras reais de atividades importadas
+   não descartadas, vinculadas à atividade e fora de `heart_rate_measurements`.
 9. Atividades não descartadas aparecem no dia de `startedAt`.
 10. Peso existente pode aparecer no dia, sem edição ou histórico completo.
 11. Status de sync vem exclusivamente da fila local.
@@ -665,7 +684,8 @@ Não criar, alterar ou executar testes automatizados.
 | Detalhe diário e navegação | 015-08, 015-11 |
 | Passos e meta atual | 015-03, 015-05, 015-09 |
 | Distância diária | 015-03, 015-05, 015-10 |
-| BPM manual e D1 | 015-03, 015-04, 015-05, 015-08 |
+| BPM manual, D1 e atividade importada | 015-03, 015-04, 015-05, 015-08, 015-14 |
+| Histórico dedicado de FC com amostras de atividade | 015-14 |
 | Atividades e detalhe reutilizado | 015-04, 015-05, 015-08 |
 | Peso diário | 015-04, 015-05, 015-08 |
 | Fila local e estados de sync | 015-04, 015-05, 015-11 |

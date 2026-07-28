@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 7/13 subtarefas concluídas
+- **Progresso:** 8/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -42,6 +42,7 @@ acesso a BLE ou Health Connect.
 ```text
 015-01 → 015-02 → 015-03 → 015-04 → 015-05 → 015-06
                                                     ├→ 015-07 → 015-08 ─┐
+                                                    │         └→ 015-14 ┤
                                                     ├→ 015-09 ──────────┼→ 015-11 → 015-12 → 015-13
                                                     └→ 015-10 ──────────┘
 ```
@@ -59,6 +60,8 @@ acesso a BLE ou Health Connect.
 - 015-11 integra estados, acessibilidade e acabamento.
 - 015-12 valida manualmente offline.
 - 015-13 fecha documentação e fase.
+- 015-14 inclui amostras reais de FC de atividades no histórico dedicado e pode
+  ser executada após 015-07, sem depender de 015-08 a 015-10.
 
 ## Paralelismo
 
@@ -101,6 +104,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [ ] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
 - [ ] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
 - [ ] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
+- [x] [015-14-include-workout-heart-rate-in-dedicated-history.md](015-14-include-workout-heart-rate-in-dedicated-history.md)
 
 ## Observações
 
@@ -129,7 +133,11 @@ registrada separadamente, com justificativa e decisão própria.
 - Não há bloqueio para `015-09` ou `015-10`; status `Planejada` no cabeçalho de `012-00`,
   status conflitante de `012-13` e evidência incompleta do Gate C permanecem
   riscos documentais da Fase 12.
-- Nenhuma subtarefa posterior a `015-07` foi iniciada.
+- `015-14` foi adicionada para o novo requisito explícito de consolidar amostras
+  reais de atividades não descartadas no histórico dedicado de frequência
+  cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
+  usuário confirmou funcionamento esperado. Itens `015-08` a `015-13`
+  permanecem não iniciados.
 
 ## Validação manual
 

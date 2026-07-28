@@ -312,9 +312,35 @@ interface WorkoutDetailDao {
     @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis")
     suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
 
+    @Query(
+        "SELECT sample.activityId AS activityId, sample.sampledAtEpochMillis AS sampledAtEpochMillis, " +
+            "sample.bpm AS bpm, activity.title AS activityTitle, activity.suggestedType AS suggestedType, " +
+            "activity.confirmedType AS confirmedType " +
+            "FROM workout_heart_rate_samples sample " +
+            "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE sample.sampledAtEpochMillis >= :fromEpochMillis " +
+            "AND sample.sampledAtEpochMillis < :untilEpochMillis " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "ORDER BY sample.sampledAtEpochMillis DESC, sample.id DESC",
+    )
+    fun observeHeartRateHistoryBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutHeartRateHistoryRecord>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>)
 }
+
+data class WorkoutHeartRateHistoryRecord(
+    val activityId: String,
+    val sampledAtEpochMillis: Long,
+    val bpm: Int,
+    val activityTitle: String?,
+    val suggestedType: String,
+    val confirmedType: String?,
+)
 
 @Dao
 interface TreadmillCalibrationDao {

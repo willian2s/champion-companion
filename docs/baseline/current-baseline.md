@@ -15,7 +15,7 @@ Escopo factual atual já inclui:
 - resumo diário persistido via FEA1 fresco por pull-to-refresh, com merge atômico sem redução e `lastImportedAt` após import válido;
 - `ForegroundBleOperationGate` compartilhado entre refresh diário, medição manual, importação D1 e importação D3/D4;
 - medição manual de 60 segundos com D0/F002, persistência apenas do resultado final válido e último BPM persistido na Home;
-- tela de frequência cardíaca com card `Resumo atual` sem CTAs fixos, medição manual acessível somente na superfície própria e pull-to-refresh explícito para importação D1, com persistência idempotente, metadata dedicada, histórico consolidado manual + D1, agregações locais e gráfico funcional;
+- tela de frequência cardíaca com card `Resumo atual` sem CTAs fixos, medição manual acessível somente na superfície própria e pull-to-refresh explícito para importação D1, com persistência idempotente, metadata dedicada, histórico consolidado manual + D1 + amostras reais de atividades importadas não descartadas, agregações locais e gráfico funcional;
 - tela Exercícios com CTA explícita `Buscar treinos no relógio`, progresso, cancelamento, retry, deduplicação, retomada por CRC e por `deviceId + origin + startedAt` quando necessário;
 - lista de atividades importadas com filtros locais por workflow;
 - detalhe de atividade importada com revisão local, tipo confirmado, título, observações, gráfico de BPM, intervalos, calibração de esteira, descarte lógico e estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `SYNCED` e `SYNC_FAILED` observáveis;
@@ -68,7 +68,7 @@ Compose constrói UI; Hilt faz injeção; Coroutines e `StateFlow` modelam estad
 
 `feature/home` expõe `HomeViewModel`, `ChampionDailyStepsSyncCoordinator` e Home com resumo diário persistido, retry manual, timeout seguro, day rollover local, pull-to-refresh como ação principal, atalho para detalhe de frequência cardíaca e banner de pendências de atividades importadas.
 
-`feature/health` expõe `HealthViewModel`, hub de métricas, detalhe de frequência cardíaca com medição manual persistida na superfície própria, importação D1 explícita por pull-to-refresh, histórico consolidado, agregações e gráfico local; peso, passos e distância seguem usando dados já persistidos.
+`feature/health` expõe `HealthViewModel`, hub de métricas, detalhe de frequência cardíaca com medição manual persistida na superfície própria, importação D1 explícita por pull-to-refresh e histórico consolidado de manual, D1 e amostras reais de atividades importadas não descartadas, com agregações e gráfico local; peso, passos e distância seguem usando dados já persistidos.
 
 `feature/exercises` expõe fluxo D3/D4 funcional com coordinator foreground, `ExercisesViewModel`, CTA explícita, progresso textual, confirmação de saída, cancelamento em background, resultado seguro, filtros, lista, detalhe, revisão local, calibração e descarte lógico.
 

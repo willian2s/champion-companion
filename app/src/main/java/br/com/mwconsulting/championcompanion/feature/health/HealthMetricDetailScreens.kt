@@ -67,8 +67,10 @@ import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadat
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryEntry
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryOrigin
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
+import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -198,7 +200,7 @@ fun HeartRateDetailScreen(
                 ) {
                     MetricDetailHeader(
                         title = "Frequência cardíaca",
-                        description = "Esta tela concentra medição manual, importação D1 local, gráfico funcional e histórico consolidado sem iniciar BLE automaticamente.",
+                        description = "Esta tela concentra medição manual, importação D1 local e amostras reais de atividades do relógio em gráfico e histórico consolidados, sem iniciar BLE automaticamente.",
                     )
                     HeartRateOverviewCard(
                         state = state,
@@ -218,7 +220,7 @@ fun HeartRateDetailScreen(
                     )
                     HealthMetricHistorySection(
                         title = "Histórico completo",
-                        emptyMessage = "Ainda não há medições consolidadas para o período selecionado.",
+                        emptyMessage = "Ainda não há leituras consolidadas para o período selecionado.",
                     ) {
                         HeartRateHistoryList(
                             entries = state.history.entries,
@@ -555,7 +557,7 @@ private fun HeartRateChartHeadline(
             style = MaterialTheme.typography.bodyLarge,
         )
         Text(
-            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} medições válidas",
+            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} leituras válidas",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -604,7 +606,7 @@ private fun HeartRateChartAccessibleSummary(
         text = if (pointCount == 0) {
             "Resumo acessível: nenhum ponto disponível para ${periodToLabel(period).lowercase(locale)}."
         } else {
-            "Resumo acessível: ${numberFormat().format(measurementCount)} medições válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(locale)}."
+            "Resumo acessível: ${numberFormat().format(measurementCount)} leituras válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(locale)}."
         },
         modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -618,7 +620,7 @@ private fun HeartRateHistoryList(
     associatedDeviceName: String?,
 ) {
     if (entries.isEmpty()) {
-        HealthMetricEmptyState(message = "Ainda não há medições consolidadas para exibir neste período.")
+        HealthMetricEmptyState(message = "Ainda não há leituras consolidadas para exibir neste período.")
         return
     }
 
@@ -648,7 +650,7 @@ private fun HeartRateHistoryList(
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                text = "${numberFormat().format(entries.size)} medições",
+                text = "${numberFormat().format(entries.size)} leituras",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -678,6 +680,15 @@ private fun HeartRateHistoryList(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        (entry.origin as? HeartRateHistoryOrigin.WorkoutActivitySample)?.let { origin ->
+                            Text(
+                                text = "Atividade: ${origin.toHistoryActivityLabel()}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(ChampionSpacing.medium))
                     Text(
@@ -1325,6 +1336,18 @@ private fun br.com.mwconsulting.championcompanion.core.model.HeartRateSource.toF
     else -> toMeasurementSourceLabel()
 }
 
+private fun HeartRateHistoryOrigin.WorkoutActivitySample.toHistoryActivityLabel(): String =
+    activityTitle?.trim()?.takeIf { it.isNotEmpty() }
+        ?: (confirmedType ?: suggestedType).toHistoryWorkoutTypeLabel()
+
+private fun WorkoutType.toHistoryWorkoutTypeLabel(): String = when (this) {
+    WorkoutType.WALKING -> "Caminhada"
+    WorkoutType.RUNNING -> "Corrida"
+    WorkoutType.FREE_WORKOUT -> "Treino livre"
+    WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.UNKNOWN -> "Treino do relógio"
+}
+
 private fun buildLatestImportLabel(
     metadata: D1HeartRateImportMetadata,
     associatedDeviceName: String?,
@@ -1386,9 +1409,9 @@ private fun heartRateRangeSupportingText(
     entryCount: Int,
     pointsCount: Int,
 ): String = if (aggregates.measurementCount == 0) {
-    "Use medição manual ou importação D1 para ver tendências no período selecionado."
+    "Use medição manual, importação D1 ou atividades do relógio para ver tendências no período selecionado."
 } else {
-    "${numberFormat().format(entryCount)} medições válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
+    "${numberFormat().format(entryCount)} leituras válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
 }
 
 private fun buildRelativeDateRangeLabel(days: Long): String {
