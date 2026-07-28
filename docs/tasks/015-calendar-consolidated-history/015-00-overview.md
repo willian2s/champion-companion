@@ -2,7 +2,7 @@
 
 - **Status geral:** em andamento
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 9/14 subtarefas concluídas
+- **Progresso:** 10/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -99,7 +99,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-06-implement-temporal-viewmodels-and-isolate-history-shells.md](015-06-implement-temporal-viewmodels-and-isolate-history-shells.md)
 - [x] [015-07-implement-month-calendar-grid-markers-and-accessibility.md](015-07-implement-month-calendar-grid-markers-and-accessibility.md)
 - [x] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
-- [ ] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
+- [x] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
 - [ ] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
 - [ ] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
 - [ ] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
@@ -136,8 +136,14 @@ registrada separadamente, com justificativa e decisão própria.
 - `015-14` foi adicionada para o novo requisito explícito de consolidar amostras
   reais de atividades não descartadas no histórico dedicado de frequência
   cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
-   usuário confirmou funcionamento esperado. Itens `015-09` a `015-13`
+   usuário confirmou funcionamento esperado. Itens `015-10` a `015-13`
    permanecem não iniciados.
+- `015-09` concluída com ViewModel temporal local, períodos `7D`, `30D` e `90D`,
+  métricas calculadas sem preencher lacunas, gráfico de barras acessível e lista
+  no padrão do histórico de FC, ordenada do mais recente para o mais antigo e
+  paginada em blocos de 10 dias. Validação no Galaxy S22 registrou seis lacunas,
+  um registro abaixo da meta e screenshots de chips, gráfico, lista e paginação;
+  zero real, TalkBack e rotação permanecem riscos manuais residuais.
 - `015-08` concluída com destino `CalendarDay(localDateIso)`, detalhe diário
   local, navegação contextual para métricas e `ExerciseDetail`, back stack
   persistível, estados seguros para falha da fila e screenshots no Galaxy S22.
