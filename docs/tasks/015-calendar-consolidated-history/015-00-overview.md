@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 4/13 subtarefas concluídas
+- **Progresso:** 5/13 subtarefas concluídas
 
 ## Estado herdado
 
@@ -92,7 +92,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-02-formalize-local-calendar-read-model-adr-and-roadmap.md](015-02-formalize-local-calendar-read-model-adr-and-roadmap.md)
 - [x] [015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md](015-03-define-calendar-history-contracts-date-semantics-and-ui-state.md)
 - [x] [015-04-add-calendar-range-queries-and-repository-projections.md](015-04-add-calendar-range-queries-and-repository-projections.md)
-- [ ] [015-05-implement-calendar-read-model-and-daily-consolidation.md](015-05-implement-calendar-read-model-and-daily-consolidation.md)
+- [x] [015-05-implement-calendar-read-model-and-daily-consolidation.md](015-05-implement-calendar-read-model-and-daily-consolidation.md)
 - [ ] [015-06-implement-temporal-viewmodels-and-isolate-history-shells.md](015-06-implement-temporal-viewmodels-and-isolate-history-shells.md)
 - [ ] [015-07-implement-month-calendar-grid-markers-and-accessibility.md](015-07-implement-month-calendar-grid-markers-and-accessibility.md)
 - [ ] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
@@ -111,10 +111,13 @@ registrada separadamente, com justificativa e decisão própria.
 - `015-04` concluída com queries semiabertas de resumos, BPM, atividades e peso,
   projeção leve de atividades e consulta em lote da fila com chunking; schema v5
   permaneceu inalterado.
-- Não há bloqueio para `015-03`; status `Planejada` no cabeçalho de `012-00`,
+- `015-05` concluída com `LocalCalendarRepository` read-only, seleção
+  determinística de resumo por dispositivo, agrupamento temporal, composição em
+  lote das fontes locais e binding Hilt.
+- Não há bloqueio para `015-06`; status `Planejada` no cabeçalho de `012-00`,
   status conflitante de `012-13` e evidência incompleta do Gate C permanecem
   riscos documentais da Fase 12.
-- Nenhuma subtarefa posterior a `015-04` foi iniciada.
+- Nenhuma subtarefa posterior a `015-05` foi iniciada.
 
 ## Validação manual
 
@@ -131,8 +134,8 @@ Não criar, alterar ou executar testes automatizados.
   Fase 12; evidência do Gate C permanece incompleta.
 - Roadmap registra Fases 13 e 14 como adiadas e Fase 15 como próxima.
 - Query atual de resumo diário usa `BETWEEN` inclusivo.
-- Política de seleção de dispositivo está formalizada na ADR-013; implementação
-  ainda depende das subtarefas de contratos, queries e read model.
+- Política de seleção de dispositivo está formalizada na ADR-013 e implementada
+  no read model; exposição visual ainda depende das subtarefas seguintes.
 - `ExerciseDetail` é filho compartilhado e exige cuidado no back stack.
 - Índices preventivos não serão adicionados sem evidência de necessidade.
 - Timezone atual pode reprojetar atividades, BPM e peso para outra data civil.

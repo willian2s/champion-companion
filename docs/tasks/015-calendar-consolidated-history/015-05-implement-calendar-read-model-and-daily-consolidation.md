@@ -1,6 +1,6 @@
 # 015-05 — Implementar read model e consolidação diária
 
-- **Status:** pending
+- **Status:** concluída em 28/07/2026.
 - **Objetivo:** compor fontes locais em snapshots mensais, diários e históricos.
 - **Resultado esperado:** `LocalCalendarRepository` read-only, com política de
   datas, dispositivos, agregados e estados de sync centralizada.
@@ -96,11 +96,62 @@ datas, dispositivos, ausência, agregação e status de fila.
 
 ## Arquivos alterados
 
-Inicialmente nenhum; registrar novos modelos, repository e bindings DI alterados.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/LocalCalendarRepository.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RepositoryModule.kt`;
+- `docs/tasks/015-calendar-consolidated-history/015-00-overview.md`;
+- este arquivo.
 
 ## Decisões e desvios
 
-Registrar composição escolhida, desempates e qualquer desvio aprovado.
+- `LocalCalendarRepository` foi mantido separado de `RoomRepositories` e compõe
+  somente contratos locais existentes com `AppPreferencesRepository`.
+- Cada consulta congela `ZoneId` e deriva uma única janela semiaberta para as
+  fontes baseadas em `Instant`.
+- A seleção de resumo prefere o dispositivo associado e usa, como fallback,
+  `updatedAt` decrescente, `collectedAt` decrescente e ID estável crescente.
+  Resumos de dispositivos diferentes nunca são somados.
+- Operações de sincronização são observadas uma vez, em lote, para o conjunto de
+  aggregates presentes. A data é resolvida pelo aggregate local, nunca por
+  `syncedAt`.
+- Falhas de fontes são isoladas em `CalendarDataIssue`; cancelamento de
+  coroutines é preservado e mudanças do conjunto de aggregates cancelam a
+  observação anterior com `flatMapLatest`.
+- Valores ausentes permanecem ausentes. Zero persistido permanece dado real.
+  BPM usa somente medição manual e histórico D1; passos e distância usam somente
+  `DailySummary`.
+- Atividades e pesos recebem status de sincronização por aggregate. Atividades
+  ficam ordenadas por início e pesos da medida mais recente para a mais antiga.
+- Nenhum desvio aprovado. Não houve mudança em DAO, entity, schema, migration,
+  UI, navegação, BLE, Health Connect ou workflow.
+
+## Comandos executados
+
+- `./gradlew :app:compileDebugKotlin`;
+- `./gradlew :app:lintDebug`;
+- `./gradlew :app:assembleDebug :app:assembleRelease`;
+- `./gradlew lint assembleDebug assembleRelease`;
+- `./gradlew installDebug`;
+- `git diff --check`.
+
+Não foram criados, alterados ou executados testes automatizados, conforme regra
+da spec e desta subtarefa.
+
+## Resultados e evidências
+
+- `:app:compileDebugKotlin` concluiu com `BUILD SUCCESSFUL` em 14 segundos.
+- `:app:lintDebug` concluiu com `BUILD SUCCESSFUL` em 1 minuto.
+- Assemblies debug e release concluíram com `BUILD SUCCESSFUL` em 1 minuto e
+  4 segundos.
+- O gate completo `lint assembleDebug assembleRelease` concluiu com
+  `BUILD SUCCESSFUL`; 101 tasks, 1 executada e 100 `UP-TO-DATE`.
+- `installDebug` concluiu com `BUILD SUCCESSFUL` em 11 segundos e instalou o APK
+  no dispositivo `SM-S901E`.
+- Revisão independente confirmou modelos consolidados sem entities, seleção
+  determinística de no máximo um resumo por data, agrupamento por timezone,
+  exclusão de BPM de atividade, métricas diárias exclusivas de `DailySummary`,
+  ordenação de pesos, prioridade de distância da atividade e associação local
+  da fila em lote.
+- `git diff --check` concluiu sem erros.
 
 ## Screenshot
 
@@ -108,12 +159,18 @@ Não aplicável; task de read model.
 
 ## Riscos residuais
 
-Combinação de Flows pode mostrar estado transitório durante commits relacionados;
-registrar degradação parcial sem mascará-la como vazio.
+- Combinações de `Flow` podem emitir consistência transitória entre commits
+  relacionados; cada fonte falha de forma isolada e explícita, sem mascarar a
+  falha como vazio íntegro.
+- Após uma exceção de fonte, a emissão degradada permanece até nova assinatura
+  do fluxo, que será controlada pelo retry do ViewModel na subtarefa 015-06.
+- Consultas históricas grandes continuam sem índices preventivos; desempenho
+  deve ser observado antes de qualquer decisão de schema.
 
 ## Atualização do overview
 
-Marcar somente o item 015-05 após aceite de 015-04.
+Item `015-05` marcado `[x]`; progresso recalculado para `5/13`. Demais itens
+permanecem `[ ]` e nenhuma subtarefa seguinte foi iniciada.
 
 ## Regra de testes
 

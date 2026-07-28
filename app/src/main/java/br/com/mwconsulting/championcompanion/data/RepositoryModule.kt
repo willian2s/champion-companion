@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.data
 
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.CalendarRepository
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
@@ -28,5 +29,6 @@ object RepositoryModule {
     @Provides fun treadmillCalibrationRepository(source: RoomRepositories): TreadmillCalibrationRepository = source
     @Provides fun appWorkoutSessionRepository(source: RoomRepositories): AppWorkoutSessionRepository = source
     @Provides fun healthSyncRepository(source: RoomRepositories): HealthSyncRepository = source
+    @Provides fun calendarRepository(source: LocalCalendarRepository): CalendarRepository = source
     @Provides fun diagnosticPayloadRepository(source: RoomRepositories): DiagnosticPayloadRepository = source
 }
