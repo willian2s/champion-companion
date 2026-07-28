@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 6/13 subtarefas concluídas
+- **Progresso:** 7/13 subtarefas concluídas
 
 ## Estado herdado
 
@@ -94,7 +94,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-04-add-calendar-range-queries-and-repository-projections.md](015-04-add-calendar-range-queries-and-repository-projections.md)
 - [x] [015-05-implement-calendar-read-model-and-daily-consolidation.md](015-05-implement-calendar-read-model-and-daily-consolidation.md)
 - [x] [015-06-implement-temporal-viewmodels-and-isolate-history-shells.md](015-06-implement-temporal-viewmodels-and-isolate-history-shells.md)
-- [ ] [015-07-implement-month-calendar-grid-markers-and-accessibility.md](015-07-implement-month-calendar-grid-markers-and-accessibility.md)
+- [x] [015-07-implement-month-calendar-grid-markers-and-accessibility.md](015-07-implement-month-calendar-grid-markers-and-accessibility.md)
 - [ ] [015-08-implement-calendar-day-detail-and-navigation.md](015-08-implement-calendar-day-detail-and-navigation.md)
 - [ ] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
 - [ ] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
@@ -116,10 +116,14 @@ registrada separadamente, com justificativa e decisão própria.
   lote das fontes locais e binding Hilt.
 - `015-06` concluída com `CalendarViewModel` lifecycle-safe, observação passiva
   retryable e shells de passos/distância isolados em arquivos próprios.
-- Não há bloqueio para `015-07`, `015-09` ou `015-10`; status `Planejada` no cabeçalho de `012-00`,
+- `015-07` concluída com grade mensal própria, indicadores, seleção, navegação,
+  estados seguros e descrições acessíveis; screenshots e build registrados na
+  subtarefa. TalkBack falado e landscape permanecem riscos residuais, sem
+  bloqueio de contrato.
+- Não há bloqueio para `015-09` ou `015-10`; status `Planejada` no cabeçalho de `012-00`,
   status conflitante de `012-13` e evidência incompleta do Gate C permanecem
   riscos documentais da Fase 12.
-- Nenhuma subtarefa posterior a `015-06` foi iniciada.
+- Nenhuma subtarefa posterior a `015-07` foi iniciada.
 
 ## Validação manual
 
