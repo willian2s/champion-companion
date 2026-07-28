@@ -48,6 +48,8 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 `SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v5`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
+Registro de fechamento da Fase 11: revisão, calibração, descarte lógico e atividades locais até `READY_TO_SYNC` foram consolidados documentalmente. A validação física de 2026-07-28 confirmou build, instalação, lista, filtros, detalhe, métricas, gráfico, intervalos e persistência após reinício no Galaxy S22 `SM-S901E`, mas não reproduziu todos os estados pendentes porque o aparelho continha atividades `SYNCED`. Health Connect funcional pertence à Fase 12 e não altera a fronteira de responsabilidade da Fase 11.
+
 ## Ambiente e validação
 
 Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. O Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use exclusivamente o wrapper do repositório. Validação esperada para mudanças de código ou Gradle continua sendo `lint`, `assembleDebug`, `assembleRelease` e, para gates físicos das fases recentes, também `installDebug`.

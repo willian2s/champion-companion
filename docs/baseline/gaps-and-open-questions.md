@@ -42,6 +42,8 @@ Classificacao:
 - Backlog local herdado para Health Connect passou a ser reconciliado e processado por fila persistida foreground.
 - `SettingsScreen` deixou de ser placeholder, `healthSyncEnabled` participa de fluxo funcional e `ChampionDatabase` esta em `v5`.
 - G-08, G-09 e G-10 deixaram de ser lacunas centrais de implementacao da Fase 12 e passam a riscos residuais apenas para evolucoes futuras, regressao e validacoes adicionais de longo prazo.
+- A validação física de fechamento da Fase 11 confirmou telas, filtros, detalhe, métricas, gráfico, intervalos e persistência no Galaxy S22 `SM-S901E`, mas não reproduziu review, calibração, descarte, `PARTIAL` e banner de pendências por ausência desses estados no dispositivo.
+- Health Connect funcional observado no dispositivo pertence à Fase 12; a ausência registrada para Fase 11 é ausência de operação de sync própria, não ausência do provider no produto final.
 
 ## G-01 — GATT, Scan E Notifications
 

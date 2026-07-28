@@ -1491,6 +1491,8 @@ D3/D4 deverão funcionar com os mesmos treinos da baseline.
 
 # Fase 11 — Revisão e calibração das atividades
 
+**Status:** concluída em 28/07/2026. Fase termina em `READY_TO_SYNC`; sincronização Health Connect pertence à Fase 12.
+
 ## Objetivo
 
 Permitir revisão completa local e calibrar, quando necessário, até `READY_TO_SYNC`.

@@ -64,7 +64,7 @@ Fontes: `workouts-d3-d4.md`, `feature-inventory.md`, `database-reference.md`, `h
 
 - [x] D3 obtém indice de CRCs; D4 baixa blocos sequencialmente, com timeout, cleanup e sem retry interno nao documentado.
 - [x] Parser D4 produz data, horario, duracao, passos, distancia total/por intervalo, calorias, BPM total/por intervalo e min/media/max somente de valores validos.
-- [x] Dados incompletos preservam status de validacao; `partial` e `invalid` bloqueiam envio ate regra definida.
+- [x] Dados incompletos preservam status de validação; `PARTIAL` permanece elegível para revisão local e avanço até `READY_TO_SYNC`, enquanto estados realmente inválidos seguem bloqueados.
 - [ ] Importacoes guardam payload bruto e deduplicam por `device_id`, CRC e origem.
 - [x] Treino importado nasce `pending_review`, nunca sincroniza automaticamente e preserva resultado de revisao em reimportacao.
 - [x] Consulta e sincronizacao partem de acao do usuario; abrir app nao inicia D3/D4 automaticamente.
@@ -99,7 +99,7 @@ Fontes: `feature-inventory.md`, `health-connect-mapping.md`.
 - [x] Usuario informa tempo e distancia validos do painel; app recalcula fim, distancia, ritmo e velocidade segundo regra local escolhida, sem envio funcional ainda.
 - [x] Distancia calibrada, em metros, torna-se unica distancia usada no envio Health Connect de esteira.
 - [x] Treino importado revisado como esteira fica bloqueado de sync ate calibracao concluida.
-- [ ] Fator de calibracao separado nao e exigido nem declarado atingido: baseline nao o confirmou. Decisao futura deve definir calculo/persistencia, se necessario.
+- [x] Fator de calibração segue regra local documentada: usa distância original, fallback estimado ou permanece ausente sem invalidar a calibração; registro e métricas derivadas ficam persistidos localmente.
 
 ## Health Connect
 
