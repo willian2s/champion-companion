@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -41,6 +42,9 @@ private val VisualGuideBands = listOf(
     HeartRateGuideBand(71f, Color(0xFF4FC3F7)),
     HeartRateGuideBand(30f, Color(0xFF29B6F6)),
 )
+
+private val HeartRateChartLeftPadding = 12.dp
+private val HeartRateChartRightPadding = 40.dp
 
 @Composable
 internal fun HeartRateHistoryChart(
@@ -88,8 +92,8 @@ internal fun HeartRateHistoryChart(
                     contentDescription = "Gráfico de frequência cardíaca para ${periodToLabel(period)}. $chartDescription"
                 },
         ) {
-            val leftPadding = 12.dp.toPx()
-            val rightPadding = 40.dp.toPx()
+            val leftPadding = HeartRateChartLeftPadding.toPx()
+            val rightPadding = HeartRateChartRightPadding.toPx()
             val topPadding = 14.dp.toPx()
             val bottomPadding = 22.dp.toPx()
             val width = size.width - leftPadding - rightPadding
@@ -213,7 +217,11 @@ private fun XAxisLabels(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = ChampionSpacing.small),
+            .absolutePadding(
+                left = HeartRateChartLeftPadding,
+                top = ChampionSpacing.small,
+                right = HeartRateChartRightPadding,
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         labels.forEach { label ->

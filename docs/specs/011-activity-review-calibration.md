@@ -121,6 +121,7 @@ Atualização de `011-10`:
 - `ExercisesScreen.kt` agora já renderiza detalhe completo com cabeçalho, métricas, gráfico com amostras reais de BPM, intervalos e formulários de revisão/calibração.
 - A associação intervalo ↔ BPM agora usa janela temporal segura por duração acumulada do treino; quando não houver amostras na janela, a UI degrada para mensagem explícita sem inventar BPM.
 - Estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `PARTIAL`, `Loading`, `NotFound` e `Failed` agora já possuem representação dedicada no detalhe.
+- Correção visual de 2026-07-28: legendas horizontais dos gráficos de frequência cardíaca no histórico de Saúde e no detalhe de atividade passaram a usar os mesmos limites de `12 dp` à esquerda e `40 dp` à direita dos respectivos plots, sem alterar dados, escala ou contratos.
 
 Atualização de `011-11`:
 
