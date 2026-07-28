@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Planejada; liberada após conclusão de `012-15`.
 
 ## Objetivo
 
@@ -18,16 +18,19 @@ O design da fase depende de comportamento real de provider, permissões, `client
 - `docs/specs/012-native-health-connect.md`
 - `docs/tasks/012-native-health-connect/012-00-overview.md`
 - tasks `012-03` a `012-12`
+- `docs/tasks/012-native-health-connect/012-15-fix-health-connect-client-record-application-id-per-variant.md`
 
 ## Dependências
 
 - `012-12`.
+- `012-15`.
 
 ## Entradas
 
 - build debug instalável;
 - provider Health Connect real no Galaxy S22;
 - backlog local e UI da fase já concluídos.
+- correção por variante de `012-15` concluída e validada em build.
 
 ## Arquivos permitidos
 
@@ -69,20 +72,22 @@ O design da fase depende de comportamento real de provider, permissões, `client
 ## Passos
 
 1. Executar cenário de disponibilidade e provider.
-2. Executar cenário de permissões parciais.
-3. Executar passos com update idempotente.
-4. Executar BPM manual.
-5. Executar backlog D1.
-6. Executar atividade explícita e calibrada.
-7. Executar falha parcial e retry.
-8. Executar preferência pausada.
-9. Executar recuperação após morte de processo.
-10. Executar cenários de peso e altura, quando elegíveis.
-11. Registrar privacidade e screenshots.
+2. Confirmar que debug é reconhecido com origem `br.com.mwconsulting.championcompanion.dev`.
+3. Executar cenário de permissões parciais.
+4. Executar passos com update idempotente.
+5. Executar BPM manual.
+6. Executar backlog D1.
+7. Executar atividade explícita e calibrada.
+8. Executar falha parcial e retry.
+9. Executar preferência pausada.
+10. Executar recuperação após morte de processo.
+11. Executar cenários de peso e altura, quando elegíveis.
+12. Registrar privacidade e screenshots.
 
 ## Critérios de aceite
 
 - todos os cenários do Gate C ficam registrados com resultado obtido;
+- a origem debug fica reconhecida pelo provider após escrita real;
 - duplicação indevida não ocorre;
 - ausência de rota e ausência de `Steps` de atividade ficam confirmadas;
 - falha parcial é retomável sem apagar sessão sincronizada;

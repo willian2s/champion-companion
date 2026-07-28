@@ -2,7 +2,7 @@
 
 ## Status
 
-Concluída em 2026-07-24.
+Bloqueada pela repetição de `012-13` após `012-15`.
 
 ## Objetivo
 
@@ -112,6 +112,8 @@ A fase altera decisões arquiteturais duradouras, schema, UI, manifesto e integr
 
 ## Execução
 
+> Registro histórico do fechamento documental de 2026-07-24. A reabertura corretiva de 2026-07-28 não apaga trabalho válido, mas impede novo fechamento até conclusão de `012-15` e `012-13`.
+
 ### Arquivos atualizados
 
 - `docs/specs/012-native-health-connect.md`
@@ -135,6 +137,12 @@ A fase altera decisões arquiteturais duradouras, schema, UI, manifesto e integr
 - screenshots obrigatórias de tasks visuais da fase não foram consolidadas neste fechamento;
 - política futura de fator separado de calibração de esteira continua fora da fase;
 - temas de backup/restauração, cleanup avançado e Fase 14 continuam pendentes por escopo.
+
+## Reabertura corretiva
+
+- `012-15` corrige a identidade de sync por variante.
+- `012-13` deve repetir o Gate C e produzir evidência factual para debug.
+- Esta subtarefa permanece bloqueada e não deve ser executada em paralelo.
 
 ## Validação final
 

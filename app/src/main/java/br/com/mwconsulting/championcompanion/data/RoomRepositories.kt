@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.data
 import androidx.room3.withWriteTransaction
+import br.com.mwconsulting.championcompanion.BuildConfig
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
 import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
@@ -88,7 +89,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
 
-private const val SYNC_CLIENT_RECORD_APPLICATION_ID = "br.com.mwconsulting.championcompanion"
 private const val SQLITE_IN_CLAUSE_CHUNK_SIZE = 500
 
 @Singleton
@@ -1233,7 +1233,6 @@ class RoomRepositories @Inject constructor(
         existing: HealthSyncOperationEntity,
         metadata: ResolvedSyncMetadata,
     ): HealthSyncOperationEntity {
-        val repairedClientRecordId = metadata.clientRecordId ?: existing.clientRecordId
         val repairedVersion = when {
             existing.clientRecordVersion == null -> metadata.clientRecordVersion
             metadata.clientRecordVersion == null -> existing.clientRecordVersion
@@ -1246,6 +1245,13 @@ class RoomRepositories @Inject constructor(
                 metadata.clientRecordVersion != null &&
                 metadata.clientRecordVersion > existing.clientRecordVersion &&
                 existing.state != SyncOperationState.SYNCING.name
+        val repairedClientRecordId = when {
+            metadata.clientRecordId == null -> existing.clientRecordId
+            existing.state == SyncOperationState.SYNCED.name -> existing.clientRecordId
+            existing.state == SyncOperationState.PENDING.name ||
+                existing.state == SyncOperationState.FAILED.name -> metadata.clientRecordId
+            else -> existing.clientRecordId
+        }
         return existing.copy(
             state = if (shouldResetForNewVersion) SyncOperationState.PENDING.name else existing.state,
             attemptCount = if (shouldResetForNewVersion) 0 else existing.attemptCount,
@@ -1261,7 +1267,9 @@ class RoomRepositories @Inject constructor(
     }
 
     private fun HealthSyncOperationEntity.needsRepair(metadata: ResolvedSyncMetadata): Boolean =
-        (clientRecordId == null && metadata.clientRecordId != null) ||
+        (metadata.clientRecordId != null &&
+            state in setOf(SyncOperationState.PENDING.name, SyncOperationState.FAILED.name) &&
+            clientRecordId != metadata.clientRecordId) ||
             (clientRecordVersion == null && metadata.clientRecordVersion != null) ||
             (timeZoneId == null && metadata.timeZoneId != null) ||
             (createdAtEpochMillis == null && metadata.createdAtEpochMillis != null) ||
@@ -1288,7 +1296,7 @@ class RoomRepositories @Inject constructor(
     )
 
     private fun stableClientRecordId(key: HealthSyncOperationKey): String =
-        "$SYNC_CLIENT_RECORD_APPLICATION_ID:${key.aggregate.type.name}:${key.aggregate.id}:${key.recordType.name}"
+        "${BuildConfig.APPLICATION_ID}:${key.aggregate.type.name}:${key.aggregate.id}:${key.recordType.name}"
 
     private fun parseUuid(value: String): UUID? = br.com.mwconsulting.championcompanion.core.model.UuidV7.parse(value).valueOrNull()
 

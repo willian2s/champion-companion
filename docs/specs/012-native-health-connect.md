@@ -2,7 +2,7 @@
 
 ## Status
 
-Concluída em 2026-07-24.
+Reaberta em 2026-07-28 para corrigir a identidade de sync por variante e repetir o Gate C afetado.
 
 ## Contexto
 
@@ -115,6 +115,13 @@ Achados confirmados por `012-12`:
 - Saúde passou a expor sincronização do Health Connect como feedback subordinado ao sucesso local de medição manual, D1, passos e distância.
 - Exercícios passou a resumir estados de sync do Health Connect com segurança na lista e no detalhe, incluindo falha parcial e retry seguro.
 - falhas do provider não rebaixam sucesso local já persistido em nenhuma das três features.
+
+Achado corretivo registrado antes de `012-15`:
+
+- `RoomRepositories` usava o prefixo fixo `br.com.mwconsulting.championcompanion` na formação de todo `clientRecordId`;
+- a variante debug usa `applicationId` final `br.com.mwconsulting.championcompanion.dev`, portanto a implementação diverge desta spec e da ADR-012;
+- `012-15` passou a usar o `applicationId` final da variante, preservando chave natural, versão, fila, schema e comportamento release;
+- validação física debug direcionada confirmou passos reconhecidos pelo provider; demais dados continuam sincronizando. A repetição integral de `012-13` permanece necessária.
 
 ## SDK
 
@@ -830,3 +837,4 @@ A Fase 12 não implementa `WorkManager`, retry em background, foreground service
 | Feedback secundário em Home, Saúde e Exercícios | `012-12` |
 | Gate C físico | `012-13` |
 | Fechamento documental da fase | `012-14` |
+| Identidade de sync por variante | `012-15` |
