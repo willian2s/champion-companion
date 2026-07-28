@@ -2,6 +2,7 @@ package br.com.mwconsulting.championcompanion.feature.calendar
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -32,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -241,10 +245,16 @@ private fun MonthCalendar(
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(vertical = ChampionSpacing.small),
+            modifier = Modifier.padding(
+                horizontal = ChampionSpacing.small,
+                vertical = ChampionSpacing.small,
+            ),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
         ) {
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+            ) {
                 weekdays.forEach { dayOfWeek ->
                     Text(
                         text = dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
@@ -260,7 +270,10 @@ private fun MonthCalendar(
                 }
             }
             dates.chunked(7).forEach { week ->
-                Row(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+                ) {
                     week.forEach { date ->
                         if (date == null) {
                             EmptyCalendarCell()
@@ -286,7 +299,7 @@ private fun RowScope.EmptyCalendarCell() {
     Box(
         modifier = Modifier
             .weight(1f)
-            .heightIn(min = 64.dp),
+            .heightIn(min = 56.dp),
     )
 }
 
@@ -313,22 +326,21 @@ private fun RowScope.CalendarDayCell(
         presence?.hasSteps == true -> MaterialTheme.colorScheme.surfaceVariant
         else -> MaterialTheme.colorScheme.surface
     }
+    val cellContentColor = calendarCellContentColor(presence)
     val borderColor = when {
+        isToday -> cellContentColor
         isSelected -> MaterialTheme.colorScheme.primary
-        isToday -> MaterialTheme.colorScheme.outline
         else -> Color.Transparent
     }
     val borderWidth = when {
-        isSelected -> 3.dp
         isToday -> 2.dp
+        isSelected -> 3.dp
         else -> 0.dp
     }
-    val cellContentColor = calendarCellContentColor(presence)
-
     Surface(
         modifier = Modifier
             .weight(1f)
-            .heightIn(min = 64.dp)
+            .heightIn(min = 56.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {
@@ -349,37 +361,55 @@ private fun RowScope.CalendarDayCell(
         ) {
             Text(
                 text = date.dayOfMonth.toString(),
+                color = cellContentColor,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
             )
-            if (isToday) {
-                Text(
-                    text = "Hoje",
-                    color = cellContentColor,
-                    maxLines = 1,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            CalendarPresenceMarkers(presence, cellContentColor)
+            CalendarPresenceMarkers(presence, background)
         }
     }
 }
 
 @Composable
-private fun CalendarPresenceMarkers(presence: CalendarDayPresence?, markerColor: Color) {
-    Text(
-        text = buildString {
-            if (presence?.hasSyncFailure == true) append("!")
-            if (presence?.hasSyncPending == true) append("…")
-            if ((presence?.workoutCount ?: 0) > 0) append("A")
-            if (presence?.hasHeartRate == true) append("B")
-            if (presence?.hasSteps == true) append("P")
-            if (presence?.hasWeight == true) append("W")
-        },
-        modifier = Modifier,
-        color = markerColor,
-        style = MaterialTheme.typography.labelSmall,
+private fun CalendarPresenceMarkers(presence: CalendarDayPresence?, background: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (presence?.hasSteps == true) {
+            CalendarPresenceDot(calendarStepsColor(background))
+        }
+        if (presence?.hasHeartRate == true) {
+            CalendarPresenceDot(calendarHeartRateColor(background))
+        }
+        if ((presence?.workoutCount ?: 0) > 0) {
+            CalendarPresenceDot(calendarActivityColor(background))
+        }
+    }
+}
+
+@Composable
+private fun CalendarPresenceDot(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(7.dp)
+            .background(color, CircleShape),
     )
+}
+
+private fun calendarStepsColor(background: Color): Color = if (background.luminance() > 0.5f) {
+    Color(0xFF1565C0)
+} else {
+    Color(0xFF64B5F6)
+}
+
+private fun calendarHeartRateColor(background: Color): Color = if (background.luminance() > 0.5f) {
+    Color(0xFF2E7D32)
+} else {
+    Color(0xFF81C784)
+}
+
+private fun calendarActivityColor(background: Color): Color = if (background.luminance() > 0.5f) {
+    Color(0xFF8A6D00)
+} else {
+    Color(0xFFFFD54F)
 }
 
 @Composable
@@ -403,17 +433,47 @@ private fun CalendarLegend() {
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
         ) {
             Text("Legenda", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(
-                "Indicadores: ! falha, … pendência, A atividade, B BPM, P passos e W peso.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "A prioridade visual é falha/pendência, atividade, BPM e passos.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            val legendBackground = MaterialTheme.colorScheme.surfaceContainerLow
+            CalendarLegendItem("Passos", calendarStepsColor(legendBackground))
+            CalendarLegendItem("Frequência cardíaca", calendarHeartRateColor(legendBackground))
+            CalendarLegendItem("Atividade física", calendarActivityColor(legendBackground))
+            CalendarLegendStateItem("Falha de sincronização", MaterialTheme.colorScheme.errorContainer)
+            CalendarLegendStateItem("Sincronização pendente", MaterialTheme.colorScheme.tertiaryContainer)
         }
+    }
+}
+
+@Composable
+private fun CalendarLegendItem(label: String, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+    ) {
+        CalendarPresenceDot(color)
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun CalendarLegendStateItem(label: String, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .background(color, RoundedCornerShape(3.dp)),
+        )
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

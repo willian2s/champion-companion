@@ -118,8 +118,14 @@ registrada separadamente, com justificativa e decisão própria.
   retryable e shells de passos/distância isolados em arquivos próprios.
 - `015-07` concluída com grade mensal própria, indicadores, seleção, navegação,
   estados seguros e descrições acessíveis; screenshots e build registrados na
-  subtarefa. TalkBack falado e landscape permanecem riscos residuais, sem
-  bloqueio de contrato.
+  subtarefa. Refinamento posterior confirmou contraste explícito nos números,
+  borda de Hoje e gaps horizontais iguais aos verticais. Correção posterior
+  removeu largura forçada que causava overflow; TalkBack falado e landscape
+  permanecem riscos residuais, com sobreposição da navegação inferior em
+  landscape, sem bloqueio de contrato. Compactação posterior
+  reduziu células para 56 dp, removeu empilhamento visual de Hoje com marcadores
+  e adicionou respiro interno entre grade e bordas do card. Indicadores finais
+  usam pontos azul/verde/amarelo para passos, FC e atividade física.
 - Não há bloqueio para `015-09` ou `015-10`; status `Planejada` no cabeçalho de `012-00`,
   status conflitante de `012-13` e evidência incompleta do Gate C permanecem
   riscos documentais da Fase 12.
