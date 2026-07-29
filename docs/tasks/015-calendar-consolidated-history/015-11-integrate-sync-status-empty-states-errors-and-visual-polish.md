@@ -313,3 +313,29 @@ Não criar, alterar ou executar testes automatizados.
 
 Executar em sessão nova usando somente documentos e dependências listados. Não
 depender de conversa anterior nem avançar para a próxima subtarefa.
+
+## Correção posterior — Spec 015A
+
+A `015-11` implementou corretamente a integração visual dos estados de
+sincronização, erros e estados vazios. Posteriormente, foi identificada uma
+limitação na resolução de integridade da fila: a implementação considerava
+principalmente a existência e a mapeabilidade estrutural global dos aggregates.
+
+A [spec `015A-health-sync-queue-semantic-integrity`](../../specs/015A-health-sync-queue-semantic-integrity.md)
+corrigiu essa limitação. A resolução passou a considerar cada operação pela chave
+completa `aggregate.type + aggregate.id + recordType`. Operações estruturalmente
+inválidas ou com pares não suportados são classificadas como operações inválidas;
+aggregates inexistentes ou semanticamente inelegíveis para o record são
+classificados como não resolvidos.
+Operações válidas fora da janela aberta no calendário não são consideradas
+inconsistentes.
+
+A [overview 015A](../015A-health-sync-queue-semantic-integrity/015A-00-overview.md)
+e as subtasks [015A-01](../015A-health-sync-queue-semantic-integrity/015A-01-implementar-integridade-semantica-por-operacao.md)
+e [015A-02](../015A-health-sync-queue-semantic-integrity/015A-02-revisar-cenarios-e-fechar-correcao.md)
+registram implementação e revisão posteriores. A UI e o read model visual
+estabelecidos pela `015-11` permaneceram inalterados. `ParserValidity.PARTIAL`
+permaneceu aceito, a sincronização granular dos records de atividade permaneceu
+preservada e os BPM de exercícios permaneceram no histórico dedicado de
+frequência cardíaca. O histórico dedicado de FC permaneceu independente da fila
+do Health Connect.
