@@ -1,7 +1,7 @@
 # Fase 15 — Calendário e histórico consolidado local
 
 - **Ticker:** `015`
-- **Status:** planejada
+- **Status:** concluída em 29/07/2026.
 - **Base:** pós-Fase 12, com Fases 13 e 14 adiadas
 - **Fonte de direção:** [phase-15-calendar-consolidated-history-direction.md](_inputs/phase-15-calendar-consolidated-history-direction.md)
 
@@ -41,7 +41,7 @@ Não renumerar fases.
 - **Fase 12 — concluída.**
 - **Fase 13 — adiada:** exercícios iniciados pelo aplicativo.
 - **Fase 14 — adiada:** background, WorkManager e foreground service.
-- **Fase 15 — próxima:** calendário e histórico consolidado local.
+- **Fase 15 — concluída:** calendário e histórico consolidado local.
 
 As tasks 015-01 e 015-02 devem planejar a atualização documental do roadmap e
 de ADR. Esta execução de planejamento não altera ADR existente nem roadmap.
@@ -657,18 +657,36 @@ Não criar, alterar ou executar testes automatizados.
 - soma de métricas de exercícios nos totais diários;
 - tabela materializada, migration ou índice preventivo;
 - testes automatizados;
-- alteração de ADR ou roadmap durante esta execução de planejamento.
+- alteração de ADR ou roadmap fora das subtarefas documentais aprovadas `015-02`
+  e `015-13`.
 
 ## Definition of Done
 
 - Spec, overview e todas subtarefas usam ticker `015`.
 - Cada subtarefa é independente, possui escopo permitido/proibido e comandos de
   validação.
-- ADR-013 e roadmap ficam explicitamente planejados para execução futura.
+- ADR-013 está aceita e o roadmap está atualizado com Fase 12 concluída, Fases
+  13/14 adiadas e Fase 15 concluída.
 - Contratos, queries, read model, UI, navegação e validação possuem rastreabilidade.
 - Evidências de build, instalação, screenshots visuais e validação offline são
   registradas nas tasks responsáveis.
 - Nenhuma migration é criada sem necessidade demonstrada em decisão futura.
+
+## Fechamento registrado
+
+- A implementação entregue cobre calendário mensal, detalhe diário, navegação
+  parametrizada, históricos locais de passos e distância e histórico dedicado de
+  frequência cardíaca com amostras reais de atividades não descartadas.
+- A validação manual offline de `015-12` foi aceita pelo usuário no Galaxy S22,
+  com builds, instalação e screenshots registrados na própria subtarefa.
+- A correção posterior da spec `015A` foi concluída sem reabrir a Fase 15 nem
+  alterar sua sequência normal.
+- Fases 13 e 14 permanecem adiadas. Não houve migration, acesso externo,
+  alteração de workflow ou teste automatizado nesta fase.
+- Riscos residuais aceitos permanecem registrados em `015-12` e no overview,
+  incluindo ausência de distância positiva, zero real, estados de sync não
+  reproduzidos, peso com dados reais, atividade pendente, Health Connect
+  indisponível forçado e TalkBack falado.
 
 ## Matriz de rastreabilidade
 

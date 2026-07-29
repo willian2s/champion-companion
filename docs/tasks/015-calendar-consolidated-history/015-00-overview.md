@@ -1,8 +1,8 @@
 # 015 — Calendário e histórico consolidado local
 
-- **Status geral:** em andamento
+- **Status geral:** concluída em 29/07/2026
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 13/14 subtarefas concluídas
+- **Progresso:** 14/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -10,7 +10,7 @@
   write-only e fila local foreground.
 - Fase 13: adiada.
 - Fase 14: adiada.
-- Fase 15: próxima fase.
+- Fase 15: concluída documentalmente após validação offline aceita.
 - `CalendarScreen`: grade mensal local, seleção e entrada para detalhe diário.
 - Saúde: BPM funcional; históricos locais de passos e distância funcionais,
   aguardando dados de Perfil para exibir estimativas positivas de distância.
@@ -104,7 +104,7 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
 - [x] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
 - [x] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
-- [ ] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
+- [x] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
 - [x] [015-14-include-workout-heart-rate-in-dedicated-history.md](015-14-include-workout-heart-rate-in-dedicated-history.md)
 
 ## Observações
@@ -114,7 +114,8 @@ registrada separadamente, com justificativa e decisão própria.
   aceitou, no contexto de app pessoal, a cobertura disponível de atividades, o
   estado vazio de peso, o diagnóstico pré-existente de contagem no Logcat e os
   riscos residuais de distância positiva, zero real e estados de sync
-  degradados. Progresso recalculado para `13/14`; `015-13` não foi iniciada.
+  degradados. Naquele registro, progresso foi recalculado para `13/14` e
+  `015-13` ainda não havia sido iniciada.
 - `015-01` concluída com relatório documental reproduzível.
 - `015-02` concluída com ADR-013 e roadmap alinhado à decisão de produto.
 - `015-03` concluída com contratos temporais, read models imutáveis, semântica de
@@ -138,15 +139,15 @@ registrada separadamente, com justificativa e decisão própria.
   e adicionou respiro interno entre grade e bordas do card. Indicadores finais
   usam pontos azul/verde/amarelo para passos, FC e atividade física.
 - `015-11` foi escalada por integridade de aggregate/operação órfã inicialmente
-  fora do escopo e por validação manual incompleta; status `Planejada` no
-  cabeçalho de `012-00`, status conflitante de `012-13` e evidência incompleta
-  do Gate C permanecem riscos documentais da Fase 12.
+  fora do escopo e por validação manual incompleta. A correção foi concluída em
+  `015A`, e a Fase 12 já estava concluída documentalmente com Gate C validado;
+  não permanecem os antigos conflitos de status nos documentos 012.
 - `015-14` foi adicionada para o novo requisito explícito de consolidar amostras
   reais de atividades não descartadas no histórico dedicado de frequência
   cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
   usuário confirmou funcionamento esperado. `015-11` foi concluída com aceite
   de cobertura manual representativa; `015-12` foi concluída com aceite explícito
-  de riscos residuais e `015-13` permanece não iniciada.
+  de riscos residuais; naquele momento, `015-13` permanecia não iniciada.
 - `015-09` concluída com ViewModel temporal local, períodos `7D`, `30D` e `90D`,
   métricas calculadas sem preencher lacunas, gráfico de barras acessível e lista
   no padrão do histórico de FC, ordenada do mais recente para o mais antigo e
@@ -192,11 +193,19 @@ registrada separadamente, com justificativa e decisão própria.
 > e a `015A-02` [revisou e fechou a correção](../015A-health-sync-queue-semantic-integrity/015A-02-revisar-cenarios-e-fechar-correcao.md).
 > A correção foi concluída sem reabrir a Fase 15: o status da `015-11` permanece
 > concluído, a sequência normal permanece inalterada, `015-12` foi concluída
-> com aceite explícito de riscos residuais e `015-13` não foi iniciada.
+> com aceite explícito de riscos residuais; naquele momento, `015-13` não havia
+> sido iniciada.
 
 - Débito D-015-10: após implementar Perfil com altura ou passada válida, gerar e
   persistir estimativas em `DailySummary.estimatedDistanceMeters` e repetir a
   validação física do histórico de distância com dias estimados e sem estimativa.
+
+- `015-13` foi concluída em 29/07/2026 após reconciliação da spec, baseline,
+  roadmap, evidências e dependências. O usuário manteve aprovados os resultados
+  e riscos residuais registrados em `015-12`; nenhuma evidência foi fabricada.
+- A Fase 15 está fechada sem iniciar Fase 16. Fases 13 e 14 continuam adiadas.
+- A correção da spec 015A foi incorporada como evidência posterior já aceita e
+  não reabriu a sequência normal da Fase 15.
 
 ## Validação manual
 
@@ -209,12 +218,12 @@ Não criar, alterar ou executar testes automatizados.
 
 ## Dívida e riscos
 
-- `012-00` e `012-13` mantêm status textuais antigos apesar do fechamento da
-  Fase 12; evidência do Gate C permanece incompleta.
-- Roadmap registra Fases 13 e 14 como adiadas e Fase 15 como próxima.
+- Fase 12 permanece concluída; `012-00` e `012-13` registram fechamento e Gate C
+  validados em 28/07/2026.
+- Roadmap registra Fases 13 e 14 como adiadas e Fase 15 como concluída.
 - Query atual de resumo diário usa `BETWEEN` inclusivo.
 - Política de seleção de dispositivo está formalizada na ADR-013 e implementada
-  no read model; exposição visual ainda depende das subtarefas seguintes.
+  no read model; exposição visual foi entregue nas subtarefas correspondentes.
 - `ExerciseDetail` é filho compartilhado e exige cuidado no back stack.
 - Índices preventivos não serão adicionados sem evidência de necessidade.
 - Timezone atual pode reprojetar atividades, BPM e peso para outra data civil.

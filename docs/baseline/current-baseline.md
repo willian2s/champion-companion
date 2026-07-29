@@ -4,7 +4,7 @@
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.
 
-Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4, Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC` e Fase 12 concluída com integração nativa write-only ao Health Connect em foreground.
+Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4, Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC`, Fase 12 concluída com integração nativa write-only ao Health Connect em foreground e Fase 15 concluída com calendário e histórico consolidado local.
 
 Escopo factual atual já inclui:
 
@@ -20,6 +20,18 @@ Escopo factual atual já inclui:
 - lista de atividades importadas com filtros locais por workflow;
 - detalhe de atividade importada com revisão local, tipo confirmado, título, observações, gráfico de BPM, intervalos, calibração de esteira, descarte lógico e estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `SYNCED` e `SYNC_FAILED` observáveis;
 - banner de pendências locais na Home com prioridade para calibração.
+
+Escopo factual atual inclui também na Fase 15:
+
+- read model temporal local derivado, sem tabela materializada ou migration;
+- calendário mensal com seleção, navegação, indicadores, legenda, estados vazios
+  e descrições acessíveis;
+- detalhe diário com passos, meta atual, distância, BPM, atividades, peso e
+  status da fila local, além de navegação contextual para detalhes relacionados;
+- históricos locais de passos e distância em períodos de 7, 30 e 90 dias, com
+  lacunas preservadas e ausência de valores sintéticos;
+- histórico dedicado de frequência cardíaca consolidando medições manuais, D1 e
+  amostras de atividades importadas não descartadas.
 
 Escopo factual atual já inclui também na Fase 12:
 

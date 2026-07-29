@@ -1994,7 +1994,7 @@ Usar em:
 
 # Fase 15 — Calendário e histórico consolidado
 
-**Status:** próxima fase em execução.
+**Status:** concluída em 29/07/2026.
 
 A fase usa somente dados locais e não depende funcionalmente das Fases 13 e 14.
 
@@ -2021,6 +2021,12 @@ Centralizar dados por dia.
 - gráficos de distância;
 - histórico de distância;
 - navegação temporal das métricas diárias.
+
+Entrega validada documentalmente com dados locais, sem acesso a BLE ou Health
+Connect. A validação offline, builds, instalação e screenshots estão registradas
+em `docs/tasks/015-calendar-consolidated-history/015-12-run-manual-offline-calendar-validation.md`.
+Riscos residuais aceitos permanecem registrados no overview da Fase 15. A spec
+015A corrigiu a integridade semântica da fila sem reabrir esta fase.
 
 ## Critérios de aceite
 
@@ -2687,7 +2693,7 @@ Fase 11 — Revisão e calibração
 Fase 12 — Health Connect (concluída)
 Fase 13 — Exercícios (adiada)
 Fase 14 — Background (adiada)
-Fase 15 — Calendário (próxima fase em execução)
+Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
 Fase 18 — Transição sem migração
@@ -2704,8 +2710,8 @@ Fase 25 — Lançamento
 
 # 13. Priorização
 
-Prioridade de execução vigente: Fase 15. Itens das Fases 13 e 14 permanecem
-registrados como backlog histórico, mas estão adiados.
+Fase 15 está concluída. Fases 13 e 14 permanecem registradas como backlog
+histórico adiado. Nenhuma fase seguinte foi iniciada automaticamente.
 
 ## Crítica
 
