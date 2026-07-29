@@ -52,3 +52,9 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   countdown persistido e normalizado, destinos serializáveis com saver e shells
   passivos. SDK Health Connect `1.1.0` foi mantido; service operacional e
   solicitação runtime permanecem nas subtarefas seguintes.
+- `013-05` permanece bloqueada: implementação, schema v6, build, instalação e
+  integridade estrutural do banco foram validados, mas falta snapshot
+  comparativo sanitizado antes/depois em base v5 com calibração e sync, além da
+  confirmação íntegra do calendário após o upgrade. Lista e detalhe abriram;
+  calendário exibiu estado seguro de dados parciais. Item continua desmarcado e
+  progresso permanece `4/17`.

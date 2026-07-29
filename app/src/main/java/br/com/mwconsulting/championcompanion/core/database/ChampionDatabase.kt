@@ -149,15 +149,17 @@ data class DailySummaryEntity(
         Index(value = ["deviceId"]),
         Index(value = ["diagnosticPayloadId"]),
         Index(value = ["workflowState"]),
+        Index(value = ["appWorkoutSessionId"], unique = true),
     ],
 )
 data class WorkoutActivityEntity(
     @PrimaryKey val id: String,
     val origin: String,
-    val deviceId: String,
-    val parserValidity: String,
-    val importedAtEpochMillis: Long,
-    val parserVersion: String,
+    val deviceId: String?,
+    /** Snapshots legados v5; a origem autoritativa desses campos é watch_workout_imports. */
+    val parserValidity: String?,
+    val importedAtEpochMillis: Long?,
+    val parserVersion: String?,
     val diagnosticPayloadId: String?,
     val startedAtEpochMillis: Long,
     val durationNanos: Long,
@@ -180,6 +182,10 @@ data class WorkoutActivityEntity(
     val workflowState: String,
     val reviewedAtEpochMillis: Long?,
     val calibrationId: String?,
+    val appWorkoutSessionId: String? = null,
+    val recordedAtEpochMillis: Long = importedAtEpochMillis ?: startedAtEpochMillis,
+    val endedAtEpochMillis: Long = startedAtEpochMillis + durationNanos / 1_000_000L,
+    val stepsAvailable: Boolean = true,
 )
 
 @Entity(
@@ -286,13 +292,24 @@ data class WorkoutHeartRateSampleEntity(
 
 @Entity(
     tableName = "app_workout_sessions",
-    foreignKeys = [ForeignKey(
-        entity = WorkoutActivityEntity::class,
-        parentColumns = ["id"],
-        childColumns = ["workoutActivityId"],
-        onDelete = ForeignKey.RESTRICT,
-    )],
-    indices = [Index(value = ["workoutActivityId"], unique = true), Index(value = ["state"])],
+    foreignKeys = [
+        ForeignKey(
+            entity = WorkoutActivityEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["workoutActivityId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
+        ForeignKey(
+            entity = DeviceEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["associatedDeviceId"],
+            onDelete = ForeignKey.SET_NULL,
+        ),
+    ],
+    indices = [
+        Index(value = ["workoutActivityId"], unique = true),
+        Index(value = ["state"]),
+    ],
 )
 data class AppWorkoutSessionEntity(
     @PrimaryKey val id: String,
@@ -307,11 +324,75 @@ data class AppWorkoutSessionEntity(
     val state: String,
     val steps: Long,
     val distanceMeters: Double?,
+    val distanceAbsenceReason: String?,
     val caloriesKilocalories: Double?,
+    val caloriesAbsenceReason: String?,
     val averageBpm: Int?,
+    val averageBpmAbsenceReason: String?,
     val minimumBpm: Int?,
+    val minimumBpmAbsenceReason: String?,
     val maximumBpm: Int?,
+    val maximumBpmAbsenceReason: String?,
     val workoutActivityId: String?,
+    val lastTransitionAtEpochMillis: Long = createdAtEpochMillis,
+    val associatedDeviceId: String? = null,
+    val revision: Long = 0,
+    val runtimeGeneration: Long = 0,
+    val stepsAvailable: Boolean = true,
+)
+
+@Entity(
+    tableName = "workout_routes",
+    foreignKeys = [ForeignKey(
+        entity = AppWorkoutSessionEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["sessionId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index(value = ["sessionId"], unique = true)],
+)
+data class WorkoutRouteEntity(
+    @PrimaryKey val id: String,
+    val sessionId: String,
+    val workoutType: String,
+    val state: String,
+    val startedAtEpochMillis: Long,
+    val endedAtEpochMillis: Long?,
+    val acceptedPointCount: Long,
+    val segmentCount: Int,
+    val distanceMeters: Double,
+    val averageHorizontalAccuracyMeters: Double?,
+    val revision: Long,
+)
+
+@Entity(
+    tableName = "workout_route_points",
+    foreignKeys = [ForeignKey(
+        entity = WorkoutRouteEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["routeId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index(value = ["routeId", "sequence"], unique = true)],
+)
+data class WorkoutRoutePointEntity(
+    @PrimaryKey val id: String,
+    val routeId: String,
+    val sequence: Long,
+    val sampledAtEpochMillis: Long,
+    val latitudeDegrees: Double,
+    val longitudeDegrees: Double,
+    val altitudeMeters: Double?,
+    val horizontalAccuracyMeters: Double,
+    val verticalAccuracyMeters: Double?,
+    val speedMetersPerSecond: Double?,
+    val bearingDegrees: Double?,
+    val segmentIndex: Int,
+    /** Preenchido somente no primeiro ponto para preservar motivo e início do segmento sem tabela paralela. */
+    val segmentStartReason: String?,
+    val segmentStartedAtEpochMillis: Long?,
+    /** Distância acumulada do segmento neste checkpoint; preenchida no último ponto do lote. */
+    val segmentDistanceMeters: Double?,
 )
 
 @Entity(
@@ -451,11 +532,13 @@ class ChampionDatabaseConverters {
         WorkoutHeartRateSampleEntity::class,
         TreadmillCalibrationEntity::class,
         AppWorkoutSessionEntity::class,
+        WorkoutRouteEntity::class,
+        WorkoutRoutePointEntity::class,
         HealthSyncOperationEntity::class,
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 5,
+    version = 6,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -478,6 +561,7 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun workoutDetailDao(): WorkoutDetailDao
     abstract fun treadmillCalibrationDao(): TreadmillCalibrationDao
     abstract fun appWorkoutSessionDao(): AppWorkoutSessionDao
+    abstract fun workoutRouteDao(): WorkoutRouteDao
     abstract fun healthSyncOperationDao(): HealthSyncOperationDao
     abstract fun diagnosticPayloadDao(): DiagnosticPayloadDao
 }

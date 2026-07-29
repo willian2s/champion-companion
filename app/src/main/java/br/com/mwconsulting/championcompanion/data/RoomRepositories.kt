@@ -2,14 +2,22 @@ package br.com.mwconsulting.championcompanion.data
 import androidx.room3.withWriteTransaction
 import br.com.mwconsulting.championcompanion.BuildConfig
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
+import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionDao
 import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
+import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionCheckpoint
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutation
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.AppendWorkoutRoutePointsInput
+import br.com.mwconsulting.championcompanion.core.model.AssociateWorkoutActivityInput
 import br.com.mwconsulting.championcompanion.core.model.CALENDAR_HEART_RATE_SOURCES
 import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
 import br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange
@@ -76,6 +84,10 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegmentReason
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
@@ -100,6 +112,7 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
 
 private const val SQLITE_IN_CLAUSE_CHUNK_SIZE = 500
+private const val ROUTE_METRIC_EPSILON = 1e-9
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -107,7 +120,7 @@ class RoomRepositories @Inject constructor(
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : DeviceRepository, DailySummaryRepository, HeartRateRepository, WorkoutActivityRepository,
     TreadmillCalibrationRepository, AppWorkoutSessionRepository, HealthSyncRepository, DiagnosticPayloadRepository,
-    PersonalMetricsRepository {
+    PersonalMetricsRepository, WorkoutRouteRepository {
     private val ids = UuidV7Generator()
 
     override fun observeAssociatedDevice(): Flow<Device?> = database.deviceAssociationDao().observeAssociated()
@@ -544,7 +557,7 @@ class RoomRepositories @Inject constructor(
         val existingActivity = when {
             exactImport != null -> database.workoutActivityDao().findById(exactImport.activityId)
             else -> database.workoutActivityDao().findByStartedAt(
-                deviceId = activityEntity.deviceId,
+                deviceId = activityEntity.deviceId ?: return@write RepositoryResult.UnexpectedState,
                 origin = activityEntity.origin,
                 startedAtEpochMillis = activityEntity.startedAtEpochMillis,
             )
@@ -629,6 +642,22 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(activity)
     }
 
+    override suspend fun findPhoneCorrelationCandidates(
+        fromInclusive: Instant,
+        untilExclusive: Instant,
+    ): RepositoryResult<List<br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutCorrelationCandidate>> =
+        withContext(ioDispatcher) {
+            if (!untilExclusive.isAfter(fromInclusive)) {
+                return@withContext RepositoryResult.UnexpectedState
+            }
+            RepositoryResult.Success(
+                database.workoutActivityDao().findPhoneCorrelationCandidates(
+                    fromEpochMillis = fromInclusive.toEpochMilli(),
+                    untilEpochMillis = untilExclusive.toEpochMilli(),
+                ).mapNotNull { it.toDomain() },
+            )
+        }
+
     override suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = write {
         val metadataDao = database.deviceImportMetadataDao()
         val existing = metadataDao.findByDeviceAndImportType(metadata.deviceId.value.toString(), WATCH_D3_D4_IMPORT_TYPE)
@@ -638,9 +667,8 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun submitReview(input: br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = write {
         val entity = database.workoutActivityDao().findById(input.activityId.value.toString()) ?: return@write RepositoryResult.NotFound
-        val importRecord = database.watchWorkoutImportDao().findByActivityId(entity.id) ?: return@write RepositoryResult.NotFound
         val activity = entity.toDomain(
-            importRecord,
+            database.watchWorkoutImportDao().findByActivityId(entity.id),
             database.workoutDetailDao().findIntervalsForActivity(entity.id),
             database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id),
         ) ?: return@write RepositoryResult.UnexpectedState
@@ -651,9 +679,8 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity> = write {
         val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return@write RepositoryResult.NotFound
-        val importRecord = database.watchWorkoutImportDao().findByActivityId(entity.id) ?: return@write RepositoryResult.NotFound
         val existing = entity.toDomain(
-            importRecord,
+            database.watchWorkoutImportDao().findByActivityId(entity.id),
             database.workoutDetailDao().findIntervalsForActivity(entity.id),
             database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id),
         ) ?: return@write RepositoryResult.UnexpectedState
@@ -716,10 +743,8 @@ class RoomRepositories @Inject constructor(
     ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot> = write {
         val activityEntity = database.workoutActivityDao().findById(input.activityId.value.toString())
             ?: return@write RepositoryResult.NotFound
-        val importRecord = database.watchWorkoutImportDao().findByActivityId(activityEntity.id)
-            ?: return@write RepositoryResult.NotFound
         val activity = activityEntity.toDomain(
-            importRecord,
+            database.watchWorkoutImportDao().findByActivityId(activityEntity.id),
             database.workoutDetailDao().findIntervalsForActivity(activityEntity.id),
             database.workoutDetailDao().findHeartRateSamplesForActivity(activityEntity.id),
         ) ?: return@write RepositoryResult.UnexpectedState
@@ -780,21 +805,226 @@ class RoomRepositories @Inject constructor(
         .map { it.mapNotNull { entity -> entity.toDomain() } }
         .flowOn(ioDispatcher)
 
-    override suspend fun recover(sessionId: AppWorkoutSessionId, at: Instant): RepositoryResult<AppWorkoutSession> = write {
-        val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString()) ?: return@write RepositoryResult.NotFound
-        if (entity.state != "AWAITING_RECOVERY") return@write RepositoryResult.UnexpectedState
-        val updated = entity.copy(state = "ACTIVE", activeSinceEpochMillis = at.toEpochMilli())
-        database.appWorkoutSessionDao().update(updated)
-        updated.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
+    override fun observeActive(): Flow<AppWorkoutSession?> = database.appWorkoutSessionDao().observeActive()
+        .map { it?.toDomain() }
+        .flowOn(ioDispatcher)
+
+    override fun observeSession(sessionId: AppWorkoutSessionId): Flow<AppWorkoutSession?> =
+        database.appWorkoutSessionDao().observeById(sessionId.value.toString())
+            .map { it?.toDomain() }
+            .flowOn(ioDispatcher)
+
+    override suspend fun create(session: AppWorkoutSession): RepositoryResult<AppWorkoutSession> = write {
+        if (session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.CREATED ||
+            session.toEntity().toDomain() != session
+        ) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        val dao = database.appWorkoutSessionDao()
+        if (dao.findById(session.id.value.toString()) != null || dao.findOpenSession() != null) {
+            return@write RepositoryResult.Conflict
+        }
+        val deviceId = session.associatedDeviceId?.value?.toString()
+        if (deviceId != null && database.deviceDao().findById(deviceId) == null) {
+            return@write RepositoryResult.NotFound
+        }
+        dao.insert(session.toEntity())
+        RepositoryResult.Success(session)
     }
 
+    override suspend fun start(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(input.sessionId, input.expectedRevision) { it.start(input.at) }
+    }
+
+    override suspend fun checkpoint(input: AppWorkoutSessionCheckpoint): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(input.sessionId, input.expectedRevision) { session ->
+            if (session.runtimeGeneration != input.runtimeGeneration) {
+                DomainResult.Failure(br.com.mwconsulting.championcompanion.core.model.DomainValidationError.INVALID_STATE)
+            } else {
+                session.checkpoint(input.at, input.aggregates)
+            }
+        }
+    }
+
+    override suspend fun pause(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(input.sessionId, input.expectedRevision) { it.pause(input.at) }
+    }
+
+    override suspend fun resume(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(input.sessionId, input.expectedRevision) { it.resume(input.at) }
+    }
+
+    override suspend fun interrupt(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(input.sessionId, input.expectedRevision) { it.interrupt(input.at) }
+    }
+
+    override suspend fun recover(
+        sessionId: AppWorkoutSessionId,
+        expectedRevision: Long,
+        at: Instant,
+    ): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(sessionId, expectedRevision) { it.recover(at) }
+    }
+
+    override suspend fun beginFinishing(
+        input: AppWorkoutSessionMutation,
+    ): RepositoryResult<AppWorkoutSession> = write {
+        mutateSession(input.sessionId, input.expectedRevision) { it.beginFinishing(input.at) }
+    }
+
+    override suspend fun associateActivity(
+        input: AssociateWorkoutActivityInput,
+    ): RepositoryResult<AppWorkoutSession> = write {
+        val session = database.appWorkoutSessionDao().findById(input.sessionId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        val activity = database.workoutActivityDao().findById(input.activityId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        if (!hasConsistentPhoneActivityOwnership(session, activity)) {
+            return@write RepositoryResult.Conflict
+        }
+        mutateSession(input.sessionId, input.expectedRevision) { it.associateActivity(input.activityId) }
+    }
+
+    override suspend fun finish(
+        sessionId: AppWorkoutSessionId,
+        expectedRevision: Long,
+        at: Instant,
+    ): RepositoryResult<AppWorkoutSession> = write {
+        val session = database.appWorkoutSessionDao().findById(sessionId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        val activityId = session.workoutActivityId ?: return@write RepositoryResult.UnexpectedState
+        val activity = database.workoutActivityDao().findById(activityId)
+            ?: return@write RepositoryResult.NotFound
+        if (!hasConsistentPhoneActivityOwnership(session, activity)) {
+            return@write RepositoryResult.Conflict
+        }
+        mutateSession(sessionId, expectedRevision) { it.finish(at) }
+    }
+
+    override suspend fun discard(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        val sessionId = input.sessionId.value.toString()
+        val session = database.appWorkoutSessionDao().findById(sessionId)
+            ?: return@write RepositoryResult.NotFound
+        if (session.workoutActivityId != null || database.workoutActivityDao().findBySessionId(sessionId) != null) {
+            return@write RepositoryResult.Conflict
+        }
+        val result = mutateSession(input.sessionId, input.expectedRevision) { it.discard(input.at) }
+        if (result is RepositoryResult.Success) {
+            database.heartRateDao().deleteTransientForSession(sessionId)
+            database.workoutRouteDao().deleteBySessionId(sessionId)
+        }
+        result
+    }
+
+    @Suppress("DEPRECATION_ERROR")
+    override suspend fun recover(sessionId: AppWorkoutSessionId, at: Instant): RepositoryResult<AppWorkoutSession> = write {
+        val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        mutateSession(sessionId, entity.revision) { it.recover(at) }
+    }
+
+    @Suppress("DEPRECATION_ERROR")
     override suspend fun finish(sessionId: AppWorkoutSessionId, activityId: WorkoutActivityId, at: Instant): RepositoryResult<AppWorkoutSession> = write {
-        val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString()) ?: return@write RepositoryResult.NotFound
-        if (database.workoutActivityDao().findById(activityId.value.toString()) == null) return@write RepositoryResult.NotFound
-        if (entity.state !in setOf("ACTIVE", "PAUSED", "AWAITING_RECOVERY")) return@write RepositoryResult.UnexpectedState
-        val updated = entity.copy(state = "FINISHED", endedAtEpochMillis = at.toEpochMilli(), activeSinceEpochMillis = null, pausedSinceEpochMillis = null, workoutActivityId = activityId.value.toString())
-        database.appWorkoutSessionDao().update(updated)
-        updated.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
+        val activity = database.workoutActivityDao().findById(activityId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        if (!hasConsistentPhoneActivityOwnership(entity, activity)) return@write RepositoryResult.Conflict
+        mutateSession(sessionId, entity.revision) { it.finish(activityId, at) }
+    }
+
+    override suspend fun create(route: WorkoutRoute): RepositoryResult<WorkoutRoute> = write {
+        val sessionEntity = database.appWorkoutSessionDao().findById(route.sessionId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        val session = sessionEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        if (session.type != route.workoutType || !session.recordsRoute || session.workoutActivityId != null ||
+            session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.ACTIVE ||
+            database.workoutRouteDao().findBySessionId(sessionEntity.id) != null
+        ) {
+            return@write RepositoryResult.Conflict
+        }
+        database.workoutRouteDao().insert(route.toEntity())
+        RepositoryResult.Success(route)
+    }
+
+    override fun observeBySession(sessionId: AppWorkoutSessionId): Flow<WorkoutRoute?> =
+        database.workoutRouteDao().observeBySessionId(sessionId.value.toString())
+            .map { it?.toDomain() }
+            .flowOn(ioDispatcher)
+
+    override suspend fun appendAcceptedPoints(
+        input: AppendWorkoutRoutePointsInput,
+    ): RepositoryResult<WorkoutRoute> = write {
+        val routeDao = database.workoutRouteDao()
+        val routeEntity = routeDao.findById(input.routeId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        val route = routeEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        if (route.sessionId != input.sessionId || route.revision != input.expectedRevision) {
+            return@write RepositoryResult.Conflict
+        }
+        val session = database.appWorkoutSessionDao().findById(input.sessionId.value.toString())?.toDomain()
+            ?: return@write RepositoryResult.NotFound
+        if (session.runtimeGeneration != input.runtimeGeneration ||
+            session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.ACTIVE
+        ) {
+            return@write RepositoryResult.Conflict
+        }
+        val lastPoint = routeDao.findLastPoint(routeEntity.id)
+        val persistedSegmentStart = lastPoint?.let {
+            routeDao.findFirstPointInSegment(routeEntity.id, it.segmentIndex)
+        }
+        val persistedPointCount = routeDao.countPoints(routeEntity.id)
+        if (lastPoint?.sequence != input.cursor.lastSequence ||
+            lastPoint?.sampledAtEpochMillis != input.cursor.lastSampledAt?.toEpochMilli() ||
+            lastPoint?.segmentIndex != input.cursor.currentSegmentIndex ||
+            !isValidRouteAppend(route, input, lastPoint, persistedSegmentStart, persistedPointCount)
+        ) {
+            return@write RepositoryResult.Conflict
+        }
+        val updated = route.applyCheckpoint(input.expectedRevision, input.metrics).valueOrNull()
+            ?: return@write RepositoryResult.UnexpectedState
+        if (routeDao.updateCas(updated.toEntity(), input.expectedRevision) != 1) {
+            return@write RepositoryResult.Conflict
+        }
+        val segmentsByIndex = input.segments.associateBy { it.index }
+        routeDao.insertPoints(input.points.map { point ->
+            val segment = segmentsByIndex.getValue(point.segmentIndex)
+            val isSegmentStart = point.sequence == segment.firstSequence
+            val isSegmentCheckpoint = point.sequence == segment.lastSequence
+            point.toEntity(
+                segmentStartReason = segment.reason.takeIf { isSegmentStart },
+                segmentStartedAt = segment.startedAt.takeIf { isSegmentStart },
+                segmentDistanceMeters = segment.distanceMeters.takeIf { isSegmentCheckpoint },
+            )
+        })
+        RepositoryResult.Success(updated)
+    }
+
+    override suspend fun finalize(
+        routeId: WorkoutRouteId,
+        expectedRevision: Long,
+        endedAt: Instant,
+    ): RepositoryResult<WorkoutRoute> = write {
+        val dao = database.workoutRouteDao()
+        val route = dao.findById(routeId.value.toString())?.toDomain()
+            ?: return@write RepositoryResult.NotFound
+        if (route.revision != expectedRevision) return@write RepositoryResult.Conflict
+        val updated = route.finalize(expectedRevision, endedAt).valueOrNull()
+            ?: return@write RepositoryResult.UnexpectedState
+        if (updated == route) return@write RepositoryResult.Success(route)
+        if (dao.updateCas(updated.toEntity(), expectedRevision) != 1) RepositoryResult.Conflict
+        else RepositoryResult.Success(updated)
+    }
+
+    override suspend fun deleteBeforeActivity(sessionId: AppWorkoutSessionId): RepositoryResult<Unit> = write {
+        val session = database.appWorkoutSessionDao().findById(sessionId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        if (session.workoutActivityId != null ||
+            database.workoutActivityDao().findBySessionId(session.id) != null
+        ) return@write RepositoryResult.Conflict
+        database.heartRateDao().deleteTransientForSession(session.id)
+        database.workoutRouteDao().deleteBySessionId(session.id)
+        RepositoryResult.Success(Unit)
     }
 
     override suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation> = write {
@@ -1055,13 +1285,167 @@ class RoomRepositories @Inject constructor(
     }
 
     private suspend fun loadWorkoutActivity(activity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity): WorkoutActivity? {
-        val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id) ?: return null
         return activity.toDomain(
-            importRecord = importRecord,
+            importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id),
             intervals = database.workoutDetailDao().findIntervalsForActivity(activity.id),
             samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id),
         )
     }
+
+    private suspend fun mutateSession(
+        sessionId: AppWorkoutSessionId,
+        expectedRevision: Long,
+        transition: (AppWorkoutSession) -> DomainResult<AppWorkoutSession>,
+    ): RepositoryResult<AppWorkoutSession> {
+        val dao = database.appWorkoutSessionDao()
+        val entity = dao.findById(sessionId.value.toString()) ?: return RepositoryResult.NotFound
+        if (entity.revision != expectedRevision) return RepositoryResult.Conflict
+        val current = entity.toDomain() ?: return RepositoryResult.UnexpectedState
+        val updated = transition(current).valueOrNull() ?: return RepositoryResult.UnexpectedState
+        if (updated == current) return RepositoryResult.Success(current)
+        return if (dao.updateCas(updated.toEntity(), expectedRevision) == 1) {
+            RepositoryResult.Success(updated)
+        } else {
+            RepositoryResult.Conflict
+        }
+    }
+
+    private suspend fun AppWorkoutSessionDao.updateCas(
+        next: AppWorkoutSessionEntity,
+        expectedRevision: Long,
+    ): Int = updateCasFields(
+        id = next.id,
+        type = next.type,
+        createdAtEpochMillis = next.createdAtEpochMillis,
+        startedAtEpochMillis = next.startedAtEpochMillis,
+        endedAtEpochMillis = next.endedAtEpochMillis,
+        activeDurationNanos = next.activeDurationNanos,
+        pausedDurationNanos = next.pausedDurationNanos,
+        activeSinceEpochMillis = next.activeSinceEpochMillis,
+        pausedSinceEpochMillis = next.pausedSinceEpochMillis,
+        state = next.state,
+        steps = next.steps,
+        distanceMeters = next.distanceMeters,
+        distanceAbsenceReason = next.distanceAbsenceReason,
+        caloriesKilocalories = next.caloriesKilocalories,
+        caloriesAbsenceReason = next.caloriesAbsenceReason,
+        averageBpm = next.averageBpm,
+        averageBpmAbsenceReason = next.averageBpmAbsenceReason,
+        minimumBpm = next.minimumBpm,
+        minimumBpmAbsenceReason = next.minimumBpmAbsenceReason,
+        maximumBpm = next.maximumBpm,
+        maximumBpmAbsenceReason = next.maximumBpmAbsenceReason,
+        workoutActivityId = next.workoutActivityId,
+        lastTransitionAtEpochMillis = next.lastTransitionAtEpochMillis,
+        associatedDeviceId = next.associatedDeviceId,
+        revision = next.revision,
+        runtimeGeneration = next.runtimeGeneration,
+        stepsAvailable = next.stepsAvailable,
+        expectedRevision = expectedRevision,
+    )
+
+    private suspend fun hasConsistentPhoneActivityOwnership(
+        session: AppWorkoutSessionEntity,
+        activity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity,
+    ): Boolean {
+        val expectedOrigin = when (session.type) {
+            WorkoutType.WALKING.name, WorkoutType.RUNNING.name -> "PHONE_GPS"
+            WorkoutType.TREADMILL.name -> "PHONE_TREADMILL"
+            WorkoutType.FREE_WORKOUT.name -> "PHONE_FREE_WORKOUT"
+            else -> return false
+        }
+        if (activity.origin != expectedOrigin || activity.suggestedType != session.type ||
+            activity.appWorkoutSessionId != session.id || activity.deviceId != session.associatedDeviceId ||
+            session.workoutActivityId != null && session.workoutActivityId != activity.id
+        ) return false
+        val reverseOwner = database.appWorkoutSessionDao().findByWorkoutActivityId(activity.id)
+        return reverseOwner == null || reverseOwner.id == session.id
+    }
+
+    private fun isValidRouteAppend(
+        route: WorkoutRoute,
+        input: AppendWorkoutRoutePointsInput,
+        lastPoint: br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity?,
+        persistedSegmentStart: br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity?,
+        persistedPointCount: Long,
+    ): Boolean {
+        val previous = route.metrics
+        if (persistedPointCount != previous.acceptedPointCount ||
+            (persistedPointCount == 0L) != (lastPoint == null) ||
+            (persistedPointCount == 0L) != (previous.averageHorizontalAccuracyMeters == null) ||
+            previous.segmentCount != (lastPoint?.segmentIndex?.plus(1) ?: 0)
+        ) return false
+
+        val next = input.metrics
+        if (next.acceptedPointCount != persistedPointCount + input.points.size ||
+            next.segmentCount != input.points.last().segmentIndex + 1
+        ) return false
+
+        val continuedSegment = input.segments.firstOrNull { it.index == lastPoint?.segmentIndex }
+        val previousSegmentDistance = when {
+            continuedSegment == null -> 0.0
+            lastPoint?.segmentDistanceMeters == null -> return false
+            continuedSegment.distanceMeters < lastPoint.segmentDistanceMeters -> return false
+            else -> lastPoint.segmentDistanceMeters
+        }
+        val batchDistance = input.segments.sumOf { it.distanceMeters } - previousSegmentDistance
+        val expectedDistance = previous.distanceMeters + batchDistance
+        if (!approximatelyEqual(next.distanceMeters, expectedDistance)) return false
+
+        val accuracyTotal = (previous.averageHorizontalAccuracyMeters ?: 0.0) * persistedPointCount +
+            input.points.sumOf { it.horizontalAccuracyMeters }
+        val expectedAverageAccuracy = accuracyTotal / next.acceptedPointCount
+        if (next.averageHorizontalAccuracyMeters == null ||
+            !approximatelyEqual(next.averageHorizontalAccuracyMeters, expectedAverageAccuracy)
+        ) return false
+
+        return input.segments.all { segment ->
+            val segmentPoints = input.points.filter { it.segmentIndex == segment.index }
+            val continuesPersistedSegment = lastPoint?.segmentIndex == segment.index
+            val hasValidReason = if (segment.index == 0) {
+                segment.reason == WorkoutRouteSegmentReason.SESSION_START
+            } else {
+                segment.reason != WorkoutRouteSegmentReason.SESSION_START
+            }
+            hasValidReason && segmentPoints.isNotEmpty() &&
+                segment.lastSequence == segmentPoints.last().sequence &&
+                segment.endedAt == segmentPoints.last().sampledAt &&
+                if (continuesPersistedSegment) {
+                    persistedSegmentStart != null &&
+                        persistedSegmentStart.segmentStartReason == segment.reason.name &&
+                        persistedSegmentStart.segmentStartedAtEpochMillis == segment.startedAt.toEpochMilli() &&
+                        segment.firstSequence == persistedSegmentStart.sequence &&
+                        segment.firstSequence <= requireNotNull(lastPoint).sequence
+                } else {
+                    segment.firstSequence == segmentPoints.first().sequence &&
+                        !segment.startedAt.isAfter(segmentPoints.first().sampledAt)
+                }
+        }
+    }
+
+    private fun approximatelyEqual(first: Double, second: Double): Boolean {
+        if (!first.isFinite() || !second.isFinite()) return false
+        val scale = maxOf(1.0, kotlin.math.abs(first), kotlin.math.abs(second))
+        return kotlin.math.abs(first - second) <= ROUTE_METRIC_EPSILON * scale
+    }
+
+    private suspend fun WorkoutRouteDao.updateCas(
+        next: WorkoutRouteEntity,
+        expectedRevision: Long,
+    ): Int = updateCasFields(
+        id = next.id,
+        sessionId = next.sessionId,
+        workoutType = next.workoutType,
+        state = next.state,
+        startedAtEpochMillis = next.startedAtEpochMillis,
+        endedAtEpochMillis = next.endedAtEpochMillis,
+        acceptedPointCount = next.acceptedPointCount,
+        segmentCount = next.segmentCount,
+        distanceMeters = next.distanceMeters,
+        averageHorizontalAccuracyMeters = next.averageHorizontalAccuracyMeters,
+        revision = next.revision,
+        expectedRevision = expectedRevision,
+    )
 
     private suspend fun transitionWorkoutSync(
         activityId: WorkoutActivityId,
@@ -1259,14 +1643,14 @@ class RoomRepositories @Inject constructor(
             is HealthSyncAggregate.WorkoutActivity -> {
                 val entity = database.workoutActivityDao().findById(aggregate.activityId.value.toString()) ?: return null
                 val version = maxOf(
-                    entity.importedAtEpochMillis,
+                    entity.recordedAtEpochMillis,
                     entity.reviewedAtEpochMillis ?: Long.MIN_VALUE,
                 )
                 ResolvedSyncMetadata(
                     clientRecordId = stableClientRecordId(key),
                     clientRecordVersion = version,
                     timeZoneId = null,
-                    createdAtEpochMillis = entity.importedAtEpochMillis,
+                    createdAtEpochMillis = entity.recordedAtEpochMillis,
                     updatedAtEpochMillis = version,
                 )
             }
@@ -1550,7 +1934,7 @@ private fun isWorkoutActivityBaseEligible(
     activity: WorkoutActivity,
     operation: HealthSyncOperation,
 ): Boolean =
-    activity.parserValidity != ParserValidity.INVALID &&
+    activity.importParserValidity != ParserValidity.INVALID &&
         activity.workflowState in HEALTH_SYNC_RESOLVABLE_WORKOUT_STATES &&
         isWorkoutWorkflowCompatible(activity.workflowState, operation.state) &&
         activity.confirmedType != null &&
@@ -1673,7 +2057,7 @@ internal fun planWatchWorkoutPersistence(
     existingImport: br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity?,
     existingActivity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity?,
 ): PlannedWatchWorkoutPersistence? {
-    if (incomingActivity.parserValidity == "INVALID" || incomingImport.parserValidity == "INVALID") {
+    if (incomingImport.parserValidity == "INVALID") {
         return null
     }
     if (existingImport == null) {

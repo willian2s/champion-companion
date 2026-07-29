@@ -11,6 +11,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.feature.home.ChampionDailyStepsSyncCoordinator
 import dagger.Module
 import dagger.Provides
@@ -28,6 +29,7 @@ object RepositoryModule {
     @Provides fun workoutActivityRepository(source: RoomRepositories): WorkoutActivityRepository = source
     @Provides fun treadmillCalibrationRepository(source: RoomRepositories): TreadmillCalibrationRepository = source
     @Provides fun appWorkoutSessionRepository(source: RoomRepositories): AppWorkoutSessionRepository = source
+    @Provides fun workoutRouteRepository(source: RoomRepositories): WorkoutRouteRepository = source
     @Provides fun healthSyncRepository(source: RoomRepositories): HealthSyncRepository = source
     @Provides fun calendarRepository(source: LocalCalendarRepository): CalendarRepository = source
     @Provides fun diagnosticPayloadRepository(source: RoomRepositories): DiagnosticPayloadRepository = source
