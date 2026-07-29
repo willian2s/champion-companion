@@ -4,10 +4,19 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 const val DEFAULT_DAILY_STEPS_GOAL = 8_000
+const val DEFAULT_WORKOUT_COUNTDOWN_SECONDS = 5
+
+object WorkoutCountdownPolicy {
+    val allowedSeconds: Set<Int> = setOf(0, 3, 5, 10)
+
+    fun sanitize(seconds: Int): Int = seconds.takeIf(allowedSeconds::contains)
+        ?: DEFAULT_WORKOUT_COUNTDOWN_SECONDS
+}
 
 sealed interface RepositoryResult<out T> {
     data class Success<T>(val value: T) : RepositoryResult<T>
@@ -537,6 +546,9 @@ interface DiagnosticPayloadRepository {
 interface AppPreferencesRepository {
     fun observe(): Flow<AppPreferences>
     fun observeDailyStepsGoal(): Flow<Int>
+    fun observeWorkoutCountdownSeconds(): Flow<Int> = observe().map { it.workoutCountdownSeconds }
     suspend fun update(preferences: AppPreferences): RepositoryResult<Unit>
     suspend fun updateDailyStepsGoal(goal: Int): RepositoryResult<Unit>
+    suspend fun updateWorkoutCountdownSeconds(seconds: Int): RepositoryResult<Unit> =
+        update(observe().first().copy(workoutCountdownSeconds = seconds))
 }

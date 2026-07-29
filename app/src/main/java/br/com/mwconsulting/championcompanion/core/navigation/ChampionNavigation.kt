@@ -55,6 +55,10 @@ import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesUiState
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesViewModel
 import br.com.mwconsulting.championcompanion.feature.exercises.WatchWorkoutImportSurfaceState
+import br.com.mwconsulting.championcompanion.feature.exercises.ActiveWorkoutShell
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutPreparationShell
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutRecoveryShell
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutTypeSelectionShell
 import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
 import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.D1HeartRateImportSurfaceState
@@ -129,6 +133,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             "Voltar para calendário"
         }
         backStack.dropLast(1).lastOrNull() == AppDestination.Health -> "Voltar para Saúde"
+        backStack.dropLast(1).lastOrNull() == AppDestination.Exercises -> "Voltar para Exercícios"
         else -> "Voltar"
     }
 
@@ -492,9 +497,27 @@ private fun ChampionNavDisplay(
                 viewModel = exercisesViewModel,
                 openedActivityId = destination.activityId.toWorkoutActivityId(),
                 onNavigateBack = onBackRequested,
-                onOpenActivity = { activityId ->
-                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                    onOpenActivity = { activityId ->
+                        onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                    },
+            )
+            AppDestination.WorkoutTypeSelection -> WorkoutTypeSelectionShell(
+                onSelectType = { workoutType ->
+                    onNavigateTo(AppDestination.WorkoutPreparation(workoutType))
                 },
+                onNavigateBack = onBackRequested,
+            )
+            is AppDestination.WorkoutPreparation -> WorkoutPreparationShell(
+                workoutType = destination.workoutType,
+                onNavigateBack = onBackRequested,
+            )
+            is AppDestination.ActiveWorkout -> ActiveWorkoutShell(
+                sessionId = destination.sessionId,
+                onNavigateBack = onBackRequested,
+            )
+            is AppDestination.WorkoutRecovery -> WorkoutRecoveryShell(
+                sessionId = destination.sessionId,
+                onNavigateBack = onBackRequested,
             )
             AppDestination.Device -> DeviceScreen()
             AppDestination.Profile -> ProfileScreen()
@@ -546,6 +569,10 @@ private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppD
 private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     AppDestination.Exercises,
     is AppDestination.ExerciseDetail,
+    AppDestination.WorkoutTypeSelection,
+    is AppDestination.WorkoutPreparation,
+    is AppDestination.ActiveWorkout,
+    is AppDestination.WorkoutRecovery,
     -> true
 
     else -> false
@@ -562,6 +589,10 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     -> true
 
     is AppDestination.ExerciseDetail,
+    AppDestination.WorkoutTypeSelection,
+    is AppDestination.WorkoutPreparation,
+    is AppDestination.ActiveWorkout,
+    is AppDestination.WorkoutRecovery,
     is AppDestination.CalendarDay,
     AppDestination.HealthHeartRate,
     AppDestination.HealthWeight,
@@ -625,6 +656,11 @@ private fun AppDestination.toSaveToken(): String = when (this) {
     is AppDestination.CalendarDay -> "calendar-day:$localDateIso"
     AppDestination.Exercises -> "exercises"
     is AppDestination.ExerciseDetail -> "exercise-detail:$activityId"
+    AppDestination.WorkoutTypeSelection -> "workout-type-selection"
+    is AppDestination.WorkoutPreparation -> "workout-preparation:$workoutType"
+    is AppDestination.ActiveWorkout -> "active-workout:$sessionId"
+    is AppDestination.WorkoutRecovery -> sessionId?.let { "workout-recovery:$it" }
+        ?: "workout-recovery"
     AppDestination.Device -> "device"
     AppDestination.Profile -> "profile"
     AppDestination.Settings -> "settings"
@@ -642,6 +678,17 @@ private fun fromSaveToken(token: String): AppDestination? = runCatching {
         token.startsWith("calendar-day:") -> AppDestination.CalendarDay(token.removePrefix("calendar-day:"))
         token == "exercises" -> AppDestination.Exercises
         token.startsWith("exercise-detail:") -> AppDestination.ExerciseDetail(token.removePrefix("exercise-detail:"))
+        token == "workout-type-selection" -> AppDestination.WorkoutTypeSelection
+        token.startsWith("workout-preparation:") -> AppDestination.WorkoutPreparation(
+            token.removePrefix("workout-preparation:"),
+        )
+        token.startsWith("active-workout:") -> AppDestination.ActiveWorkout(
+            token.removePrefix("active-workout:"),
+        )
+        token == "workout-recovery" -> AppDestination.WorkoutRecovery()
+        token.startsWith("workout-recovery:") -> AppDestination.WorkoutRecovery(
+            token.removePrefix("workout-recovery:"),
+        )
         token == "device" -> AppDestination.Device
         token == "profile" -> AppDestination.Profile
         token == "settings" -> AppDestination.Settings

@@ -10,9 +10,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import br.com.mwconsulting.championcompanion.core.model.AppPreferences
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL
+import br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.ThemePreference
+import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,6 +35,8 @@ class AppPreferencesStore @Inject constructor(
 
     override fun observeDailyStepsGoal(): Flow<Int> = observe().map { it.dailyStepsGoal }
 
+    override fun observeWorkoutCountdownSeconds(): Flow<Int> = observe().map { it.workoutCountdownSeconds }
+
     override suspend fun update(preferences: AppPreferences): RepositoryResult<Unit> =
         if (preferences.dailyStepsGoal <= 0) {
             RepositoryResult.UnexpectedState
@@ -47,6 +51,16 @@ class AppPreferencesStore @Inject constructor(
         if (goal <= 0) return RepositoryResult.UnexpectedState
         return update(observe().first().copy(dailyStepsGoal = goal))
     }
+
+    override suspend fun updateWorkoutCountdownSeconds(seconds: Int): RepositoryResult<Unit> =
+        try {
+            dataStore.edit { stored ->
+                AppPreferencesCodec.updateWorkoutCountdown(stored, seconds)
+            }
+            RepositoryResult.Success(Unit)
+        } catch (_: IOException) {
+            RepositoryResult.StorageUnavailable
+        }
 }
 
 internal object AppPreferencesCodec {
@@ -55,6 +69,7 @@ internal object AppPreferencesCodec {
     private val healthSyncEnabled = booleanPreferencesKey("health_sync_enabled")
     private val diagnosticCaptureEnabled = booleanPreferencesKey("diagnostic_capture_enabled")
     private val dailyStepsGoal = intPreferencesKey("daily_steps_goal")
+    private val workoutCountdownSeconds = intPreferencesKey("workout_countdown_seconds")
 
     fun decode(stored: Preferences): AppPreferences = AppPreferences(
         theme = stored[theme]?.let { value -> ThemePreference.entries.find { it.name == value } }
@@ -65,6 +80,9 @@ internal object AppPreferencesCodec {
         dailyStepsGoal = DailySummaryPolicy.sanitizeDailyStepsGoal(
             stored[dailyStepsGoal] ?: DEFAULT_DAILY_STEPS_GOAL,
         ),
+        workoutCountdownSeconds = WorkoutCountdownPolicy.sanitize(
+            stored[workoutCountdownSeconds] ?: DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
+        ),
     )
 
     fun encode(stored: androidx.datastore.preferences.core.MutablePreferences, preferences: AppPreferences) {
@@ -73,5 +91,13 @@ internal object AppPreferencesCodec {
         stored[healthSyncEnabled] = preferences.healthSyncEnabled
         stored[diagnosticCaptureEnabled] = preferences.diagnosticCaptureEnabled
         stored[dailyStepsGoal] = DailySummaryPolicy.sanitizeDailyStepsGoal(preferences.dailyStepsGoal)
+        stored[workoutCountdownSeconds] = WorkoutCountdownPolicy.sanitize(preferences.workoutCountdownSeconds)
+    }
+
+    fun updateWorkoutCountdown(
+        stored: androidx.datastore.preferences.core.MutablePreferences,
+        seconds: Int,
+    ) {
+        stored[workoutCountdownSeconds] = WorkoutCountdownPolicy.sanitize(seconds)
     }
 }

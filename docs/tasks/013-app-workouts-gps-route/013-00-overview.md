@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 3/17 subtarefas concluídas
+- **Progresso:** 4/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [x] [013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md](013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md)
 - [x] [013-02-update-roadmap-privacy-adr-and-operational-rules.md](013-02-update-roadmap-privacy-adr-and-operational-rules.md)
 - [x] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
-- [ ] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
+- [x] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
 - [ ] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
 - [ ] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
 - [ ] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
@@ -48,3 +48,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   correlação e projeção Health Connect. Mappers/Room/transações persistentes
   permanecem para subtarefas seguintes; revisão independente final aprovada sem
   bloqueadores.
+- `013-04` concluída com permissões mínimas de localização/FGS/notificação/rota,
+  countdown persistido e normalizado, destinos serializáveis com saver e shells
+  passivos. SDK Health Connect `1.1.0` foi mantido; service operacional e
+  solicitação runtime permanecem nas subtarefas seguintes.

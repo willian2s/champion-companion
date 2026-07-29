@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `04`
-- **Status:** pending
+- **Status:** concluída
 
 ## Objetivo e resultado esperado
 
@@ -101,3 +101,75 @@ Permissão FGS varia por API. Não solicitar localização para treino livre/est
 Remover permissões/dependências/destinos/preference em conjunto; preservar chaves DataStore antigas.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Registro de execução
+
+### Estado e escopo
+
+- Dependência `013-03` confirmada como concluída; ticker `013` consistente entre
+  spec, pasta, overview e subtarefas.
+- Escopo executado somente nesta subtarefa: permissões Android, preferência de
+  countdown, destinos Navigation3/back stack manual e shells passivos.
+
+### Decisões e desvios
+
+- `ACCESS_FINE_LOCATION` deixou de ser limitado ao SDK 30 e foi acompanhado por
+  `ACCESS_COARSE_LOCATION`, necessário para solicitação Android de localização
+  precisa. Nenhuma permissão `ACCESS_BACKGROUND_LOCATION` foi declarada.
+- Declaradas permissões base/location/connectedDevice de foreground service,
+  notificações e `WRITE_EXERCISE_ROUTE`. Nenhum service foi registrado porque
+  ainda não existe classe/shell operacional seguro; declaração fica para
+  `013-08`.
+- Navigation3 `1.1.4`, Health Connect `1.1.0` e demais dependências existentes
+  foram mantidas; não houve atualização de biblioteca nem inclusão de
+  localização externa.
+- Countdown foi incluído em `AppPreferences`, codec e repository com allowlist
+  `0/3/5/10`, default `5` e normalização fail-safe para `5`. Métodos default no
+  contrato preservam implementações legadas.
+- Destinos carregam somente tipo/string ou IDs string validados. Saver/restorer,
+  classificação da aba Exercícios e shells sem criação de sessão, rota, BLE,
+  GPS ou serviço foram integrados.
+
+### Arquivos alterados
+
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/AppPreferences.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/preferences/AppPreferencesStore.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/AppDestination.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/WorkoutShells.kt`
+- este arquivo e `013-00-overview.md`
+
+### Comandos executados, resultados e evidências
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; lint,
+  compilação Kotlin, assemble debug e release concluídos sem keystore local.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; APK instalado no dispositivo
+  `SM-S901E - 16`.
+- Manifestos mesclados debug/release em
+  `app/build/intermediates/merged_manifests/*/process*Manifest/AndroidManifest.xml`
+  contêm FINE/COARSE, foreground service, notificação e
+  `WRITE_EXERCISE_ROUTE`; não contêm `ACCESS_BACKGROUND_LOCATION`.
+- Revisão independente: aprovada com ressalvas, sem bloqueadores. Atualização
+  específica do countdown foi corrigida para editar somente sua chave DataStore.
+- Nenhum teste automatizado foi criado, alterado ou executado, conforme regra
+  explícita da Fase 13.
+
+### Riscos residuais
+
+- Solicitação runtime, readiness, countdown funcional e fluxo de permissão
+  permanecem em `013-06/07`.
+- Foreground service, declaração de classe, notificação funcional e captura
+  permanecem em `013-08`.
+- Shells estão passivos e navegação está preparada; CTA de entrada e ações de
+  sessão pertencem às subtarefas posteriores.
+- Implementações futuras que usem apenas método default de atualização do
+  contrato devem preferir edição atômica da chave; implementação de produção já
+  sobrescreve o método sem snapshot completo.
+
+### Estado de conclusão
+
+- Critérios desta subtarefa atendidos; nenhuma subtarefa seguinte iniciada.
+- Próxima subtarefa elegível: `013-05`.
