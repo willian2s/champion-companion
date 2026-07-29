@@ -535,6 +535,14 @@ data class HealthSyncOperation private constructor(
         if (clientRecordVersion != null && clientRecordVersion < 0L) {
             return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
         }
+        if (this.clientRecordId != null && clientRecordId != this.clientRecordId) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+        if (this.clientRecordVersion != null &&
+            (clientRecordVersion == null || clientRecordVersion < this.clientRecordVersion)
+        ) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
         return DomainResult.Success(copy(
             clientRecordId = clientRecordId,
             clientRecordVersion = clientRecordVersion,

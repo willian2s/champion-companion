@@ -229,6 +229,13 @@ interface WorkoutActivityRepository {
     suspend fun markSyncFailed(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = RepositoryResult.UnexpectedState
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
+    suspend fun findPhoneCorrelationCandidates(
+        fromInclusive: Instant,
+        untilExclusive: Instant,
+    ): RepositoryResult<List<PhoneWorkoutCorrelationCandidate>> = RepositoryResult.UnexpectedState
+    suspend fun mergeCorrelatedWatchImport(
+        input: WorkoutCorrelationMergeInput,
+    ): RepositoryResult<WorkoutCorrelationMergeResult> = RepositoryResult.UnexpectedState
 }
 
 enum class WorkoutActivityFilter {
@@ -300,10 +307,162 @@ data class TreadmillCalibrationSnapshot(
     val metricsProvenance: MetricProvenance,
 )
 
+data class AppWorkoutSessionCheckpoint(
+    val sessionId: AppWorkoutSessionId,
+    val expectedRevision: Long,
+    val runtimeGeneration: Long,
+    val at: Instant,
+    val aggregates: AppWorkoutSessionAggregates,
+) {
+    init {
+        require(expectedRevision >= 0)
+        require(runtimeGeneration >= 0)
+    }
+}
+
+data class AppWorkoutSessionMutation(
+    val sessionId: AppWorkoutSessionId,
+    val expectedRevision: Long,
+    val at: Instant,
+) {
+    init {
+        require(expectedRevision >= 0)
+    }
+}
+
+data class AssociateWorkoutActivityInput(
+    val sessionId: AppWorkoutSessionId,
+    val activityId: WorkoutActivityId,
+    val expectedRevision: Long,
+) {
+    init {
+        require(expectedRevision >= 0)
+    }
+}
+
+/**
+ * Escritas usam expectedRevision; divergência retorna [RepositoryResult.Conflict].
+ * Defaults CAS falham fechados até implementação Room da migration v6.
+ */
 interface AppWorkoutSessionRepository {
+    suspend fun create(session: AppWorkoutSession): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    fun observeActive(): Flow<AppWorkoutSession?> = flowOf(null)
+    fun observeSession(sessionId: AppWorkoutSessionId): Flow<AppWorkoutSession?> = flowOf(null)
     fun observeRecoverable(): Flow<List<AppWorkoutSession>>
+    suspend fun start(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun checkpoint(input: AppWorkoutSessionCheckpoint): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun pause(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun resume(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun interrupt(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun recover(
+        sessionId: AppWorkoutSessionId,
+        expectedRevision: Long,
+        at: Instant,
+    ): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun beginFinishing(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> =
+        RepositoryResult.Conflict
+    suspend fun associateActivity(input: AssociateWorkoutActivityInput): RepositoryResult<AppWorkoutSession> =
+        RepositoryResult.Conflict
+    suspend fun finish(
+        sessionId: AppWorkoutSessionId,
+        expectedRevision: Long,
+        at: Instant,
+    ): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun discard(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+
+    @Deprecated(
+        message = "Escrita sem expectedRevision é proibida; use recover(sessionId, expectedRevision, at)",
+        level = DeprecationLevel.ERROR,
+    )
     suspend fun recover(sessionId: AppWorkoutSessionId, at: Instant): RepositoryResult<AppWorkoutSession>
-    suspend fun finish(sessionId: AppWorkoutSessionId, activityId: WorkoutActivityId, at: Instant): RepositoryResult<AppWorkoutSession>
+
+    @Deprecated(
+        message = "Escrita sem expectedRevision é proibida; use beginFinishing/associateActivity/finish CAS",
+        level = DeprecationLevel.ERROR,
+    )
+    suspend fun finish(
+        sessionId: AppWorkoutSessionId,
+        activityId: WorkoutActivityId,
+        at: Instant,
+    ): RepositoryResult<AppWorkoutSession>
+}
+
+data class WorkoutRouteAppendCursor(
+    val routeId: WorkoutRouteId,
+    val lastSequence: Long?,
+    val lastSampledAt: Instant?,
+    val currentSegmentIndex: Int?,
+) {
+    init {
+        require((lastSequence == null) == (lastSampledAt == null))
+        require((lastSequence == null) == (currentSegmentIndex == null))
+        require(lastSequence == null || lastSequence >= 0)
+        require(currentSegmentIndex == null || currentSegmentIndex >= 0)
+    }
+}
+
+data class AppendWorkoutRoutePointsInput(
+    val routeId: WorkoutRouteId,
+    val sessionId: AppWorkoutSessionId,
+    val expectedRevision: Long,
+    val runtimeGeneration: Long,
+    val cursor: WorkoutRouteAppendCursor,
+    val points: List<WorkoutRoutePoint>,
+    val segments: List<WorkoutRouteSegment>,
+    val metrics: WorkoutRouteMetrics,
+) {
+    init {
+        require(expectedRevision >= 0)
+        require(runtimeGeneration >= 0)
+        require(points.isNotEmpty())
+        require(points.size <= MAX_ROUTE_POINT_BATCH_SIZE)
+        require(cursor.routeId == routeId)
+        require(points.all { it.routeId == routeId })
+        require(points.first().sequence == (cursor.lastSequence ?: -1L) + 1L)
+        require(cursor.lastSampledAt == null || points.first().sampledAt.isAfter(cursor.lastSampledAt))
+        require(points.zipWithNext().all { (first, second) ->
+            second.sequence == first.sequence + 1L && second.sampledAt.isAfter(first.sampledAt) &&
+                second.segmentIndex in first.segmentIndex..(first.segmentIndex + 1)
+        })
+        require(segments.all { it.routeId == routeId })
+        require(segments.zipWithNext().all { (first, second) -> second.index == first.index + 1 })
+        val currentSegmentIndex = cursor.currentSegmentIndex
+        require(
+            if (currentSegmentIndex == null) {
+                points.first().segmentIndex == 0
+            } else {
+                points.first().segmentIndex in currentSegmentIndex..(currentSegmentIndex + 1)
+            },
+        )
+        val pointSegmentIndices = points.map { it.segmentIndex }.distinct()
+        require(segments.map { it.index } == pointSegmentIndices)
+        require(segments.all { segment ->
+            val segmentPoints = points.filter { it.segmentIndex == segment.index }
+            segmentPoints.isNotEmpty() && segment.firstSequence <= segmentPoints.first().sequence &&
+                segment.lastSequence == segmentPoints.last().sequence &&
+                !segment.startedAt.isAfter(segmentPoints.first().sampledAt) &&
+                segment.endedAt == segmentPoints.last().sampledAt
+        })
+        require(metrics.acceptedPointCount >= points.size)
+        require(metrics.segmentCount >= segments.size)
+        require(metrics.segmentCount > points.maxOf { it.segmentIndex })
+    }
+
+    companion object {
+        const val MAX_ROUTE_POINT_BATCH_SIZE = 32
+    }
+}
+
+interface WorkoutRouteRepository {
+    suspend fun create(route: WorkoutRoute): RepositoryResult<WorkoutRoute>
+    fun observeBySession(sessionId: AppWorkoutSessionId): Flow<WorkoutRoute?>
+    suspend fun appendAcceptedPoints(input: AppendWorkoutRoutePointsInput): RepositoryResult<WorkoutRoute>
+    suspend fun finalize(
+        routeId: WorkoutRouteId,
+        expectedRevision: Long,
+        endedAt: Instant,
+    ): RepositoryResult<WorkoutRoute>
+    suspend fun deleteBeforeActivity(sessionId: AppWorkoutSessionId): RepositoryResult<Unit>
 }
 
 data class HealthSyncSummary(
