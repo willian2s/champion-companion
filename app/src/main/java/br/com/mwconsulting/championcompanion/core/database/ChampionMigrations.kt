@@ -130,7 +130,20 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
                 stepsAvailable
             )
             SELECT
-                id, type, createdAtEpochMillis, startedAtEpochMillis, endedAtEpochMillis,
+                id, type, createdAtEpochMillis, startedAtEpochMillis,
+                CASE WHEN state = 'DISCARDED' THEN
+                    MAX(
+                        createdAtEpochMillis,
+                        COALESCE(startedAtEpochMillis, createdAtEpochMillis),
+                        COALESCE(endedAtEpochMillis, createdAtEpochMillis),
+                        COALESCE(activeSinceEpochMillis, createdAtEpochMillis),
+                        COALESCE(pausedSinceEpochMillis, createdAtEpochMillis),
+                        COALESCE(startedAtEpochMillis, createdAtEpochMillis) +
+                            activeDurationNanos / 1000000 +
+                            pausedDurationNanos / 1000000 +
+                            ((activeDurationNanos % 1000000 + pausedDurationNanos % 1000000 + 999999) / 1000000)
+                    )
+                ELSE endedAtEpochMillis END,
                 activeDurationNanos, pausedDurationNanos, activeSinceEpochMillis,
                 pausedSinceEpochMillis, state, steps, distanceMeters,
                 CASE WHEN distanceMeters IS NULL THEN 'NOT_PROVIDED_BY_SOURCE' END,
@@ -143,17 +156,31 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
                 maximumBpm,
                 CASE WHEN maximumBpm IS NULL THEN 'NOT_PROVIDED_BY_SOURCE' END,
                 workoutActivityId,
-                MAX(
-                    createdAtEpochMillis,
-                    COALESCE(startedAtEpochMillis, createdAtEpochMillis),
-                    COALESCE(endedAtEpochMillis, createdAtEpochMillis),
-                    COALESCE(activeSinceEpochMillis, createdAtEpochMillis),
-                    COALESCE(pausedSinceEpochMillis, createdAtEpochMillis),
-                    COALESCE(
-                        startedAtEpochMillis + (activeDurationNanos + pausedDurationNanos) / 1000000,
-                        createdAtEpochMillis
+                CASE WHEN state = 'DISCARDED' THEN
+                    MAX(
+                        createdAtEpochMillis,
+                        COALESCE(startedAtEpochMillis, createdAtEpochMillis),
+                        COALESCE(endedAtEpochMillis, createdAtEpochMillis),
+                        COALESCE(activeSinceEpochMillis, createdAtEpochMillis),
+                        COALESCE(pausedSinceEpochMillis, createdAtEpochMillis),
+                        COALESCE(startedAtEpochMillis, createdAtEpochMillis) +
+                            activeDurationNanos / 1000000 +
+                            pausedDurationNanos / 1000000 +
+                            ((activeDurationNanos % 1000000 + pausedDurationNanos % 1000000 + 999999) / 1000000)
                     )
-                ),
+                ELSE
+                    MAX(
+                        createdAtEpochMillis,
+                        COALESCE(startedAtEpochMillis, createdAtEpochMillis),
+                        COALESCE(endedAtEpochMillis, createdAtEpochMillis),
+                        COALESCE(activeSinceEpochMillis, createdAtEpochMillis),
+                        COALESCE(pausedSinceEpochMillis, createdAtEpochMillis),
+                        COALESCE(
+                            startedAtEpochMillis + (activeDurationNanos + pausedDurationNanos) / 1000000,
+                            createdAtEpochMillis
+                        )
+                    )
+                END,
                 NULL,
                 0,
                 CASE WHEN startedAtEpochMillis IS NULL THEN 0 ELSE 1 END,

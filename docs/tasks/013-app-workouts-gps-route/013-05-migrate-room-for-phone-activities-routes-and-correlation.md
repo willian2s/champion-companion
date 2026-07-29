@@ -207,19 +207,23 @@ Não criar, alterar ou executar testes automatizados.
 
 ### Bloqueio atual
 
-- A execução física confirmou abertura do banco em v6 e integridade estrutural,
-  mas não registrou contagens/IDs/workflows/sync antes da migration. Também não
-  confirmou calendário íntegro após o upgrade, pois a tela exibiu dados parciais.
-  Repetir gate com snapshot sanitizado de base v5 contendo calibração e sync,
-  comparar divergências e investigar o estado parcial do calendário antes de
-  concluir.
+- A execução física agora possui snapshot v5/v6 sanitizado: atividades,
+  importações, intervalos, amostras BPM, `heart_rate_measurements` e sync
+  preservaram contagens e hashes de colunas comuns; `user_version` passou de 5
+  para 6 e as superfícies abriram sem estado parcial no segundo gate. A base
+  fornecida não contém calibrações nem sessões (`0 → 0`), portanto esses dois
+  caminhos ainda precisam de fixture histórica real. Migration agora normaliza
+  `DISCARDED` legado sem término; criação e recuperação de rota rejeitam estado
+  não canônico. Instruções estão em
+  `docs/integration/013-05-room-v6-follow-up.md`.
 
 ### Riscos residuais
 
-- Preservação integral de IDs, workflows, calibrações e estados de sync ainda
-  não foi comprovada por comparação antes/depois.
-- Lista e detalhe foram exercitados manualmente; calendário foi aberto em estado
-  parcial e precisa de confirmação após investigação.
+- Preservação de calibrações e sessões não foi exercitada com linhas reais,
+  porque base v5 fornecida tinha zero registros nesses conjuntos.
+- Recuperação física de rota aguarda rota real; API pública
+  `loadRecoverySnapshot` agora restaura cursor, último ponto e segmentos com
+  validação fechada.
 - Downgrade depois de abrir v6 continua não suportado; rollback permanece
   operacional por restauração do artefato v5 antes da abertura do banco.
 
@@ -227,4 +231,99 @@ Não criar, alterar ou executar testes automatizados.
 
 - Status: bloqueada.
 - Item `013-05` permanece `[ ]` no overview; progresso permanece `4/17`.
+- Pendências operacionais estão registradas em
+  `docs/integration/013-05-room-v6-follow-up.md`.
 - Nenhuma subtarefa seguinte foi iniciada.
+
+## Registro de execução — correção do snapshot de recuperação
+
+### Causa do escalonamento
+
+- A revisão final identificou que `WorkoutRouteRepository` permitia observar a
+  rota, mas não restaurar cursor, último ponto aceito e segmentos persistidos.
+  Após morte do processo, consumidores não conseguiam construir novo
+  `AppendWorkoutRoutePointsInput` sem acessar Room diretamente.
+
+### Correção delimitada
+
+- `WorkoutRouteRecoverySnapshot` mantém rota, cursor de append, segmentos e
+  último ponto aceito em contrato Android-free.
+- `loadRecoverySnapshot(sessionId)` usa relação única sessão–rota e retorna
+  `Success(null)` quando não existe rota para a sessão.
+- `RoomRepositories` lê rota e pontos ordenados em `withReadTransaction`,
+  restaura metadata de início e checkpoints de distância por segmento e rejeita
+  com `UnexpectedState` domínio, metadata, ordenação ou métricas divergentes.
+- Nenhuma tabela, índice, migration, coleta GPS, log ou teste foi alterado.
+  `013-03` permaneceu inalterada: contrato em código já expressa API sem mudar
+  requisitos aprovados.
+
+### Comandos e resultados
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL` em 1 min
+  40 s; 103 tarefas, 28 executadas e 75 atualizadas. Permaneceram dois avisos
+  preexistentes de overrides depreciados em `RoomRepositories`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Estado preservado
+
+- Status e overview permanecem inalterados para decisão do agente principal.
+- Correção remove blocker de API de recuperação. Bloqueios documentais/manuais
+  anteriores devem ser reconciliados pelo agente principal com nova evidência
+  física informada antes de marcar somente `013-05` no checklist.
+
+## Registro de execução — bloqueador estático final
+
+### Causa do escalonamento
+
+- Revisão final comprovou que linhas v5 em estado `DISCARDED` podiam migrar com
+  `endedAtEpochMillis` nulo. O mapper v6 então rejeitava a sessão, pois estado
+  persistido descartado exige término não nulo e duração temporalmente possível.
+- Dois achados próximos permitiam criar rota com estado/agregados herdados e
+  restaurar metadata temporal de segmentos sobrepostos.
+
+### Correções aplicadas
+
+- Migration `5 → 6` deriva `endedAtEpochMillis` somente para `DISCARDED` pelo
+  máximo entre criação, início, término legado, marcadores ativo/pausado e
+  início acrescido da duração acumulada. Conversão de nanos para milissegundos
+  usa teto por quociente/resto, sem somar previamente os dois `Long`; o mesmo
+  instante derivado alimenta `lastTransitionAtEpochMillis` nesse estado.
+- Criação de rota reconstrói valor canônico antes do insert: `CAPTURING`,
+  revisão `0`, término nulo e `WorkoutRouteMetrics.EMPTY`. Round-trip inválido
+  retorna `UnexpectedState`; conflito de ID ou sessão já vinculada retorna
+  `Conflict`.
+- Recuperação rejeita primeiro segmento anterior ao início da rota e qualquer
+  segmento posterior iniciado antes do fim do anterior. Validações existentes
+  de primeiro ponto, metadata, checkpoints e métricas foram preservadas.
+- Nenhuma tabela, índice, nova migration, teste ou arquivo fora da subtarefa foi
+  alterado nesta correção; API pública de recuperação foi criada no registro
+  anterior.
+
+### Comandos e resultados
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL` em 1 min
+  34 s; 103 tarefas, 28 executadas e 75 atualizadas. Permaneceram dois avisos
+  preexistentes de overrides depreciados em `RoomRepositories`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Bloqueios preservados
+
+- Status da subtarefa e overview não foram alterados. Cobertura física com
+  calibração/sessão v5 real e recuperação com rota real continua pendente no
+  follow-up existente para reconciliação pelo agente principal.
+
+## Registro de execução — gate comparativo final
+
+- Snapshot v5 foi capturado antes da abertura do APK v6 no `SM-S901E`: 3
+  atividades, 3 importações, 94 intervalos, 94 amostras BPM de atividade, 82
+  `heart_rate_measurements`, 95 operações de sync, 0 calibrações e 0 sessões.
+- Após abertura do APK v6: `user_version=6`, `foreign_key_check` vazio e
+  contagens preservadas. Comparação por colunas comuns retornou
+  `common_rows_equal=True` e hashes iguais nos conjuntos não vazios.
+- Exercícios/lista, detalhe e Calendário abriram com histórico e indicadores.
+- `docs/integration/013-05-room-v6-follow-up.md` contém instruções para
+  calibração, sessões `DISCARDED` reais e recuperação de rota com dados reais.
+- `git diff --check` e `./gradlew lint assembleDebug assembleRelease` passaram.
+- Nenhum teste automatizado foi criado, alterado ou executado.

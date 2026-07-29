@@ -410,6 +410,34 @@ data class WorkoutRouteAppendCursor(
     }
 }
 
+data class WorkoutRouteRecoverySnapshot(
+    val route: WorkoutRoute,
+    val cursor: WorkoutRouteAppendCursor,
+    val segments: List<WorkoutRouteSegment>,
+    val lastAcceptedPoint: WorkoutRoutePoint?,
+) {
+    init {
+        require(cursor.routeId == route.id)
+        require((lastAcceptedPoint == null) == (cursor.lastSequence == null))
+        require(lastAcceptedPoint == null || lastAcceptedPoint.routeId == route.id)
+        require(lastAcceptedPoint?.sequence == cursor.lastSequence)
+        require(lastAcceptedPoint?.sampledAt == cursor.lastSampledAt)
+        require(lastAcceptedPoint?.segmentIndex == cursor.currentSegmentIndex)
+        require(segments.size == route.metrics.segmentCount)
+        require(segments.all { it.routeId == route.id })
+        require(segments.map { it.index } == segments.indices.toList())
+        require(
+            if (segments.isEmpty()) {
+                cursor.currentSegmentIndex == null
+            } else {
+                segments.last().index == cursor.currentSegmentIndex &&
+                    segments.last().lastSequence == cursor.lastSequence &&
+                    segments.last().endedAt == cursor.lastSampledAt
+            },
+        )
+    }
+}
+
 data class AppendWorkoutRoutePointsInput(
     val routeId: WorkoutRouteId,
     val sessionId: AppWorkoutSessionId,
@@ -465,6 +493,15 @@ data class AppendWorkoutRoutePointsInput(
 interface WorkoutRouteRepository {
     suspend fun create(route: WorkoutRoute): RepositoryResult<WorkoutRoute>
     fun observeBySession(sessionId: AppWorkoutSessionId): Flow<WorkoutRoute?>
+
+    /**
+     * Carrega estado lossless necessário para continuar rota única da sessão.
+     * Ausência de rota produz sucesso nulo; persistência inconsistente produz
+     * [RepositoryResult.UnexpectedState].
+     */
+    suspend fun loadRecoverySnapshot(
+        sessionId: AppWorkoutSessionId,
+    ): RepositoryResult<WorkoutRouteRecoverySnapshot?>
     suspend fun appendAcceptedPoints(input: AppendWorkoutRoutePointsInput): RepositoryResult<WorkoutRoute>
     suspend fun finalize(
         routeId: WorkoutRouteId,

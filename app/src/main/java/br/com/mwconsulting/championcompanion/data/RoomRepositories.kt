@@ -1,4 +1,5 @@
 package br.com.mwconsulting.championcompanion.data
+import androidx.room3.withReadTransaction
 import androidx.room3.withWriteTransaction
 import br.com.mwconsulting.championcompanion.BuildConfig
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
@@ -10,6 +11,7 @@ import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEn
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionCheckpoint
@@ -85,8 +87,11 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteAppendCursor
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRecoverySnapshot
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegment
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegmentReason
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -934,23 +939,48 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun create(route: WorkoutRoute): RepositoryResult<WorkoutRoute> = write {
-        val sessionEntity = database.appWorkoutSessionDao().findById(route.sessionId.value.toString())
+        val canonicalRoute = WorkoutRoute.create(
+            id = route.id,
+            sessionId = route.sessionId,
+            workoutType = route.workoutType,
+            startedAt = route.startedAt,
+        ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+        if (route != canonicalRoute || canonicalRoute.toEntity().toDomain() != canonicalRoute) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        val sessionEntity = database.appWorkoutSessionDao().findById(canonicalRoute.sessionId.value.toString())
             ?: return@write RepositoryResult.NotFound
         val session = sessionEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
-        if (session.type != route.workoutType || !session.recordsRoute || session.workoutActivityId != null ||
+        val routeDao = database.workoutRouteDao()
+        if (session.type != canonicalRoute.workoutType || !session.recordsRoute || session.workoutActivityId != null ||
             session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.ACTIVE ||
-            database.workoutRouteDao().findBySessionId(sessionEntity.id) != null
+            routeDao.findById(canonicalRoute.id.value.toString()) != null ||
+            routeDao.findBySessionId(sessionEntity.id) != null
         ) {
             return@write RepositoryResult.Conflict
         }
-        database.workoutRouteDao().insert(route.toEntity())
-        RepositoryResult.Success(route)
+        routeDao.insert(canonicalRoute.toEntity())
+        RepositoryResult.Success(canonicalRoute)
     }
 
     override fun observeBySession(sessionId: AppWorkoutSessionId): Flow<WorkoutRoute?> =
         database.workoutRouteDao().observeBySessionId(sessionId.value.toString())
             .map { it?.toDomain() }
             .flowOn(ioDispatcher)
+
+    override suspend fun loadRecoverySnapshot(
+        sessionId: AppWorkoutSessionId,
+    ): RepositoryResult<WorkoutRouteRecoverySnapshot?> = read {
+        val dao = database.workoutRouteDao()
+        val routeEntity = dao.findBySessionId(sessionId.value.toString())
+            ?: return@read RepositoryResult.Success(null)
+        val route = routeEntity.toDomain() ?: return@read RepositoryResult.UnexpectedState
+        val snapshot = restoreWorkoutRouteRecoverySnapshot(
+            route = route,
+            pointEntities = dao.findPoints(routeEntity.id),
+        ) ?: return@read RepositoryResult.UnexpectedState
+        RepositoryResult.Success(snapshot)
+    }
 
     override suspend fun appendAcceptedPoints(
         input: AppendWorkoutRoutePointsInput,
@@ -1429,6 +1459,98 @@ class RoomRepositories @Inject constructor(
         return kotlin.math.abs(first - second) <= ROUTE_METRIC_EPSILON * scale
     }
 
+    private fun restoreWorkoutRouteRecoverySnapshot(
+        route: WorkoutRoute,
+        pointEntities: List<WorkoutRoutePointEntity>,
+    ): WorkoutRouteRecoverySnapshot? {
+        if (pointEntities.size.toLong() != route.metrics.acceptedPointCount) return null
+        if (pointEntities.isEmpty()) {
+            if (route.metrics.segmentCount != 0 || route.metrics.distanceMeters != 0.0 ||
+                route.metrics.averageHorizontalAccuracyMeters != null
+            ) return null
+            return WorkoutRouteRecoverySnapshot(
+                route = route,
+                cursor = WorkoutRouteAppendCursor(route.id, null, null, null),
+                segments = emptyList(),
+                lastAcceptedPoint = null,
+            )
+        }
+
+        val points = pointEntities.map { it.toDomain() ?: return null }
+        if (points.any { it.routeId != route.id } ||
+            points.first().sequence != 0L ||
+            points.zipWithNext().any { (first, second) ->
+                second.sequence != first.sequence + 1L ||
+                    !second.sampledAt.isAfter(first.sampledAt) ||
+                    second.segmentIndex !in first.segmentIndex..(first.segmentIndex + 1)
+            } ||
+            points.first().segmentIndex != 0 ||
+            points.first().sampledAt.isBefore(route.startedAt) ||
+            route.endedAt?.let(points.last().sampledAt::isAfter) == true
+        ) return null
+
+        val expectedSegmentIndices = (0 until route.metrics.segmentCount).toList()
+        if (pointEntities.map { it.segmentIndex }.distinct() != expectedSegmentIndices) return null
+        val recordsBySegment = pointEntities.zip(points).groupBy { (entity, _) -> entity.segmentIndex }
+        val segments = expectedSegmentIndices.map { segmentIndex ->
+            val records = recordsBySegment[segmentIndex] ?: return null
+            val firstEntity = records.first().first
+            val firstPoint = records.first().second
+            val lastEntity = records.last().first
+            val lastPoint = records.last().second
+            val reasonName = firstEntity.segmentStartReason ?: return null
+            val reason = enumValueOfOrNull<WorkoutRouteSegmentReason>(reasonName) ?: return null
+            val startedAtEpochMillis = firstEntity.segmentStartedAtEpochMillis ?: return null
+            val startedAt = Instant.ofEpochMilli(startedAtEpochMillis)
+            if (records.drop(1).any { (entity, _) ->
+                    entity.segmentStartReason != null || entity.segmentStartedAtEpochMillis != null
+                } ||
+                (segmentIndex == 0) != (reason == WorkoutRouteSegmentReason.SESSION_START) ||
+                startedAt.isAfter(firstPoint.sampledAt)
+            ) return null
+
+            val distanceCheckpoints = records.mapNotNull { (entity, _) -> entity.segmentDistanceMeters }
+            val distanceMeters = lastEntity.segmentDistanceMeters ?: return null
+            if (distanceCheckpoints.any { !it.isFinite() || it < 0.0 } ||
+                distanceCheckpoints.zipWithNext().any { (first, second) -> second < first }
+            ) return null
+            WorkoutRouteSegment(
+                routeId = route.id,
+                index = segmentIndex,
+                reason = reason,
+                firstSequence = firstPoint.sequence,
+                lastSequence = lastPoint.sequence,
+                startedAt = startedAt,
+                endedAt = lastPoint.sampledAt,
+                distanceMeters = distanceMeters,
+            )
+        }
+        if (segments.first().startedAt.isBefore(route.startedAt) ||
+            segments.zipWithNext().any { (previous, next) -> next.startedAt.isBefore(previous.endedAt) }
+        ) return null
+
+        val expectedDistance = segments.sumOf { it.distanceMeters }
+        val expectedAverageAccuracy = points.sumOf { it.horizontalAccuracyMeters } / points.size
+        if (!approximatelyEqual(route.metrics.distanceMeters, expectedDistance) ||
+            route.metrics.averageHorizontalAccuracyMeters?.let {
+                approximatelyEqual(it, expectedAverageAccuracy)
+            } != true
+        ) return null
+
+        val lastPoint = points.last()
+        return WorkoutRouteRecoverySnapshot(
+            route = route,
+            cursor = WorkoutRouteAppendCursor(
+                routeId = route.id,
+                lastSequence = lastPoint.sequence,
+                lastSampledAt = lastPoint.sampledAt,
+                currentSegmentIndex = lastPoint.segmentIndex,
+            ),
+            segments = segments,
+            lastAcceptedPoint = lastPoint,
+        )
+    }
+
     private suspend fun WorkoutRouteDao.updateCas(
         next: WorkoutRouteEntity,
         expectedRevision: Long,
@@ -1771,6 +1893,10 @@ class RoomRepositories @Inject constructor(
 
     private suspend fun <T> write(block: suspend () -> RepositoryResult<T>): RepositoryResult<T> = withContext(ioDispatcher) {
         database.withWriteTransaction { block() }
+    }
+
+    private suspend fun <T> read(block: suspend () -> RepositoryResult<T>): RepositoryResult<T> = withContext(ioDispatcher) {
+        database.withReadTransaction { block() }
     }
 
     private fun manualMeasurementDeduplicationKey(sessionId: HeartRateMeasurementSessionId): String =
