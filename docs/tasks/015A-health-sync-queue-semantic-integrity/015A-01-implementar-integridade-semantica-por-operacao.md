@@ -121,7 +121,8 @@ Arquivos e símbolos de consulta obrigatória, sem alteração funcional esperad
 - `UserProfileHeight + HEIGHT`: perfil válido e altura existente, positiva e
   finita.
 
-Qualquer combinação não suportada permanece operação inválida pelo mapper da
+Qualquer combinação não suportada é classificada como operação inválida por uma
+validação explícita anterior ao resolvedor semântico da
 operação, não aggregate não resolvido.
 
 ## Preservações obrigatórias
