@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 2/17 subtarefas concluídas
+- **Progresso:** 3/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 
 - [x] [013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md](013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md)
 - [x] [013-02-update-roadmap-privacy-adr-and-operational-rules.md](013-02-update-roadmap-privacy-adr-and-operational-rules.md)
-- [ ] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
+- [x] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
 - [ ] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
 - [ ] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
 - [ ] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
@@ -42,5 +42,9 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - `013-02` concluída com ADR-014 aceita, ADR-004 parcialmente sucedida,
   roadmap/baselines/AGENTS alinhados e fronteira F12/F13/F14 formalizada. A
   implementação funcional permanece pendente; `Phase003PrivacyGuardTest` não
-  foi alterado nem executado. `013-03` é próxima subtarefa elegível, sem início
-  automático. Revisão independente aprovada com ressalvas, sem bloqueadores.
+  foi alterado nem executado. Revisão independente aprovada com ressalvas, sem
+  bloqueadores.
+- `013-03` concluída com contratos Android-free de atividade, sessão, rota, GPS,
+  correlação e projeção Health Connect. Mappers/Room/transações persistentes
+  permanecem para subtarefas seguintes; revisão independente final aprovada sem
+  bloqueadores.

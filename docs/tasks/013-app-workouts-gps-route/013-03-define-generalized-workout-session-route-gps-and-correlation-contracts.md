@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `03`
-- **Status:** pending
+- **Status:** concluída
 
 ## Objetivo e resultado esperado
 
@@ -105,3 +105,66 @@ Não tornar todos campos nullable sem invariantes. Não alterar semântica D3/D4
 Reverter contratos e consumidores juntos; nenhuma migration ocorreu nesta task.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Registro de execução
+
+### Estado e escopo
+
+- Dependências confirmadas: `013-01` e `013-02` concluídas; ticker `013`
+  consistente entre spec, pasta, overview e subtarefas.
+- Escopo limitado aos contratos Android-free de `core/model`; nenhum arquivo de
+  Room, `data`, Android, UI, manifesto, Gradle ou teste foi alterado.
+
+### Decisões e desvios
+
+- `WorkoutActivity` tornou-se agregado comum com proveniências combináveis:
+  `WATCH_D3_D4`, `PHONE_GPS`, `PHONE_TREADMILL` e `PHONE_FREE_WORKOUT`.
+  Metadados D3/D4 permanecem em `WatchWorkoutImport`; factories de importação e
+  sessão phone são separadas.
+- `AppWorkoutSession` recebeu lifecycle completo, `FINISHING`, recuperação,
+  checkpoints monotônicos, `lastTransitionAt`, revisão CAS e finalização
+  idempotente. Defaults legados permanecem fail-closed até migration v6.
+- Foram definidos rota, ponto, segmento, métricas, readiness GPS, política de
+  rejeição, correlação ambígua segura, prioridade de fontes e merge D3/D4.
+- Projeção Health Connect representa enriquecimento da mesma operação
+  `EXERCISE_SESSION`, com `clientRecordId` estável e versão monotônica; downgrade
+  sem rota conhecida é rejeitado.
+- Desvio controlado: bridges internos mantêm consumidores D3/D4 compiláveis;
+  mappers, Room e transações persistentes ficam para subtarefas posteriores,
+  conforme arquivos proibidos desta subtarefa.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/AppWorkoutSession.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WorkoutCorrelation.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WorkoutHealthProjection.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WorkoutRoute.kt`
+- este arquivo e `013-00-overview.md`
+
+### Comandos, resultados e evidências
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; lint,
+  assembleDebug e assembleRelease concluídos. Primeira execução após ajustes
+  excedeu timeout operacional de 120 s durante tarefas já concluídas; repetição
+  com timeout maior concluiu em 58 s.
+- Consumidores existentes compilaram com as bridges de compatibilidade; nenhum
+  teste automatizado foi criado, alterado ou executado, conforme regra da fase.
+- Revisão independente final: aprovada, sem bloqueadores.
+
+### Riscos residuais
+
+- `RoomRepositories` ainda possui caminhos legados sem CAS e o mapper ainda não
+  restaura todos os campos da sessão; implementação pertence a `013-05`.
+- Finalização transacional, merge persistente e deduplicação CRC global dependem
+  de `013-12/13`.
+- Persistência/provider de rota, requeue/versionamento remoto e validação física
+  permanecem nas subtarefas posteriores.
+
+### Estado final
+
+- Status: concluída.
+- Próxima subtarefa elegível: `013-04`; não iniciada automaticamente.
