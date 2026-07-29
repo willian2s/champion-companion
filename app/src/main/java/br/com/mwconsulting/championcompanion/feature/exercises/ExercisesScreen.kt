@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -99,6 +100,9 @@ private val ExerciseHeartRateGuideBands = listOf(
     71f to Color(0xFF4FC3F7),
     30f to Color(0xFF29B6F6),
 )
+
+private val ExerciseHeartRateChartLeftPadding = 12.dp
+private val ExerciseHeartRateChartRightPadding = 40.dp
 
 private val PendingWorkflowBorderColor = Color(0xFFF9A825)
 private val ReadyWorkflowBorderColor = Color(0xFF1E88E5)
@@ -1107,9 +1111,9 @@ private fun WorkoutHeartRateChart(samples: List<WorkoutHeartRateSample>) {
                     contentDescription = "Gráfico de frequência cardíaca do treino. $chartDescription"
                 },
         ) {
-            val leftPadding = 12.dp.toPx()
+            val leftPadding = ExerciseHeartRateChartLeftPadding.toPx()
             val topPadding = 14.dp.toPx()
-            val rightPadding = 40.dp.toPx()
+            val rightPadding = ExerciseHeartRateChartRightPadding.toPx()
             val bottomPadding = 22.dp.toPx()
             val chartWidth = size.width - leftPadding - rightPadding
             val chartHeight = size.height - topPadding - bottomPadding
@@ -1173,7 +1177,12 @@ private fun WorkoutHeartRateChart(samples: List<WorkoutHeartRateSample>) {
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .absolutePadding(
+                    left = ExerciseHeartRateChartLeftPadding,
+                    right = ExerciseHeartRateChartRightPadding,
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(samples.first().sampledAt.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)

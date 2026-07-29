@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.core.database
 
 import androidx.room3.Dao
+import androidx.room3.Embedded
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
@@ -63,6 +64,12 @@ interface DeviceAssociationDao {
 
 @Dao
 interface UserProfileDao {
+    @Query("SELECT * FROM user_profiles ORDER BY id")
+    fun observeAllProfiles(): Flow<List<UserProfileEntity>>
+
+    @Query("SELECT * FROM weight_measurements ORDER BY id")
+    fun observeAllWeights(): Flow<List<WeightMeasurementEntity>>
+
     @Query("SELECT * FROM user_profiles WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): UserProfileEntity?
 
@@ -87,6 +94,9 @@ interface UserProfileDao {
     @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis")
     suspend fun findWeights(profileId: String): List<WeightMeasurementEntity>
 
+    @Query("SELECT * FROM weight_measurements WHERE measuredAtEpochMillis >= :fromEpochMillis AND measuredAtEpochMillis < :untilEpochMillis ORDER BY measuredAtEpochMillis DESC, id DESC")
+    fun observeBetween(fromEpochMillis: Long, untilEpochMillis: Long): Flow<List<WeightMeasurementEntity>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(profile: UserProfileEntity)
 
@@ -99,6 +109,9 @@ interface UserProfileDao {
 
 @Dao
 interface DailySummaryDao {
+    @Query("SELECT * FROM daily_summaries ORDER BY id")
+    fun observeAll(): Flow<List<DailySummaryEntity>>
+
     @Query("SELECT * FROM daily_summaries WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): DailySummaryEntity?
 
@@ -111,6 +124,9 @@ interface DailySummaryDao {
     @Query("SELECT * FROM daily_summaries WHERE localDateIso BETWEEN :fromLocalDateIso AND :toLocalDateIso ORDER BY localDateIso")
     fun observeBetween(fromLocalDateIso: String, toLocalDateIso: String): Flow<List<DailySummaryEntity>>
 
+    @Query("SELECT * FROM daily_summaries WHERE localDateIso >= :fromLocalDateIso AND localDateIso < :untilLocalDateIso AND validity = 'VALID' ORDER BY localDateIso, updatedAtEpochMillis DESC, collectedAtEpochMillis DESC, id")
+    fun observeValidBetween(fromLocalDateIso: String, untilLocalDateIso: String): Flow<List<DailySummaryEntity>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(summary: DailySummaryEntity)
 
@@ -120,6 +136,9 @@ interface DailySummaryDao {
 
 @Dao
 interface HeartRateDao {
+    @Query("SELECT * FROM heart_rate_measurements ORDER BY id")
+    fun observeAll(): Flow<List<HeartRateMeasurementEntity>>
+
     @Query("SELECT * FROM heart_rate_measurements WHERE id = :id")
     suspend fun findById(id: String): HeartRateMeasurementEntity?
 
@@ -159,6 +178,20 @@ interface WorkoutActivityDao {
     fun observeAll(): Flow<List<WorkoutActivityEntity>>
 
     @Query(
+        "SELECT activity.*, " +
+            "importRecord.id AS importId, importRecord.activityId AS importActivityId, " +
+            "importRecord.deviceId AS importDeviceId, importRecord.origin AS importOrigin, " +
+            "importRecord.crc AS importCrc, importRecord.externalBlockIndex AS importExternalBlockIndex, " +
+            "importRecord.parserVersion AS importParserVersion, importRecord.parserValidity AS importParserValidity, " +
+            "importRecord.diagnosticPayloadId AS importDiagnosticPayloadId, " +
+            "importRecord.importedAtEpochMillis AS importImportedAtEpochMillis " +
+            "FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "ORDER BY activity.id",
+    )
+    fun observeAllHealthSyncCandidates(): Flow<List<HealthSyncWorkoutCandidateRecord>>
+
+    @Query(
         "SELECT activity.* FROM workout_activities activity " +
             "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "WHERE activity.workflowState = 'PENDING_REVIEW' " +
@@ -193,6 +226,34 @@ interface WorkoutActivityDao {
     @Query("SELECT * FROM workout_activities WHERE id = :id")
     suspend fun findById(id: String): WorkoutActivityEntity?
 
+    @Query(
+        "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
+            "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
+            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState " +
+            "FROM workout_activities activity " +
+            "WHERE activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "ORDER BY activity.startedAtEpochMillis, activity.id",
+    )
+    fun observeCalendarSummariesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<CalendarWorkoutSummaryRecord>>
+
+    @Query(
+        "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
+            "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
+            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState " +
+            "FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE activity.workflowState != 'DISCARDED' " +
+            "ORDER BY activity.startedAtEpochMillis, activity.id",
+    )
+    fun observeAllCalendarSummaries(): Flow<List<CalendarWorkoutSummaryRecord>>
+
     @Query("SELECT activity.* FROM workout_activities activity INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id WHERE importRecord.deviceId = :deviceId AND importRecord.origin = :origin AND importRecord.crc = :crc")
     suspend fun findByImportKey(deviceId: String, origin: String, crc: Int): WorkoutActivityEntity?
 
@@ -219,6 +280,36 @@ data class WorkoutWorkflowSummaryRecord(
     val syncedCount: Int,
     val syncFailedCount: Int,
     val discardedCount: Int,
+)
+
+data class CalendarWorkoutSummaryRecord(
+    val activityId: String,
+    val origin: String,
+    val title: String?,
+    val suggestedType: String,
+    val confirmedType: String?,
+    val startedAtEpochMillis: Long,
+    val durationNanos: Long,
+    val originalDistanceMeters: Double?,
+    val estimatedDistanceMeters: Double?,
+    val calibratedDistanceMeters: Double?,
+    val caloriesKilocalories: Double?,
+    val averageBpm: Int?,
+    val workflowState: String,
+)
+
+data class HealthSyncWorkoutCandidateRecord(
+    @Embedded val activity: WorkoutActivityEntity,
+    val importId: String,
+    val importActivityId: String,
+    val importDeviceId: String,
+    val importOrigin: String,
+    val importCrc: Int,
+    val importExternalBlockIndex: Int,
+    val importParserVersion: String,
+    val importParserValidity: String,
+    val importDiagnosticPayloadId: String?,
+    val importImportedAtEpochMillis: Long,
 )
 
 data class HealthSyncSummaryRecord(
@@ -274,9 +365,38 @@ interface WorkoutDetailDao {
     @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis")
     suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
 
+    @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, id")
+    fun observeAllHeartRateSamples(): Flow<List<WorkoutHeartRateSampleEntity>>
+
+    @Query(
+        "SELECT sample.activityId AS activityId, sample.sampledAtEpochMillis AS sampledAtEpochMillis, " +
+            "sample.bpm AS bpm, activity.title AS activityTitle, activity.suggestedType AS suggestedType, " +
+            "activity.confirmedType AS confirmedType " +
+            "FROM workout_heart_rate_samples sample " +
+            "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "WHERE sample.sampledAtEpochMillis >= :fromEpochMillis " +
+            "AND sample.sampledAtEpochMillis < :untilEpochMillis " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "ORDER BY sample.sampledAtEpochMillis DESC, sample.id DESC",
+    )
+    fun observeHeartRateHistoryBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutHeartRateHistoryRecord>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>)
 }
+
+data class WorkoutHeartRateHistoryRecord(
+    val activityId: String,
+    val sampledAtEpochMillis: Long,
+    val bpm: Int,
+    val activityTitle: String?,
+    val suggestedType: String,
+    val confirmedType: String?,
+)
 
 @Dao
 interface TreadmillCalibrationDao {
@@ -310,6 +430,9 @@ interface AppWorkoutSessionDao {
 
 @Dao
 interface HealthSyncOperationDao {
+    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, id")
+    fun observeAll(): Flow<List<HealthSyncOperationEntity>>
+
     @Query("SELECT * FROM health_sync_operations WHERE id = :id")
     suspend fun findById(id: String): HealthSyncOperationEntity?
 
@@ -318,6 +441,9 @@ interface HealthSyncOperationDao {
 
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
+
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType")
+    fun observeByAggregateIds(aggregateType: String, aggregateIds: List<String>): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")
     suspend fun findFailed(): List<HealthSyncOperationEntity>

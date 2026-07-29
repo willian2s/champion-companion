@@ -42,6 +42,14 @@ Classificacao:
 - Backlog local herdado para Health Connect passou a ser reconciliado e processado por fila persistida foreground.
 - `SettingsScreen` deixou de ser placeholder, `healthSyncEnabled` participa de fluxo funcional e `ChampionDatabase` esta em `v5`.
 - G-08, G-09 e G-10 deixaram de ser lacunas centrais de implementacao da Fase 12 e passam a riscos residuais apenas para evolucoes futuras, regressao e validacoes adicionais de longo prazo.
+- A validação física de fechamento da Fase 11 confirmou telas, filtros, detalhe, métricas, gráfico, intervalos e persistência no Galaxy S22 `SM-S901E`, mas não reproduziu review, calibração, descarte, `PARTIAL` e banner de pendências por ausência desses estados no dispositivo.
+- Health Connect funcional observado no dispositivo pertence à Fase 12; a ausência registrada para Fase 11 é ausência de operação de sync própria, não ausência do provider no produto final.
+
+## Fechamento Factual Da Fase 12
+
+- Gate C físico foi concluído em 2026-07-28 no Galaxy S22 com Health Connect real, conforme registro de `012-13` e confirmação manual integral adicional do usuário.
+- G-08, G-09 e G-10 ficam encerradas como lacunas de entrega da Fase 12; permanecem somente riscos de regressão, evolução futura e validações de longo prazo.
+- Continuam fora do escopo: leitura remota, `WorkManager`, foreground service, sincronização periódica, backup, rotas e dados de localização.
 
 ## G-01 — GATT, Scan E Notifications
 
@@ -109,29 +117,29 @@ Classificacao:
 ## G-08 — IDs, Versoes E Idempotencia Health Connect
 
 - Impacto: Alta. Pode duplicar dados remotos ou sobrescrever dados fora de escopo.
-- Evidencia: `health-connect-mapping.md` registra IDs `motionlog:` como legado, `insertRecords` sem update explicito e `Steps` por delete de intervalo seguido de insert; resultado de reinsert/conflito nao foi validado.
-- Motivo da duvida: Champion Companion precisa IDs proprios, `clientRecordVersion` para records mutaveis e atualizacao segura.
-- Fase: implementacao Health Connect, antes de liberar sync.
+- Evidência histórica: a baseline MotionLog registrava IDs `motionlog:` como legado, `insertRecords` sem update explícito e `Steps` por delete de intervalo seguido de insert. O Champion Companion usa identidade própria por `applicationId`, `clientRecordVersion` e update seguro, validados no Gate C.
+- Motivo da dúvida: resolvido para a Fase 12; permanece somente risco de regressão futura do provider.
+- Fase: resolvida na implementação Health Connect da Fase 12.
 - Dispositivo fisico: Sim.
-- Validacao sugerida: definir contrato de ID local/remoto e versao; testar insert repetido, update, conflito, retry apos falha e impacto do intervalo Steps com registros de outros apps.
+- Validação concluída no Gate C: contrato de ID local/remoto e versão, insert repetido, update e retry foram exercitados manualmente; impacto sobre registros de terceiros permanece fora do escopo write-only.
 
 ## G-09 — Permissoes, Escrita Parcial E Retry Health Connect
 
 - Impacto: Alta. Sucesso parcial pode ocultar records pendentes; permissao indisponivel pode gerar perda de fila.
-- Evidencia: `health-connect-mapping.md` confirma fila local e falha parcial nao granular em grupo de exercicio. Permissoes, provider, mensagens reais, unidade de retry e recuperacao de records complementares nao foram exercitados.
-- Motivo da duvida: chamadas no codigo nao comprovam comportamento da plataforma nem politica segura do novo app.
-- Fase: implementacao Health Connect.
+- Evidência histórica: a baseline não comprovava permissões, provider, mensagens reais, retry ou recuperação de records complementares. O Champion Companion confirmou esses cenários no Gate C.
+- Motivo da dúvida: resolvido para a Fase 12; permanece somente risco de regressão futura do provider.
+- Fase: resolvida na implementação Health Connect da Fase 12.
 - Dispositivo fisico: Sim, Android com Health Connect disponivel.
-- Validacao sugerida: testar ausencia/concessao/revogacao de permissao, provider indisponivel e falha entre records de sessao. Verificar fila por entidade/record, tentativa posterior e erro exibido sem marcar lote inteiro como sincronizado.
+- Validação concluída no Gate C: ausência, concessão e revogação de permissão, disponibilidade, falha parcial, fila por entidade/record, retry e erro seguro foram confirmados manualmente.
 
 ## G-10 — Steps, Perfil, Peso/Altura E Tempo Health Connect
 
 - Impacto: Media. Intervalo ou timestamp errado altera agregacao e historico externo.
-- Evidencia: `health-connect-mapping.md` deixa pendentes timezone/virada de dia, politica de peso/altura, frequencia de envio e timestamps fallback. `database-reference.md` tambem aponta coexistencia de `synced_at` diario e cursor especifico Steps.
-- Motivo da duvida: comportamento MotionLog nao prova regra futura em mudanca de horario, perfil atualizado ou medidas historicas.
-- Fase: implementacao Health Connect e banco proprio.
+- Evidência histórica: a baseline deixava pendentes timezone, virada de dia, política de peso/altura, frequência de envio e timestamps fallback. O Champion Companion validou os cenários elegíveis no Gate C.
+- Motivo da dúvida: resolvido para a Fase 12; timezone futuro e evolução de política permanecem riscos de longo prazo.
+- Fase: resolvida na implementação Health Connect da Fase 12; evolução futura permanece aberta.
 - Dispositivo fisico: Sim para escrita/consulta; Nao para definir regra.
-- Validacao sugerida: definir semantica temporal e fonte de perfil/historico; testar dia corrente, dia fechado, meia-noite, mudanca de horario, perfil sem `updatedAt` e medidas repetidas.
+- Validação concluída no Gate C para dados elegíveis: passos, peso, altura, timestamps e medidas repetidas foram confirmados manualmente; ausência de dados pessoais permanece tratável.
 
 ## G-11 — Banco Proprio: Identidade, Exclusao E Retencao
 
@@ -188,7 +196,7 @@ Classificacao:
 - Dispositivo fisico: Nao.
 - Validacao sugerida: definir contratos entre BLE, banco, Health Connect, background e UI antes de cada modulo; manter separacao de transporte, protocolo, dominio e interface exigida pelo roadmap.
 
-## Ordem Recomendada
+## Ordem Histórica Recomendada
 
 1. G-13 e G-11: limites de dados, privacidade e persistencia.
 2. G-16, G-05, G-14: contratos Android, BLE e background antes de serviços.
@@ -199,4 +207,4 @@ Classificacao:
 
 ## Limites
 
-Nenhuma lacuna acima foi resolvida por esta task. `Confirmado pelo codigo` permanece evidencia da baseline; nao equivale a validacao no Champion Companion ou no Champion C001 fisico.
+As lacunas G-08, G-09 e G-10 foram resolvidas para a Fase 12 pelo código e pelo Gate C físico. As demais lacunas continuam abertas conforme seus registros individuais. `Confirmado pelo código` permanece evidência da baseline; não substitui validação física futura fora do escopo desta fase.

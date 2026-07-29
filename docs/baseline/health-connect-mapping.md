@@ -17,6 +17,10 @@ No estado atual do Champion Companion apos a integracao nativa real:
 
 Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
 
+## Fechamento Factual Da Fase 12
+
+Em 2026-07-28, `012-15` corrigiu a identidade de `clientRecordId` por variante e `012-13` registrou Gate C físico concluído no Galaxy S22 com provider real. Disponibilidade, permissões, escrita foreground, retry, falha parcial, preferência pausada, recuperação e privacidade foram confirmados na validação manual adicional informada pelo usuário. A integração continua write-only; não há leitura remota nem rota.
+
 ## Politica Champion Companion Formalizada Na Fase 12
 
 As decisoes abaixo passam a ser consideradas contrato documental do app novo para a Fase 12:
@@ -106,8 +110,8 @@ MotionLog usa `insertRecords`; não há update explícito por ID de record remot
 - Persistência local vem antes de fila/escrita. Falha Health Connect não desfaz dado local. `Confirmado pelo código`.
 - Sucesso marca item `synced`, incrementa tentativas e registra `synced_at`; falha marca `failed`, incrementa tentativas e guarda mensagem; dado inválido/ausente marca `skipped`. `Confirmado pelo código`.
 - BPM também guarda estado, ID e erro na própria medição. D1 persiste cada ponto e pode fazer flush explícito de pendências. `Confirmado pelo código`.
-- Falha parcial de múltiplos records de exercício não é granular: records são agrupados por tipo e inseridos sequencialmente; falha posterior retorna falha para item `ExerciseSession`, mesmo que grupo anterior já tenha escrito. `Confirmado pelo código`.
-- Chave da fila evita múltiplos itens locais; `clientRecordId` determinístico reduz duplicação remota. Não há prova de idempotência remota nem teste físico. `Inferido a partir do código` para redução; idempotência é `Ainda não confirmada`.
+- Falha parcial de atividade é granular por record complementar; sessão sincronizada é preservada e retry processa somente operações pendentes ou falhas. `Confirmado pelo código e pelo Gate C`.
+- Chave da fila evita múltiplos itens locais; `clientRecordId` determinístico e update por versão preservam idempotência por variante. `Confirmado pelo código e pelo Gate C`.
 
 ## Regras Obrigatórias Champion Companion
 
@@ -123,7 +127,9 @@ MotionLog mapeia `walking`, `running`, `treadmill` e `free` para sessão; distâ
 
 `buildExerciseSessionHealthConnectRecords` declara explicitamente que não sincroniza `ExerciseRoute`; política retorna `route: false` para todo tipo. Nenhum record de rota, coordenada ou polyline é incluído. `Confirmado pelo código`.
 
-## Lacunas Para `000-14`
+## Lacunas Históricas Da Baseline MotionLog
+
+Itens abaixo registram perguntas existentes na baseline MotionLog antes da implementação nativa do Champion Companion. Não representam bloqueios da Fase 12; decisões e validações aplicáveis ao app novo estão registradas nas seções pós-fase e no Gate C.
 
 - Definir IDs estáveis próprios Champion Companion, política de `clientRecordVersion` para todos records mutáveis e relação entre ID local e ID remoto.
 - Definir atualização idempotente sem delete amplo de `Steps`; confirmar efeito de delete por intervalo sobre records de outros apps.
@@ -146,4 +152,4 @@ MotionLog mapeia `walking`, `running`, `treadmill` e `free` para sessão; distâ
 
 ## Limites
 
-Nenhum SDK Android foi implementado. Nenhuma permissão ou escrita foi exercitada em dispositivo. `motionlog-app` foi somente lido.
+O registro acima descreve somente a baseline MotionLog e sua leitura histórica. No Champion Companion, o SDK Android foi integrado, permissões e escrita foram exercitadas no Galaxy S22 no Gate C, e o provider permanece write-only.

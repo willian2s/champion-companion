@@ -2,7 +2,7 @@
 
 ## Status
 
-Concluída em 2026-07-24.
+Concluída em 2026-07-28 após conclusão de `012-13`.
 
 ## Objetivo
 
@@ -112,6 +112,8 @@ A fase altera decisões arquiteturais duradouras, schema, UI, manifesto e integr
 
 ## Execução
 
+> Fechamento documental atualizado em 2026-07-28 após correção de identidade por variante e repetição do Gate C.
+
 ### Arquivos atualizados
 
 - `docs/specs/012-native-health-connect.md`
@@ -126,15 +128,31 @@ A fase altera decisões arquiteturais duradouras, schema, UI, manifesto e integr
 
 ### Fechamento consolidado
 
-- Fase 12 foi consolidada como concluída documentalmente após integração funcional write-only, fila persistida, triggers foreground, sync explícito de atividade, Settings funcional e feedback secundário nas features.
-- Gate C foi tratado como validado manualmente no Galaxy S22 com provider real, conforme instrução do fechamento desta sessão.
-- baseline factual, mapping, checklist, gaps e roadmap foram alinhados ao estado realmente entregue, preservando fronteira explícita sem leitura remota, sem `WorkManager` e sem sync automático ao abrir.
+- Fase 12 foi consolidada como concluída após integração funcional write-only, fila persistida, triggers foreground, sync explícito de atividade, Settings funcional e feedback secundário nas features.
+- Gate C foi validado manualmente no Galaxy S22 com provider real; `012-13` registra execução inicial e confirmação manual integral adicional do usuário.
+- baseline factual, mapping, checklist, gaps e roadmap foram alinhados ao estado entregue, preservando fronteira explícita sem leitura remota, sem `WorkManager` e sem sync automático ao abrir.
+- `ChampionDatabase` permanece em `v5`; nenhuma migration adicional foi introduzida no fechamento.
+- builds `lint`, `assembleDebug`, `assembleRelease` e `installDebug` concluíram com sucesso.
 
 ### Riscos residuais
 
-- screenshots obrigatórias de tasks visuais da fase não foram consolidadas neste fechamento;
+- screenshots da validação visual permanecem em caminhos temporários locais, conforme evidência registrada em `012-13`;
 - política futura de fator separado de calibração de esteira continua fora da fase;
-- temas de backup/restauração, cleanup avançado e Fase 14 continuam pendentes por escopo.
+- timezone de `DailySummary`, backup/restauração, cleanup avançado e Fase 14 continuam pendentes por escopo;
+- validações futuras do provider podem repetir o Gate C como regressão, sem reabrir a fronteira write-only da fase.
+
+## Reabertura corretiva encerrada
+
+- `012-15` corrige a identidade de sync por variante.
+- `012-13` repetiu o Gate C e registrou confirmação manual integral adicional.
+- Esta subtarefa foi executada sequencialmente após `012-13`.
+
+## Evidências finais
+
+- `docs/tasks/012-native-health-connect/012-13-run-physical-health-connect-gate-c.md` registra cenários, dispositivo, origem debug, screenshots e validação manual adicional.
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`.
+- `./gradlew installDebug` — `BUILD SUCCESSFUL`; instalação concluída no Galaxy S22 `SM-S901E`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
 
 ## Validação final
 

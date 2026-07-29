@@ -2,7 +2,7 @@
 
 ## Status
 
-Concluída documentalmente em 2026-07-24 durante `012-01`. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09`, `011-10` e `011-11` já estavam concluídas no código; `011-12` e `011-13` foram reconciliadas documentalmente sem reabertura funcional da fase.
+Concluída em 2026-07-28, com progresso em `13/13`. Todas as subtarefas `011-01` a `011-13` estão concluídas. Correção visual solicitada para `011-10` concluída em 2026-07-28.
 
 Observação de ordem real:
 
@@ -125,6 +125,7 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - Regra de associação intervalo/BPM ficou conservadora: só usa amostras dentro da janela temporal acumulada de cada intervalo; fora disso, mostra degradação segura sem inventar média.
 - Ajuste posterior: `PARTIAL` voltou a poder seguir revisão local e alcançar `READY_TO_SYNC`, alinhando fluxo ao comportamento anterior do app e removendo bloqueio excessivo introduzido na Fase 11.
 - Ajuste posterior adicional: detalhe passou a tratar treino livre com métricas mais enxutas, intervalos em modal sob demanda e chips empilhados em coluna para evitar quebra visual.
+- Correção visual de 2026-07-28: legendas de início/fim do detalhe e legendas do eixo X do histórico de Saúde agora respeitam os mesmos paddings horizontais dos plots (`12 dp` à esquerda e `40 dp` à direita), sem mudança de dados, escala ou contratos.
 
 ## Achados de `011-11`
 
@@ -241,8 +242,16 @@ Controlar escopo, ordem, dependências, paralelismo, conflitos, checklist, valid
 - [x] `011-09` implementar filtros, lista clicável e navegação para detalhe
 - [x] `011-10` implementar detalhe, gráfico, intervalos e formulários
 - [x] `011-11` integrar banner Home, confirmações, validações e erros seguros
-- [x] `011-12` reconciliar validação manual pendente sem reabrir implementação funcional da fase
+- [x] `011-12` executar validação manual pendente sem reabrir implementação funcional da fase
 - [x] `011-13` fechar spec, overview, roadmap, ADR e documentação factual necessária
+
+## Observações
+
+- `011-12` foi marcada concluída por autorização explícita, com gate de build/instalação e validação manual parcial registrados na própria task.
+- Galaxy S22 continha 9 atividades reais em `SYNCED`; por isso review, calibração, descarte, `PARTIAL` e banner de pendências não foram reproduzidos nesta rodada.
+- Health Connect funcional pertence à Fase 12 já entregue; Fase 11 continua sem operação de sync própria e termina em `READY_TO_SYNC`.
+- `011-13` encerra documentação sem introduzir implementação funcional; riscos da validação física parcial permanecem aceitos e registrados.
+- Usuário confirmou uso funcional dos fluxos da fase; ausência de reprodução integral nesta rodada foi aceita sem reabrir implementação.
 
 ## Comandos
 

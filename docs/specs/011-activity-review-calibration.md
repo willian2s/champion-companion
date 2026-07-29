@@ -2,7 +2,7 @@
 
 ## Status
 
-Em andamento em 2026-07-24. `011-01`, `011-02`, `011-03`, `011-04`, `011-05`, `011-06`, `011-07`, `011-08`, `011-09`, `011-10` e `011-11` concluídas.
+Concluída em 2026-07-28. `011-01` a `011-13` concluídas, com riscos da validação física parcial registrados nas tasks `011-12` e `011-13`.
 
 Observação de execução real:
 
@@ -12,6 +12,12 @@ Observação de execução real:
 Atualização posterior:
 
 - `011-03` foi concluída depois de `011-04` e `011-05`, consolidando formalmente os contratos que já tinham sido introduzidos parcialmente e adicionando o estado de UI ainda ausente da feature.
+
+Atualização de fechamento em 2026-07-28:
+
+- `011-12` executou gate de build, instalação e validação manual parcial no Galaxy S22 `SM-S901E`; os desvios físicos ficaram registrados sem reabrir implementação.
+- `011-13` encerrou documentação da fase com fronteira `READY_TO_SYNC` preservada.
+- Health Connect funcional observado no aparelho pertence à Fase 12 posterior; Fase 11 não executa operação própria de sincronização.
 
 ## Contexto
 
@@ -121,6 +127,7 @@ Atualização de `011-10`:
 - `ExercisesScreen.kt` agora já renderiza detalhe completo com cabeçalho, métricas, gráfico com amostras reais de BPM, intervalos e formulários de revisão/calibração.
 - A associação intervalo ↔ BPM agora usa janela temporal segura por duração acumulada do treino; quando não houver amostras na janela, a UI degrada para mensagem explícita sem inventar BPM.
 - Estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `PARTIAL`, `Loading`, `NotFound` e `Failed` agora já possuem representação dedicada no detalhe.
+- Correção visual de 2026-07-28: legendas horizontais dos gráficos de frequência cardíaca no histórico de Saúde e no detalhe de atividade passaram a usar os mesmos limites de `12 dp` à esquerda e `40 dp` à direita dos respectivos plots, sem alterar dados, escala ou contratos.
 
 Atualização de `011-11`:
 
@@ -226,7 +233,7 @@ Ela formaliza:
 - métricas importadas são imutáveis;
 - calibração é camada derivada;
 - descarte é lógico;
-- `PARTIAL` não pode ser confirmado;
+- `PARTIAL` pode seguir revisão local quando o restante do fluxo estiver válido;
 - reimportação não apaga decisões do usuário.
 
 ## Roadmap
@@ -607,7 +614,7 @@ Roteiro manual obrigatório no Galaxy S22 com atividades reais D3/D4:
 20. abrir atividade `PARTIAL` e confirmar que o fluxo local continua disponível com aviso informativo;
 21. descartar atividade;
 22. confirmar filtro `Descartadas`;
-23. confirmar ausência de Health Connect funcional;
+23. confirmar ausência de operação de Health Connect pertencente à Fase 11, reconhecendo integração posterior da Fase 12;
 24. confirmar ausência de testes novos ou alterados.
 
 ## Dívida técnica

@@ -2,7 +2,9 @@
 
 ## Status
 
-Planejada em 2026-07-24.
+Concluída em 2026-07-28 após correção da identidade de sync por variante e fechamento documental.
+
+- **Progresso:** 15/15 subtarefas concluídas.
 
 ## Status inicial
 
@@ -125,6 +127,15 @@ Planejada em 2026-07-24.
 - falhas do provider permanecem subordinadas ao dado local já persistido nas três superfícies.
 - `./gradlew :app:compileDebugKotlin` foi validado com sucesso após 012-12.
 
+## Reabertura corretiva de 2026-07-28
+
+- O relato físico inicial informou que debug (`br.com.mwconsulting.championcompanion.dev`) concluía a escrita de passos, mas o dado não era reconhecido como esperado no Health Connect/Google Health; release funcionava.
+- `RoomRepositories.kt` fixava `SYNC_CLIENT_RECORD_APPLICATION_ID` em `br.com.mwconsulting.championcompanion`, apesar do `applicationIdSuffix = ".dev"` e da exigência da ADR-012 de separar debug e release pelo `applicationId` final.
+- O diff estava limpo antes deste replanejamento. A origem do desvio foi localizada no commit de `012-05`, que introduziu o prefixo fixo enquanto documentava o formato como baseado em `applicationId`.
+- `012-13` não pode receber a correção: seu escopo permite somente documentação e validação física, proibindo código funcional novo.
+- `012-15` isolou o bugfix mínimo. A divergência de implementação e a relação causal com o sintoma do provider foram confirmadas por validação física debug direcionada.
+- `012-13` foi liberada após `012-15`, concluída após validação manual integral adicional e seguida pelo fechamento de `012-14`.
+
 ## Objetivo
 
 Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C e fechamento documental da Fase 12, dedicada a implementar integração write-only com Health Connect via fila persistida e retry foreground, sem leitura remota e sem `WorkManager`.
@@ -162,6 +173,7 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 12. `012-12-integrate-sync-feedback-in-home-health-and-exercises.md`
 13. `012-13-run-physical-health-connect-gate-c.md`
 14. `012-14-close-native-health-connect-phase.md`
+15. `012-15-fix-health-connect-client-record-application-id-per-variant.md`
 
 ## Ordem
 
@@ -173,8 +185,9 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 6. `012-08`
 7. `012-09`, `012-10` e `012-11`
 8. `012-12`
-9. `012-13`
-10. `012-14`
+9. `012-15`
+10. `012-13`
+11. `012-14`
 
 ## Dependências
 
@@ -192,15 +205,16 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 | `012-10` | `012-08` |
 | `012-11` | `012-08` |
 | `012-12` | `012-09`, `012-10`, `012-11` |
-| `012-13` | `012-12` |
+| `012-13` | `012-12`, `012-15` |
 | `012-14` | `012-13` |
+| `012-15` | `012-12` |
 
 ## Paralelismo
 
 - `012-03` e `012-04` podem avançar em paralelo depois de `012-02`.
 - `012-06` e `012-07` podem avançar em paralelo quando contratos e schema estiverem estáveis.
 - `012-09`, `012-10` e `012-11` podem avançar em paralelo depois do coordinator estabilizado.
-- `012-12`, `012-13` e `012-14` devem permanecer sequenciais.
+- `012-15`, `012-13` e `012-14` devem permanecer sequenciais nesta reabertura.
 
 ## Hotspots
 
@@ -231,20 +245,21 @@ Controlar escopo, ordem, dependências, paralelismo, hotspots, migration, Gate C
 
 ## Checklist
 
-- [x] `012-01` reconciliar fechamento documental da Fase 11 e auditar backlogs atuais
-- [x] `012-02` formalizar ADR de política write-only e alinhar roadmap
-- [x] `012-03` integrar SDK estável `connect-client:1.1.0`, manifesto, rationale e disponibilidade
-- [x] `012-04` expandir domínio de sync, record types, identidades e schema Room
-- [x] `012-05` implementar fila de sync, reconciliação de backlog e contratos de repositório
-- [x] `012-06` implementar gateway e mapeadores de passos, BPM e perfil
-- [x] `012-07` implementar mapeadores de sessão de exercício e records complementares
-- [x] `012-08` implementar coordinator foreground com partial e retry
-- [x] `012-09` integrar triggers pós-persistência de passos, manual e D1
-- [x] `012-10` integrar sync explícito de atividade e transições de workflow
-- [x] `012-11` criar tela de Settings, permissões e gerenciamento de acesso
-- [x] `012-12` integrar feedback secundário em Home, Saúde e Exercícios
-- [x] `012-13` rodar Gate C físico com Health Connect real
-- [x] `012-14` fechar documentação final da fase
+- [x] [012-01-audit-phase-11-closure-health-connect-baseline-and-current-backlogs.md](012-01-audit-phase-11-closure-health-connect-baseline-and-current-backlogs.md)
+- [x] [012-02-formalize-health-connect-sync-policy-adr-and-roadmap.md](012-02-formalize-health-connect-sync-policy-adr-and-roadmap.md)
+- [x] [012-03-add-health-connect-sdk-manifest-rationale-and-availability.md](012-03-add-health-connect-sdk-manifest-rationale-and-availability.md)
+- [x] [012-04-expand-sync-domain-record-types-identities-and-room-schema.md](012-04-expand-sync-domain-record-types-identities-and-room-schema.md)
+- [x] [012-05-implement-sync-queue-reconciliation-and-repository-contracts.md](012-05-implement-sync-queue-reconciliation-and-repository-contracts.md)
+- [x] [012-06-implement-health-connect-gateway-and-steps-heart-profile-mappers.md](012-06-implement-health-connect-gateway-and-steps-heart-profile-mappers.md)
+- [x] [012-07-implement-workout-session-and-complementary-record-mappers.md](012-07-implement-workout-session-and-complementary-record-mappers.md)
+- [x] [012-08-implement-health-connect-sync-coordinator-partial-results-and-retry.md](012-08-implement-health-connect-sync-coordinator-partial-results-and-retry.md)
+- [x] [012-09-integrate-post-persistence-steps-manual-bpm-and-d1-triggers.md](012-09-integrate-post-persistence-steps-manual-bpm-and-d1-triggers.md)
+- [x] [012-10-integrate-explicit-workout-sync-and-workflow-transitions.md](012-10-integrate-explicit-workout-sync-and-workflow-transitions.md)
+- [x] [012-11-create-health-connect-settings-permissions-and-manage-access-ui.md](012-11-create-health-connect-settings-permissions-and-manage-access-ui.md)
+- [x] [012-12-integrate-sync-feedback-in-home-health-and-exercises.md](012-12-integrate-sync-feedback-in-home-health-and-exercises.md)
+- [x] [012-13-run-physical-health-connect-gate-c.md](012-13-run-physical-health-connect-gate-c.md)
+- [x] [012-14-close-native-health-connect-phase.md](012-14-close-native-health-connect-phase.md)
+- [x] [012-15-fix-health-connect-client-record-application-id-per-variant.md](012-15-fix-health-connect-client-record-application-id-per-variant.md)
 
 ## Gate C
 
@@ -267,13 +282,19 @@ Validação física obrigatória no Galaxy S22 com Health Connect real para:
 - peso e altura quando elegíveis;
 - privacidade.
 
-Resultado consolidado da fase: validado manualmente no Galaxy S22 com provider Health Connect real antes do fechamento documental de `012-14`.
+Resultado atual: correção por variante, Gate C integral e fechamento documental foram concluídos em 2026-07-28.
+
+## Observações
+
+- `012-15` foi concluída com builds/install debug e confirmação física de passos reconhecidos pelo provider; demais dados continuam sincronizando.
+- `012-13` foi concluída após validação física inicial e relato manual integral adicional do usuário no Galaxy S22; os cenários obrigatórios foram informados como funcionando.
+- `012-14` foi concluída com baseline, mapping, checklist, gaps e roadmap alinhados.
 
 ## Dívida e riscos
 
 - conflito documental ainda aberto sobre política de `PARTIAL` da Fase 11;
 - timezone de `DailySummary` ainda não resolvido em schema;
-- idempotência remota depende de validação física;
+- validações futuras podem repetir cenários físicos para regressão e evolução do provider;
 - screenshots obrigatórias das tasks visuais da fase não foram consolidadas neste overview;
 - não misturar ajustes não relacionados em theme, dynamic colors ou preferências já existentes.
 
@@ -296,6 +317,6 @@ Resultado consolidado da fase: validado manualmente no Galaxy S22 com provider H
 
 ## Fechamento
 
-- Fase 12 concluída em 2026-07-24.
-- Gate C tratado como validado manualmente nesta sessão de fechamento.
-- Tasks `012-01` a `012-14` consideradas concluídas documentalmente.
+- Fechamento documental de 2026-07-24 preservado como registro histórico, mas reaberto em 2026-07-28 por divergência entre o prefixo fixo de `clientRecordId` e o `applicationId` final de debug.
+- `012-15` foi concluída com evidência física direcionada.
+- `012-13` e `012-14` foram concluídas sequencialmente em 2026-07-28.

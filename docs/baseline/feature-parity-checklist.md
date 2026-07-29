@@ -7,8 +7,8 @@ Validar, em fases futuras, paridade funcional segura entre Champion Companion e 
 ## Baseline E Uso
 
 - Baseline: MotionLog `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`.
-- Status de cada item: verificar checkbox individual. Fase 11 concluiu entregas locais de revisao, calibracao, descarte logico e `READY_TO_SYNC`; Fase 12 concluiu integracao funcional write-only com Health Connect em foreground.
-- Evidencia `Confirmado pelo codigo` descreve baseline. Nao confirma comportamento do Champion Companion nem validacao no dispositivo.
+- Status de cada item: verificar checkbox individual. Fase 11 concluiu entregas locais de revisão, calibração, descarte lógico e `READY_TO_SYNC`; Fase 12 concluiu integração funcional write-only com Health Connect em foreground e Gate C físico no Galaxy S22.
+- Evidência `Confirmado pelo código` descreve baseline; evidência de comportamento do Champion Companion deve apontar para `012-13` e para o registro final do Gate C.
 - Itens `Ainda nao confirmado` exigem decisao ou validacao fisica antes de aceitacao; nao devem ser inferidos como requisito implementado.
 - Validacao deve registrar versao Champion Companion, firmware/dispositivo, dados de entrada, resultado esperado, resultado obtido e evidencia.
 
@@ -64,7 +64,7 @@ Fontes: `workouts-d3-d4.md`, `feature-inventory.md`, `database-reference.md`, `h
 
 - [x] D3 obtém indice de CRCs; D4 baixa blocos sequencialmente, com timeout, cleanup e sem retry interno nao documentado.
 - [x] Parser D4 produz data, horario, duracao, passos, distancia total/por intervalo, calorias, BPM total/por intervalo e min/media/max somente de valores validos.
-- [x] Dados incompletos preservam status de validacao; `partial` e `invalid` bloqueiam envio ate regra definida.
+- [x] Dados incompletos preservam status de validação; `PARTIAL` permanece elegível para revisão local e avanço até `READY_TO_SYNC`, enquanto estados realmente inválidos seguem bloqueados.
 - [ ] Importacoes guardam payload bruto e deduplicam por `device_id`, CRC e origem.
 - [x] Treino importado nasce `pending_review`, nunca sincroniza automaticamente e preserva resultado de revisao em reimportacao.
 - [x] Consulta e sincronizacao partem de acao do usuario; abrir app nao inicia D3/D4 automaticamente.
@@ -73,13 +73,13 @@ Fontes: `workouts-d3-d4.md`, `feature-inventory.md`, `database-reference.md`, `h
 
 Fontes: `feature-inventory.md`, `database-reference.md`, `health-connect-mapping.md`.
 
-- [x] Lista mostra atividades pendentes, prontas, descartadas e estados de sync locais observaveis ja previstos no dominio, sem envio funcional ainda.
+- [x] Lista mostra atividades pendentes, prontas, descartadas e estados de sync locais observáveis já previstos no domínio, com envio Health Connect explícito disponível.
 - [x] Sugestao automatica de tipo permanece revisavel; usuario confirma ou altera tipo antes de enviar.
 - [x] Revisao permite tipos confirmados `walking`, `running`, `treadmill` e `free`; regras adicionais so entram apos decisao documentada.
 - [x] Edicao de distancia respeita limite confirmado: esteira revisada. Edicao generica para outros tipos nao e assumida.
 - [x] Descarte e logico, preserva atividade e dependentes locais, e nao aparenta sync concluido.
-- [ ] Sync manual exige revisao, validacao valida, sessao vinculada e calibracao de esteira quando aplicavel.
-- [ ] Falha de sync preserva estado e erro para tentativa manual posterior; sucesso evita novo envio indevido.
+- [x] Sync manual exige revisão, validação válida, sessão vinculada e calibração de esteira quando aplicável.
+- [x] Falha de sync preserva estado e erro para tentativa manual posterior; sucesso evita novo envio indevido.
 
 ## Exercicios Iniciados Pelo Celular
 
@@ -96,10 +96,10 @@ Fontes: `feature-inventory.md`, `health-connect-mapping.md`, `database-reference
 
 Fontes: `feature-inventory.md`, `health-connect-mapping.md`.
 
-- [x] Usuario informa tempo e distancia validos do painel; app recalcula fim, distancia, ritmo e velocidade segundo regra local escolhida, sem envio funcional ainda.
+- [x] Usuário informa tempo e distância válidos do painel; app recalcula fim, distância, ritmo e velocidade segundo regra local escolhida antes do envio Health Connect.
 - [x] Distancia calibrada, em metros, torna-se unica distancia usada no envio Health Connect de esteira.
 - [x] Treino importado revisado como esteira fica bloqueado de sync ate calibracao concluida.
-- [ ] Fator de calibracao separado nao e exigido nem declarado atingido: baseline nao o confirmou. Decisao futura deve definir calculo/persistencia, se necessario.
+- [x] Fator de calibração segue regra local documentada: usa distância original, fallback estimado ou permanece ausente sem invalidar a calibração; registro e métricas derivadas ficam persistidos localmente.
 
 ## Health Connect
 

@@ -4,6 +4,10 @@
 
 Aceita
 
+## Atualização de fechamento
+
+Em 28/07/2026, a Fase 11 foi encerrada documentalmente. A validação física parcial e a integração posterior de Health Connect na Fase 12 não alteram esta decisão: Fase 11 continua responsável pelo fluxo local até `READY_TO_SYNC`, sem operação própria de sincronização.
+
 ## Contexto
 
 Ao fim da Fase 10, Champion Companion já entrega importação local-first de treinos D3/D4 até `PENDING_REVIEW`, com persistência local de atividade importada, intervalos, amostras de BPM, validade do parser, sugestão de tipo, reimportação por chave natural e preservação de revisão/calibração já existentes.

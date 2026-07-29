@@ -4,7 +4,7 @@
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.
 
-Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4, Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC` e Fase 12 concluída com integração nativa write-only ao Health Connect em foreground.
+Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4, Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC`, Fase 12 concluída com integração nativa write-only ao Health Connect em foreground e Fase 15 concluída com calendário e histórico consolidado local.
 
 Escopo factual atual já inclui:
 
@@ -15,11 +15,23 @@ Escopo factual atual já inclui:
 - resumo diário persistido via FEA1 fresco por pull-to-refresh, com merge atômico sem redução e `lastImportedAt` após import válido;
 - `ForegroundBleOperationGate` compartilhado entre refresh diário, medição manual, importação D1 e importação D3/D4;
 - medição manual de 60 segundos com D0/F002, persistência apenas do resultado final válido e último BPM persistido na Home;
-- ação explícita `Buscar dados do relógio`, importação D1 com persistência idempotente, metadata dedicada, histórico consolidado manual + D1, agregações locais e gráfico funcional de frequência cardíaca;
+- tela de frequência cardíaca com card `Resumo atual` sem CTAs fixos, medição manual acessível somente na superfície própria e pull-to-refresh explícito para importação D1, com persistência idempotente, metadata dedicada, histórico consolidado manual + D1 + amostras reais de atividades importadas não descartadas, agregações locais e gráfico funcional;
 - tela Exercícios com CTA explícita `Buscar treinos no relógio`, progresso, cancelamento, retry, deduplicação, retomada por CRC e por `deviceId + origin + startedAt` quando necessário;
 - lista de atividades importadas com filtros locais por workflow;
 - detalhe de atividade importada com revisão local, tipo confirmado, título, observações, gráfico de BPM, intervalos, calibração de esteira, descarte lógico e estados `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `DISCARDED`, `SYNCED` e `SYNC_FAILED` observáveis;
 - banner de pendências locais na Home com prioridade para calibração.
+
+Escopo factual atual inclui também na Fase 15:
+
+- read model temporal local derivado, sem tabela materializada ou migration;
+- calendário mensal com seleção, navegação, indicadores, legenda, estados vazios
+  e descrições acessíveis;
+- detalhe diário com passos, meta atual, distância, BPM, atividades, peso e
+  status da fila local, além de navegação contextual para detalhes relacionados;
+- históricos locais de passos e distância em períodos de 7, 30 e 90 dias, com
+  lacunas preservadas e ausência de valores sintéticos;
+- histórico dedicado de frequência cardíaca consolidando medições manuais, D1 e
+  amostras de atividades importadas não descartadas.
 
 Escopo factual atual já inclui também na Fase 12:
 
@@ -48,6 +60,10 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 `SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v5`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
+Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service, backup e rotas continuam fora do escopo.
+
+Registro de fechamento da Fase 11: revisão, calibração, descarte lógico e atividades locais até `READY_TO_SYNC` foram consolidados documentalmente. A validação física de 2026-07-28 confirmou build, instalação, lista, filtros, detalhe, métricas, gráfico, intervalos e persistência após reinício no Galaxy S22 `SM-S901E`, mas não reproduziu todos os estados pendentes porque o aparelho continha atividades `SYNCED`. Health Connect funcional pertence à Fase 12 e não altera a fronteira de responsabilidade da Fase 11.
+
 ## Ambiente e validação
 
 Use Android Studio, Android SDK Platform 36 e toolchain JDK 21. O Gradle pode executar em JDK 17 ou superior, conforme AGP 9.3.0. Use exclusivamente o wrapper do repositório. Validação esperada para mudanças de código ou Gradle continua sendo `lint`, `assembleDebug`, `assembleRelease` e, para gates físicos das fases recentes, também `installDebug`.
@@ -68,7 +84,7 @@ Compose constrói UI; Hilt faz injeção; Coroutines e `StateFlow` modelam estad
 
 `feature/home` expõe `HomeViewModel`, `ChampionDailyStepsSyncCoordinator` e Home com resumo diário persistido, retry manual, timeout seguro, day rollover local, pull-to-refresh como ação principal, atalho para detalhe de frequência cardíaca e banner de pendências de atividades importadas.
 
-`feature/health` expõe `HealthViewModel`, hub de métricas, detalhe de frequência cardíaca com medição manual persistida, importação D1 explícita, histórico consolidado, agregações e gráfico local; peso, passos e distância seguem usando dados já persistidos.
+`feature/health` expõe `HealthViewModel`, hub de métricas, detalhe de frequência cardíaca com medição manual persistida na superfície própria, importação D1 explícita por pull-to-refresh e histórico consolidado de manual, D1 e amostras reais de atividades importadas não descartadas, com agregações e gráfico local; peso, passos e distância seguem usando dados já persistidos.
 
 `feature/exercises` expõe fluxo D3/D4 funcional com coordinator foreground, `ExercisesViewModel`, CTA explícita, progresso textual, confirmação de saída, cancelamento em background, resultado seguro, filtros, lista, detalhe, revisão local, calibração e descarte lógico.
 

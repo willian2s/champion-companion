@@ -2,6 +2,7 @@ package br.com.mwconsulting.championcompanion.data
 
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
 import br.com.mwconsulting.championcompanion.core.database.AssociatedDeviceRecord
+import br.com.mwconsulting.championcompanion.core.database.CalendarWorkoutSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceAssociationEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
@@ -10,11 +11,13 @@ import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutp
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportLookupRecord
+import br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
@@ -26,6 +29,8 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionAggrega
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.CalibratedWorkoutMetrics
+import br.com.mwconsulting.championcompanion.core.model.CalendarWeightMeasurementSummary
+import br.com.mwconsulting.championcompanion.core.model.CalendarWorkoutSummary
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
@@ -252,6 +257,41 @@ internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasureme
     ).successOrNull()
 }
 
+internal fun WeightMeasurementEntity.toCalendarSummary(): CalendarWeightMeasurementSummary? =
+    toDomain()?.let { measurement ->
+        CalendarWeightMeasurementSummary(
+            measurementId = measurement.id,
+            value = measurement.value,
+            unit = measurement.unit,
+            measuredAt = measurement.measuredAt,
+            origin = measurement.origin,
+        )
+    }
+
+internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSummary? {
+    val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
+    val mappedOrigin = enum<DataOrigin>(origin) ?: return null
+    val mappedSuggestedType = enum<WorkoutType>(suggestedType) ?: return null
+    val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
+    val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    if (durationNanos < 0) return null
+
+    return CalendarWorkoutSummary(
+        activityId = mappedActivityId,
+        origin = mappedOrigin,
+        title = title,
+        suggestedType = mappedSuggestedType,
+        confirmedType = mappedConfirmedType,
+        startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+        duration = Duration.ofNanos(durationNanos),
+        distanceMeters = (calibratedDistanceMeters ?: originalDistanceMeters ?: estimatedDistanceMeters)
+            .domainValue(),
+        caloriesKilocalories = caloriesKilocalories.domainValue(),
+        averageBpm = averageBpm.domainValue(),
+        workflowState = mappedWorkflowState,
+    )
+}
+
 internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEntity.toDomain(): UserProfile? {
     return UserProfile.create(
         id = uuid(id)?.let(::UserProfileId) ?: return null,
@@ -348,6 +388,56 @@ internal fun WorkoutActivityEntity.toDomain(
         reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli),
         calibrationId = calibrationId?.let(::uuid)?.let(::TreadmillCalibrationId),
     ).successOrNull()
+}
+
+internal fun HealthSyncWorkoutCandidateRecord.toHealthSyncCandidateDomain(
+    samples: List<WorkoutHeartRateSampleEntity>,
+): WorkoutActivity? {
+    val importRecord = WatchWorkoutImportEntity(
+        id = importId,
+        activityId = importActivityId,
+        deviceId = importDeviceId,
+        origin = importOrigin,
+        crc = importCrc,
+        externalBlockIndex = importExternalBlockIndex,
+        parserVersion = importParserVersion,
+        parserValidity = importParserValidity,
+        diagnosticPayloadId = importDiagnosticPayloadId,
+        importedAtEpochMillis = importImportedAtEpochMillis,
+    )
+    if (!importRecord.isStructurallyRelatedTo(activity)) return null
+    return activity.toDomain(
+        importRecord = importRecord,
+        intervals = emptyList(),
+        samples = samples,
+    )
+}
+
+private fun WatchWorkoutImportEntity.isStructurallyRelatedTo(
+    activity: WorkoutActivityEntity,
+): Boolean {
+    val mappedOrigin = enum<DataOrigin>(origin) ?: return false
+    val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return false
+    val mappedDiagnosticPayloadId = diagnosticPayloadId?.let(::uuid)
+    if (diagnosticPayloadId != null && mappedDiagnosticPayloadId == null) return false
+    val activityDiagnosticPayloadId = activity.diagnosticPayloadId?.let(::uuid)
+    if (activity.diagnosticPayloadId != null && activityDiagnosticPayloadId == null) return false
+
+    return uuid(id) != null &&
+        uuid(activityId) != null &&
+        uuid(deviceId) != null &&
+        activityId == activity.id &&
+        deviceId == activity.deviceId &&
+        mappedOrigin == DataOrigin.WATCH_D3_D4 &&
+        origin == activity.origin &&
+        crc in 1..0xffff &&
+        externalBlockIndex >= 0 &&
+        parserVersion(parserVersion) != null &&
+        parserVersion == activity.parserVersion &&
+        mappedParserValidity.name == activity.parserValidity &&
+        mappedDiagnosticPayloadId == activityDiagnosticPayloadId &&
+        importedAtEpochMillis == activity.importedAtEpochMillis &&
+        importedAtEpochMillis >= activity.startedAtEpochMillis
 }
 
 internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup? {

@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -20,12 +21,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -39,8 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -58,13 +63,14 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
-import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryEntry
+import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryOrigin
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
+import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -78,9 +84,11 @@ import kotlin.time.Duration
 
 private const val HEART_RATE_HISTORY_PAGE_SIZE = 10
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeartRateDetailScreen(
     onNavigateBack: () -> Unit,
+    backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -110,6 +118,11 @@ fun HeartRateDetailScreen(
     val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
     val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
     val isBlockingExit = isMeasurementInFlight || isD1ImportInFlight
+    val triggerD1Refresh = {
+        if (!isMeasurementInFlight && !isD1ImportInFlight) {
+            healthViewModel.onIntent(HealthIntent.StartD1Import)
+        }
+    }
 
     BackHandler(enabled = isBlockingExit) {
         showExitConfirmation = true
@@ -146,7 +159,7 @@ fun HeartRateDetailScreen(
                         onNavigateBack()
                     },
                 ) {
-                    Text("Voltar para Saúde")
+                    Text(backLabel)
                 }
             },
             dismissButton = {
@@ -161,48 +174,64 @@ fun HeartRateDetailScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge)
-                .heightIn(min = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+        PullToRefreshBox(
+            isRefreshing = isD1ImportInFlight,
+            onRefresh = triggerD1Refresh,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            MetricDetailHeader(
-                title = "Frequência cardíaca",
-                description = "Esta tela concentra medição manual, importação D1 local, gráfico funcional e histórico consolidado sem iniciar BLE automaticamente.",
-            )
-            HeartRateOverviewCard(
-                state = state,
-                onStartMeasurement = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
-                onStartD1Import = { healthViewModel.onIntent(HealthIntent.StartD1Import) },
-                onCancelD1Import = { healthViewModel.onIntent(HealthIntent.CancelD1Import) },
-                onRetryD1Import = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
-                onDismissD1Import = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
-            )
-            HeartRateSessionSurface(
-                state = state,
-                onStart = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
-                onCancel = { healthViewModel.onIntent(HealthIntent.CancelMeasurement) },
-                onRetry = { healthViewModel.onIntent(HealthIntent.Retry) },
-                onDismiss = { healthViewModel.onIntent(HealthIntent.DismissError) },
-            )
-            HeartRateHistoryChartSection(
-                state = state,
-                onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
-            )
-            HealthMetricHistorySection(
-                title = "Histórico completo",
-                emptyMessage = "Ainda não há medições consolidadas para o período selecionado.",
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics {
+                        customActions = listOf(
+                            CustomAccessibilityAction("Atualizar histórico do relógio") {
+                                triggerD1Refresh()
+                                true
+                            },
+                        )
+                    },
             ) {
-                HeartRateHistoryList(
-                    entries = state.history.entries,
-                    associatedDeviceName = state.associatedDeviceName,
-                )
-            }
-            TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Voltar para Saúde")
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(ChampionSpacing.extraLarge)
+                        .heightIn(min = 1.dp),
+                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+                ) {
+                    MetricDetailHeader(
+                        title = "Frequência cardíaca",
+                        description = "Esta tela concentra medição manual, importação D1 local e amostras reais de atividades do relógio em gráfico e histórico consolidados, sem iniciar BLE automaticamente.",
+                    )
+                    HeartRateOverviewCard(
+                        state = state,
+                        onRetryD1Import = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
+                        onDismissD1Import = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
+                    )
+                    HeartRateSessionSurface(
+                        state = state,
+                        onStart = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
+                        onCancel = { healthViewModel.onIntent(HealthIntent.CancelMeasurement) },
+                        onRetry = { healthViewModel.onIntent(HealthIntent.Retry) },
+                        onDismiss = { healthViewModel.onIntent(HealthIntent.DismissError) },
+                    )
+                    HeartRateHistoryChartSection(
+                        state = state,
+                        onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
+                    )
+                    HealthMetricHistorySection(
+                        title = "Histórico completo",
+                        emptyMessage = "Ainda não há leituras consolidadas para o período selecionado.",
+                    ) {
+                        HeartRateHistoryList(
+                            entries = state.history.entries,
+                            associatedDeviceName = state.associatedDeviceName,
+                        )
+                    }
+                    TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
+                        Text(backLabel)
+                    }
+                }
             }
         }
     }
@@ -211,6 +240,7 @@ fun HeartRateDetailScreen(
 @Composable
 fun WeightDetailScreen(
     onNavigateBack: () -> Unit,
+    backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
     val state by healthViewModel.state.collectAsState()
@@ -218,6 +248,7 @@ fun WeightDetailScreen(
         title = "Peso",
         description = "Esta tela usa apenas último peso persistido já disponível. Cadastro, edição e histórico completo ficam para fase futura.",
         onNavigateBack = onNavigateBack,
+        backLabel = backLabel,
     ) {
         val weight = state.latestWeight
         HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
@@ -243,89 +274,11 @@ fun WeightDetailScreen(
 }
 
 @Composable
-fun StepsDetailScreen(
-    onNavigateBack: () -> Unit,
-    healthViewModel: HealthViewModel = activityHealthViewModel(),
-) {
-    val state by healthViewModel.state.collectAsState()
-    val summary = state.todaySummary
-    MetricDetailScaffold(
-        title = "Passos",
-        description = "Esta tela reutiliza resumo diário persistido da Fase 07. Não cria nova sincronização nem inicia BLE ao abrir.",
-        onNavigateBack = onNavigateBack,
-    ) {
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
-            if (summary == null) {
-                HealthMetricEmptyState(message = "Nenhum resumo diário persistido foi encontrado para hoje.")
-            } else {
-                val progress = DailySummaryPolicy.progress(summary.steps, state.dailyStepsGoal)
-                MetricValueBlock(
-                    value = "${numberFormat().format(summary.steps)} passos",
-                    supporting = "Meta ${numberFormat().format(progress.goal)} • ${(progress.progress * 100f).roundToInt()}%",
-                    extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
-                )
-                LinearProgressIndicator(
-                    progress = { progress.progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
-                )
-            }
-        }
-        HealthMetricChartSection(
-            title = "Gráfico",
-            message = "Gráficos de passos ficam para a fase de calendário e histórico consolidado.",
-        )
-        HealthMetricHistorySection(
-            title = "Histórico",
-            emptyMessage = "Histórico completo de passos ainda não faz parte desta fase.",
-        )
-    }
-}
-
-@Composable
-fun DistanceDetailScreen(
-    onNavigateBack: () -> Unit,
-    healthViewModel: HealthViewModel = activityHealthViewModel(),
-) {
-    val state by healthViewModel.state.collectAsState()
-    val summary = state.todaySummary
-    MetricDetailScaffold(
-        title = "Distância",
-        description = "Esta tela reutiliza distância estimada já persistida no resumo diário. Quando faltarem dados pessoais, o valor permanece indisponível.",
-        onNavigateBack = onNavigateBack,
-    ) {
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
-            if (summary == null || summary.estimatedDistanceMeters == null) {
-                HealthMetricEmptyState(
-                    message = if (summary == null) {
-                        "Nenhum resumo diário persistido foi encontrado para hoje."
-                    } else {
-                        "A distância de hoje está indisponível porque ainda faltam dados pessoais suficientes para a estimativa."
-                    },
-                )
-            } else {
-                MetricValueBlock(
-                    value = "${decimalFormat().format(summary.estimatedDistanceMeters / 1000.0)} km",
-                    supporting = "Estimativa de hoje",
-                    extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
-                )
-            }
-        }
-        HealthMetricChartSection(
-            title = "Gráfico",
-            message = "Gráficos de distância ficam para a fase de calendário e histórico consolidado.",
-        )
-        HealthMetricHistorySection(
-            title = "Histórico",
-            emptyMessage = "Histórico completo de distância ainda não faz parte desta fase.",
-        )
-    }
-}
-
-@Composable
-private fun MetricDetailScaffold(
+internal fun MetricDetailScaffold(
     title: String,
     description: String,
     onNavigateBack: () -> Unit,
+    backLabel: String,
     content: @Composable () -> Unit,
 ) {
     Surface(
@@ -343,7 +296,7 @@ private fun MetricDetailScaffold(
             MetricDetailHeader(title = title, description = description)
             content()
             TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Voltar para Saúde")
+                Text(backLabel)
             }
         }
     }
@@ -381,23 +334,18 @@ private fun MetricDetailHeader(
 @Composable
 private fun HeartRateOverviewCard(
     state: HealthUiState,
-    onStartMeasurement: () -> Unit,
-    onStartD1Import: () -> Unit,
-    onCancelD1Import: () -> Unit,
     onRetryD1Import: () -> Unit,
     onDismissD1Import: () -> Unit,
 ) {
-    val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
-    val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
     val latestMeasurement = state.latestMeasurement
 
-    HealthCard(title = "Resumo atual e ações", modifier = Modifier.fillMaxWidth()) {
+    HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
         if (latestMeasurement == null) {
             Text(
                 text = if (state.hasAssociatedDevice) {
-                    "Ainda não há frequência cardíaca persistida. Use a medição manual ou toque em Buscar dados do relógio para importar o histórico local."
+                    "Ainda não há frequência cardíaca persistida. Faça uma medição manual abaixo ou puxe para atualizar e importar o histórico local."
                 } else {
-                    "Associe um relógio para medir ou importar o histórico local de frequência cardíaca."
+                    "Associe um relógio para fazer uma medição manual ou puxar para atualizar o histórico local de frequência cardíaca."
                 },
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -430,35 +378,6 @@ private fun HeartRateOverviewCard(
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
                 style = MaterialTheme.typography.bodyMedium,
             )
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            PrimaryActionButton(
-                label = "Medir frequência cardíaca",
-                onClick = onStartMeasurement,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.hasAssociatedDevice && !isD1ImportInFlight,
-            )
-            OutlinedButton(
-                onClick = when {
-                    isD1ImportInFlight -> onCancelD1Import
-                    state.d1ImportState.isRetryableFailure() -> onRetryD1Import
-                    else -> onStartD1Import
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.hasAssociatedDevice && !isMeasurementInFlight,
-            ) {
-                Text(
-                    when {
-                        isD1ImportInFlight -> "Cancelar importação"
-                        state.d1ImportState.isRetryableFailure() -> "Tentar novamente"
-                        else -> "Buscar dados do relógio"
-                    },
-                )
-            }
         }
 
         HeartRateD1ImportPanel(
@@ -642,7 +561,7 @@ private fun HeartRateChartHeadline(
             style = MaterialTheme.typography.bodyLarge,
         )
         Text(
-            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} medições válidas",
+            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} leituras válidas",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -691,7 +610,7 @@ private fun HeartRateChartAccessibleSummary(
         text = if (pointCount == 0) {
             "Resumo acessível: nenhum ponto disponível para ${periodToLabel(period).lowercase(locale)}."
         } else {
-            "Resumo acessível: ${numberFormat().format(measurementCount)} medições válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(locale)}."
+            "Resumo acessível: ${numberFormat().format(measurementCount)} leituras válidas distribuídas em ${numberFormat().format(pointCount)} ponto(s) no gráfico de ${periodToLabel(period).lowercase(locale)}."
         },
         modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -705,7 +624,7 @@ private fun HeartRateHistoryList(
     associatedDeviceName: String?,
 ) {
     if (entries.isEmpty()) {
-        HealthMetricEmptyState(message = "Ainda não há medições consolidadas para exibir neste período.")
+        HealthMetricEmptyState(message = "Ainda não há leituras consolidadas para exibir neste período.")
         return
     }
 
@@ -735,7 +654,7 @@ private fun HeartRateHistoryList(
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                text = "${numberFormat().format(entries.size)} medições",
+                text = "${numberFormat().format(entries.size)} leituras",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -765,6 +684,15 @@ private fun HeartRateHistoryList(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        (entry.origin as? HeartRateHistoryOrigin.WorkoutActivitySample)?.let { origin ->
+                            Text(
+                                text = "Atividade: ${origin.toHistoryActivityLabel()}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(ChampionSpacing.medium))
                     Text(
@@ -1172,7 +1100,7 @@ private fun RecentMeasurementsList(measurements: List<HeartRateMeasurement>) {
 }
 
 @Composable
-private fun HealthMetricChartSection(
+internal fun HealthMetricChartSection(
     title: String,
     message: String,
 ) {
@@ -1182,7 +1110,7 @@ private fun HealthMetricChartSection(
 }
 
 @Composable
-private fun HealthMetricHistorySection(
+internal fun HealthMetricHistorySection(
     title: String,
     emptyMessage: String,
     content: (@Composable () -> Unit)? = null,
@@ -1197,7 +1125,7 @@ private fun HealthMetricHistorySection(
 }
 
 @Composable
-private fun HealthMetricEmptyState(message: String) {
+internal fun HealthMetricEmptyState(message: String) {
     Text(
         text = message,
         modifier = Modifier.padding(top = ChampionSpacing.medium),
@@ -1207,7 +1135,7 @@ private fun HealthMetricEmptyState(message: String) {
 }
 
 @Composable
-private fun MetricValueBlock(
+internal fun MetricValueBlock(
     value: String,
     supporting: String,
     extra: String? = null,
@@ -1235,7 +1163,7 @@ private fun MetricValueBlock(
 }
 
 @Composable
-private fun activityHealthViewModel(): HealthViewModel {
+internal fun activityHealthViewModel(): HealthViewModel {
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
     return remember(activity) {
         ViewModelProvider(activity)[HealthViewModel::class.java]
@@ -1272,9 +1200,6 @@ private fun D1HeartRateImportSurfaceState.isImportInFlight(): Boolean = when (th
     is D1HeartRateImportSurfaceState.Cancelled,
     -> false
 }
-
-private fun D1HeartRateImportSurfaceState.isRetryableFailure(): Boolean =
-    (this as? D1HeartRateImportSurfaceState.Failed)?.session?.error?.isRetryable == true
 
 private fun D1HeartRateImportSurfaceState.isTerminalSurface(): Boolean = when (this) {
     is D1HeartRateImportSurfaceState.Completed,
@@ -1319,7 +1244,7 @@ private fun D1HeartRateImportSurfaceState.toUiTitle(): String = when (this) {
 }
 
 private fun D1HeartRateImportSurfaceState.toUiMessage(): String = when (this) {
-    D1HeartRateImportSurfaceState.Idle -> "A importação D1 acontece somente por toque explícito em Buscar dados do relógio."
+    D1HeartRateImportSurfaceState.Idle -> "Puxe para atualizar quando quiser importar o histórico D1 do relógio."
     is D1HeartRateImportSurfaceState.Preparing -> "Validando relógio associado e reservando a operação Bluetooth de foreground."
     is D1HeartRateImportSurfaceState.Connecting -> "Aguardando conexão e handshake A1 antes do comando D1."
     is D1HeartRateImportSurfaceState.Reading -> "Recebendo pacotes D1 e preservando dados válidos mesmo em timeout parcial."
@@ -1393,7 +1318,7 @@ private fun formatHistoryDay(date: LocalDate): String {
     }
 }
 
-private fun formatDateTime(instant: Instant): String =
+internal fun formatDateTime(instant: Instant): String =
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(Locale.getDefault())
         .withZone(ZoneId.systemDefault())
@@ -1413,6 +1338,18 @@ private fun br.com.mwconsulting.championcompanion.core.model.HeartRateSource.toF
     br.com.mwconsulting.championcompanion.core.model.HeartRateSource.MANUAL_MEASUREMENT -> "Medição manual"
     br.com.mwconsulting.championcompanion.core.model.HeartRateSource.WATCH_D1_HISTORY -> associatedDeviceName ?: "Champion C001"
     else -> toMeasurementSourceLabel()
+}
+
+private fun HeartRateHistoryOrigin.WorkoutActivitySample.toHistoryActivityLabel(): String =
+    activityTitle?.trim()?.takeIf { it.isNotEmpty() }
+        ?: (confirmedType ?: suggestedType).toHistoryWorkoutTypeLabel()
+
+private fun WorkoutType.toHistoryWorkoutTypeLabel(): String = when (this) {
+    WorkoutType.WALKING -> "Caminhada"
+    WorkoutType.RUNNING -> "Corrida"
+    WorkoutType.FREE_WORKOUT -> "Treino livre"
+    WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.UNKNOWN -> "Treino do relógio"
 }
 
 private fun buildLatestImportLabel(
@@ -1476,9 +1413,9 @@ private fun heartRateRangeSupportingText(
     entryCount: Int,
     pointsCount: Int,
 ): String = if (aggregates.measurementCount == 0) {
-    "Use medição manual ou importação D1 para ver tendências no período selecionado."
+    "Use medição manual, importação D1 ou atividades do relógio para ver tendências no período selecionado."
 } else {
-    "${numberFormat().format(entryCount)} medições válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
+    "${numberFormat().format(entryCount)} leituras válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
 }
 
 private fun buildRelativeDateRangeLabel(days: Long): String {

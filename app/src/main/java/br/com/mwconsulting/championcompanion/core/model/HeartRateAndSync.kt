@@ -258,15 +258,62 @@ data class HeartRateHistoryQuery(
     val sources: Set<HeartRateSource> = setOf(
         HeartRateSource.MANUAL_MEASUREMENT,
         HeartRateSource.WATCH_D1_HISTORY,
+        HeartRateSource.WATCH_WORKOUT_ACTIVITY,
     ),
 )
 
+sealed interface HeartRateHistoryOrigin {
+    data class PersistedMeasurement(
+        val measurementId: HeartRateMeasurementId,
+    ) : HeartRateHistoryOrigin
+
+    /** `measuredAt` da entrada completa identifica a amostra dentro da atividade. */
+    data class WorkoutActivitySample(
+        val activityId: WorkoutActivityId,
+        val activityTitle: String?,
+        val suggestedType: WorkoutType,
+        val confirmedType: WorkoutType?,
+    ) : HeartRateHistoryOrigin
+}
+
 data class HeartRateHistoryEntry(
-    val measurementId: HeartRateMeasurementId,
+    val origin: HeartRateHistoryOrigin,
     val measuredAt: Instant,
     val bpm: Int,
     val source: HeartRateSource,
-)
+) {
+    /** Compatibilidade de leitura para consumidores de medições manual/D1. */
+    val measurementId: HeartRateMeasurementId?
+        get() = (origin as? HeartRateHistoryOrigin.PersistedMeasurement)?.measurementId
+
+    init {
+        require(bpm in 30..220)
+        require(
+            when (source) {
+                HeartRateSource.MANUAL_MEASUREMENT,
+                HeartRateSource.WATCH_D1_HISTORY,
+                -> origin is HeartRateHistoryOrigin.PersistedMeasurement
+
+                HeartRateSource.WATCH_WORKOUT_ACTIVITY -> origin is HeartRateHistoryOrigin.WorkoutActivitySample
+                HeartRateSource.MEASUREMENT_STREAM,
+                HeartRateSource.APP_WORKOUT_SESSION,
+                -> false
+            },
+        )
+    }
+
+    constructor(
+        measurementId: HeartRateMeasurementId,
+        measuredAt: Instant,
+        bpm: Int,
+        source: HeartRateSource,
+    ) : this(
+        origin = HeartRateHistoryOrigin.PersistedMeasurement(measurementId),
+        measuredAt = measuredAt,
+        bpm = bpm,
+        source = source,
+    )
+}
 
 data class HeartRateHistoryAggregates(
     val measurementCount: Int = 0,

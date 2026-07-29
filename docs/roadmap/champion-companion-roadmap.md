@@ -1491,6 +1491,8 @@ D3/D4 deverão funcionar com os mesmos treinos da baseline.
 
 # Fase 11 — Revisão e calibração das atividades
 
+**Status:** concluída em 28/07/2026. Fase termina em `READY_TO_SYNC`; sincronização Health Connect pertence à Fase 12.
+
 ## Objetivo
 
 Permitir revisão completa local e calibrar, quando necessário, até `READY_TO_SYNC`.
@@ -1623,7 +1625,8 @@ Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 # Fase 12 — Health Connect nativo
 
-Status de fechamento: concluida em 2026-07-24 com Gate C tratado como validado manualmente no Galaxy S22 nesta sessao de fechamento.
+Status de fechamento: concluída em 28/07/2026. Gate C foi validado manualmente
+no Galaxy S22 com Health Connect real, após correção da identidade de sync por variante.
 
 ## Objetivo
 
@@ -1841,6 +1844,8 @@ Health Connect
 
 # Fase 13 — Exercícios iniciados pelo Champion Companion
 
+**Status:** adiada por decisão de produto, sem renumeração.
+
 ## Objetivo
 
 Portar os exercícios do aplicativo.
@@ -1933,6 +1938,8 @@ Health Connect
 
 # Fase 14 — Foreground Service e tarefas em segundo plano
 
+**Status:** adiada por decisão de produto, sem renumeração.
+
 ## Objetivo
 
 Usar os mecanismos Android corretos.
@@ -1987,6 +1994,10 @@ Usar em:
 
 # Fase 15 — Calendário e histórico consolidado
 
+**Status:** concluída em 29/07/2026.
+
+A fase usa somente dados locais e não depende funcionalmente das Fases 13 e 14.
+
 ## Objetivo
 
 Centralizar dados por dia.
@@ -2010,6 +2021,12 @@ Centralizar dados por dia.
 - gráficos de distância;
 - histórico de distância;
 - navegação temporal das métricas diárias.
+
+Entrega validada documentalmente com dados locais, sem acesso a BLE ou Health
+Connect. A validação offline, builds, instalação e screenshots estão registradas
+em `docs/tasks/015-calendar-consolidated-history/015-12-run-manual-offline-calendar-validation.md`.
+Riscos residuais aceitos permanecem registrados no overview da Fase 15. A spec
+015A corrigiu a integridade semântica da fila sem reabrir esta fase.
 
 ## Critérios de aceite
 
@@ -2673,10 +2690,10 @@ Fase 8  — BPM manual
 Fase 9  — D1 e BPM completo
 Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
-Fase 12 — Health Connect
-Fase 13 — Exercícios
-Fase 14 — Background
-Fase 15 — Calendário
+Fase 12 — Health Connect (concluída)
+Fase 13 — Exercícios (adiada)
+Fase 14 — Background (adiada)
+Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
 Fase 18 — Transição sem migração
@@ -2692,6 +2709,9 @@ Fase 25 — Lançamento
 ---
 
 # 13. Priorização
+
+Fase 15 está concluída. Fases 13 e 14 permanecem registradas como backlog
+histórico adiado. Nenhuma fase seguinte foi iniciada automaticamente.
 
 ## Crítica
 
