@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 0/17 subtarefas concluídas
+- **Progresso:** 1/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -10,7 +10,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 
 ## Checklist
 
-- [ ] [013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md](013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md)
+- [x] [013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md](013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md)
 - [ ] [013-02-update-roadmap-privacy-adr-and-operational-rules.md](013-02-update-roadmap-privacy-adr-and-operational-rules.md)
 - [ ] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
 - [ ] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
@@ -37,3 +37,4 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - `Phase003PrivacyGuardTest` é incompatível com nova decisão. Dívida conhecida; não alterar nem executar testes nesta fase.
 - Nenhum `WorkManager`, mapa externo, exportação ou servidor.
 - Cada subtarefa deve atualizar este overview no trabalho de execução, marcando somente seu item após conclusão real.
+- `013-01` concluída com auditoria documental reproduzível e revisão independente aprovada. Evidências confirmam Room v5, migration planejada v5 → v6, mapper de sessão incompleto, acoplamento D3/D4, ausência de rota/FGS e protocolo live não confirmado. `013-02` permanece próxima subtarefa, sem início automático.
