@@ -6,6 +6,7 @@ import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
@@ -13,6 +14,7 @@ import br.com.mwconsulting.championcompanion.core.model.CALENDAR_HEART_RATE_SOUR
 import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
 import br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
+import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportPersistenceResult
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
@@ -49,8 +51,11 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
+import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
+import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
@@ -59,11 +64,14 @@ import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
 import br.com.mwconsulting.championcompanion.core.model.UserProfileId
+import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
+import br.com.mwconsulting.championcompanion.core.model.WeightUnit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -832,46 +840,66 @@ class RoomRepositories @Inject constructor(
     ): Flow<HealthSyncQueueObservation> {
         return combine(
             database.healthSyncOperationDao().observeAll(),
-            observeStructurallyValidHealthSyncAggregates(),
-        ) { allEntities, validAggregates ->
-            val validOperations = allEntities.mapNotNull { it.toDomain() }
+            observeHealthSyncSemanticCandidateIndex(),
+        ) { allEntities, candidateIndex ->
+            val mappedOperations = allEntities.map { entity ->
+                MappedHealthSyncOperation(
+                    operation = entity.toDomain(),
+                    hasSupportedPair = entity.hasSupportedHealthSyncPair(),
+                )
+            }
+            val validOperations = mappedOperations.mapNotNull { mapping ->
+                mapping.operation?.takeIf { mapping.hasSupportedPair }
+            }
             HealthSyncQueueObservation(
                 operations = validOperations.filter { it.key.aggregate in aggregates },
-                hasInvalidOperation = validOperations.size != allEntities.size,
-                hasUnresolvedAggregate = validOperations.any { it.key.aggregate !in validAggregates },
+                hasInvalidOperation = mappedOperations.any { !it.isValid },
+                hasUnresolvedAggregate = validOperations.any { operation ->
+                    !isSemanticallyResolved(operation, candidateIndex)
+                },
             )
         }.flowOn(ioDispatcher)
     }
 
-    private fun observeStructurallyValidHealthSyncAggregates(): Flow<Set<HealthSyncAggregate>> = combine(
-        database.dailySummaryDao().observeAll(),
-        database.heartRateDao().observeAll(),
-        database.workoutActivityDao().observeAllCalendarSummaries(),
-        database.userProfileDao().observeAllWeights(),
-        database.userProfileDao().observeAllProfiles(),
-    ) { dailySummaries, heartRates, workouts, weights, profiles ->
-        buildSet {
-            dailySummaries.mapNotNull { entity ->
-                try {
-                    entity.toDomain()
-                } catch (_: DateTimeException) {
-                    null
-                }
-            }.forEach { add(HealthSyncAggregate.DailySummary(it.id)) }
-            heartRates.mapNotNull { entity ->
-                try {
-                    entity.toDomain()
-                } catch (_: DateTimeException) {
-                    null
-                }
-            }.forEach { add(HealthSyncAggregate.HeartRateMeasurement(it.id)) }
-            workouts.mapNotNull { it.toCalendarSummary() }
-                .forEach { add(HealthSyncAggregate.WorkoutActivity(it.activityId)) }
-            weights.mapNotNull { it.toCalendarSummary() }
-                .forEach { add(HealthSyncAggregate.WeightMeasurement(it.measurementId)) }
-            profiles.mapNotNull { it.toDomain() }
-                .filter { it.heightCentimeters != null }
-                .forEach { add(HealthSyncAggregate.UserProfileHeight(it.id)) }
+    private fun observeHealthSyncSemanticCandidateIndex(): Flow<HealthSyncSemanticCandidateIndex> {
+        val nonWorkoutCandidates = combine(
+            database.dailySummaryDao().observeAll(),
+            database.heartRateDao().observeAll(),
+            database.userProfileDao().observeAllWeights(),
+            database.userProfileDao().observeAllProfiles(),
+        ) { dailySummaries, heartRates, weights, profiles ->
+            NonWorkoutHealthSyncCandidates(
+                dailySummaries = dailySummaries.mapNotNull { entity ->
+                    mapAggregateSafely { entity.toDomain() }
+                }.associateBy { it.id.value },
+                heartRateMeasurements = heartRates.mapNotNull { entity ->
+                    mapAggregateSafely { entity.toDomain() }
+                }.associateBy { it.id.value },
+                weightMeasurements = weights.mapNotNull { it.toDomain() }
+                    .associateBy { it.id.value },
+                userProfiles = profiles.mapNotNull { it.toDomain() }
+                    .associateBy { it.id.value },
+            )
+        }
+        val workoutCandidates = combine(
+            database.workoutActivityDao().observeAllHealthSyncCandidates(),
+            database.workoutDetailDao().observeAllHeartRateSamples(),
+        ) { records, samples ->
+            val samplesByActivityId = samples.groupBy { it.activityId }
+            records.mapNotNull { record ->
+                record.toHealthSyncCandidateDomain(
+                    samples = samplesByActivityId[record.activity.id].orEmpty(),
+                )
+            }.associateBy { it.id.value }
+        }
+        return combine(nonWorkoutCandidates, workoutCandidates) { nonWorkout, workouts ->
+            HealthSyncSemanticCandidateIndex(
+                dailySummaries = nonWorkout.dailySummaries,
+                heartRateMeasurements = nonWorkout.heartRateMeasurements,
+                workoutActivities = workouts,
+                weightMeasurements = nonWorkout.weightMeasurements,
+                userProfiles = nonWorkout.userProfiles,
+            )
         }
     }
 
@@ -1367,6 +1395,258 @@ class RoomRepositories @Inject constructor(
 
     private fun generateIds(count: Int): Iterator<java.util.UUID> = List(count) { ids.next() }.iterator()
 }
+
+private data class MappedHealthSyncOperation(
+    val operation: HealthSyncOperation?,
+    val hasSupportedPair: Boolean,
+) {
+    val isValid: Boolean
+        get() = operation != null && hasSupportedPair
+}
+
+private data class NonWorkoutHealthSyncCandidates(
+    val dailySummaries: Map<UUID, DailySummary>,
+    val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
+    val weightMeasurements: Map<UUID, WeightMeasurement>,
+    val userProfiles: Map<UUID, UserProfile>,
+)
+
+private data class HealthSyncSemanticCandidateIndex(
+    val dailySummaries: Map<UUID, DailySummary>,
+    val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
+    val workoutActivities: Map<UUID, WorkoutActivity>,
+    val weightMeasurements: Map<UUID, WeightMeasurement>,
+    val userProfiles: Map<UUID, UserProfile>,
+)
+
+private data class HealthSyncWorkoutSessionWindow(
+    val start: Instant,
+    val end: Instant,
+)
+
+private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = when (aggregateType) {
+    HealthSyncAggregateType.DAILY_SUMMARY.name -> recordType == HealthSyncRecordType.STEPS.name
+    HealthSyncAggregateType.HEART_RATE_MEASUREMENT.name -> recordType == HealthSyncRecordType.HEART_RATE.name
+    HealthSyncAggregateType.WORKOUT_ACTIVITY.name -> recordType in setOf(
+        HealthSyncRecordType.EXERCISE_SESSION.name,
+        HealthSyncRecordType.DISTANCE.name,
+        HealthSyncRecordType.TOTAL_CALORIES_BURNED.name,
+        HealthSyncRecordType.HEART_RATE.name,
+    )
+    HealthSyncAggregateType.WEIGHT_MEASUREMENT.name -> recordType == HealthSyncRecordType.WEIGHT.name
+    HealthSyncAggregateType.USER_PROFILE_HEIGHT.name -> recordType == HealthSyncRecordType.HEIGHT.name
+    else -> false
+}
+
+private fun isSemanticallyResolved(
+    operation: HealthSyncOperation,
+    candidates: HealthSyncSemanticCandidateIndex,
+): Boolean = when (val aggregate = operation.key.aggregate) {
+    is HealthSyncAggregate.DailySummary ->
+        operation.key.recordType == HealthSyncRecordType.STEPS &&
+            candidates.dailySummaries[aggregate.summaryId.value]?.let { summary ->
+                isDailySummaryEligibleForSteps(operation, summary)
+            } == true
+
+    is HealthSyncAggregate.HeartRateMeasurement ->
+        operation.key.recordType == HealthSyncRecordType.HEART_RATE &&
+            candidates.heartRateMeasurements[aggregate.measurementId.value]?.let { measurement ->
+                isHeartRateMeasurementEligibleForHeartRate(measurement)
+            } == true
+
+    is HealthSyncAggregate.WorkoutActivity ->
+        candidates.workoutActivities[aggregate.activityId.value]?.let { activity ->
+            when (operation.key.recordType) {
+                HealthSyncRecordType.EXERCISE_SESSION -> isWorkoutActivityEligibleForExerciseSession(activity, operation)
+                HealthSyncRecordType.DISTANCE -> isWorkoutActivityEligibleForDistance(activity, operation)
+                HealthSyncRecordType.TOTAL_CALORIES_BURNED -> isWorkoutActivityEligibleForCalories(activity, operation)
+                HealthSyncRecordType.HEART_RATE -> isWorkoutActivityEligibleForHeartRate(activity, operation)
+                else -> false
+            }
+        } == true
+
+    is HealthSyncAggregate.WeightMeasurement ->
+        operation.key.recordType == HealthSyncRecordType.WEIGHT &&
+            candidates.weightMeasurements[aggregate.measurementId.value]?.let { measurement ->
+                isWeightMeasurementEligibleForWeight(measurement)
+            } == true
+
+    is HealthSyncAggregate.UserProfileHeight ->
+        operation.key.recordType == HealthSyncRecordType.HEIGHT &&
+            candidates.userProfiles[aggregate.profileId.value]?.let { profile ->
+                isUserProfileEligibleForHeight(profile)
+            } == true
+}
+
+private fun isDailySummaryEligibleForSteps(
+    operation: HealthSyncOperation,
+    summary: DailySummary,
+): Boolean = summary.validity == DataValidity.VALID &&
+    summary.key.origin == DataOrigin.WATCH_DAILY_SUMMARY &&
+    summary.key.deviceId != null &&
+    summary.steps >= 0L &&
+    hasValidStepsRecordWindow(operation, summary)
+
+private fun hasValidStepsRecordWindow(
+    operation: HealthSyncOperation,
+    summary: DailySummary,
+): Boolean = try {
+    val zoneId = operation.timeZoneId.toHealthSyncZoneIdOrSystemDefault()
+    val start = summary.key.localDate.atStartOfDay(zoneId).toInstant()
+    val collectedDate = summary.collectedAt.atZone(zoneId).toLocalDate()
+    val end = if (collectedDate == summary.key.localDate) {
+        summary.collectedAt
+    } else {
+        summary.key.localDate.plusDays(1).atStartOfDay(zoneId).toInstant()
+    }
+    !end.isBefore(start)
+} catch (_: DateTimeException) {
+    false
+} catch (_: ArithmeticException) {
+    false
+}
+
+private fun isHeartRateMeasurementEligibleForHeartRate(
+    measurement: HeartRateMeasurement,
+): Boolean = measurement.validity == DataValidity.VALID &&
+    measurement.measuredAt != null &&
+    measurement.source in setOf(
+        HeartRateSource.MANUAL_MEASUREMENT,
+        HeartRateSource.WATCH_D1_HISTORY,
+    ) &&
+    measurement.bpm in 30..220
+
+private fun isWorkoutActivityEligibleForExerciseSession(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean = isWorkoutActivityBaseEligible(activity, operation)
+
+private fun isWorkoutActivityEligibleForDistance(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean = isWorkoutActivityBaseEligible(activity, operation) && activity.finalPositiveDistanceMeters() != null
+
+private fun isWorkoutActivityEligibleForCalories(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
+        activity.metrics.caloriesKilocalories.presentDoubleOrNull()
+            ?.takeIf { it.isFinite() && it > 0.0 } != null
+
+private fun isWorkoutActivityEligibleForHeartRate(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean {
+    if (!isWorkoutActivityBaseEligible(activity, operation)) return false
+    val sessionWindow = activity.healthSyncSessionWindowOrNull() ?: return false
+    val samplesInsideWindow = activity.heartRateSamples.filter { sample ->
+        !sample.sampledAt.isBefore(sessionWindow.start) &&
+            !sample.sampledAt.isAfter(sessionWindow.end)
+    }
+    return samplesInsideWindow.isNotEmpty() && samplesInsideWindow.all { sample -> sample.bpm in 30..220 }
+}
+
+private fun isWorkoutActivityBaseEligible(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean =
+    activity.parserValidity != ParserValidity.INVALID &&
+        activity.workflowState in HEALTH_SYNC_RESOLVABLE_WORKOUT_STATES &&
+        isWorkoutWorkflowCompatible(activity.workflowState, operation.state) &&
+        activity.confirmedType != null &&
+        activity.confirmedType != WorkoutType.UNKNOWN &&
+        activity.healthSyncSessionWindowOrNull() != null
+
+private fun isWorkoutWorkflowCompatible(
+    workflowState: ActivityWorkflowState,
+    operationState: SyncOperationState,
+): Boolean = when (workflowState) {
+    ActivityWorkflowState.READY_TO_SYNC -> operationState in setOf(
+        SyncOperationState.PENDING,
+        SyncOperationState.FAILED,
+    )
+
+    ActivityWorkflowState.SYNCING -> operationState in setOf(
+        SyncOperationState.PENDING,
+        SyncOperationState.FAILED,
+        SyncOperationState.SYNCING,
+        SyncOperationState.SYNCED,
+    )
+
+    ActivityWorkflowState.SYNCED -> operationState == SyncOperationState.SYNCED
+
+    ActivityWorkflowState.SYNC_FAILED -> operationState in setOf(
+        SyncOperationState.PENDING,
+        SyncOperationState.FAILED,
+        SyncOperationState.SYNCING,
+        SyncOperationState.SYNCED,
+    )
+
+    ActivityWorkflowState.PENDING_REVIEW,
+    ActivityWorkflowState.PENDING_CALIBRATION,
+    ActivityWorkflowState.DISCARDED,
+    -> false
+}
+
+private fun WorkoutActivity.healthSyncSessionWindowOrNull(): HealthSyncWorkoutSessionWindow? {
+    val duration = metrics.duration
+    if (duration.isZero || duration.isNegative) return null
+    val end = try {
+        metrics.startedAt.plus(duration)
+    } catch (_: DateTimeException) {
+        return null
+    } catch (_: ArithmeticException) {
+        return null
+    }
+    if (!end.isAfter(metrics.startedAt)) return null
+    return HealthSyncWorkoutSessionWindow(start = metrics.startedAt, end = end)
+}
+
+private fun WorkoutActivity.finalPositiveDistanceMeters(): Double? {
+    val candidates = listOf(
+        metrics.distances.calibratedMeters,
+        metrics.distances.originalMeters,
+        metrics.distances.estimatedMeters,
+    )
+    for (candidate in candidates) {
+        val value = candidate.presentDoubleOrNull() ?: continue
+        if (value.isFinite() && value > 0.0) return value
+    }
+    return null
+}
+
+private fun isWeightMeasurementEligibleForWeight(measurement: WeightMeasurement): Boolean {
+    val kilograms = when (measurement.unit) {
+        WeightUnit.KILOGRAMS -> measurement.value
+        WeightUnit.POUNDS -> measurement.value * 0.45359237
+    }
+    return kilograms.isFinite() && kilograms > 0.0
+}
+
+private fun isUserProfileEligibleForHeight(profile: UserProfile): Boolean =
+    profile.heightCentimeters?.takeIf { it.isFinite() && it > 0.0 } != null
+
+private fun DomainValue<Double>.presentDoubleOrNull(): Double? =
+    (this as? DomainValue.Present)?.value
+
+private fun String?.toHealthSyncZoneIdOrSystemDefault(): ZoneId = try {
+    this?.let(ZoneId::of) ?: ZoneId.systemDefault()
+} catch (_: DateTimeException) {
+    ZoneId.systemDefault()
+}
+
+private inline fun <T> mapAggregateSafely(mapper: () -> T?): T? = try {
+    mapper()
+} catch (_: DateTimeException) {
+    null
+}
+
+private val HEALTH_SYNC_RESOLVABLE_WORKOUT_STATES: Set<ActivityWorkflowState> = setOf(
+    ActivityWorkflowState.READY_TO_SYNC,
+    ActivityWorkflowState.SYNCING,
+    ActivityWorkflowState.SYNCED,
+    ActivityWorkflowState.SYNC_FAILED,
+)
 
 private data class ResolvedSyncMetadata(
     val clientRecordId: String?,

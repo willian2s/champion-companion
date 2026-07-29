@@ -2,7 +2,7 @@
 
 ## Status
 
-pending
+concluída em 29/07/2026.
 
 ## Objetivo
 
@@ -189,3 +189,109 @@ Registrar:
 - confirmação de preservação do histórico dedicado de FC;
 - comandos executados e resultados;
 - riscos residuais.
+
+## Execução
+
+### Causa raiz
+
+`RoomRepositories.observeForAggregatesWithIntegrity()` resolvia aggregate por
+presença estrutural global, sem considerar `recordType`. Com isso, registro
+mapeável, mas inelegível para operação específica, era tratado como resolvido.
+Atividades também não carregavam importação e amostras em lote no caminho de
+integridade.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+- este arquivo;
+- `docs/tasks/015A-health-sync-queue-semantic-integrity/015A-00-overview.md`.
+
+### Definição implementada
+
+Operação válida possui aggregate resolvido somente quando a chave completa
+`aggregate.type + aggregate.id + recordType` encontra candidato local mapeável e
+elegível pelo predicado nomeado do par. Índices globais são carregados por
+consultas Room reativas em lote. Falha em `HealthSyncOperationEntity.toDomain()`
+ou combinação não suportada sinaliza somente `hasInvalidOperation`; operação
+válida sem candidato semântico sinaliza `hasUnresolvedAggregate`.
+
+### Regras implementadas por par
+
+- `DailySummary + STEPS`: domínio mapeável, `VALID`, origem
+  `WATCH_DAILY_SUMMARY`, dispositivo, steps não negativos e janela compatível
+  com `StepsRecord`.
+- `HeartRateMeasurement + HEART_RATE`: domínio mapeável, `VALID`, timestamp,
+  BPM válido e origem manual ou D1; demais origens permanecem inelegíveis.
+- `WorkoutActivity + EXERCISE_SESSION`: importação relacionada válida, parser
+  diferente de `INVALID`, workflow compatível, tipo confirmado, duração e
+  janela válidas.
+- `WorkoutActivity + DISTANCE`: regras base mais distância positiva e finita na
+  prioridade calibrada, original e estimada.
+- `WorkoutActivity + TOTAL_CALORIES_BURNED`: regras base mais calorias positivas
+  e finitas.
+- `WorkoutActivity + HEART_RATE`: regras base mais amostras reais dentro da
+  janela inclusiva, lista não vazia e BPM válido em todas as amostras avaliadas.
+- `WeightMeasurement + WEIGHT`: domínio mapeável e conversão para quilogramas
+  positiva e finita.
+- `UserProfileHeight + HEIGHT`: perfil mapeável com altura positiva e finita.
+
+Atividades usam importação e amostras globais agrupadas em memória, sem
+intervalos e sem consulta por atividade. `PARTIAL` permanece aceito; estados
+de workflow `READY_TO_SYNC`, `SYNCING`, `SYNCED` e `SYNC_FAILED` são avaliados
+com matriz explícita de compatibilidade com estado da operação. Complementos
+continuam granulares e não exigem distância, calorias ou BPM para resolver a
+sessão.
+
+### Decisões e desvios
+
+- A API pública de observação foi preservada.
+- O conjunto estrutural global foi substituído por índice semântico tipado e
+  predicados nomeados por aggregate e record.
+- Foi adicionada consulta global reativa de candidatos de atividade com
+  importação relacionada e consulta global reativa de amostras de BPM.
+- Nenhum desvio de escopo foi aprovado. `HealthRecordMapper`, histórico
+  dedicado de FC, writer, UI, entidades, schema e migrações permaneceram
+  inalterados.
+
+### Comandos executados
+
+- `git diff --check`;
+- `./gradlew app:compileDebugKotlin`;
+- `./gradlew lint assembleDebug assembleRelease`.
+
+Testes automatizados não foram criados, alterados ou executados, conforme
+spec, subtarefa e `AGENTS.md`.
+
+### Resultados e evidências
+
+- `git diff --check`: sucesso, sem erros.
+- `./gradlew app:compileDebugKotlin`: `BUILD SUCCESSFUL` após correção dos
+  predicados de BPM e workflow.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; 103
+  tasks, 28 executadas e 75 `UP-TO-DATE`.
+- Revisão independente final: aprovada com ressalvas; confirmou chave completa,
+  separação das flags, `PARTIAL`, granularidade, consultas em lote reativas,
+  ausência de N+1 e preservação do histórico dedicado de FC.
+- Diff não contém alterações em entities, `ChampionDatabase.kt`, schema,
+  testes, UI, Health Connect writer ou histórico dedicado de FC.
+
+### Preservações confirmadas
+
+- `ParserValidity.PARTIAL` continua elegível quando demais regras do par passam.
+- Sessão, distância, calorias e BPM permanecem operações independentes.
+- Histórico dedicado de FC continua lendo amostras de
+  `workout_heart_rate_samples`, sem cópia para `heart_rate_measurements` e sem
+  dependência da fila.
+- Resolução usa candidatos globais e não usa a janela aberta do calendário nem
+  `syncedAt` como data.
+
+### Riscos residuais
+
+- Índices globais recalculam volume local completo a cada invalidação observada;
+  custo esperado permanece linear e não houve adição de índice preventivo.
+- Predicados read-only duplicam parte das regras do writer e podem exigir revisão
+  futura se os contratos de mapeamento mudarem.
+- Validação dos cenários foi estática; testes automatizados permanecem proibidos
+  e nenhum estado manual não reproduzido foi declarado como validado.
