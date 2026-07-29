@@ -49,7 +49,19 @@ Classificacao:
 
 - Gate C físico foi concluído em 2026-07-28 no Galaxy S22 com Health Connect real, conforme registro de `012-13` e confirmação manual integral adicional do usuário.
 - G-08, G-09 e G-10 ficam encerradas como lacunas de entrega da Fase 12; permanecem somente riscos de regressão, evolução futura e validações de longo prazo.
-- Continuam fora do escopo: leitura remota, `WorkManager`, foreground service, sincronização periódica, backup, rotas e dados de localização.
+- Na Fase 12 continuam fora do escopo: leitura remota, `WorkManager`, foreground service, sincronização periódica, backup, rotas e dados de localização.
+
+## Política documental da Fase 13
+
+- A ADR-014 autorizou rota somente em caminhada/corrida iniciada explicitamente
+  pelo usuário; implementação, migration e validação física continuam abertas
+  para as subtarefas seguintes.
+- Treino livre e esteira não usam localização. Não há rastreamento passivo,
+  servidor, exportação, GPX, TCX, FIT, backup ou device transfer de rota.
+- Foreground service mínimo da sessão ativa pertence à Fase 13. WorkManager e
+  tarefas adiáveis permanecem na Fase 14.
+- `Phase003PrivacyGuardTest` é dívida conhecida incompatível com a exceção;
+  não deve ser alterado, contornado ou executado nesta fase.
 
 ## G-01 — GATT, Scan E Notifications
 
@@ -162,17 +174,27 @@ Classificacao:
 ## G-13 — Privacidade De GPS, Rotas E Dados Proibidos
 
 - Impacto: Alta. Violacao direta de requisito autoritativo.
-- Evidencia: spec, roadmap, `feature-inventory.md`, `database-reference.md` e `health-connect-mapping.md` proíbem latitude, longitude, rota, polyline e `ExerciseRoute`; MotionLog ainda possui campos/tabelas legados.
-- Motivo da duvida: nao ha duvida sobre proibicao; lacuna e prevenir reintroducao em modelo, log, backup, diagnostico e Health Connect.
-- Fase: modelagem banco, exercicios, Health Connect, backup e revisao final.
+- Evidencia: ADR-004 e ADR-014 distinguem a proibição geral da autorização
+  controlada; MotionLog ainda possui campos/tabelas legados e o código
+  Champion Companion ainda não implementa rota.
+- Motivo da duvida: a política está decidida, mas persistência, deleção, logs,
+  Health Connect e validação física ainda precisam ser entregues sem ampliar o
+  escopo.
+- Fase: `013-02` para decisão; `013-03` a `013-16` para implementação e
+  validação; fechamento em `013-17`.
 - Dispositivo fisico: Nao.
-- Validacao sugerida: validacao de schema, payload, export/backup, logs e rede; usar GPS somente em memoria para metricas e procurar campos proibidos antes de cada release.
+- Validacao sugerida: validar schema, payload, retenção, deleção, export/backup,
+  logs e rede; procurar campos proibidos fora da sessão F13 autorizada antes de
+  cada release.
 
 ## G-14 — Background, Scheduler E Notificacoes
 
 - Impacto: Alta. Pode conflitar com limites de BLE e comprometer continuidade/consumo.
-- Evidencia: `feature-inventory.md` descreve Foreground Service MotionLog com reconnect e D1 ciclico; `source-map.md` e `database-reference.md` registram scheduler/entidades finais pendentes. Roadmap define Foreground Services/WorkManager futuros, sem BLE permanente, sync agressivo, BPM continuo, D1 ao abrir ou retry infinito.
-- Motivo da duvida: funcionalidades baseline e restricoes Champion Companion exigem reconciliacao, nao copia direta.
+- Evidencia: `feature-inventory.md` descreve Foreground Service MotionLog
+  com reconnect e D1 cíclico; ADR-014 define o serviço mínimo da sessão F13;
+  roadmap reserva WorkManager para tarefas adiáveis F14.
+- Motivo da duvida: continuidade da sessão, notificação, recuperação e limites
+  de retry ainda exigem implementação nativa; baseline não é cópia direta.
 - Fase: implementacao background/notificacoes.
 - Dispositivo fisico: Sim.
 - Validacao sugerida: definir gatilhos iniciados pelo usuario, duracao, cancelamento, notificacao, WorkManager e limites de retry. Testar app fechado, perda BLE, restricao de bateria e recuperacao sem iniciar leitura proibida automaticamente.

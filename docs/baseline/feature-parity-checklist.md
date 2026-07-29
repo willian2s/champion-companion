@@ -17,7 +17,9 @@ Validar, em fases futuras, paridade funcional segura entre Champion Companion e 
 - [ ] Cada item aplicavel abaixo tem implementacao, validacao reproduzivel e evidencia registrada.
 - [ ] Fluxos com Champion C001 sao validados em dispositivo fisico quando protocolo ou comportamento BLE participa.
 - [ ] Dados persistidos, enviados ao Health Connect e exibidos ao usuario conferem com regra declarada; falhas permanecem rastreaveis.
-- [ ] Nenhuma validacao introduz latitude, longitude, coordenadas brutas, polyline, rota, mapa, GPX, TCX, FIT ou `ExerciseRoute`.
+- [ ] Nenhuma validação introduz latitude, longitude, coordenadas brutas,
+  polyline, rota, mapa, GPX, TCX, FIT ou `ExerciseRoute` fora da sessão F13
+  explicitamente autorizada; logs, backup e exportações permanecem sem rota.
 
 ## Dispositivo E BLE
 
@@ -87,10 +89,14 @@ Fontes: `feature-inventory.md`, `health-connect-mapping.md`, `database-reference
 
 - [ ] Inicio oferece caminhada, corrida, treino livre e esteira, com pre-condicoes de dispositivo/GPS confirmadas para cada tipo.
 - [ ] Sessao ativa mostra duracao, passos quando disponiveis, conexao e BPM; finalizacao persiste metricas e amostras validas.
-- [ ] Caminhada e corrida usam GPS somente em memoria para metricas. Coordenadas nunca sao persistidas ou enviadas.
+- [ ] Caminhada e corrida usam GPS somente na sessão explícita autorizada pela
+  Fase 13; coordenadas não aparecem em logs, backup ou exportação e não são
+  persistidas em tipos sem autorização.
 - [ ] Esteira exige calibracao antes da persistencia/sync; descarte de rascunho nao cria atividade persistida.
 - [ ] Pausa, retomada e recuperacao apos encerramento so sao aceitas se decisao futura documentar contrato; baseline analisada nao as confirmou.
-- [ ] Continuidade/background de exercicio segue decisao futura compatível com roadmap; nao herda monitoramento BLE continuo do MotionLog.
+- [ ] Continuidade/background de exercício segue ADR-014 e o roadmap; não
+  herda monitoramento BLE contínuo do MotionLog e ainda requer implementação e
+  validação.
 
 ## Calibracao De Esteira
 
@@ -110,14 +116,17 @@ Fontes: `health-connect-mapping.md`, `feature-inventory.md`, `database-reference
 - [x] IDs estaveis proprios, versoes e estrategia de update/retry sao decididos e validados; prefixos `motionlog:` nao sao contrato do novo app.
 - [x] Fila local registra pendente, sucesso, falha e dados invalidos por entidade/record; escrita parcial nao mascara records restantes.
 - [x] D3/D4 somente enviam apos revisao manual; `free` nao envia distancia; esteira usa distancia calibrada.
-- [x] Nenhum fluxo grava ou envia `ExerciseRoute`, coordenadas, rotas ou polylines.
+- [x] Fase 12 e D3/D4 não gravam nem enviam `ExerciseRoute`, coordenadas, rotas
+  ou polylines; Fase 13 possui autorização separada para sessão phone explícita.
 
 ## Dados, Backup, Restauracao E Limpeza
 
 Fontes: `database-reference.md`, `feature-inventory.md`, `000-phase-zero-baseline-handoff.md`.
 
 - [ ] Banco proprio inicia vazio; nao le `motionlog.db`, nao migra schema, nao importa nem transfere dados MotionLog.
-- [ ] Modelo novo exclui dados proibidos: latitude, longitude, rotas, polylines e coordenadas brutas.
+- [ ] Modelo novo exclui dados proibidos fora da sessão F13 autorizada:
+  latitude, longitude, polylines e coordenadas não podem aparecer em logs,
+  exportações, backup ou fluxos sem escopo.
 - [x] Dados locais operacionais suportam deduplicacao, revisao e fila Health Connect sem depender de banco MotionLog.
 - [ ] Backup proprio, se implementado, cobre somente dados Champion Companion e possui restauracao verificavel.
 - [ ] Backup/restauracao nao exige compatibilidade, importacao ou exportacao do MotionLog; baseline atual de Firebase nao foi confirmada no codigo.

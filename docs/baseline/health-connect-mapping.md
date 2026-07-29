@@ -33,10 +33,23 @@ As decisoes abaixo passam a ser consideradas contrato documental do app novo par
 - passos sem delete amplo por intervalo;
 - atividade sincronizada somente por acao explicita;
 - atividade sem `StepsRecord` separado;
-- atividade sem rota;
+- atividade da Fase 12 e D3/D4 sem rota; sessão phone de caminhada/corrida
+  somente conforme ADR-014;
 - falha parcial mantida por record complementar, sem desfazer sessao ja sincronizada;
 - peso e altura so quando houver dado local elegivel;
 - ausencia de `WorkManager` e leitura remota nesta fase.
+
+## Política de rota da Fase 13
+
+A Fase 13 pode incluir `ExerciseRoute` somente na mesma
+`ExerciseSessionRecord` de uma sessão phone explícita de caminhada/corrida.
+Treino livre, esteira, Fase 12 e D3/D4 permanecem sem rota. A sessão base usa
+`clientRecordId` canônico; enriquecimento posterior usa o mesmo ID e versão
+monotônica maior. Sem permissão `WRITE_EXERCISE_ROUTE`, sessão e complementos
+elegíveis sincronizam e a rota local permanece pendente para retry posterior.
+
+Esta política está documentada, mas a implementação e a validação física
+pertencem às subtarefas 013-05, 013-08, 013-09, 013-14 e 013-16.
 
 ## Mapeamento Planejado Champion Companion
 
@@ -119,13 +132,19 @@ MotionLog usa `insertRecords`; não há update explícito por ID de record remot
 - Falha parcial fica pendente por entidade/record para retry seguro. Não marcar lote inteiro como sincronizado. `Decisão já definida`.
 - Importações D3/D4 nascem `pending_review`. Envio manual somente após revisão, validação `valid` e sessão vinculada. `Decisão já definida`; bloqueios atuais confirmados pelo código.
 - Esteira envia distância calibrada. Importação sem calibração confirmada não envia. `Decisão já definida`; bloqueio atual confirmado pelo código.
-- Não armazenar nem enviar latitude, longitude, coordenadas, polylines, rotas ou `ExerciseRoute`. GPS, se usado para métrica, fica apenas em memória. `Decisão já definida`.
+- Não armazenar nem enviar latitude, longitude, coordenadas, polylines, rotas ou
+  `ExerciseRoute` em Fase 12 e D3/D4. A exceção de rota persistida para sessão
+  phone explícita de caminhada/corrida está definida na ADR-014; treino livre e
+  esteira continuam sem localização. `Decisão já definida`.
 
 ## Exercícios D3/D4 E Sem Rotas
 
 MotionLog mapeia `walking`, `running`, `treadmill` e `free` para sessão; distância é omitida para `free`. Treino importado não cria `Steps` separado: passos seguem pipeline diário. `Confirmado pelo código`.
 
-`buildExerciseSessionHealthConnectRecords` declara explicitamente que não sincroniza `ExerciseRoute`; política retorna `route: false` para todo tipo. Nenhum record de rota, coordenada ou polyline é incluído. `Confirmado pelo código`.
+`buildExerciseSessionHealthConnectRecords` da Fase 12 declara explicitamente
+que não sincroniza `ExerciseRoute`; política retorna `route: false` para os
+tipos atuais. A projeção route da Fase 13 será adicionada somente à mesma
+sessão phone autorizada, na subtarefa 013-14.
 
 ## Lacunas Históricas Da Baseline MotionLog
 

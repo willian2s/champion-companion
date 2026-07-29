@@ -236,27 +236,32 @@ O usuário deverá poder:
 
 ---
 
-## 5.6 Sem armazenamento de rota
+## 5.6 Localização e rota sob autorização controlada
 
-O Champion Companion poderá utilizar GPS para calcular:
+A política padrão continua sendo não coletar nem persistir localização. A
+exceção autorizada pela Fase 13 é estreita:
 
-- distância;
-- velocidade;
-- ritmo;
-- deslocamento.
+- somente caminhada ou corrida iniciada explicitamente pelo usuário;
+- somente durante sessão ativa, entre início e fim ou descarte;
+- somente com localização precisa e foreground service visível;
+- rota persistida localmente para recuperação, revisão e sincronização da mesma
+  sessão, sem servidor, exportação, backup ou device transfer;
+- treino livre e esteira não coletam nem persistem rota.
 
-As coordenadas deverão existir apenas em memória durante a sessão.
+O aplicativo nunca deverá usar rastreamento passivo, iniciar sessão por boot ou
+persistir localização fora dessa sessão explícita. Coordenadas, altitude, rota,
+BPM, payload BLE, identificadores pessoais, título e observações não podem
+aparecer em logs diagnósticos.
 
-O aplicativo não deverá:
+Continuam proibidos em todos os fluxos não autorizados:
 
-- persistir latitude;
-- persistir longitude;
-- armazenar polylines;
-- exibir mapas;
-- gerar GPX;
-- gerar TCX;
-- gerar FIT;
-- enviar `ExerciseRoute` ao Health Connect.
+- mapas e tiles;
+- GPX;
+- TCX;
+- FIT;
+- envio para servidor;
+- exportação automática;
+- `ExerciseRoute` em atividades da Fase 12, D3/D4 ou fases sem autorização.
 
 ---
 
@@ -1658,7 +1663,7 @@ SYNCED ou FAILED
 - peso;
 - altura.
 
-## Não enviar
+## Não enviar na Fase 12
 
 - rota;
 - latitude;
@@ -1677,7 +1682,7 @@ SYNCED ou FAILED
 - sem foreground service;
 - sem sync ao abrir o app;
 - sem `Steps` separado para atividade;
-- sem rota.
+- sem rota na Fase 12; rota somente conforme política controlada da Fase 13.
 
 ## Tarefas
 
@@ -1844,7 +1849,8 @@ Health Connect
 
 # Fase 13 — Exercícios iniciados pelo Champion Companion
 
-**Status:** adiada por decisão de produto, sem renumeração.
+**Status:** em execução documental, sem renumeração. Implementação funcional
+continua dependente das subtarefas desta fase.
 
 ## Objetivo
 
@@ -1869,19 +1875,23 @@ Portar os exercícios do aplicativo.
 - recuperar;
 - coletar BPM;
 - salvar amostras;
+- iniciar countdown persistido e cancelável;
 - criar atividade pendente.
 
 ## Caminhada e corrida
 
 - solicitar localização;
-- foreground service;
+- iniciar foreground service mínimo ao fim do countdown, enquanto o app estiver
+  visível;
 - receber localizações;
 - filtrar pontos;
-- calcular distância em memória;
+- persistir pontos aceitos incrementalmente, com segmentos;
+- calcular distância a partir dos pontos persistidos;
 - calcular velocidade;
 - calcular ritmo;
-- descartar coordenadas;
-- salvar agregados.
+- remover rota e amostras transitórias quando houver descarte antes da
+  atividade;
+- sincronizar a rota na mesma `ExerciseSessionRecord`, quando autorizada.
 
 ## Treino livre
 
@@ -1927,7 +1937,7 @@ Health Connect
 ## Critérios de aceite
 
 - caminhada e corrida calculam distância;
-- coordenadas não persistem;
+- rota somente é persistida em sessão explícita de caminhada/corrida;
 - treino livre sem localização;
 - esteira sem GPS;
 - esteira calibrável;
@@ -1936,31 +1946,14 @@ Health Connect
 
 ---
 
-# Fase 14 — Foreground Service e tarefas em segundo plano
+# Fase 14 — WorkManager e tarefas em segundo plano
 
-**Status:** adiada por decisão de produto, sem renumeração.
+**Status:** adiada por decisão de produto, sem renumeração. O foreground
+service mínimo da sessão ativa pertence à Fase 13.
 
 ## Objetivo
 
 Usar os mecanismos Android corretos.
-
-## Foreground Service
-
-Usar em:
-
-- exercício ativo;
-- GPS;
-- BPM durante exercício;
-- importação longa;
-- D3/D4 quando necessário.
-
-Notificação:
-
-- operação;
-- duração;
-- conexão;
-- abrir app;
-- finalizar ou cancelar.
 
 ## WorkManager
 
@@ -1973,6 +1966,10 @@ Usar em:
 - restauração;
 - tarefas adiáveis.
 
+O WorkManager não controla captura GPS, sessão ativa ou foreground service da
+Fase 13. Ele fica reservado para trabalho adiável posterior, com retry
+limitado e consentimento operacional apropriado.
+
 ## Não implementar
 
 - BLE permanente;
@@ -1984,8 +1981,7 @@ Usar em:
 
 ## Critérios de aceite
 
-- exercício continua com tela apagada;
-- notificação visível;
+- sessão ativa da Fase 13 continua com tela apagada e notificação visível;
 - tarefas adiáveis funcionam;
 - sem loops;
 - sessão reconstruível.
@@ -2260,7 +2256,8 @@ Proteger dados de saúde.
 - revisar permissões;
 - solicitar somente necessárias;
 - explicar permissões;
-- não armazenar localização;
+- não armazenar localização fora da sessão explícita de caminhada/corrida
+  autorizada pela Fase 13;
 - não enviar para servidores;
 - proteger backups;
 - evitar dados pessoais em logs;
@@ -2277,7 +2274,7 @@ Proteger dados de saúde.
 - negar Health Connect mantém histórico;
 - negar localização afeta apenas GPS;
 - usuário apaga dados;
-- nenhuma rota.
+- nenhuma rota fora da política controlada da Fase 13.
 
 ---
 
@@ -2691,8 +2688,8 @@ Fase 9  — D1 e BPM completo
 Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
 Fase 12 — Health Connect (concluída)
-Fase 13 — Exercícios (adiada)
-Fase 14 — Background (adiada)
+Fase 13 — Exercícios (em execução documental)
+Fase 14 — WorkManager e background (adiada)
 Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
@@ -2710,8 +2707,8 @@ Fase 25 — Lançamento
 
 # 13. Priorização
 
-Fase 15 está concluída. Fases 13 e 14 permanecem registradas como backlog
-histórico adiado. Nenhuma fase seguinte foi iniciada automaticamente.
+Fase 15 está concluída. Fase 13 está em execução documental; Fase 14 permanece
+backlog adiado. Nenhuma fase seguinte foi iniciada automaticamente.
 
 ## Crítica
 
@@ -2813,7 +2810,7 @@ Mitigação:
 - encerrar GATT;
 - localização limitada;
 - sem BPM contínuo;
-- WorkManager.
+- WorkManager somente para tarefas adiáveis da Fase 14.
 
 ---
 
@@ -2849,7 +2846,7 @@ Mitigação:
 - BPM contínuo;
 - sincronização automática ao abrir;
 - envio automático de atividades;
-- rotas;
+- rotas fora da política controlada da Fase 13;
 - mapas;
 - GPX;
 - TCX;
@@ -2886,7 +2883,7 @@ O projeto estará concluído quando:
 - sincronizar atividades;
 - funcionar com exercícios pelo celular;
 - sobreviver ao segundo plano;
-- não armazenar rota;
+- respeitar persistência controlada de rota somente na Fase 13;
 - possuir backup próprio;
 - iniciar com banco vazio;
 - não depender do MotionLog;

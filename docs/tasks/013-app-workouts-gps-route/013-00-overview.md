@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 1/17 subtarefas concluídas
+- **Progresso:** 2/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -11,7 +11,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 ## Checklist
 
 - [x] [013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md](013-01-audit-post-phase-15-app-workout-location-and-correlation-boundaries.md)
-- [ ] [013-02-update-roadmap-privacy-adr-and-operational-rules.md](013-02-update-roadmap-privacy-adr-and-operational-rules.md)
+- [x] [013-02-update-roadmap-privacy-adr-and-operational-rules.md](013-02-update-roadmap-privacy-adr-and-operational-rules.md)
 - [ ] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
 - [ ] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
 - [ ] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
@@ -35,6 +35,12 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - Migration prevista: manual `v5 → v6`, sem destructive migration, com schema `6.json`.
 - ADR prevista: ADR-014, sucedendo parcialmente política de rota da ADR-004 e alinhando ADR-012.
 - `Phase003PrivacyGuardTest` é incompatível com nova decisão. Dívida conhecida; não alterar nem executar testes nesta fase.
-- Nenhum `WorkManager`, mapa externo, exportação ou servidor.
+- F13 não usa `WorkManager` para sessão ativa; F14 mantém WorkManager para
+  tarefas adiáveis. Sem mapa externo, exportação ou servidor.
 - Cada subtarefa deve atualizar este overview no trabalho de execução, marcando somente seu item após conclusão real.
-- `013-01` concluída com auditoria documental reproduzível e revisão independente aprovada. Evidências confirmam Room v5, migration planejada v5 → v6, mapper de sessão incompleto, acoplamento D3/D4, ausência de rota/FGS e protocolo live não confirmado. `013-02` permanece próxima subtarefa, sem início automático.
+- `013-01` concluída com auditoria documental reproduzível e revisão independente aprovada. Evidências confirmam Room v5, migration planejada v5 → v6, mapper de sessão incompleto, acoplamento D3/D4, ausência de rota/FGS e protocolo live não confirmado.
+- `013-02` concluída com ADR-014 aceita, ADR-004 parcialmente sucedida,
+  roadmap/baselines/AGENTS alinhados e fronteira F12/F13/F14 formalizada. A
+  implementação funcional permanece pendente; `Phase003PrivacyGuardTest` não
+  foi alterado nem executado. `013-03` é próxima subtarefa elegível, sem início
+  automático. Revisão independente aprovada com ressalvas, sem bloqueadores.

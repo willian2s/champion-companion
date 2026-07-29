@@ -45,10 +45,10 @@ Escopo factual atual já inclui também na Fase 12:
 - `Settings` funcional para disponibilidade, permissões, `Sincronizar agora` e `Gerenciar acesso`;
 - feedback secundário de Health Connect em Home, Saúde e Exercícios.
 
-Escopo factual atual ainda não inclui:
+Escopo factual atual do código ainda não inclui:
 
 - leitura do Health Connect;
-- GPS, localização persistida, rotas ou `ExerciseRoute`;
+- GPS de sessão, localização persistida, rotas ou `ExerciseRoute`;
 - foreground service;
 - `WorkManager`;
 - background BLE permanente;
@@ -60,7 +60,19 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 `SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v5`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
-Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service, backup e rotas continuam fora do escopo.
+Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service da sessão e rotas continuam ausentes do código da Fase 12. Backup e device transfer continuam negados.
+
+## Política autorizada da Fase 13
+
+A ADR-014 autoriza, mas ainda não implementa, rota persistida somente para
+caminhada/corrida iniciada explicitamente pelo usuário. A autorização inclui
+GPS preciso durante a sessão, foreground service mínimo, persistência
+incremental, recuperação e sincronização da mesma sessão Health Connect.
+
+Treino livre e esteira continuam sem localização. Não há rastreamento passivo,
+servidor, exportação, GPX, TCX, FIT, backup ou device transfer de rota. Logs e
+diagnósticos continuam sem coordenadas, altitude, rota, BPM, payload BLE,
+identificadores pessoais, título ou observações.
 
 Registro de fechamento da Fase 11: revisão, calibração, descarte lógico e atividades locais até `READY_TO_SYNC` foram consolidados documentalmente. A validação física de 2026-07-28 confirmou build, instalação, lista, filtros, detalhe, métricas, gráfico, intervalos e persistência após reinício no Galaxy S22 `SM-S901E`, mas não reproduziu todos os estados pendentes porque o aparelho continha atividades `SYNCED`. Health Connect funcional pertence à Fase 12 e não altera a fronteira de responsabilidade da Fase 11.
 
