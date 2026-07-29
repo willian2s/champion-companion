@@ -176,7 +176,18 @@ registrada separadamente, com justificativa e decisão própria.
   v5 permaneceu inalterado. Item foi concluído com aceite explícito de cobertura
   manual representativa; estados não reproduzidos, erro/retry, TalkBack, foco e
   contraste dinâmico permanecem riscos residuais. Escala 1,3x foi validada com
-  quebra de rótulos na navegação inferior.
+   quebra de rótulos na navegação inferior.
+
+> **Correção posterior — Spec 015A:** a limitação residual de integridade
+> semântica da fila relacionada à `015-11` foi formalizada, implementada,
+> revisada e concluída pela [spec `015A-health-sync-queue-semantic-integrity`](../../specs/015A-health-sync-queue-semantic-integrity.md),
+> conforme o [overview `015A-00`](../015A-health-sync-queue-semantic-integrity/015A-00-overview.md).
+> A `015A-01` [implementou a correção](../015A-health-sync-queue-semantic-integrity/015A-01-implementar-integridade-semantica-por-operacao.md)
+> e a `015A-02` [revisou e fechou a correção](../015A-health-sync-queue-semantic-integrity/015A-02-revisar-cenarios-e-fechar-correcao.md).
+> A correção foi concluída sem reabrir a Fase 15: o status da `015-11` permanece
+> concluído, a sequência normal permanece inalterada e `015-12` e `015-13`
+> mantêm seus status atuais, ainda não iniciadas.
+
 - Débito D-015-10: após implementar Perfil com altura ou passada válida, gerar e
   persistir estimativas em `DailySummary.estimatedDistanceMeters` e repetir a
   validação física do histórico de distância com dias estimados e sem estimativa.

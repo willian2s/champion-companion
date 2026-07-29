@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.core.database
 
 import androidx.room3.Dao
+import androidx.room3.Embedded
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
@@ -177,6 +178,20 @@ interface WorkoutActivityDao {
     fun observeAll(): Flow<List<WorkoutActivityEntity>>
 
     @Query(
+        "SELECT activity.*, " +
+            "importRecord.id AS importId, importRecord.activityId AS importActivityId, " +
+            "importRecord.deviceId AS importDeviceId, importRecord.origin AS importOrigin, " +
+            "importRecord.crc AS importCrc, importRecord.externalBlockIndex AS importExternalBlockIndex, " +
+            "importRecord.parserVersion AS importParserVersion, importRecord.parserValidity AS importParserValidity, " +
+            "importRecord.diagnosticPayloadId AS importDiagnosticPayloadId, " +
+            "importRecord.importedAtEpochMillis AS importImportedAtEpochMillis " +
+            "FROM workout_activities activity " +
+            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "ORDER BY activity.id",
+    )
+    fun observeAllHealthSyncCandidates(): Flow<List<HealthSyncWorkoutCandidateRecord>>
+
+    @Query(
         "SELECT activity.* FROM workout_activities activity " +
             "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "WHERE activity.workflowState = 'PENDING_REVIEW' " +
@@ -283,6 +298,20 @@ data class CalendarWorkoutSummaryRecord(
     val workflowState: String,
 )
 
+data class HealthSyncWorkoutCandidateRecord(
+    @Embedded val activity: WorkoutActivityEntity,
+    val importId: String,
+    val importActivityId: String,
+    val importDeviceId: String,
+    val importOrigin: String,
+    val importCrc: Int,
+    val importExternalBlockIndex: Int,
+    val importParserVersion: String,
+    val importParserValidity: String,
+    val importDiagnosticPayloadId: String?,
+    val importImportedAtEpochMillis: Long,
+)
+
 data class HealthSyncSummaryRecord(
     val pendingCount: Int,
     val syncingCount: Int,
@@ -335,6 +364,9 @@ interface WorkoutDetailDao {
 
     @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis")
     suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
+
+    @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, id")
+    fun observeAllHeartRateSamples(): Flow<List<WorkoutHeartRateSampleEntity>>
 
     @Query(
         "SELECT sample.activityId AS activityId, sample.sampledAtEpochMillis AS sampledAtEpochMillis, " +

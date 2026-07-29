@@ -11,6 +11,7 @@ import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutp
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
@@ -387,6 +388,56 @@ internal fun WorkoutActivityEntity.toDomain(
         reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli),
         calibrationId = calibrationId?.let(::uuid)?.let(::TreadmillCalibrationId),
     ).successOrNull()
+}
+
+internal fun HealthSyncWorkoutCandidateRecord.toHealthSyncCandidateDomain(
+    samples: List<WorkoutHeartRateSampleEntity>,
+): WorkoutActivity? {
+    val importRecord = WatchWorkoutImportEntity(
+        id = importId,
+        activityId = importActivityId,
+        deviceId = importDeviceId,
+        origin = importOrigin,
+        crc = importCrc,
+        externalBlockIndex = importExternalBlockIndex,
+        parserVersion = importParserVersion,
+        parserValidity = importParserValidity,
+        diagnosticPayloadId = importDiagnosticPayloadId,
+        importedAtEpochMillis = importImportedAtEpochMillis,
+    )
+    if (!importRecord.isStructurallyRelatedTo(activity)) return null
+    return activity.toDomain(
+        importRecord = importRecord,
+        intervals = emptyList(),
+        samples = samples,
+    )
+}
+
+private fun WatchWorkoutImportEntity.isStructurallyRelatedTo(
+    activity: WorkoutActivityEntity,
+): Boolean {
+    val mappedOrigin = enum<DataOrigin>(origin) ?: return false
+    val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return false
+    val mappedDiagnosticPayloadId = diagnosticPayloadId?.let(::uuid)
+    if (diagnosticPayloadId != null && mappedDiagnosticPayloadId == null) return false
+    val activityDiagnosticPayloadId = activity.diagnosticPayloadId?.let(::uuid)
+    if (activity.diagnosticPayloadId != null && activityDiagnosticPayloadId == null) return false
+
+    return uuid(id) != null &&
+        uuid(activityId) != null &&
+        uuid(deviceId) != null &&
+        activityId == activity.id &&
+        deviceId == activity.deviceId &&
+        mappedOrigin == DataOrigin.WATCH_D3_D4 &&
+        origin == activity.origin &&
+        crc in 1..0xffff &&
+        externalBlockIndex >= 0 &&
+        parserVersion(parserVersion) != null &&
+        parserVersion == activity.parserVersion &&
+        mappedParserValidity.name == activity.parserValidity &&
+        mappedDiagnosticPayloadId == activityDiagnosticPayloadId &&
+        importedAtEpochMillis == activity.importedAtEpochMillis &&
+        importedAtEpochMillis >= activity.startedAtEpochMillis
 }
 
 internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup? {
