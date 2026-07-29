@@ -1,8 +1,8 @@
 # 015A — Integridade semântica da fila de sincronização
 
-- **Status geral:** em andamento
+- **Status geral:** concluída em 29/07/2026
 - **Spec:** [015A-health-sync-queue-semantic-integrity.md](../../specs/015A-health-sync-queue-semantic-integrity.md)
-- **Progresso:** 1/2 subtarefas concluídas
+- **Progresso:** 2/2 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ elegibilidade semântica do par `aggregate + recordType`, preservando atividades
 ## Checklist
 
 - [x] [015A-01-implementar-integridade-semantica-por-operacao.md](015A-01-implementar-integridade-semantica-por-operacao.md)
-- [ ] [015A-02-revisar-cenarios-e-fechar-correcao.md](015A-02-revisar-cenarios-e-fechar-correcao.md)
+- [x] [015A-02-revisar-cenarios-e-fechar-correcao.md](015A-02-revisar-cenarios-e-fechar-correcao.md)
 
 ## Observações
 
@@ -25,6 +25,13 @@ elegibilidade semântica do par `aggregate + recordType`, preservando atividades
   reativos, elegibilidade granular de atividades e gates de build aprovados.
 - Revisão independente final aprovou implementação com ressalvas de custo linear
   global e possível divergência futura entre predicados read-only e writer.
-- `015A-02` executa uma única revisão final pela tabela contratual e fecha somente
-  esta correção.
+- `015A-02` concluída com uma única revisão estática da tabela contratual; nenhum
+  cenário manual ou teste automatizado foi declarado como reproduzido.
+- Todos os 14 cenários produziram as flags esperadas por inspeção do resolvedor
+  semântico, incluindo separação entre operação inválida e aggregate não
+  resolvido, aceitação de `PARTIAL`, granularidade de complementos e preservação
+  do histórico dedicado de FC.
+- Validação final independente não encontrou bloqueios. Permanecem riscos de
+  custo linear global e possível divergência futura entre predicados read-only e
+  writer.
 - Testes automatizados permanecem proibidos.

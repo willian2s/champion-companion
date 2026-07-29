@@ -2,7 +2,7 @@
 
 ## Status
 
-Planejada.
+Concluída em 29/07/2026.
 
 ## Ticker
 
@@ -405,3 +405,27 @@ implementação após revisão final sem achado novo e materialmente diferente.
 - preservação de `PARTIAL`, granularidade e histórico de FC confirmada;
 - spec, overview e subtarefas alinhados;
 - nenhum estado manual marcado como validado sem reprodução real.
+
+## Fechamento da revisão 015A-02
+
+`015A-02` foi concluída em 29/07/2026 com uma única revisão estática da tabela
+contratual sobre a implementação de `015A-01`. A revisão confirmou resolução pela
+chave completa `aggregate.type + aggregate.id + recordType`, separação exclusiva
+entre `hasInvalidOperation` e `hasUnresolvedAggregate`, aceitação de
+`ParserValidity.PARTIAL`, sincronização granular e independência do histórico
+dedicado de FC.
+
+Os 14 cenários da tabela produziram as flags esperadas por inspeção do código e
+dos mappers autoritativos. Nenhum cenário manual foi declarado como reproduzido;
+testes automatizados não foram criados, alterados ou executados.
+
+Comandos finais:
+
+- `git diff --check`: sucesso.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`;
+  103 tasks, 3 executadas e 100 `UP-TO-DATE`.
+- busca de diff proibido em testes, schema, `ChampionDatabase.kt`, mappers do
+  writer, histórico dedicado, contrato e read model do calendário: sem saída.
+
+Riscos residuais permanecem: custo linear da observação global dos candidatos e
+possível divergência futura entre predicados read-only e regras do writer.
