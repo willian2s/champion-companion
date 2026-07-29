@@ -2,7 +2,7 @@
 
 - **Status geral:** em andamento
 - **Spec:** [015-calendar-consolidated-history.md](../../specs/015-calendar-consolidated-history.md)
-- **Progresso:** 12/14 subtarefas concluídas
+- **Progresso:** 13/14 subtarefas concluídas
 
 ## Estado herdado
 
@@ -103,12 +103,18 @@ registrada separadamente, com justificativa e decisão própria.
 - [x] [015-09-implement-steps-history-chart-and-list.md](015-09-implement-steps-history-chart-and-list.md)
 - [x] [015-10-implement-distance-history-chart-and-list.md](015-10-implement-distance-history-chart-and-list.md)
 - [x] [015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md](015-11-integrate-sync-status-empty-states-errors-and-visual-polish.md)
-- [ ] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
+- [x] [015-12-run-manual-offline-calendar-validation.md](015-12-run-manual-offline-calendar-validation.md)
 - [ ] [015-13-close-calendar-consolidated-history-phase.md](015-13-close-calendar-consolidated-history-phase.md)
 - [x] [015-14-include-workout-heart-rate-in-dedicated-history.md](015-14-include-workout-heart-rate-in-dedicated-history.md)
 
 ## Observações
 
+- `015-12` teve build, instalação e validação offline representativa no Galaxy
+  S22 `SM-S901E`, com 39 cenários registrados e quatorze screenshots. Usuário
+  aceitou, no contexto de app pessoal, a cobertura disponível de atividades, o
+  estado vazio de peso, o diagnóstico pré-existente de contagem no Logcat e os
+  riscos residuais de distância positiva, zero real e estados de sync
+  degradados. Progresso recalculado para `13/14`; `015-13` não foi iniciada.
 - `015-01` concluída com relatório documental reproduzível.
 - `015-02` concluída com ADR-013 e roadmap alinhado à decisão de produto.
 - `015-03` concluída com contratos temporais, read models imutáveis, semântica de
@@ -139,8 +145,8 @@ registrada separadamente, com justificativa e decisão própria.
   reais de atividades não descartadas no histórico dedicado de frequência
   cardíaca. Implementação, build, screenshot e validação manual foram concluídos;
   usuário confirmou funcionamento esperado. `015-11` foi concluída com aceite
-  de cobertura manual representativa; `015-12` e `015-13` permanecem não
-  iniciadas.
+  de cobertura manual representativa; `015-12` foi concluída com aceite explícito
+  de riscos residuais e `015-13` permanece não iniciada.
 - `015-09` concluída com ViewModel temporal local, períodos `7D`, `30D` e `90D`,
   métricas calculadas sem preencher lacunas, gráfico de barras acessível e lista
   no padrão do histórico de FC, ordenada do mais recente para o mais antigo e
@@ -185,8 +191,8 @@ registrada separadamente, com justificativa e decisão própria.
 > A `015A-01` [implementou a correção](../015A-health-sync-queue-semantic-integrity/015A-01-implementar-integridade-semantica-por-operacao.md)
 > e a `015A-02` [revisou e fechou a correção](../015A-health-sync-queue-semantic-integrity/015A-02-revisar-cenarios-e-fechar-correcao.md).
 > A correção foi concluída sem reabrir a Fase 15: o status da `015-11` permanece
-> concluído, a sequência normal permanece inalterada e `015-12` e `015-13`
-> mantêm seus status atuais, ainda não iniciadas.
+> concluído, a sequência normal permanece inalterada, `015-12` foi concluída
+> com aceite explícito de riscos residuais e `015-13` não foi iniciada.
 
 - Débito D-015-10: após implementar Perfil com altura ou passada válida, gerar e
   persistir estimativas em `DailySummary.estimatedDistanceMeters` e repetir a
