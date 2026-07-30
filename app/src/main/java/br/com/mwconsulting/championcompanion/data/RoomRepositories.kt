@@ -2281,7 +2281,7 @@ private fun isDailySummaryEligibleForSteps(
 ): Boolean = summary.validity == DataValidity.VALID &&
     summary.key.origin == DataOrigin.WATCH_DAILY_SUMMARY &&
     summary.key.deviceId != null &&
-    hasValidStepsRecordWindow(operation)
+    (operation.dailyStepsPayload == null || hasValidStepsRecordWindow(operation))
 
 private fun hasValidStepsRecordWindow(
     operation: HealthSyncOperation,
