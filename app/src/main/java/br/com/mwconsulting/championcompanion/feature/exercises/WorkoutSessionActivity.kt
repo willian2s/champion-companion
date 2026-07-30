@@ -54,7 +54,11 @@ class WorkoutSessionActivity : ComponentActivity() {
     private fun handleDestination(destination: AppDestination) {
         request = when (destination) {
             is AppDestination.ActiveWorkout -> WorkoutSessionRequest.Active(destination.sessionId)
-            is AppDestination.WorkoutRecovery -> WorkoutSessionRequest.Recovery(destination.sessionId)
+            is AppDestination.WorkoutRecovery -> destination.sessionId?.let(WorkoutSessionRequest::Recovery)
+                ?: run {
+                    finish()
+                    null
+                }
             else -> {
                 finish()
                 null
