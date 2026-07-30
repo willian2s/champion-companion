@@ -3,6 +3,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncOutcome
+import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationEvent
+import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSource
+import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSourceFactory
+import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationStartResult
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
@@ -20,16 +24,20 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,6 +57,7 @@ class ExercisesViewModel internal constructor(
     private val appPreferencesRepository: AppPreferencesRepository,
     private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
+    private val workoutLocationSourceFactory: WorkoutLocationSourceFactory,
     private val scope: CoroutineScope,
     private val ids: UuidV7Generator,
 ) : ViewModel(), ExercisesFeatureContract {
@@ -67,6 +76,20 @@ class ExercisesViewModel internal constructor(
     private val reviewFormState = MutableStateFlow(ExerciseReviewFormState())
     private val calibrationFormState = MutableStateFlow(ExerciseCalibrationFormState())
     private val operationError = MutableStateFlow<ExerciseOperationError?>(null)
+    private val workoutCountdownPreference = MutableStateFlow(
+        br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
+    )
+    private val workoutPreparation = MutableStateFlow(WorkoutPreparationUiState())
+
+    private var preparationVisible = false
+    private var locationSource: WorkoutLocationSource? = null
+    private var locationEventsJob: Job? = null
+    private var locationRuntimeGeneration = 0L
+    private var activeLocationRuntimeGeneration: Long? = null
+    private var preparationVisibilitySequence = 0L
+    private var activePreparationVisibilityToken: Long? = null
+    private var countdownJob: Job? = null
+    private var countdownRunId = 0L
 
     internal var ownsScope: Boolean = false
 
@@ -137,6 +160,18 @@ class ExercisesViewModel internal constructor(
             }
         }
         scope.launch {
+            appPreferencesRepository.observeWorkoutCountdownSeconds().collect { storedSeconds ->
+                val seconds = WorkoutCountdownPolicy.sanitize(storedSeconds)
+                workoutCountdownPreference.value = seconds
+                val current = workoutPreparation.value
+                if (current.phase != WorkoutPreparationPhase.COUNTING_DOWN &&
+                    current.phase != WorkoutPreparationPhase.START_REQUESTED
+                ) {
+                    workoutPreparation.value = current.copy(countdownSeconds = seconds)
+                }
+            }
+        }
+        scope.launch {
             watchWorkoutImportCoordinator.state.collect { surface ->
                 importState.value = surface
             }
@@ -155,6 +190,7 @@ class ExercisesViewModel internal constructor(
                 operationError,
                 dailyStepsGoal,
                 associatedDevice,
+                workoutPreparation,
             ) { values ->
                 val currentImportState = values[0] as WatchWorkoutImportSurfaceState
                 val metadata = values[1] as WatchWorkoutImportMetadata?
@@ -168,6 +204,7 @@ class ExercisesViewModel internal constructor(
                 val error = values[9] as ExerciseOperationError?
                 val goal = values[10] as Int
                 val device = values[11] as Device?
+                val preparation = values[12] as WorkoutPreparationUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -194,6 +231,7 @@ class ExercisesViewModel internal constructor(
                     dailyStepsGoal = goal,
                     hasAssociatedDevice = device != null,
                     associatedDeviceName = device?.name,
+                    workoutPreparation = preparation,
                 )
             }.collect { mutableState.value = it }
         }
@@ -207,6 +245,7 @@ class ExercisesViewModel internal constructor(
         appPreferencesRepository: AppPreferencesRepository,
         healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
+        workoutLocationSourceFactory: WorkoutLocationSourceFactory,
     ) : this(
         deviceRepository = deviceRepository,
         workoutActivityRepository = workoutActivityRepository,
@@ -214,6 +253,7 @@ class ExercisesViewModel internal constructor(
         appPreferencesRepository = appPreferencesRepository,
         healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         watchWorkoutImportCoordinator = watchWorkoutImportCoordinator,
+        workoutLocationSourceFactory = workoutLocationSourceFactory,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
     ) {
@@ -241,16 +281,301 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.RetryImport -> retryImport()
             ExercisesIntent.DismissImport -> dismissImport()
             ExercisesIntent.ConfirmExitImport -> cancelImport(WatchWorkoutImportCancellationReason.EXIT_CONFIRMED)
-            ExercisesIntent.AppMovedToBackground -> cancelImport(WatchWorkoutImportCancellationReason.BACKGROUND)
+            ExercisesIntent.AppMovedToBackground -> {
+                cancelImport(WatchWorkoutImportCancellationReason.BACKGROUND)
+                suspendWorkoutPreparation()
+            }
             ExercisesIntent.OpenDevice -> Unit
+            is ExercisesIntent.EnterWorkoutPreparation -> enterWorkoutPreparation(intent.workoutType)
+            ExercisesIntent.SuspendWorkoutPreparation -> suspendWorkoutPreparation()
+            ExercisesIntent.ExitWorkoutPreparation -> exitWorkoutPreparation()
+            ExercisesIntent.RefreshWorkoutLocation -> refreshWorkoutLocation()
+            is ExercisesIntent.SelectWorkoutCountdown -> selectWorkoutCountdown(intent.seconds)
+            ExercisesIntent.StartWorkoutCountdown -> startWorkoutCountdown()
+            ExercisesIntent.CancelWorkoutCountdown -> cancelWorkoutCountdown("Countdown cancelado.")
         }
     }
 
     override fun onCleared() {
+        stopWorkoutLocation()
+        cancelCountdownInternal()
         if (ownsScope) {
             scope.cancel()
         }
         super.onCleared()
+    }
+
+    private fun enterWorkoutPreparation(workoutType: WorkoutType) {
+        if (workoutType == WorkoutType.UNKNOWN) return
+        val current = workoutPreparation.value
+        val typeChanged = current.workoutType != workoutType
+        if (!preparationVisible || typeChanged) {
+            activePreparationVisibilityToken = ++preparationVisibilitySequence
+        }
+        preparationVisible = true
+        if (typeChanged) {
+            cancelCountdownInternal()
+            stopWorkoutLocation()
+            workoutPreparation.value = WorkoutPreparationUiState(
+                workoutType = workoutType,
+                phase = WorkoutPreparationPhase.WAITING,
+                countdownSeconds = workoutCountdownPreference.value,
+            )
+        } else if (current.phase == WorkoutPreparationPhase.INACTIVE) {
+            workoutPreparation.value = current.copy(
+                phase = WorkoutPreparationPhase.WAITING,
+                remainingSeconds = null,
+                notice = null,
+            )
+        }
+
+        if (workoutType.requiresGps() && locationSource == null &&
+            workoutPreparation.value.phase != WorkoutPreparationPhase.START_REQUESTED
+        ) {
+            startWorkoutLocation()
+        } else if (!workoutType.requiresGps()) {
+            stopWorkoutLocation()
+            workoutPreparation.value = workoutPreparation.value.copy(gpsReadiness = null)
+        }
+    }
+
+    private fun suspendWorkoutPreparation() {
+        if (!preparationVisible && workoutPreparation.value.phase == WorkoutPreparationPhase.INACTIVE) return
+        preparationVisible = false
+        activePreparationVisibilityToken = null
+        if (workoutPreparation.value.phase == WorkoutPreparationPhase.COUNTING_DOWN) {
+            cancelWorkoutCountdown("Countdown interrompido porque a preparação saiu da tela.")
+        } else {
+            cancelCountdownInternal()
+        }
+        stopWorkoutLocation()
+    }
+
+    private fun exitWorkoutPreparation() {
+        preparationVisible = false
+        activePreparationVisibilityToken = null
+        cancelCountdownInternal()
+        stopWorkoutLocation()
+        workoutPreparation.value = WorkoutPreparationUiState(
+            countdownSeconds = workoutCountdownPreference.value,
+        )
+    }
+
+    private fun refreshWorkoutLocation() {
+        val current = workoutPreparation.value
+        if (!preparationVisible || !current.requiresGps ||
+            current.phase == WorkoutPreparationPhase.START_REQUESTED
+        ) return
+        stopWorkoutLocation()
+        workoutPreparation.value = workoutPreparation.value.copy(notice = null)
+        startWorkoutLocation()
+    }
+
+    private fun startWorkoutLocation() {
+        val current = workoutPreparation.value
+        if (!preparationVisible || !current.requiresGps || locationSource != null) return
+
+        invalidateGpsReadiness()
+        val source = workoutLocationSourceFactory.create()
+        val generation = ++locationRuntimeGeneration
+        activeLocationRuntimeGeneration = generation
+        locationSource = source
+        locationEventsJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            source.events.collect { event ->
+                if (event.runtimeGeneration == generation && source === locationSource) {
+                    handleWorkoutLocationEvent(event)
+                }
+            }
+        }
+        if (source.start(generation) != WorkoutLocationStartResult.STARTED) {
+            stopWorkoutLocation()
+            workoutPreparation.value = workoutPreparation.value.copy(
+                notice = "GPS indisponível para esta preparação. Tente novamente.",
+            )
+        }
+    }
+
+    private fun handleWorkoutLocationEvent(event: WorkoutLocationEvent) {
+        if (event !is WorkoutLocationEvent.Readiness) return
+        val current = workoutPreparation.value
+        if (!preparationVisible || !current.requiresGps ||
+            event.runtimeGeneration != activeLocationRuntimeGeneration
+        ) return
+        val stateAfterEvent = current.copy(
+            gpsReadiness = event.value,
+            gpsReadinessGeneration = event.runtimeGeneration,
+        )
+        workoutPreparation.value = stateAfterEvent
+        if (current.phase == WorkoutPreparationPhase.COUNTING_DOWN && !event.value.canStart) {
+            cancelWorkoutCountdown(
+                notice = "A prontidão do GPS foi perdida. Aguarde um novo sinal pronto.",
+                state = stateAfterEvent,
+            )
+        }
+    }
+
+    private fun stopWorkoutLocation() {
+        val source = locationSource
+        val sourceGeneration = activeLocationRuntimeGeneration
+        locationSource = null
+        activeLocationRuntimeGeneration = null
+        locationEventsJob?.cancel()
+        locationEventsJob = null
+        if (source != null) {
+            sourceGeneration?.let(source::stop)
+            source.close()
+        }
+        invalidateGpsReadiness()
+    }
+
+    private fun selectWorkoutCountdown(seconds: Int) {
+        val sanitized = WorkoutCountdownPolicy.sanitize(seconds)
+        val current = workoutPreparation.value
+        if (current.phase == WorkoutPreparationPhase.COUNTING_DOWN ||
+            current.phase == WorkoutPreparationPhase.START_REQUESTED
+        ) return
+        workoutPreparation.value = current.copy(
+            countdownSeconds = sanitized,
+            preferenceError = null,
+            notice = null,
+        )
+        scope.launch {
+            when (appPreferencesRepository.updateWorkoutCountdownSeconds(sanitized)) {
+                is RepositoryResult.Success -> Unit
+                RepositoryResult.Conflict,
+                RepositoryResult.NotFound,
+                RepositoryResult.StorageUnavailable,
+                RepositoryResult.UnexpectedState,
+                -> workoutPreparation.value = workoutPreparation.value.copy(
+                    preferenceError = "Não foi possível salvar a duração do countdown.",
+                )
+            }
+        }
+    }
+
+    private fun startWorkoutCountdown() {
+        val current = workoutPreparation.value
+        val workoutType = current.workoutType ?: return
+        val visibilityToken = activePreparationVisibilityToken ?: return
+        val gpsGeneration = if (current.requiresGps) activeGpsReadinessGeneration(current) ?: return else null
+        if (!preparationVisible || !current.canStartCountdown || current.startRequest != null) return
+
+        cancelCountdownInternal()
+        val runId = ++countdownRunId
+        val seconds = WorkoutCountdownPolicy.sanitize(current.countdownSeconds)
+        if (seconds == 0) {
+            emitWorkoutStartRequest(runId, visibilityToken, gpsGeneration, workoutType, seconds)
+            return
+        }
+
+        workoutPreparation.value = current.copy(
+            phase = WorkoutPreparationPhase.COUNTING_DOWN,
+            countdownSeconds = seconds,
+            remainingSeconds = seconds,
+            notice = null,
+        )
+        countdownJob = scope.launch {
+            var remaining = seconds
+            while (remaining > 0) {
+                delay(COUNTDOWN_TICK_MILLIS)
+                if (runId != countdownRunId ||
+                    workoutPreparation.value.phase != WorkoutPreparationPhase.COUNTING_DOWN
+                ) return@launch
+                remaining -= 1
+                if (remaining > 0) {
+                    workoutPreparation.value = workoutPreparation.value.copy(remainingSeconds = remaining)
+                }
+            }
+            emitWorkoutStartRequest(runId, visibilityToken, gpsGeneration, workoutType, seconds)
+        }
+    }
+
+    private fun emitWorkoutStartRequest(
+        runId: Long,
+        visibilityToken: Long,
+        gpsGeneration: Long?,
+        workoutType: WorkoutType,
+        countdownSeconds: Int,
+    ) {
+        val current = workoutPreparation.value
+        if (runId != countdownRunId || !preparationVisible ||
+            activePreparationVisibilityToken != visibilityToken || current.workoutType != workoutType ||
+            current.startRequest != null ||
+            current.phase !in setOf(WorkoutPreparationPhase.WAITING, WorkoutPreparationPhase.COUNTING_DOWN) ||
+            (current.requiresGps && activeGpsReadinessGeneration(current) != gpsGeneration)
+        ) {
+            if (current.phase == WorkoutPreparationPhase.COUNTING_DOWN) {
+                cancelWorkoutCountdown("As pré-condições mudaram. Revise a preparação antes de iniciar.")
+            }
+            return
+        }
+
+        val request = WorkoutStartRequest(
+            requestId = ids.next().toString(),
+            workoutType = workoutType,
+            requestedAt = Instant.now(),
+            countdownSeconds = countdownSeconds,
+            preparationVisibilityToken = visibilityToken,
+            gpsReadinessGeneration = gpsGeneration,
+        )
+        countdownJob = null
+        workoutPreparation.value = current.copy(
+            phase = WorkoutPreparationPhase.START_REQUESTED,
+            remainingSeconds = 0,
+            notice = null,
+            startRequest = request,
+        )
+        stopWorkoutLocation()
+    }
+
+    private fun cancelWorkoutCountdown(
+        notice: String,
+        state: WorkoutPreparationUiState = workoutPreparation.value,
+    ) {
+        val current = state
+        if (current.phase != WorkoutPreparationPhase.COUNTING_DOWN) return
+        cancelCountdownInternal()
+        workoutPreparation.value = current.copy(
+            phase = WorkoutPreparationPhase.WAITING,
+            remainingSeconds = null,
+            notice = notice,
+        )
+    }
+
+    private fun cancelCountdownInternal() {
+        countdownRunId += 1
+        countdownJob?.cancel()
+        countdownJob = null
+    }
+
+    private fun invalidateGpsReadiness() {
+        val current = workoutPreparation.value
+        if (current.gpsReadiness == null && current.gpsReadinessGeneration == null) return
+        val invalidated = current.copy(
+            gpsReadiness = null,
+            gpsReadinessGeneration = null,
+        )
+        workoutPreparation.value = invalidated
+        if (invalidated.phase == WorkoutPreparationPhase.COUNTING_DOWN) {
+            cancelWorkoutCountdown(
+                notice = "A prontidão do GPS foi perdida. Aguarde uma nova verificação.",
+                state = invalidated,
+            )
+        }
+    }
+
+    private fun activeGpsReadinessGeneration(state: WorkoutPreparationUiState): Long? {
+        val readinessGeneration = state.gpsReadinessGeneration
+        return readinessGeneration.takeIf {
+            state.gpsReadiness?.canStart == true && it == activeLocationRuntimeGeneration
+        }
+    }
+
+    private fun WorkoutType.requiresGps(): Boolean =
+        this == WorkoutType.WALKING || this == WorkoutType.RUNNING
+
+    private companion object {
+        const val COUNTDOWN_TICK_MILLIS = 1_000L
     }
 
     private fun startImport() {

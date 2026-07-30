@@ -137,7 +137,16 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         else -> "Voltar"
     }
 
+    fun terminateWorkoutPreparationIfVisible() {
+        if (currentDestination is AppDestination.WorkoutPreparation) {
+            exercisesViewModel.onIntent(ExercisesIntent.ExitWorkoutPreparation)
+        }
+    }
+
     fun navigateTo(destination: AppDestination) {
+        if (destination != currentDestination) {
+            terminateWorkoutPreparationIfVisible()
+        }
         animationDirection = NavigationAnimationDirection.Forward
         if (destination.isTopLevelDestination()) {
             if (backStack.contains(AppDestination.Calendar)) {
@@ -156,6 +165,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     }
 
     fun navigateBack() {
+        terminateWorkoutPreparationIfVisible()
         animationDirection = NavigationAnimationDirection.Backward
         backStack.removeLastOrNull()
     }
@@ -367,10 +377,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             onBackRequested = ::requestBackNavigation,
             onNavigateTo = ::requestNavigation,
             exercisesViewModel = exercisesViewModel,
-                settingsViewModel = settingsViewModel,
-                animationDirection = animationDirection,
-                backLabel = contextualBackLabel,
-            )
+            exercisesState = exercisesState,
+            settingsViewModel = settingsViewModel,
+            animationDirection = animationDirection,
+            backLabel = contextualBackLabel,
+        )
     }
 }
 
@@ -436,6 +447,7 @@ private fun ChampionNavDisplay(
     onBackRequested: () -> Unit,
     onNavigateTo: (AppDestination) -> Unit,
     exercisesViewModel: ExercisesViewModel,
+    exercisesState: ExercisesUiState,
     settingsViewModel: SettingsViewModel,
     animationDirection: NavigationAnimationDirection,
     backLabel: String,
@@ -489,6 +501,9 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Exercises -> ExercisesScreen(
                 viewModel = exercisesViewModel,
+                onStartWorkout = {
+                    onNavigateTo(AppDestination.WorkoutTypeSelection)
+                },
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
@@ -509,6 +524,8 @@ private fun ChampionNavDisplay(
             )
             is AppDestination.WorkoutPreparation -> WorkoutPreparationShell(
                 workoutType = destination.workoutType,
+                state = exercisesState,
+                onIntent = exercisesViewModel::onIntent,
                 onNavigateBack = onBackRequested,
             )
             is AppDestination.ActiveWorkout -> ActiveWorkoutShell(

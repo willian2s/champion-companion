@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `07`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -105,3 +105,79 @@ Recomposição não pode duplicar timer/start. Live region não deve anunciar ca
 Remover destinos/CTA novos e conservar preference inócua.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Registro de execução
+
+### Estado e escopo
+
+- Dependência `013-06` confirmada como concluída; ticker `013` consistente entre
+  spec, pasta, overview e subtarefas.
+- Escopo executado somente nesta subtarefa: CTA, seleção, preparação,
+  aquecimento GPS descartável, permissão contextual, countdown e handoff
+  idempotente para `013-08`.
+- Nenhuma sessão, atividade, rota, escrita Room, FGS, BLE, D0/A8 ou Health
+  Connect foi iniciado nesta etapa.
+
+### Decisões e desvios
+
+- `ExercisesViewModel` concentra estado de preparação, geração do runtime GPS,
+  token de visibilidade e execução única do countdown; recomposição não duplica
+  timer nem `WorkoutStartRequest`.
+- Caminhada/corrida usam `WorkoutLocationSource` somente enquanto preparação
+  está visível. Readiness é invalidada ao suspender, sair ou trocar geração; fix
+  de aquecimento não é persistido.
+- Permissão runtime solicita FINE/COARSE somente para caminhada/corrida.
+  Treino livre e esteira não criam fonte GPS nem exibem prompt de localização.
+- `WorkoutStartRequest` é handoff in-memory idempotente, emitido somente em
+  zero com readiness válida e token de preparação vigente. Consumo, sessão e
+  FGS permanecem em `013-08`.
+- Back, troca de destino e cleanup de lifecycle encerram preparação antes de
+  alterar back stack. Perda de readiness durante countdown retorna à espera.
+- Negação permanente de permissão ainda depende de encaminhamento futuro às
+  configurações do aplicativo; comportamento seguro permanece sem start.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/WorkoutShells.kt`
+- este arquivo e `013-00-overview.md`
+
+### Comandos executados, resultados e evidências
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; lint e
+  builds debug/release concluídos sem keystore local.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; APK instalado no Galaxy S22
+  `SM-S901E - 16`.
+- Validação manual parcial no dispositivo confirmou CTA, seleção acessível e
+  preparação de treino livre sem prompt GPS. Warming GPS, countdowns,
+  permissões, back, rotação, fonte aumentada e landscape permanecem pendentes
+  de execução física completa.
+- Screenshots temporários capturados em `/var/folders/_r/sp91m8xn4zv3_wwh1wq46_cm0000gn/T/opencode/013-07-selection.png`,
+  `/var/folders/_r/sp91m8xn4zv3_wwh1wq46_cm0000gn/T/opencode/013-07-free.png` e
+  `/var/folders/_r/sp91m8xn4zv3_wwh1wq46_cm0000gn/T/opencode/013-07-exercises.png`.
+- Revisão independente final: aprovada, sem blockers estáticos. Confirmou
+  readiness vinculada à geração, cancelamento síncrono na navegação, cleanup,
+  exactly-once até o handoff e escopo restrito.
+- Nenhum teste automatizado foi criado, alterado ou executado, conforme regra
+  explícita da Fase 13.
+
+### Riscos residuais
+
+- Validação física completa de permissão negada/aproximada, localização
+  desligada, estados reais de GPS, countdown 0/3/5/10, degradação, rotação,
+  background, fonte aumentada, landscape e TalkBack ainda pertence ao roteiro
+  manual desta subtarefa.
+- Após negação permanente, a tela oferece nova solicitação, mas ainda não
+  detecta de forma explícita quando deve abrir configurações do aplicativo.
+- Exatamente uma solicitação foi garantida até `WorkoutStartRequest`; criação de
+  sessão, FGS e consumo idempotente pertencem a `013-08`.
+
+### Estado de conclusão
+
+- Critérios estáticos e builds atendidos; item concluído sem iniciar
+  subtarefas seguintes.
+- Próxima subtarefa elegível: `013-08`.

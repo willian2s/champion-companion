@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 6/17 subtarefas concluídas
+- **Progresso:** 7/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -16,7 +16,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [x] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
 - [x] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
 - [x] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
-- [ ] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
+- [x] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
 - [ ] [013-08-implement-active-workout-foreground-service-and-recovery.md](013-08-implement-active-workout-foreground-service-and-recovery.md)
 - [ ] [013-09-implement-walking-running-route-capture-and-live-metrics.md](013-09-implement-walking-running-route-capture-and-live-metrics.md)
 - [ ] [013-10-implement-free-workout-and-treadmill-phone-sessions.md](013-10-implement-free-workout-and-treadmill-phone-sessions.md)
@@ -92,3 +92,11 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - Revisão independente de `013-06` encontrou e aprovou correções para idade de
   fix monotônica e rejeição de saltos após lacunas. `lint`, builds debug/release
   e `installDebug` passaram; nenhum bloqueio permanece nesta subtarefa.
+- `013-07` concluída com CTA, seleção dos quatro tipos, preparação contextual,
+  warming GPS descartável, permissão precisa somente para caminhada/corrida,
+  countdown persistido `0/3/5/10`, cancelamento, invalidação por perda de
+  readiness, cleanup de lifecycle e handoff idempotente em zero para `013-08`.
+  `lint`, builds debug/release e `installDebug` passaram; validação física
+  parcial confirmou seleção acessível e treino livre sem prompt GPS. Roteiro
+  completo de GPS, countdown, permissões, rotação, fonte aumentada e landscape
+  permanece pendente para gate manual.

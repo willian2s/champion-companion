@@ -113,6 +113,7 @@ fun ExercisesScreen(
     openedActivityId: WorkoutActivityId? = null,
     onNavigateBack: (() -> Unit)? = null,
     onOpenActivity: (WorkoutActivityId) -> Unit = {},
+    onStartWorkout: () -> Unit = {},
     viewModel: ExercisesViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -161,6 +162,7 @@ fun ExercisesScreen(
         ) {
             if (openedActivityId == null) {
                 ExercisesHeader(state = state)
+                StartWorkoutCard(onStartWorkout = onStartWorkout)
                 ExercisesImportCard(
                     state = state,
                     onStartImport = { viewModel.onIntent(ExercisesIntent.StartImport) },
@@ -203,6 +205,34 @@ fun ExercisesScreen(
 }
 
 @Composable
+private fun StartWorkoutCard(onStartWorkout: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Treino pelo celular", style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = "Prepare caminhada, corrida, treino livre ou esteira. Nada começa antes da sua confirmação e do countdown.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            PrimaryActionButton(
+                label = "Iniciar treino",
+                onClick = onStartWorkout,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
 private fun ExercisesHeader(state: ExercisesUiState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -221,7 +251,7 @@ private fun ExercisesHeader(state: ExercisesUiState) {
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Importe treinos gravados no relógio e mantenha a revisão para depois.",
+                text = "Inicie treinos pelo celular ou importe atividades gravadas no relógio.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
