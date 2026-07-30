@@ -599,11 +599,11 @@ feat/012-health-connect
 feat/013-phone-workouts
 feat/014-background-services
 feat/015-calendar-profile
-feat/016-backup-restore
-feat/017-transition
-feat/018-diagnostics
-feat/019-security
-feat/020-quality
+feat/017-backup-restore
+feat/018-transition
+feat/019-diagnostics
+feat/020-security
+feat/021-quality
 ```
 
 ## Documentação
@@ -1632,6 +1632,11 @@ Atividades prontas continuam locais até uma fase posterior de sincronização.
 
 Status de fechamento: concluída em 28/07/2026. Gate C foi validado manualmente
 no Galaxy S22 com Health Connect real, após correção da identidade de sync por variante.
+
+**Refinamento pós-fechamento (Spec 016):** sincronização de passos migrou de
+operações cumulativas para incrementos imutáveis, com checkpoint transacional,
+retry determinístico e compatibilidade com legado. Ver
+`docs/specs/016-health-connect-incremental-daily-steps.md`.
 
 ## Objetivo
 
@@ -2709,6 +2714,10 @@ Fase 25 — Lançamento
 
 Fase 15 está concluída. Fase 13 está em execução documental; Fase 14 permanece
 backlog adiado. Nenhuma fase seguinte foi iniciada automaticamente.
+
+Spec 016 (passos incrementais) foi aplicada como refinamento pós-Fase-12 sobre
+a sincronização de passos do Health Connect. Nenhuma fase nova foi criada para
+isso — o escopo permanece dentro da Fase 12.
 
 ## Crítica
 

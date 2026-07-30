@@ -3,6 +3,8 @@
 ## Status
 
 Concluída. `016-01` implementada e revisada; `016-02` revisão independente finalizada.
+**Correção pós-conclusão:** `387945a` — permitir elegibilidade de passos quando
+operação não possui `dailyStepsPayload` (operações cumulativas legadas).
 
 ## Ticker
 
@@ -119,3 +121,17 @@ recalculado durante retry.
 - Room continua sendo fonte operacional e visual primária.
 - A fila pode receber payload técnico sem criar entidade de domínio de deltas.
 - O usuário quer mudança experimental restrita a passos de `DailySummary`.
+
+## Pós-entrega
+
+### Correção: elegibilidade de passos sem payload incremental (`387945a`)
+
+O guard `hasValidStepsRecordWindow` falhava para operações cumulativas legadas
+(sem `dailyStepsPayload`), impedindo que passos desses registros fossem
+sincronizados. A correção adiciona curto-circuito: se payload é nulo, pula a
+validação de janela — a operação legada segue seu fluxo original.
+
+**Local:** `RoomRepositories.kt:2284` — `isDailySummaryEligibleForSteps`.
+
+**Impacto:** zero em operações incrementais novas; desbloqueia sincronização de
+passos de operações criadas antes da migration 016.

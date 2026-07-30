@@ -129,6 +129,13 @@ git diff --check
 
 Testes automatizados não foram criados, alterados ou executados.
 
+### Pós-revisão
+
+- **Commit `387945a`** (posterior à revisão): elegibilidade de passos quebrada
+  para operações cumulativas legadas (sem `dailyStepsPayload`). Revisão
+  independente não cobriu esse cenário. Corrigido em `isDailySummaryEligibleForSteps`.
+  Ver spec 016 seção Pós-entrega.
+
 ### Riscos residuais
 
 Os mesmos de 016-01, acrescidos de:

@@ -3,6 +3,8 @@
 ## Status
 
 Aceita e revisada. Task 016 concluída.
+**Correção pós-conclusão** (`387945a`): elegibilidade de passos liberada para
+operações sem `dailyStepsPayload` (legado cumulativo).
 
 ## Contexto
 

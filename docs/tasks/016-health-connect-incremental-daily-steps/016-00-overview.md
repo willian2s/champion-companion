@@ -25,3 +25,6 @@ concorrência segura e compatibilidade com operações cumulativas existentes.
 - Task 016 concluída. Revisão independente realizada; dois achados médios
   corrigidos (validação de janela entre dias; uniformidade de fuso na cadeia);
   um bug de reconciliação corrigido (`allowNewOperation` removido do backlog).
+- **Correção pós-conclusão:** commit `387945a` — `isDailySummaryEligibleForSteps`
+  curtocircuitava `hasValidStepsRecordWindow` mesmo para operações sem payload
+  incremental, travando passos legados. Adicionado guard `dailyStepsPayload == null`.

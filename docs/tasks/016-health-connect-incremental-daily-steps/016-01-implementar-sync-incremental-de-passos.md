@@ -172,6 +172,12 @@ restrição explícita do usuário e `AGENTS.md`.
 - `app:compileDebugKotlin` e build completo passaram. Lint manteve apenas
   warnings preexistentes de override deprecated e índice de FK já existente.
 
+### Pós-conclusão
+
+- **Commit `387945a`:** `isDailySummaryEligibleForSteps` impedia passos de
+  operações sem `dailyStepsPayload` (legado cumulativo). Corrigido com
+  curto-circuito `dailyStepsPayload == null`. Ver spec 016 seção Pós-entrega.
+
 ### Riscos residuais
 
 - A ponte de operação cumulativa legada não permite conhecer estado remoto além

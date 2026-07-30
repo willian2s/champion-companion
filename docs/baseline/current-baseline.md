@@ -44,6 +44,10 @@ Escopo factual atual já inclui também na Fase 12:
 - sync explícito de atividade com records granulares e falha parcial retomável;
 - `Settings` funcional para disponibilidade, permissões, `Sincronizar agora` e `Gerenciar acesso`;
 - feedback secundário de Health Connect em Home, Saúde e Exercícios.
+- **Spec 016:** sincronização de passos migrou de operações cumulativas para
+  incrementos imutáveis com checkpoint transacional, retry determinístico e
+  ponte de compatibilidade com legado. Ver
+  `docs/specs/016-health-connect-incremental-daily-steps.md`.
 
 Escopo factual atual do código ainda não inclui:
 
