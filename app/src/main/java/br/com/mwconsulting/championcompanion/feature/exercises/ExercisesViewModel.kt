@@ -1,5 +1,8 @@
 package br.com.mwconsulting.championcompanion.feature.exercises
+import android.content.Context
+import android.content.Intent
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncOutcome
@@ -9,6 +12,12 @@ import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSource
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationStartResult
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutation
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
@@ -28,7 +37,10 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -38,15 +50,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+
+private const val COUNTDOWN_TICK_MILLIS = 1_000L
 
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,6 +78,8 @@ class ExercisesViewModel internal constructor(
     private val workoutLocationSourceFactory: WorkoutLocationSourceFactory,
     private val scope: CoroutineScope,
     private val ids: UuidV7Generator,
+    private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
+    private val applicationContext: Context,
 ) : ViewModel(), ExercisesFeatureContract {
     private val mutableState = MutableStateFlow(ExercisesUiState())
     private val associatedDevice = MutableStateFlow<Device?>(null)
@@ -91,11 +111,30 @@ class ExercisesViewModel internal constructor(
     private var countdownJob: Job? = null
     private var countdownRunId = 0L
 
+    // Active workout session state
+    private val _activeSession = MutableStateFlow<AppWorkoutSession?>(null)
+    val activeSession: StateFlow<AppWorkoutSession?> = _activeSession.asStateFlow()
+
+    private val _activeDurationText = MutableStateFlow("00:00")
+    val activeDurationText: StateFlow<String> = _activeDurationText.asStateFlow()
+
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+
+    private val _recoverableSession = MutableStateFlow<AppWorkoutSession?>(null)
+    val recoverableSession: StateFlow<AppWorkoutSession?> = _recoverableSession.asStateFlow()
+
+    private val _workoutStarted = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val workoutStarted: SharedFlow<String> = _workoutStarted.asSharedFlow()
+
+    private var durationTimerJob: Job? = null
+
     internal var ownsScope: Boolean = false
 
     override val state: StateFlow<ExercisesUiState> = mutableState.asStateFlow()
 
     init {
+        checkForStaleSessions()
         scope.launch {
             deviceRepository.observeAssociatedDevice().collect { device ->
                 associatedDevice.value = device
@@ -246,6 +285,8 @@ class ExercisesViewModel internal constructor(
         healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
         workoutLocationSourceFactory: WorkoutLocationSourceFactory,
+        appWorkoutSessionRepository: AppWorkoutSessionRepository,
+        @ApplicationContext applicationContext: Context,
     ) : this(
         deviceRepository = deviceRepository,
         workoutActivityRepository = workoutActivityRepository,
@@ -256,6 +297,8 @@ class ExercisesViewModel internal constructor(
         workoutLocationSourceFactory = workoutLocationSourceFactory,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
+        appWorkoutSessionRepository = appWorkoutSessionRepository,
+        applicationContext = applicationContext,
     ) {
         ownsScope = true
     }
@@ -526,6 +569,198 @@ class ExercisesViewModel internal constructor(
             startRequest = request,
         )
         stopWorkoutLocation()
+
+        // Create session and start foreground service
+        scope.launch {
+            val sessionId = AppWorkoutSessionId(ids.next())
+            val createdAt = Instant.now()
+            val session = AppWorkoutSession.create(
+                id = sessionId,
+                type = workoutType,
+                createdAt = createdAt,
+            ).valueOrNull() ?: return@launch
+
+            when (appWorkoutSessionRepository.create(session)) {
+                is RepositoryResult.Success -> {
+                    val intent = WorkoutRecordingService.startIntent(
+                        applicationContext,
+                        sessionId.value.toString(),
+                    )
+                    ContextCompat.startForegroundService(applicationContext, intent)
+                    _workoutStarted.tryEmit(sessionId.value.toString())
+                }
+                else -> {
+                    workoutPreparation.value = workoutPreparation.value.copy(
+                        notice = "Nao foi possivel iniciar o treino. Tente novamente.",
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Session management for service commands ---
+
+    private fun sessionIdString(): String? = _activeSession.value?.id?.value?.toString()
+
+    fun pauseSession() {
+        val id = sessionIdString() ?: return
+        sendServiceCommand(WorkoutRecordingService.ACTION_PAUSE, id)
+    }
+
+    fun resumeSession() {
+        val id = sessionIdString() ?: return
+        sendServiceCommand(WorkoutRecordingService.ACTION_RESUME, id)
+    }
+
+    fun finishSession() {
+        val id = sessionIdString() ?: return
+        sendServiceCommand(WorkoutRecordingService.ACTION_FINISH, id)
+    }
+
+    private fun sendServiceCommand(action: String, sessionId: String) {
+        val intent = Intent(applicationContext, WorkoutRecordingService::class.java).apply {
+            this.action = action
+            putExtra(WorkoutRecordingService.EXTRA_SESSION_ID, sessionId)
+        }
+        ContextCompat.startForegroundService(applicationContext, intent)
+    }
+
+    // --- Active workout screen ---
+
+    fun onActiveWorkoutScreenShown(sessionId: String) {
+        val id = try { AppWorkoutSessionId(UUID.fromString(sessionId)) } catch (_: Exception) { return }
+        scope.launch {
+            appWorkoutSessionRepository.observeSession(id).collect { session ->
+                _activeSession.value = session
+                _isPaused.value = session?.state == AppWorkoutSessionState.PAUSED
+            }
+        }
+        startDurationTimer()
+    }
+
+    private fun startDurationTimer() {
+        durationTimerJob?.cancel()
+        durationTimerJob = scope.launch {
+            while (true) {
+                delay(1_000L)
+                val session = _activeSession.value ?: continue
+                val now = Instant.now()
+                val displayDuration = when {
+                    session.state == AppWorkoutSessionState.ACTIVE && session.activeSince != null ->
+                        session.activeDuration + Duration.between(session.activeSince, now)
+                    else -> session.activeDuration
+                }
+                _activeDurationText.value = formatDuration(displayDuration)
+            }
+        }
+    }
+
+    private fun formatDuration(duration: Duration): String {
+        val totalSeconds = duration.seconds
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
+        }
+    }
+
+    // --- Recovery screen ---
+
+    fun onRecoveryScreenShown(sessionId: String?) {
+        if (sessionId != null) {
+            val id = try { AppWorkoutSessionId(UUID.fromString(sessionId)) } catch (_: Exception) { return }
+            scope.launch {
+                appWorkoutSessionRepository.observeSession(id).collect { session ->
+                    _recoverableSession.value = session
+                }
+            }
+        } else {
+            scope.launch {
+                appWorkoutSessionRepository.observeRecoverable().collect { sessions ->
+                    _recoverableSession.value = sessions.firstOrNull()
+                }
+            }
+        }
+    }
+
+    fun recoverSession() {
+        val session = _recoverableSession.value ?: return
+        scope.launch {
+            when (val result = appWorkoutSessionRepository.recover(
+                sessionId = session.id,
+                expectedRevision = session.revision,
+                at = Instant.now(),
+            )) {
+                is RepositoryResult.Success -> {
+                    val intent = WorkoutRecordingService.startIntent(
+                        applicationContext,
+                        session.id.value.toString(),
+                    )
+                    ContextCompat.startForegroundService(applicationContext, intent)
+                    _workoutStarted.tryEmit(session.id.value.toString())
+                }
+                else -> {
+                    _recoverableSession.value = _recoverableSession.value
+                }
+            }
+        }
+    }
+
+    fun discardRecoveredSession() {
+        val session = _recoverableSession.value ?: return
+        scope.launch {
+            appWorkoutSessionRepository.discard(
+                AppWorkoutSessionMutation(
+                    sessionId = session.id,
+                    expectedRevision = session.revision,
+                    at = Instant.now(),
+                ),
+            )
+            _recoverableSession.value = null
+        }
+    }
+
+    fun finishRecoveredSession() {
+        val session = _recoverableSession.value ?: return
+        scope.launch {
+            when (appWorkoutSessionRepository.beginFinishing(
+                AppWorkoutSessionMutation(
+                    sessionId = session.id,
+                    expectedRevision = session.revision,
+                    at = Instant.now(),
+                ),
+            )) {
+                is RepositoryResult.Success -> {
+                    _recoverableSession.value = null
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    // --- Stale session cleanup ---
+
+    private fun checkForStaleSessions() {
+        scope.launch {
+            if (!WorkoutRecordingService.isAlive) {
+                appWorkoutSessionRepository.observeActive().first { session ->
+                    if (session != null && (session.state == AppWorkoutSessionState.ACTIVE ||
+                        session.state == AppWorkoutSessionState.PAUSED)
+                    ) {
+                        val mutation = AppWorkoutSessionMutation(
+                            sessionId = session.id,
+                            expectedRevision = session.revision,
+                            at = Instant.now(),
+                        )
+                        appWorkoutSessionRepository.interrupt(mutation)
+                    }
+                    true
+                }
+            }
+        }
     }
 
     private fun cancelWorkoutCountdown(
@@ -573,10 +808,6 @@ class ExercisesViewModel internal constructor(
 
     private fun WorkoutType.requiresGps(): Boolean =
         this == WorkoutType.WALKING || this == WorkoutType.RUNNING
-
-    private companion object {
-        const val COUNTDOWN_TICK_MILLIS = 1_000L
-    }
 
     private fun startImport() {
         val device = associatedDevice.value

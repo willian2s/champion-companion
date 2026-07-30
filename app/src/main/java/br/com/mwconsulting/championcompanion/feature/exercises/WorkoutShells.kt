@@ -8,20 +8,36 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -29,6 +45,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -36,11 +53,14 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarg
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.GpsAccuracyQuality
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.GpsReadinessState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
+import java.time.Duration
 
 private data class WorkoutTypeOption(
     val type: WorkoutType,
@@ -447,32 +467,212 @@ private fun PreparationNotice(message: String, isError: Boolean) {
 @Composable
 fun ActiveWorkoutShell(
     sessionId: String,
+    onNavigateTo: (AppDestination) -> Unit,
     onNavigateBack: () -> Unit,
+    exercisesViewModel: ExercisesViewModel,
 ) {
+    val session by exercisesViewModel.activeSession.collectAsState()
+    val durationText by exercisesViewModel.activeDurationText.collectAsState()
+    val isPaused by exercisesViewModel.isPaused.collectAsState()
+
+    LaunchedEffect(sessionId) {
+        exercisesViewModel.onActiveWorkoutScreenShown(sessionId)
+    }
+
+    val sessionState = session?.state
+
+    LaunchedEffect(sessionState) {
+        if (sessionState == AppWorkoutSessionState.FINISHING) {
+            onNavigateBack()
+        }
+    }
+
     WorkoutShellCard(
         title = "Treino ativo",
-        description = "Sessão $sessionId disponível para implementação futura.",
         onNavigateBack = onNavigateBack,
-    )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            // Workout type label
+            Text(
+                text = session?.type?.toWorkoutTypeLabel() ?: "Carregando...",
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Duration display
+            Text(
+                text = durationText,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Pause indicator
+            if (isPaused) {
+                Text(
+                    text = "Pausado",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Controls
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Pause/Resume button
+                if (isPaused) {
+                    FilledTonalButton(
+                        onClick = { exercisesViewModel.resumeSession() },
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Continuar")
+                        Spacer(Modifier.width(8.dp))
+                        Text("Continuar")
+                    }
+                } else {
+                    FilledTonalButton(
+                        onClick = { exercisesViewModel.pauseSession() },
+                    ) {
+                        Icon(Icons.Default.Pause, contentDescription = "Pausar")
+                        Spacer(Modifier.width(8.dp))
+                        Text("Pausar")
+                    }
+                }
+
+                // Finish button
+                Button(
+                    onClick = { exercisesViewModel.finishSession() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = "Finalizar")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Finalizar")
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun WorkoutRecoveryShell(
     sessionId: String?,
+    onNavigateTo: (AppDestination) -> Unit,
     onNavigateBack: () -> Unit,
+    exercisesViewModel: ExercisesViewModel,
 ) {
+    val recoverableSession by exercisesViewModel.recoverableSession.collectAsState()
+    val session = recoverableSession
+
+    LaunchedEffect(sessionId) {
+        exercisesViewModel.onRecoveryScreenShown(sessionId)
+    }
+
     WorkoutShellCard(
-        title = "Recuperar treino",
-        description = sessionId?.let { "Sessão $it aguarda decisão." }
-            ?: "Não há identificador de sessão informado.",
+        title = "Treino interrompido",
         onNavigateBack = onNavigateBack,
-    )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (session == null) {
+                Text(
+                    text = "Nenhum treino pendente de recuperação.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Button(onClick = onNavigateBack) {
+                    Text("Voltar")
+                }
+            } else {
+                // Session info
+                Text(
+                    text = "Seu treino foi interrompido.",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
+                Text(
+                    text = "Tipo: ${session.type.toWorkoutTypeLabel()}",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+
+                Text(
+                    text = "Duração: ${formatDuration(session.activeDuration)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Action buttons
+                Button(
+                    onClick = {
+                        exercisesViewModel.recoverSession()
+                        onNavigateTo(AppDestination.ActiveWorkout(session.id.value.toString()))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Retomar treino")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        exercisesViewModel.finishRecoveredSession()
+                        onNavigateBack()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Finalizar treino")
+                }
+
+                TextButton(
+                    onClick = {
+                        exercisesViewModel.discardRecoveredSession()
+                        onNavigateBack()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Descartar treino",
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatDuration(duration: Duration): String {
+    val totalSeconds = duration.seconds
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format("%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
+    }
 }
 
 @Composable
 private fun WorkoutShellCard(
     title: String,
-    description: String,
+    description: String = "",
     onNavigateBack: () -> Unit,
     content: @Composable () -> Unit = {},
 ) {

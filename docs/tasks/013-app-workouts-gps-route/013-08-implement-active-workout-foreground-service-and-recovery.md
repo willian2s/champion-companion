@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `08`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 

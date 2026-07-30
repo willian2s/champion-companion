@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -452,6 +453,13 @@ private fun ChampionNavDisplay(
     animationDirection: NavigationAnimationDirection,
     backLabel: String,
 ) {
+    // Navigate to ActiveWorkout when a workout session is started
+    LaunchedEffect(Unit) {
+        exercisesViewModel.workoutStarted.collect { sessionId ->
+            onNavigateTo(AppDestination.ActiveWorkout(sessionId))
+        }
+    }
+
     AnimatedContent(
         targetState = currentDestination,
         transitionSpec = { animationDirection.contentTransform() },
@@ -530,11 +538,15 @@ private fun ChampionNavDisplay(
             )
             is AppDestination.ActiveWorkout -> ActiveWorkoutShell(
                 sessionId = destination.sessionId,
+                onNavigateTo = onNavigateTo,
                 onNavigateBack = onBackRequested,
+                exercisesViewModel = exercisesViewModel,
             )
             is AppDestination.WorkoutRecovery -> WorkoutRecoveryShell(
                 sessionId = destination.sessionId,
+                onNavigateTo = onNavigateTo,
                 onNavigateBack = onBackRequested,
+                exercisesViewModel = exercisesViewModel,
             )
             AppDestination.Device -> DeviceScreen()
             AppDestination.Profile -> ProfileScreen()
