@@ -100,3 +100,11 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   parcial confirmou seleção acessível e treino livre sem prompt GPS. Roteiro
   completo de GPS, countdown, permissões, rotação, fonte aumentada e landscape
   permanece pendente para gate manual.
+- Correção parcial de `013-14` removeu offsets UTC fixos dos records derivados
+  de `WorkoutActivity` e passou a congelar o timezone na fila v6 existente,
+  sem migration ou reenvio automático. O item permanece desmarcado e bloqueado
+  por `013-12`, pela implementação de `ExerciseRoute`/workflow e pela validação
+  física no provider.
+- A validação desta execução passou em `git diff --check` e em
+  `./gradlew lint assembleDebug assembleRelease`. Nenhum teste foi criado,
+  alterado ou executado, conforme restrição explícita.

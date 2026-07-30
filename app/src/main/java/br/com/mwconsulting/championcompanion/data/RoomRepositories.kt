@@ -1834,7 +1834,7 @@ class RoomRepositories @Inject constructor(
                 ResolvedSyncMetadata(
                     clientRecordId = stableClientRecordId(key),
                     clientRecordVersion = version,
-                    timeZoneId = null,
+                    timeZoneId = resolveWorkoutTimeZoneId(key),
                     createdAtEpochMillis = entity.recordedAtEpochMillis,
                     updatedAtEpochMillis = version,
                 )
@@ -1867,6 +1867,19 @@ class RoomRepositories @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun resolveWorkoutTimeZoneId(key: HealthSyncOperationKey): String {
+        val existingOperations = database.healthSyncOperationDao().findByAggregate(
+            aggregateId = key.aggregate.id.toString(),
+            aggregateType = key.aggregate.type.name,
+        )
+        return existingOperations
+            .firstOrNull { it.recordType == key.recordType.name }
+            ?.timeZoneId
+            .validZoneIdOrNull()
+            ?: existingOperations.firstNotNullOfOrNull { operation -> operation.timeZoneId.validZoneIdOrNull() }
+            ?: ZoneId.systemDefault().id
     }
 
     private fun resolveHeartRateSyncMetadata(
@@ -2207,6 +2220,9 @@ private fun String?.toHealthSyncZoneIdOrSystemDefault(): ZoneId = try {
 } catch (_: DateTimeException) {
     ZoneId.systemDefault()
 }
+
+private fun String?.validZoneIdOrNull(): String? =
+    this?.takeIf { runCatching { ZoneId.of(it) }.isSuccess }
 
 private inline fun <T> mapAggregateSafely(mapper: () -> T?): T? = try {
     mapper()
