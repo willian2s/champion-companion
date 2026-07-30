@@ -1,8 +1,8 @@
 # 016 — Sincronização incremental de passos diários
 
-- **Status geral:** in_progress
+- **Status geral:** concluída
 - **Spec:** [016-health-connect-incremental-daily-steps.md](../../specs/016-health-connect-incremental-daily-steps.md)
-- **Progresso:** 1/2 subtarefas concluídas
+- **Progresso:** 2/2 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ concorrência segura e compatibilidade com operações cumulativas existentes.
 ## Checklist
 
 - [x] [016-01-implementar-sync-incremental-de-passos.md](016-01-implementar-sync-incremental-de-passos.md)
-- [ ] [016-02-revisar-cenarios-e-fechar-sync-incremental.md](016-02-revisar-cenarios-e-fechar-sync-incremental.md)
+- [x] [016-02-revisar-cenarios-e-fechar-sync-incremental.md](016-02-revisar-cenarios-e-fechar-sync-incremental.md)
 
 ## Observações
 
@@ -22,4 +22,6 @@ concorrência segura e compatibilidade com operações cumulativas existentes.
 - Não executar em paralelo com mudanças da Fase 13 em Room, mapper ou
   coordinator.
 - Testes automatizados não serão criados, alterados ou executados.
-- `016-01` concluída; `016-02` permanece pendente para revisão independente.
+- Task 016 concluída. Revisão independente realizada; dois achados médios
+  corrigidos (validação de janela entre dias; uniformidade de fuso na cadeia);
+  um bug de reconciliação corrigido (`allowNewOperation` removido do backlog).

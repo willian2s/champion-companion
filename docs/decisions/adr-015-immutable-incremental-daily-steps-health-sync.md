@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceita na implementação da Task 016; revisão independente pendente.
+Aceita e revisada. Task 016 concluída.
 
 ## Contexto
 

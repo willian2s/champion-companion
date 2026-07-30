@@ -2,7 +2,7 @@
 
 ## Status
 
-Em implementação: `016-01` concluída; revisão `016-02` pendente.
+Concluída. `016-01` implementada e revisada; `016-02` revisão independente finalizada.
 
 ## Ticker
 

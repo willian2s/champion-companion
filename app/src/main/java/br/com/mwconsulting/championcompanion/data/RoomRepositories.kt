@@ -1710,6 +1710,7 @@ class RoomRepositories @Inject constructor(
             collectedAtEpochMillis = summary.collectedAtEpochMillis,
             timeZoneId = timeZoneId,
             updatedAtEpochMillis = summary.updatedAtEpochMillis,
+            allowNewOperation = false,
         )
         return result.operation?.let { RepositoryResult.Success(it) } ?: RepositoryResult.NotFound
     }
@@ -1719,6 +1720,7 @@ class RoomRepositories @Inject constructor(
         collectedAtEpochMillis: Long,
         timeZoneId: String,
         updatedAtEpochMillis: Long,
+        allowNewOperation: Boolean = true,
     ): DailyStepsEnqueueResult {
         if (summary.origin != DataOrigin.WATCH_DAILY_SUMMARY.name ||
             summary.validity != DataValidity.VALID.name ||
@@ -1733,7 +1735,7 @@ class RoomRepositories @Inject constructor(
             ?: timeZoneId.validZoneIdOrNull()
             ?: return DailyStepsEnqueueResult()
         val zoneId = ZoneId.of(persistedTimeZoneId)
-        val windowEnd = resolveDailyStepsWindowEnd(summary, collectedAtEpochMillis)
+        val windowEnd = resolveDailyStepsWindowEnd(summary, collectedAtEpochMillis, zoneId)
             ?: return DailyStepsEnqueueResult()
         val dayStart = runCatching {
             LocalDate.parse(summary.localDateIso).atStartOfDay(zoneId).toInstant()
@@ -1808,6 +1810,7 @@ class RoomRepositories @Inject constructor(
             }
         }
         val previousTotalSteps = latest?.second?.currentTotalSteps ?: 0L
+        if (latest == null && !allowNewOperation) return DailyStepsEnqueueResult()
         if (summary.steps <= previousTotalSteps) {
             return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
         }
@@ -1865,9 +1868,12 @@ class RoomRepositories @Inject constructor(
     private fun resolveDailyStepsWindowEnd(
         summary: DailySummaryEntity,
         collectedAtEpochMillis: Long,
+        zoneId: ZoneId,
     ): Instant? = runCatching {
-        LocalDate.parse(summary.localDateIso)
-        Instant.ofEpochMilli(collectedAtEpochMillis)
+        val localDate = LocalDate.parse(summary.localDateIso)
+        Instant.ofEpochMilli(collectedAtEpochMillis).takeIf {
+            it.atZone(zoneId).toLocalDate() == localDate
+        }
     }.getOrNull()
 
     private suspend fun ensureOperationInternal(
@@ -2469,6 +2475,8 @@ private fun List<Pair<HealthSyncOperationEntity, DailyStepsSyncPayload>>.isValid
     if (isEmpty()) return true
     val payloads = map { it.second }
     val first = payloads.first()
+    val chainTimeZoneId = first.timeZoneId
+    if (payloads.any { it.timeZoneId != chainTimeZoneId }) return false
     if (first.previousTotalSteps != 0L) return false
     if (first.kind == DailyStepsSyncPayloadKind.LEGACY_BRIDGE && first.sequence != 0L) return false
     if (first.kind == DailyStepsSyncPayloadKind.INCREMENTAL && first.sequence != 1L) return false

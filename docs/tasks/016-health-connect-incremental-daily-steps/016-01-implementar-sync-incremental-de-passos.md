@@ -150,7 +150,8 @@ resultados realmente obtidos.
 - `./gradlew lint assembleDebug assembleRelease` — primeira execução excedeu
   timeout após concluir tarefas de assemble; repetição concluída com sucesso.
 - `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`.
-- `git diff --check` — sucesso antes da documentação; repetir após fechamento.
+- `git diff --check` — sucesso antes e após documentação final.
+- **Pós-revisão 016-02:** três correções aplicadas (`resolveDailyStepsWindowEnd` com validação de fuso; `isValidDailyStepsChain` com uniformidade de `timeZoneId`; remoção de `allowNewOperation = false` do `reconcileBacklogInternal`). Compilação e build completos novamente: `BUILD SUCCESSFUL`.
 
 Testes automatizados não foram criados, alterados ou executados, conforme
 restrição explícita do usuário e `AGENTS.md`.
