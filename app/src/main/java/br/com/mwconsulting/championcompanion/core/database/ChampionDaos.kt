@@ -570,19 +570,19 @@ interface WorkoutRouteDao {
 
 @Dao
 interface HealthSyncOperationDao {
-    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, id")
+    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, operationSequence, id")
     fun observeAll(): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE id = :id")
     suspend fun findById(id: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType AND operationSequence = 0")
     suspend fun findByNaturalKey(aggregateId: String, aggregateType: String, recordType: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType, operationSequence, id")
     fun observeByAggregateIds(aggregateType: String, aggregateIds: List<String>): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")

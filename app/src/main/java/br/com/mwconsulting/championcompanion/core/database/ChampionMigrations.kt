@@ -251,6 +251,27 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
     }
 }
 
+/** Permite múltiplos deltas de passos e congela o payload técnico de cada operação. */
+val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN operationSequence INTEGER NOT NULL DEFAULT 0",
+        )
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN dailyStepsPayloadKind TEXT")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN previousTotalSteps INTEGER")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN currentTotalSteps INTEGER")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN stepDelta INTEGER")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN stepStartTimeEpochMillis INTEGER")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN stepEndTimeEpochMillis INTEGER")
+        connection.execute("DROP INDEX IF EXISTS index_health_sync_operations_aggregateId_recordType")
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "index_health_sync_operations_aggregateId_recordType_operationSequence " +
+                "ON health_sync_operations(aggregateId, recordType, operationSequence)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

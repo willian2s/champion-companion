@@ -7,6 +7,7 @@ import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionDao
 import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
+import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
@@ -30,6 +31,8 @@ import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportPersist
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryId
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncPayload
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncPayloadKind
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
@@ -118,6 +121,7 @@ import kotlinx.coroutines.withContext
 
 private const val SQLITE_IN_CLAUSE_CHUNK_SIZE = 500
 private const val ROUTE_METRIC_EPSILON = 1e-9
+private const val INCREMENTAL_STEPS_CLIENT_RECORD_VERSION = 1L
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -297,25 +301,36 @@ class RoomRepositories @Inject constructor(
             localDateIso = input.localDate.toString(),
         )
 
-        val persistedSummary = if (existing == null) {
+        val persistedEntity = if (existing == null) {
             val created = createWatchDailySummary(input) ?: return@write RepositoryResult.UnexpectedState
-            database.dailySummaryDao().insert(created.toEntity())
-            created
+            created.toEntity().copy(collectedZoneId = input.zoneId.id).also {
+                database.dailySummaryDao().insert(it)
+            }
         } else {
-            val nextSummary = if (input.incomingSteps > existing.steps) {
+            if (input.incomingSteps > existing.steps) {
                 val updated = existing.copy(
                     steps = input.incomingSteps,
                     estimatedDistanceMeters = input.estimatedDistanceMeters,
                     estimatedCaloriesKilocalories = input.estimatedCaloriesKilocalories,
                     collectedAtEpochMillis = input.collectedAt.toEpochMilli(),
                     updatedAtEpochMillis = input.updatedAt.toEpochMilli(),
+                    collectedZoneId = existing.collectedZoneId.validZoneIdOrNull() ?: input.zoneId.id,
                 )
                 database.dailySummaryDao().update(updated)
-                updated.toDomain()
+                updated
             } else {
-                existing.toDomain()
+                existing
             }
-            nextSummary ?: return@write RepositoryResult.UnexpectedState
+        }
+        val persistedSummary = persistedEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+
+        if (input.incomingSteps >= persistedEntity.steps) {
+            enqueueDailyStepsInternal(
+                summary = persistedEntity,
+                collectedAtEpochMillis = input.collectedAt.toEpochMilli(),
+                timeZoneId = persistedEntity.collectedZoneId.validZoneIdOrNull() ?: input.zoneId.id,
+                updatedAtEpochMillis = input.updatedAt.toEpochMilli(),
+            )
         }
 
         database.deviceDao().update(
@@ -1078,6 +1093,9 @@ class RoomRepositories @Inject constructor(
         if (limit <= 0) return@write RepositoryResult.Success(emptyList())
         val repaired = database.healthSyncOperationDao().findProcessable(limit)
             .mapNotNull { entity ->
+                if (entity.isDailyStepsOperationEntity()) {
+                    return@mapNotNull entity.toDomain()
+                }
                 val key = entity.toDomain()?.key ?: return@mapNotNull null
                 when (val ensured = ensureOperationInternal(key)) {
                     is RepositoryResult.Success -> ensured.value
@@ -1672,9 +1690,192 @@ class RoomRepositories @Inject constructor(
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
         runCatching { enumValueOf<T>(value) }.getOrNull()
 
+    private suspend fun ensureDailyStepsOperationInternal(
+        key: HealthSyncOperationKey,
+    ): RepositoryResult<HealthSyncOperation> {
+        val aggregate = key.aggregate as? HealthSyncAggregate.DailySummary ?: return RepositoryResult.NotFound
+        val summary = database.dailySummaryDao().findById(aggregate.summaryId.value.toString())
+            ?: return RepositoryResult.NotFound
+        if (summary.origin != DataOrigin.WATCH_DAILY_SUMMARY.name ||
+            summary.validity != DataValidity.VALID.name ||
+            summary.deviceId == null
+        ) return RepositoryResult.NotFound
+
+        val operations = findDailyStepsEntities(summary.id)
+        val timeZoneId = summary.collectedZoneId.validZoneIdOrNull()
+            ?: operations.firstNotNullOfOrNull { it.timeZoneId.validZoneIdOrNull() }
+            ?: ZoneId.systemDefault().id
+        val result = enqueueDailyStepsInternal(
+            summary = summary,
+            collectedAtEpochMillis = summary.collectedAtEpochMillis,
+            timeZoneId = timeZoneId,
+            updatedAtEpochMillis = summary.updatedAtEpochMillis,
+        )
+        return result.operation?.let { RepositoryResult.Success(it) } ?: RepositoryResult.NotFound
+    }
+
+    private suspend fun enqueueDailyStepsInternal(
+        summary: DailySummaryEntity,
+        collectedAtEpochMillis: Long,
+        timeZoneId: String,
+        updatedAtEpochMillis: Long,
+    ): DailyStepsEnqueueResult {
+        if (summary.origin != DataOrigin.WATCH_DAILY_SUMMARY.name ||
+            summary.validity != DataValidity.VALID.name ||
+            summary.deviceId == null ||
+            summary.steps <= 0L
+        ) return DailyStepsEnqueueResult()
+        val syncDao = database.healthSyncOperationDao()
+        val entities = findDailyStepsEntities(summary.id)
+        val persistedTimeZoneId = entities.asSequence()
+            .mapNotNull { it.timeZoneId.validZoneIdOrNull() }
+            .firstOrNull()
+            ?: timeZoneId.validZoneIdOrNull()
+            ?: return DailyStepsEnqueueResult()
+        val zoneId = ZoneId.of(persistedTimeZoneId)
+        val windowEnd = resolveDailyStepsWindowEnd(summary, collectedAtEpochMillis)
+            ?: return DailyStepsEnqueueResult()
+        val dayStart = runCatching {
+            LocalDate.parse(summary.localDateIso).atStartOfDay(zoneId).toInstant()
+        }.getOrNull() ?: return DailyStepsEnqueueResult()
+
+        val legacyEntities = entities.filter { it.isUnfrozenLegacyDailyStepsOperation() }
+        val payloadOperations = entities.mapNotNull { entity ->
+            entity.toDomain()?.dailyStepsPayload?.let { payload -> entity to payload }
+        }
+        if (legacyEntities.size > 1 ||
+            (legacyEntities.isNotEmpty() && payloadOperations.isNotEmpty()) ||
+            payloadOperations.size + legacyEntities.size != entities.size
+        ) return DailyStepsEnqueueResult()
+
+        val legacy = legacyEntities.singleOrNull()
+        if (legacy != null) {
+            if (legacy.state == SyncOperationState.SYNCING.name || !windowEnd.isAfter(dayStart)) {
+                return DailyStepsEnqueueResult(operation = legacy.toDomain())
+            }
+            val payload = DailyStepsSyncPayload(
+                kind = DailyStepsSyncPayloadKind.LEGACY_BRIDGE,
+                sequence = 0L,
+                previousTotalSteps = 0L,
+                currentTotalSteps = summary.steps,
+                stepDelta = summary.steps,
+                startTime = dayStart,
+                endTime = windowEnd,
+                timeZoneId = zoneId.id,
+            )
+            val bridgeVersion = maxOf(legacy.clientRecordVersion ?: Long.MIN_VALUE, updatedAtEpochMillis)
+            val identityOrVersionChanged = legacy.clientRecordId == null ||
+                legacy.clientRecordVersion != bridgeVersion
+            val bridge = legacy.copy(
+                state = if (identityOrVersionChanged) SyncOperationState.PENDING.name else legacy.state,
+                attemptCount = if (identityOrVersionChanged) 0 else legacy.attemptCount,
+                lastAttemptAtEpochMillis = if (identityOrVersionChanged) null else legacy.lastAttemptAtEpochMillis,
+                lastError = if (identityOrVersionChanged) null else legacy.lastError,
+                clientRecordId = legacy.clientRecordId ?: stableClientRecordId(
+                    HealthSyncOperationKey(
+                        aggregate = HealthSyncAggregate.DailySummary(DailySummaryId(parseUuid(summary.id)
+                            ?: return DailyStepsEnqueueResult())),
+                        recordType = HealthSyncRecordType.STEPS,
+                    ),
+                ),
+                clientRecordVersion = bridgeVersion,
+                syncedAtEpochMillis = if (identityOrVersionChanged) null else legacy.syncedAtEpochMillis,
+                timeZoneId = payload.timeZoneId,
+                updatedAtEpochMillis = maxOf(legacy.updatedAtEpochMillis ?: Long.MIN_VALUE, updatedAtEpochMillis),
+                operationSequence = payload.sequence,
+                dailyStepsPayloadKind = payload.kind.name,
+                previousTotalSteps = payload.previousTotalSteps,
+                currentTotalSteps = payload.currentTotalSteps,
+                stepDelta = payload.stepDelta,
+                stepStartTimeEpochMillis = payload.startTime.toEpochMilli(),
+                stepEndTimeEpochMillis = payload.endTime.toEpochMilli(),
+            )
+            if (syncDao.update(bridge) != 1) return DailyStepsEnqueueResult()
+            return DailyStepsEnqueueResult(
+                operation = bridge.toDomain(),
+                repaired = true,
+            )
+        }
+
+        val orderedPayloadOperations = payloadOperations.sortedBy { (_, payload) -> payload.sequence }
+        if (!orderedPayloadOperations.isValidDailyStepsChain()) return DailyStepsEnqueueResult()
+        val latest = orderedPayloadOperations.lastOrNull()
+        if (orderedPayloadOperations.any { (_, payload) -> payload.kind == DailyStepsSyncPayloadKind.LEGACY_BRIDGE }) {
+            return if (orderedPayloadOperations.size == 1) {
+                DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
+            } else {
+                DailyStepsEnqueueResult()
+            }
+        }
+        val previousTotalSteps = latest?.second?.currentTotalSteps ?: 0L
+        if (summary.steps <= previousTotalSteps) {
+            return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
+        }
+        val windowStart = latest?.second?.endTime ?: dayStart
+        if (!windowEnd.isAfter(windowStart)) {
+            return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
+        }
+        val sequence = (latest?.second?.sequence ?: 0L) + 1L
+        val payload = DailyStepsSyncPayload(
+            kind = DailyStepsSyncPayloadKind.INCREMENTAL,
+            sequence = sequence,
+            previousTotalSteps = previousTotalSteps,
+            currentTotalSteps = summary.steps,
+            stepDelta = summary.steps - previousTotalSteps,
+            startTime = windowStart,
+            endTime = windowEnd,
+            timeZoneId = zoneId.id,
+        )
+        val key = HealthSyncOperationKey(
+            aggregate = HealthSyncAggregate.DailySummary(
+                DailySummaryId(parseUuid(summary.id) ?: return DailyStepsEnqueueResult()),
+            ),
+            recordType = HealthSyncRecordType.STEPS,
+        )
+        val operation = newPendingOperationEntity(
+            key = key,
+            metadata = ResolvedSyncMetadata(
+                clientRecordId = "${stableClientRecordId(key)}:increment:$sequence",
+                clientRecordVersion = INCREMENTAL_STEPS_CLIENT_RECORD_VERSION,
+                timeZoneId = payload.timeZoneId,
+                createdAtEpochMillis = updatedAtEpochMillis,
+                updatedAtEpochMillis = updatedAtEpochMillis,
+            ),
+        ).copy(
+            operationSequence = payload.sequence,
+            dailyStepsPayloadKind = payload.kind.name,
+            previousTotalSteps = payload.previousTotalSteps,
+            currentTotalSteps = payload.currentTotalSteps,
+            stepDelta = payload.stepDelta,
+            stepStartTimeEpochMillis = payload.startTime.toEpochMilli(),
+            stepEndTimeEpochMillis = payload.endTime.toEpochMilli(),
+        )
+        syncDao.insert(operation)
+        return DailyStepsEnqueueResult(
+            operation = operation.toDomain(),
+            created = true,
+        )
+    }
+
+    private suspend fun findDailyStepsEntities(summaryId: String): List<HealthSyncOperationEntity> =
+        database.healthSyncOperationDao()
+            .findByAggregate(summaryId, HealthSyncAggregateType.DAILY_SUMMARY.name)
+            .filter { it.recordType == HealthSyncRecordType.STEPS.name }
+
+    private fun resolveDailyStepsWindowEnd(
+        summary: DailySummaryEntity,
+        collectedAtEpochMillis: Long,
+    ): Instant? = runCatching {
+        LocalDate.parse(summary.localDateIso)
+        Instant.ofEpochMilli(collectedAtEpochMillis)
+    }.getOrNull()
+
     private suspend fun ensureOperationInternal(
         key: HealthSyncOperationKey,
     ): RepositoryResult<HealthSyncOperation> {
+        if (key.aggregate is HealthSyncAggregate.DailySummary && key.recordType == HealthSyncRecordType.STEPS) {
+            return ensureDailyStepsOperationInternal(key)
+        }
         val metadata = resolveSyncMetadata(key) ?: return RepositoryResult.NotFound
         val syncDao = database.healthSyncOperationDao()
         val existing = syncDao.findByNaturalKey(
@@ -1716,13 +1917,17 @@ class RoomRepositories @Inject constructor(
         var heightCount = 0
 
         database.dailySummaryDao().findValidWatchBacklog().forEach { summary ->
-            val result = ensureReconciledOperation(
-                HealthSyncOperationKey(
-                    aggregate = HealthSyncAggregate.DailySummary(DailySummaryId(parseUuid(summary.id) ?: return@forEach)),
-                    recordType = HealthSyncRecordType.STEPS,
-                ),
+            val existingOperations = findDailyStepsEntities(summary.id)
+            val timeZoneId = summary.collectedZoneId.validZoneIdOrNull()
+                ?: existingOperations.firstNotNullOfOrNull { it.timeZoneId.validZoneIdOrNull() }
+                ?: ZoneId.systemDefault().id
+            val result = enqueueDailyStepsInternal(
+                summary = summary,
+                collectedAtEpochMillis = summary.collectedAtEpochMillis,
+                timeZoneId = timeZoneId,
+                updatedAtEpochMillis = summary.updatedAtEpochMillis,
             )
-            if (result != null) {
+            if (result.operation != null) {
                 ensuredCount += 1
                 dailySummaryCount += 1
                 if (result.repaired) repairedCount += 1
@@ -2070,26 +2275,16 @@ private fun isDailySummaryEligibleForSteps(
 ): Boolean = summary.validity == DataValidity.VALID &&
     summary.key.origin == DataOrigin.WATCH_DAILY_SUMMARY &&
     summary.key.deviceId != null &&
-    summary.steps >= 0L &&
-    hasValidStepsRecordWindow(operation, summary)
+    hasValidStepsRecordWindow(operation)
 
 private fun hasValidStepsRecordWindow(
     operation: HealthSyncOperation,
-    summary: DailySummary,
-): Boolean = try {
-    val zoneId = operation.timeZoneId.toHealthSyncZoneIdOrSystemDefault()
-    val start = summary.key.localDate.atStartOfDay(zoneId).toInstant()
-    val collectedDate = summary.collectedAt.atZone(zoneId).toLocalDate()
-    val end = if (collectedDate == summary.key.localDate) {
-        summary.collectedAt
-    } else {
-        summary.key.localDate.plusDays(1).atStartOfDay(zoneId).toInstant()
-    }
-    !end.isBefore(start)
-} catch (_: DateTimeException) {
-    false
-} catch (_: ArithmeticException) {
-    false
+): Boolean {
+    val payload = operation.dailyStepsPayload ?: return false
+    return payload.stepDelta > 0L &&
+        payload.currentTotalSteps > payload.previousTotalSteps &&
+        payload.endTime.isAfter(payload.startTime) &&
+        payload.timeZoneId.validZoneIdOrNull() != null
 }
 
 private fun isHeartRateMeasurementEligibleForHeartRate(
@@ -2249,6 +2444,41 @@ private data class ReconciledOperation(
     val operation: HealthSyncOperation,
     val repaired: Boolean,
 )
+
+private data class DailyStepsEnqueueResult(
+    val operation: HealthSyncOperation? = null,
+    val created: Boolean = false,
+    val repaired: Boolean = false,
+)
+
+private fun HealthSyncOperationEntity.isDailyStepsOperationEntity(): Boolean =
+    aggregateType == HealthSyncAggregateType.DAILY_SUMMARY.name &&
+        recordType == HealthSyncRecordType.STEPS.name
+
+private fun HealthSyncOperationEntity.isUnfrozenLegacyDailyStepsOperation(): Boolean =
+    isDailyStepsOperationEntity() &&
+        operationSequence == 0L &&
+        dailyStepsPayloadKind == null &&
+        previousTotalSteps == null &&
+        currentTotalSteps == null &&
+        stepDelta == null &&
+        stepStartTimeEpochMillis == null &&
+        stepEndTimeEpochMillis == null
+
+private fun List<Pair<HealthSyncOperationEntity, DailyStepsSyncPayload>>.isValidDailyStepsChain(): Boolean {
+    if (isEmpty()) return true
+    val payloads = map { it.second }
+    val first = payloads.first()
+    if (first.previousTotalSteps != 0L) return false
+    if (first.kind == DailyStepsSyncPayloadKind.LEGACY_BRIDGE && first.sequence != 0L) return false
+    if (first.kind == DailyStepsSyncPayloadKind.INCREMENTAL && first.sequence != 1L) return false
+    if (payloads.drop(1).any { it.kind != DailyStepsSyncPayloadKind.INCREMENTAL }) return false
+    return payloads.zipWithNext().all { (previous, current) ->
+        current.sequence == previous.sequence + 1L &&
+            current.previousTotalSteps == previous.currentTotalSteps &&
+            current.startTime == previous.endTime
+    }
+}
 
 internal data class PlannedWatchWorkoutPersistence(
     val persistedActivity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity,

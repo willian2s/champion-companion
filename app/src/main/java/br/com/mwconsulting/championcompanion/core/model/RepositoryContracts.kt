@@ -66,6 +66,7 @@ data class MergeWatchDailySummaryInput(
     val estimatedDistanceMeters: Double?,
     val estimatedCaloriesKilocalories: Double?,
     val parserVersion: ParserVersion,
+    val zoneId: ZoneId = ZoneId.systemDefault(),
 )
 
 interface PersonalMetricsRepository {

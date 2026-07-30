@@ -39,6 +39,8 @@ import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryId
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryKey
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncPayload
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncPayloadKind
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceImportMetadata
@@ -758,10 +760,19 @@ internal fun HealthSyncOperation.toEntity() = HealthSyncOperationEntity(
     timeZoneId = timeZoneId,
     createdAtEpochMillis = createdAt?.toEpochMilli(),
     updatedAtEpochMillis = updatedAt?.toEpochMilli(),
+    operationSequence = dailyStepsPayload?.sequence ?: 0L,
+    dailyStepsPayloadKind = dailyStepsPayload?.kind?.name,
+    previousTotalSteps = dailyStepsPayload?.previousTotalSteps,
+    currentTotalSteps = dailyStepsPayload?.currentTotalSteps,
+    stepDelta = dailyStepsPayload?.stepDelta,
+    stepStartTimeEpochMillis = dailyStepsPayload?.startTime?.toEpochMilli(),
+    stepEndTimeEpochMillis = dailyStepsPayload?.endTime?.toEpochMilli(),
 )
 
 internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     val aggregate = toHealthSyncAggregate(aggregateType, aggregateId) ?: return null
+    val dailyStepsPayload = toDailyStepsSyncPayload()
+    if (dailyStepsPayload == null && hasAnyDailyStepsPayloadField()) return null
     var operation = HealthSyncOperation.create(
         id = uuid(id)?.let(::HealthSyncOperationId) ?: return null,
         key = HealthSyncOperationKey(aggregate, enum<HealthSyncRecordType>(recordType) ?: return null),
@@ -769,6 +780,7 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
         clientRecordVersion = clientRecordVersion,
         syncedAt = syncedAtEpochMillis?.let(Instant::ofEpochMilli),
         timeZoneId = timeZoneId,
+        dailyStepsPayload = dailyStepsPayload,
         createdAt = createdAtEpochMillis?.let(Instant::ofEpochMilli),
         updatedAt = updatedAtEpochMillis?.let(Instant::ofEpochMilli),
     ).successOrNull() ?: return null
@@ -783,6 +795,30 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     }
     return operation
 }
+
+private fun HealthSyncOperationEntity.toDailyStepsSyncPayload(): DailyStepsSyncPayload? {
+    if (!hasAnyDailyStepsPayloadField()) return null
+    return runCatching {
+        DailyStepsSyncPayload(
+            kind = enum<DailyStepsSyncPayloadKind>(dailyStepsPayloadKind) ?: return null,
+            sequence = operationSequence,
+            previousTotalSteps = previousTotalSteps ?: return null,
+            currentTotalSteps = currentTotalSteps ?: return null,
+            stepDelta = stepDelta ?: return null,
+            startTime = stepStartTimeEpochMillis?.let(Instant::ofEpochMilli) ?: return null,
+            endTime = stepEndTimeEpochMillis?.let(Instant::ofEpochMilli) ?: return null,
+            timeZoneId = timeZoneId ?: return null,
+        )
+    }.getOrNull()
+}
+
+private fun HealthSyncOperationEntity.hasAnyDailyStepsPayloadField(): Boolean =
+    dailyStepsPayloadKind != null ||
+        previousTotalSteps != null ||
+        currentTotalSteps != null ||
+        stepDelta != null ||
+        stepStartTimeEpochMillis != null ||
+        stepEndTimeEpochMillis != null
 
 internal fun HealthSyncSummaryRecord.toDomain() = HealthSyncSummary(
     pendingCount = pendingCount,

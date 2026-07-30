@@ -237,12 +237,13 @@ class HomeViewModel @Inject constructor(
             }
 
             val metrics = personalMetricsRepository.observeSnapshot().first()
+            val refreshZoneId = ZoneId.systemDefault()
             val refreshResult = when (val result = dailyStepsSyncCoordinator.refresh(
                 DailyStepsRefreshRequest(
                     attempt = attempt,
                     associatedDeviceId = associatedDevice.id,
                     associatedDevicePlatformIdentifier = associatedDevice.platformIdentifier,
-                    zoneId = ZoneId.systemDefault(),
+                    zoneId = refreshZoneId,
                 ),
             )) {
                 is DailyStepsRefreshOutcome.Success -> result.value
@@ -277,6 +278,7 @@ class HomeViewModel @Inject constructor(
                         estimatedDistanceMeters = estimates.distanceMeters,
                         estimatedCaloriesKilocalories = estimates.caloriesKilocalories,
                         parserVersion = refreshResult.parserVersion,
+                        zoneId = refreshZoneId,
                     ),
                 )
             ) {

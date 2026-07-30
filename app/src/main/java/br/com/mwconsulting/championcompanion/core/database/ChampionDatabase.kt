@@ -4,6 +4,7 @@ import androidx.room3.Database
 import androidx.room3.Dao
 import androidx.room3.ColumnTypeConverters
 import androidx.room3.ColumnTypeConverter
+import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.ForeignKey
 import androidx.room3.Index
@@ -470,7 +471,7 @@ data class HeartRateMeasurementEntity(
 @Entity(
     tableName = "health_sync_operations",
     indices = [
-        Index(value = ["aggregateId", "recordType"], unique = true),
+        Index(value = ["aggregateId", "recordType", "operationSequence"], unique = true),
         Index(value = ["state", "updatedAtEpochMillis"]),
         Index(value = ["clientRecordId"]),
     ],
@@ -490,6 +491,13 @@ data class HealthSyncOperationEntity(
     val timeZoneId: String? = null,
     val createdAtEpochMillis: Long? = null,
     val updatedAtEpochMillis: Long? = null,
+    @ColumnInfo(defaultValue = "0") val operationSequence: Long = 0L,
+    val dailyStepsPayloadKind: String? = null,
+    val previousTotalSteps: Long? = null,
+    val currentTotalSteps: Long? = null,
+    val stepDelta: Long? = null,
+    val stepStartTimeEpochMillis: Long? = null,
+    val stepEndTimeEpochMillis: Long? = null,
 )
 
 @Entity(
@@ -538,7 +546,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 6,
+    version = 7,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
