@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 4/17 subtarefas concluídas
+- **Progresso:** 5/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [x] [013-02-update-roadmap-privacy-adr-and-operational-rules.md](013-02-update-roadmap-privacy-adr-and-operational-rules.md)
 - [x] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
 - [x] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
-- [ ] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
+- [x] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
 - [ ] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
 - [ ] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
 - [ ] [013-08-implement-active-workout-foreground-service-and-recovery.md](013-08-implement-active-workout-foreground-service-and-recovery.md)
@@ -52,10 +52,15 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   countdown persistido e normalizado, destinos serializáveis com saver e shells
   passivos. SDK Health Connect `1.1.0` foi mantido; service operacional e
   solicitação runtime permanecem nas subtarefas seguintes.
-- `013-05` permanece bloqueada: snapshot v5/v6, comparação de atividades,
-  importações, intervalos, BPM, `heart_rate_measurements` e sync, integridade
-  estrutural, lista, detalhe e Calendário foram validados. A base fornecida não
-  contém calibração nem sessão histórica; migration `DISCARDED` e recuperação
-  de rota receberam correções estáticas. Instruções para completar cobertura
-  física estão em `docs/integration/013-05-room-v6-follow-up.md`. Item continua
-  desmarcado e progresso permanece `4/17`.
+- `013-05` concluída após gate físico v5 → v6 com uma calibração e duas sessões
+  `DISCARDED` legadas. Snapshots conjuntos `.db`/`-wal`/`-shm`, hashes de
+  colunas comuns, normalização temporal, foreign keys, Exercícios, detalhe,
+  calibração e Calendário foram validados. Item marcado e progresso atualizado
+  para `5/17`.
+- Tentativa inicial de continuação em 2026-07-30 foi bloqueada por ausência
+  temporária de dispositivo ADB; execução posterior foi concluída sem
+  divergências. Checkpoint remoto não estava disponível porque `sqlite3` não
+  existe no sandbox `run-as`; snapshots usaram `.db`/`-wal`/`-shm` juntos.
+- `WorkoutRouteRepository.loadRecoverySnapshot` com rota real permanece
+  follow-up separado, pois captura funcional de rota ainda não produz pontos
+  reais. Detalhes sanitizados em `docs/integration/013-05-room-v6-follow-up.md`.

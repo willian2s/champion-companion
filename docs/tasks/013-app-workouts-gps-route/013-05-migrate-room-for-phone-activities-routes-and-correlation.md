@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `05`
-- **Status:** blocked
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -205,7 +205,7 @@ Não criar, alterar ou executar testes automatizados.
 - Nenhum teste automatizado foi criado, alterado ou executado, conforme regra
   explícita da Fase 13.
 
-### Bloqueio atual
+### Bloqueio registrado antes do gate físico final
 
 - A execução física agora possui snapshot v5/v6 sanitizado: atividades,
   importações, intervalos, amostras BPM, `heart_rate_measurements` e sync
@@ -217,7 +217,7 @@ Não criar, alterar ou executar testes automatizados.
   não canônico. Instruções estão em
   `docs/integration/013-05-room-v6-follow-up.md`.
 
-### Riscos residuais
+### Riscos registrados antes do gate físico final
 
 - Preservação de calibrações e sessões não foi exercitada com linhas reais,
   porque base v5 fornecida tinha zero registros nesses conjuntos.
@@ -227,10 +227,10 @@ Não criar, alterar ou executar testes automatizados.
 - Downgrade depois de abrir v6 continua não suportado; rollback permanece
   operacional por restauração do artefato v5 antes da abertura do banco.
 
-### Estado final
+### Estado registrado antes do gate físico final
 
-- Status: bloqueada.
-- Item `013-05` permanece `[ ]` no overview; progresso permanece `4/17`.
+- Status naquele momento: bloqueada.
+- Item `013-05` permanecia `[ ]` no overview; progresso permanecia `4/17`.
 - Pendências operacionais estão registradas em
   `docs/integration/013-05-room-v6-follow-up.md`.
 - Nenhuma subtarefa seguinte foi iniciada.
@@ -265,7 +265,7 @@ Não criar, alterar ou executar testes automatizados.
   preexistentes de overrides depreciados em `RoomRepositories`.
 - Nenhum teste automatizado foi criado, alterado ou executado.
 
-### Estado preservado
+### Estado preservado naquele momento
 
 - Status e overview permanecem inalterados para decisão do agente principal.
 - Correção remove blocker de API de recuperação. Bloqueios documentais/manuais
@@ -327,3 +327,119 @@ Não criar, alterar ou executar testes automatizados.
   calibração, sessões `DISCARDED` reais e recuperação de rota com dados reais.
 - `git diff --check` e `./gradlew lint assembleDebug assembleRelease` passaram.
 - Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Registro de execução — continuação física bloqueada
+
+### Resumo da execução
+
+- Subtarefa selecionada explicitamente: `013-05`.
+- Branch confirmada: `feat/013-phone-workouts`.
+- Commit observado: `c28d7a9` (`feat: implement route recovery snapshot and normalize DISCARDED sessions in migration`).
+- Contexto, spec, overview, ADRs referenciados e follow-up foram lidos.
+- O planejamento usa ticker `013` de forma consistente; o overview possui uma
+  única seção `## Checklist`, com um item para cada uma das 17 subtarefas.
+
+### Resultado do gate
+
+Bloqueado antes da validação do banco v5: `adb devices -l` não listou nenhum
+dispositivo e as consultas `pm path`/`run-as` retornaram
+`adb: no devices/emulators found`. Portanto, a fixture v5 não pôde ser
+confirmada pelo dispositivo atualmente conectado.
+
+### Comandos executados e evidências
+
+- `adb devices -l`: nenhum dispositivo listado.
+- `adb shell pm path br.com.mwconsulting.championcompanion.dev`: não executado
+  no dispositivo; sem dispositivo ADB disponível.
+- `adb shell run-as br.com.mwconsulting.championcompanion.dev ls -la databases`:
+  não executado no dispositivo; sem dispositivo ADB disponível.
+- Não foram executados `installDebug`, abertura do app, `pm clear`, `uninstall`,
+  instalação limpa, consultas SQLite, checkpoint WAL ou cópia de banco.
+- Não foram criados nem executados testes automatizados.
+
+### Arquivos alterados nesta tentativa
+
+- `docs/integration/013-05-room-v6-follow-up.md`
+- esta task
+- `docs/tasks/013-app-workouts-gps-route/013-00-overview.md`
+
+Nenhum arquivo de código, banco, snapshot ou build foi alterado.
+
+### Decisões, desvios e riscos residuais
+
+- Mantido `Status: blocked`; item `013-05` continua desmarcado no overview.
+- Não houve instalação nem abertura do APK v6, preservando a regra crítica de
+  capturar e validar v5 antes da migration.
+- Snapshot v5/v6, hashes, comparação de calibração/sessões, normalização das
+  duas sessões `DISCARDED`, superfícies e `foreign_key_check` permanecem sem
+  evidência nova nesta tentativa.
+- Rota real e `WorkoutRouteRepository.loadRecoverySnapshot` continuam
+  follow-ups separados, conforme escopo da task.
+
+## Registro de execução — gate físico v5 → v6 concluído
+
+### Resumo
+
+- Branch: `feat/013-phone-workouts`.
+- Commit observado: `c28d7a9`.
+- Dispositivo: Galaxy S22 `SM-S901E`.
+- Fixture v5 confirmada antes de qualquer instalação: uma calibração e duas
+  sessões `DISCARDED`, com os estados temporais e durações esperados.
+- APK v6 instalado sobre a instalação existente e aberto uma vez para executar
+  migration Room v5 → v6.
+- Aplicativo fechado com `am force-stop`, reaberto e superfícies consultadas
+  novamente.
+
+### Método WAL/SHM e comandos
+
+- Checkpoint remoto tentado; falhou porque `sqlite3` não existe no sandbox
+  `run-as`.
+- Snapshots v5, v6 e pós-reabertura foram copiados sempre com os três arquivos:
+  `champion-companion.db`, `champion-companion.db-wal` e
+  `champion-companion.db-shm`.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`, instalação atualizada em um
+  dispositivo.
+- Não foram criados nem executados testes automatizados.
+- Não foram executados uninstall, `pm clear`, downgrade ou instalação limpa.
+
+### Evidências sanitizadas
+
+- v5: `user_version=5`, foreign keys sem violações, calibrações `1`, vínculos
+  quebrados `0`, sessões descartadas `2`.
+- v6: `user_version=6`, foreign keys sem violações, calibrações `1`, vínculos
+  quebrados `0`, sessões descartadas `2`.
+- Hash de calibrações: `row_count=1`, SHA-256 igual entre v5/v6.
+- Hash de colunas comuns de sessões: `row_count=2`, SHA-256 igual entre v5/v6.
+- Hashes completos e regras canônicas estão em
+  `docs/integration/013-05-room-v6-follow-up.md`; nenhum ID ou timestamp bruto
+  foi documentado.
+- Sessão anterior ao início e sessão posterior ao início passaram normalização
+  de término, última transição, durações, agregados e leitura sanitizada.
+- Exercícios, histórico, detalhe da esteira, calibração e Calendário abriram.
+- Após fechar/reabrir, histórico de Exercícios e Calendário permaneceram
+  disponíveis; snapshot pós-reabertura manteve calibração, sessões e integridade.
+
+### Arquivos documentais alterados
+
+- `docs/integration/013-05-room-v6-follow-up.md`
+- esta task
+- `docs/tasks/013-app-workouts-gps-route/013-00-overview.md`
+
+Nenhum arquivo de produção, schema ou banco foi alterado nesta validação.
+
+### Decisões, desvios e riscos residuais
+
+- Fallback `.db` + `-wal` + `-shm` foi usado porque checkpoint remoto não estava
+  disponível.
+- Ausência de rota real não bloqueia esta conclusão: captura funcional ainda
+  não produz rota real. `WorkoutRouteRepository.loadRecoverySnapshot` permanece
+  follow-up separado.
+- Nenhuma divergência encontrada em calibração, sessões, hashes, foreign keys,
+  normalização ou superfícies.
+
+### Estado final
+
+- Status: completed.
+- Item `013-05` deve ser marcado `[x]` no overview.
+- Progresso do overview: `5/17`.
