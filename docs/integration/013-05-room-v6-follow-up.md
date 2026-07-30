@@ -160,7 +160,73 @@ persistentes. Não houve exposição de valores temporais, IDs ou dados sensíve
 
 ### Resultado do gate
 
-Gate físico v5 → v6 concluído sem divergência. `013-05` pode ser concluída.
-Permanece separado somente follow-up de rota real e
-`WorkoutRouteRepository.loadRecoverySnapshot`, pois fluxo funcional de captura
-de rota ainda não produz pontos reais.
+Gate físico v5 → v6 concluído sem divergência. Invariantes estáticas do caminho
+de escrita de rota foram corrigidas e aprovadas em revisão independente.
+Conforme regra da task, ausência de rota real não bloqueia `013-05` enquanto o
+fluxo funcional de captura ainda não produz pontos. Rota real,
+`WorkoutRouteRepository.loadRecoverySnapshot` e process death permanecem
+follow-up separado das tasks `013-08`/`013-09`.
+
+## Bloqueio estático identificado pela revisão independente
+
+Revisão independente de 2026-07-30 reprovou a conclusão por achado de alta
+severidade em `data/RoomRepositories.kt`, nos caminhos `create`,
+`appendAcceptedPoints`, `isValidRouteAppend` e
+`restoreWorkoutRouteRecoverySnapshot`:
+
+- escrita de rota não valida `route.startedAt` contra `session.startedAt`;
+- primeiro ponto/segmento pode ser aceito antes do início da rota;
+- novo segmento pode ser aceito antes do término do segmento anterior;
+- recuperação rejeita essas combinações depois, permitindo append com sucesso
+  seguido de snapshot irrecuperável após process death.
+
+Correção exigida: aplicar invariantes equivalentes no caminho de escrita,
+consultando sessão e último segmento persistido, e revalidar append → snapshot.
+Correção estática foi aplicada em `RoomRepositories.kt`; nova revisão
+independente e validação física de rota real continuam pendentes.
+
+### Correção estática aplicada — 2026-07-30
+
+- `create(route)` rejeita rota cujo início não coincide com sessão iniciada.
+- `appendAcceptedPoints` rejeita primeiro ponto/segmento anterior ao início da
+  rota ou sessão.
+- Segmentos novos são comparados com o último ponto persistido e segmentos do
+  lote mantêm ordem temporal, impedindo estado que
+  `loadRecoverySnapshot` rejeitaria.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: passou.
+- Nenhum teste automatizado foi criado ou executado.
+
+### Correção residual de precisão temporal — 2026-07-30
+
+- Revisão posterior identificou colisão quando dois `Instant` ordenados apenas
+  por nanos eram convertidos para o mesmo epoch-millis.
+- Escrita agora rejeita, antes do CAS/insert, pontos cuja representação
+  epoch-millis não seja estritamente crescente dentro do lote ou contra o
+  último ponto persistido.
+- Cursor e inícios de segmento são validados quanto à representação persistida;
+  timestamps não são ajustados silenciosamente.
+- A validação agora exige representação sem perda: `Instant.ofEpochMilli` do
+  valor convertido deve ser igual ao `Instant` original. Frações de
+  milissegundo e overflow são rejeitados antes da escrita.
+- `git diff --check` e `./gradlew lint assembleDebug assembleRelease` passaram;
+  nenhum teste automatizado foi criado ou executado.
+- Nova revisão independente aprovou a correção estática com ressalvas; validação
+  física de rota real permanece pendente como follow-up separado.
+
+### Resultado da revisão independente final
+
+- Decisão: aprovada com ressalvas para correção estática lossless.
+- Nenhum bloqueador estático restante encontrado.
+- Checklist, ticker, progresso `4/17`, escopo e documentação foram considerados
+  consistentes.
+- Ressalvas: rota real, process death com pontos e
+  `loadRecoverySnapshot` físico ainda não foram exercitados.
+- Essas ressalvas permanecem follow-up separado das tasks `013-08`/`013-09`
+  porque captura funcional ainda não produz pontos reais; não houve teste
+  automatizado.
+
+### Decisão documental
+
+- `013-05` pode ser concluída conforme limitação explícita da task.
+- A ausência de rota real não altera o status da migration v5 → v6.

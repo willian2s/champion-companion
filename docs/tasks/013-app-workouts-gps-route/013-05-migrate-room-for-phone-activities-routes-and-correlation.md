@@ -411,9 +411,9 @@ Nenhum arquivo de código, banco, snapshot ou build foi alterado.
   quebrados `0`, sessões descartadas `2`.
 - Hash de calibrações: `row_count=1`, SHA-256 igual entre v5/v6.
 - Hash de colunas comuns de sessões: `row_count=2`, SHA-256 igual entre v5/v6.
-- Hashes completos e regras canônicas estão em
-  `docs/integration/013-05-room-v6-follow-up.md`; nenhum ID ou timestamp bruto
-  foi documentado.
+- Hashes canônicos completos de calibrações e sessões, com suas regras, estão
+  em `docs/integration/013-05-room-v6-follow-up.md`; nenhum ID ou timestamp
+  bruto foi documentado.
 - Sessão anterior ao início e sessão posterior ao início passaram normalização
   de término, última transição, durações, agregados e leitura sanitizada.
 - Exercícios, histórico, detalhe da esteira, calibração e Calendário abriram.
@@ -432,14 +432,196 @@ Nenhum arquivo de produção, schema ou banco foi alterado nesta validação.
 
 - Fallback `.db` + `-wal` + `-shm` foi usado porque checkpoint remoto não estava
   disponível.
-- Ausência de rota real não bloqueia esta conclusão: captura funcional ainda
-  não produz rota real. `WorkoutRouteRepository.loadRecoverySnapshot` permanece
-  follow-up separado.
+- Ausência de rota real permanece follow-up separado: captura funcional ainda
+  não produz rota real. `WorkoutRouteRepository.loadRecoverySnapshot` será
+  validado após correção das invariantes de escrita.
 - Nenhuma divergência encontrada em calibração, sessões, hashes, foreign keys,
   normalização ou superfícies.
 
-### Estado final
+### Estado registrado antes do gate físico final
 
 - Status: completed.
 - Item `013-05` deve ser marcado `[x]` no overview.
 - Progresso do overview: `5/17`.
+
+## Registro de revisão independente — reprovado
+
+### Resultado
+
+- Revisão independente solicitada após conclusão do gate físico.
+- Decisão: reprovado.
+- Status retornado para `blocked`; item permanece `[ ]` e progresso retorna a
+  `4/17` até correção e nova revisão.
+
+### Bloqueador de alta severidade
+
+Em `data/RoomRepositories.kt`, `create` e `appendAcceptedPoints` não aplicam
+todas as invariantes que `restoreWorkoutRouteRecoverySnapshot` valida:
+
+- `route.startedAt` não é comparado com `session.startedAt` na escrita;
+- primeiro ponto/segmento anterior ao início da rota pode ser aceito;
+- novo segmento iniciado antes do fim do segmento anterior pode ser aceito;
+- recuperação posterior rejeita o estado, tornando possível append aceito sem
+  snapshot recuperável após morte de processo.
+
+Correção necessária no caminho de escrita, com validação do caminho completo
+append → `loadRecoverySnapshot`. Nenhum código foi alterado nesta revisão.
+
+### Inconsistências e riscos registrados
+
+- A revisão apontou contradição documental entre pendências de invariantes e a
+  afirmação anterior de que restava somente validação física de rota; follow-up
+  foi alinhado com bloqueio estático explícito.
+- A revisão também apontou identificador físico em arquivos `.idea` em commits
+  anteriores. Esses arquivos não fazem parte do diff documental atual e não
+  foram alterados nesta revisão.
+- Rota real, process death com rota e `loadRecoverySnapshot` continuam
+  pendências separadas depois da correção estática.
+
+## Registro de execução — correção das invariantes de escrita
+
+### Causa raiz
+
+- `create(route)` validava apenas o formato canônico da rota e o estado da
+  sessão; não comparava `route.startedAt` com `session.startedAt`.
+- `appendAcceptedPoints` validava cursor, métricas e ordenação dentro do lote,
+  mas aceitava primeiro ponto/segmento antes do início da rota e segmento novo
+  iniciado antes do último ponto persistido. A leitura de recuperação rejeitava
+  esses estados depois, quebrando a garantia append → snapshot recuperável.
+
+### Correção mínima
+
+- `create(route)` agora exige sessão iniciada e igualdade entre os instantes de
+  início da sessão e da rota.
+- `appendAcceptedPoints` agora exige tipo de sessão compatível, rota autorizada
+  e igualdade dos instantes de início. `isValidRouteAppend` rejeita primeiro
+  ponto/segmento anterior ao início de rota/sessão, compara cada novo segmento
+  com o último ponto persistido e exige ordem temporal entre segmentos do lote.
+- Migration, schema, UI, APIs públicas, testes e arquivos `.idea` não foram
+  alterados.
+
+### Evidências e comandos
+
+- Evidência reproduzida por inspeção estática do caminho
+  `create` → `appendAcceptedPoints` → `isValidRouteAppend` →
+  `restoreWorkoutRouteRecoverySnapshot`: escrita aceitava estados que leitura
+  rejeitava; diff agora aplica as mesmas fronteiras temporais na escrita.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: passou (`BUILD SUCCESSFUL`,
+  103 tarefas; somente dois avisos preexistentes de override depreciado em
+  `RoomRepositories`).
+- Nenhum teste automatizado foi criado, alterado ou executado, conforme
+  `AGENTS.md`, spec 013 e solicitação desta execução.
+
+### Estado e risco residual
+
+- Subtarefa permanece `blocked` e item do overview permanece `[ ]` até nova
+  revisão independente.
+- Validação física de rota real, process death com pontos e
+  `loadRecoverySnapshot` continua pendente no follow-up; build não substitui
+  essa evidência.
+
+## Registro de execução — correção da precisão temporal persistida
+
+### Causa do escalonamento
+
+- Revisão independente posterior comprovou divergência entre o contrato em
+  `Instant` e a representação Room em epoch-millis: pontos estritamente
+  ordenados por nanos dentro do mesmo milissegundo passavam na escrita, eram
+  persistidos com timestamps iguais e tornavam o snapshot irrecuperável.
+
+### Correção mínima
+
+- Helper puro local valida, antes do CAS e do insert, o cursor contra o último
+  timestamp persistido e a ordem epoch-millis estritamente crescente dos
+  pontos, incluindo a fronteira com o lote anterior.
+- Instantes fora do intervalo representável em epoch-millis são rejeitados sem
+  exceção parcial. Inícios de segmento também têm representabilidade validada
+  antes da escrita; suas relações temporais são não estritas e permanecem
+  preservadas pela conversão monotônica para milissegundos.
+- Nenhum timestamp é ajustado, truncado para contornar conflito ou descartado.
+  CAS, contratos públicos, migration, schema, UI, testes e `.idea` permanecem
+  inalterados.
+
+### Evidências e comandos
+
+- Inspeção do caminho `AppendWorkoutRoutePointsInput` →
+  `hasValidPersistedRouteAppendTimes` → CAS → `WorkoutRoutePoint.toEntity()`
+  confirma validação epoch-millis antes de qualquer mutação persistente.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL` em 1 min
+  48 s; 103 tarefas, 28 executadas e 75 `UP-TO-DATE`. Permaneceram somente dois
+  avisos preexistentes de overrides depreciados em `RoomRepositories`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Estado
+
+- Subtarefa permanece `blocked`; item `013-05` continua `[ ]` e progresso
+  continua `4/17` até nova revisão independente.
+- Validação física de rota real e recuperação após morte de processo continuam
+  pendentes no follow-up.
+
+## Registro de execução — correção lossless de precisão temporal
+
+### Causa
+
+- Revisão independente identificou que validar somente overflow ainda permitia
+  `Instant` com nanos não alinhados a milissegundos. `toEpochMilli()` truncaria
+  silenciosamente ponto ou início de segmento antes da persistência.
+
+### Correção mínima
+
+- `Instant.toEpochMilliOrNull()` agora aceita conversão somente quando
+  `Instant.ofEpochMilli(epochMillis) == instant`.
+- Pontos, cursor e inícios de segmento passam a rejeitar frações de
+  milissegundo não representáveis, sem ajuste silencioso ou mutação parcial.
+- Invariantes anteriores de sessão/rota, ordem de pontos, segmentos e CAS foram
+  preservadas. Nenhuma migration, schema, UI, API pública, teste ou `.idea` foi
+  alterado.
+
+### Comandos e resultados
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL` em 1 min
+  45 s; 103 tarefas, 28 executadas e 75 atualizadas.
+- Permaneceram somente dois avisos preexistentes de overrides depreciados em
+  `RoomRepositories`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Estado
+
+- Subtarefa permanece `blocked`; item do overview permanece `[ ]` e progresso
+  `4/17` até nova revisão independente.
+- Rota real, process death com pontos e `loadRecoverySnapshot` físico continuam
+  pendentes e separados.
+
+## Registro de revisão independente — correção lossless aprovada com ressalvas
+
+### Resultado
+
+- Revisão independente final: aprovada com ressalvas.
+- Nenhum bloqueador estático restante.
+- `toEpochMilliOrNull()` exige round-trip exato por
+  `Instant.ofEpochMilli(epochMillis) == instant`; pontos, cursor e inícios de
+  segmento são validados antes do CAS/insert.
+- Checklist SDD, ticker, 17 subtarefas e progresso `4/17` foram confirmados.
+
+### Ressalvas residuais
+
+- Rota real, process death com pontos e `loadRecoverySnapshot` físico ainda não
+  foram exercitados.
+- Essas validações permanecem follow-up separado, pois captura funcional ainda
+  não produz pontos reais. Não bloqueiam correção estática, mas `013-05` mantém
+  status `blocked` conforme decisão documental vigente.
+
+## Decisão de encerramento — 2026-07-30
+
+- Conforme regra da task, ausência de rota real não bloqueia `013-05` enquanto o
+  fluxo funcional de captura ainda não existir.
+- Gate físico Room v5 → v6, correção estática das invariantes e revisão
+  independente foram concluídos.
+- Status: `completed`.
+- Item `013-05`: `[x]` no overview.
+- Progresso do overview: `5/17`.
+- Rota real, process death com pontos e `loadRecoverySnapshot` permanecem
+  follow-up das tasks `013-08`/`013-09`, não pendência desta subtarefa.

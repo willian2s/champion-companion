@@ -52,11 +52,14 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   countdown persistido e normalizado, destinos serializáveis com saver e shells
   passivos. SDK Health Connect `1.1.0` foi mantido; service operacional e
   solicitação runtime permanecem nas subtarefas seguintes.
-- `013-05` concluída após gate físico v5 → v6 com uma calibração e duas sessões
-  `DISCARDED` legadas. Snapshots conjuntos `.db`/`-wal`/`-shm`, hashes de
-  colunas comuns, normalização temporal, foreign keys, Exercícios, detalhe,
-  calibração e Calendário foram validados. Item marcado e progresso atualizado
-  para `5/17`.
+- Gate físico de `013-05` foi concluído sem divergência: uma calibração, duas
+  sessões `DISCARDED`, snapshots conjuntos `.db`/`-wal`/`-shm`, hashes,
+  normalização temporal, foreign keys, Exercícios, detalhe, calibração,
+  Calendário e reabertura foram validados. A revisão independente encontrou
+  bloqueador nas invariantes de escrita de rota, posteriormente corrigido e
+  aprovado em revisão independente. Conforme limitação explícita da task,
+  ausência de rota real não bloqueia migration enquanto captura funcional não
+  existir. Item marcado e progresso atualizado para `5/17`.
 - Tentativa inicial de continuação em 2026-07-30 foi bloqueada por ausência
   temporária de dispositivo ADB; execução posterior foi concluída sem
   divergências. Checkpoint remoto não estava disponível porque `sqlite3` não
@@ -64,3 +67,20 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - `WorkoutRouteRepository.loadRecoverySnapshot` com rota real permanece
   follow-up separado, pois captura funcional de rota ainda não produz pontos
   reais. Detalhes sanitizados em `docs/integration/013-05-room-v6-follow-up.md`.
+- Bloqueador identificado em `RoomRepositories`: impedir append aceito com
+  primeiro ponto anterior à rota ou segmento novo anterior ao término do
+  segmento anterior; correção aplicada e aprovada em revisão independente.
+- Correção estática aplicada em `RoomRepositories`: criação e append agora
+  alinham início de sessão/rota e fronteiras temporais de pontos/segmentos.
+  A validação física de rota real foi mantida como follow-up separado.
+- Correção residual valida ordem estrita na representação epoch-millis antes do
+  CAS/insert, impedindo colisão de pontos ordenados apenas por nanos. Cursor e
+  inícios de segmento também são validados na precisão persistida. Diff check e
+  build completo passaram; revisão lossless foi aprovada com ressalvas.
+- Rota real, process death com pontos e `loadRecoverySnapshot` ficam como
+  follow-up das tasks `013-08`/`013-09`; não bloqueiam conclusão de `013-05`.
+- Revisão independente final aprovou a correção lossless com ressalvas. Nenhum
+  bloqueador estático restante; rota real, process death com pontos e
+  `loadRecoverySnapshot` físico continuam follow-up separado. Conforme limitação
+  explícita da task, `013-05` foi concluída e o progresso atualizado para
+  `5/17`.

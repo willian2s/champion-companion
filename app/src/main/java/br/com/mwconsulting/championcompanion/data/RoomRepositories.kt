@@ -951,6 +951,9 @@ class RoomRepositories @Inject constructor(
         val sessionEntity = database.appWorkoutSessionDao().findById(canonicalRoute.sessionId.value.toString())
             ?: return@write RepositoryResult.NotFound
         val session = sessionEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        if (session.startedAt == null || session.startedAt != canonicalRoute.startedAt) {
+            return@write RepositoryResult.UnexpectedState
+        }
         val routeDao = database.workoutRouteDao()
         if (session.type != canonicalRoute.workoutType || !session.recordsRoute || session.workoutActivityId != null ||
             session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.ACTIVE ||
@@ -999,15 +1002,25 @@ class RoomRepositories @Inject constructor(
         ) {
             return@write RepositoryResult.Conflict
         }
+        val sessionStartedAt = session.startedAt ?: return@write RepositoryResult.UnexpectedState
+        if (session.type != route.workoutType || !session.recordsRoute || sessionStartedAt != route.startedAt) {
+            return@write RepositoryResult.UnexpectedState
+        }
         val lastPoint = routeDao.findLastPoint(routeEntity.id)
         val persistedSegmentStart = lastPoint?.let {
             routeDao.findFirstPointInSegment(routeEntity.id, it.segmentIndex)
         }
         val persistedPointCount = routeDao.countPoints(routeEntity.id)
         if (lastPoint?.sequence != input.cursor.lastSequence ||
-            lastPoint?.sampledAtEpochMillis != input.cursor.lastSampledAt?.toEpochMilli() ||
             lastPoint?.segmentIndex != input.cursor.currentSegmentIndex ||
-            !isValidRouteAppend(route, input, lastPoint, persistedSegmentStart, persistedPointCount)
+            !isValidRouteAppend(
+                route = route,
+                sessionStartedAt = sessionStartedAt,
+                input = input,
+                lastPoint = lastPoint,
+                persistedSegmentStart = persistedSegmentStart,
+                persistedPointCount = persistedPointCount,
+            )
         ) {
             return@write RepositoryResult.Conflict
         }
@@ -1394,6 +1407,7 @@ class RoomRepositories @Inject constructor(
 
     private fun isValidRouteAppend(
         route: WorkoutRoute,
+        sessionStartedAt: Instant,
         input: AppendWorkoutRoutePointsInput,
         lastPoint: br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity?,
         persistedSegmentStart: br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity?,
@@ -1403,12 +1417,23 @@ class RoomRepositories @Inject constructor(
         if (persistedPointCount != previous.acceptedPointCount ||
             (persistedPointCount == 0L) != (lastPoint == null) ||
             (persistedPointCount == 0L) != (previous.averageHorizontalAccuracyMeters == null) ||
-            previous.segmentCount != (lastPoint?.segmentIndex?.plus(1) ?: 0)
+            previous.segmentCount != (lastPoint?.segmentIndex?.plus(1) ?: 0) ||
+            !hasValidPersistedRouteAppendTimes(input, lastPoint?.sampledAtEpochMillis)
         ) return false
 
         val next = input.metrics
         if (next.acceptedPointCount != persistedPointCount + input.points.size ||
             next.segmentCount != input.points.last().segmentIndex + 1
+        ) return false
+
+        val firstPoint = input.points.first()
+        if (route.startedAt != sessionStartedAt ||
+            firstPoint.sampledAt.isBefore(route.startedAt) ||
+            firstPoint.sampledAt.isBefore(sessionStartedAt) ||
+            input.segments.any { segment ->
+                segment.startedAt.isBefore(route.startedAt) ||
+                    segment.startedAt.isBefore(sessionStartedAt)
+            }
         ) return false
 
         val continuedSegment = input.segments.firstOrNull { it.index == lastPoint?.segmentIndex }
@@ -1421,6 +1446,16 @@ class RoomRepositories @Inject constructor(
         val batchDistance = input.segments.sumOf { it.distanceMeters } - previousSegmentDistance
         val expectedDistance = previous.distanceMeters + batchDistance
         if (!approximatelyEqual(next.distanceMeters, expectedDistance)) return false
+
+        if (input.segments.zipWithNext().any { (previous, nextSegment) ->
+                nextSegment.startedAt.isBefore(previous.endedAt)
+            } ||
+            lastPoint != null && input.segments.any { segment ->
+                segment.index > lastPoint.segmentIndex && segment.startedAt.isBefore(
+                    Instant.ofEpochMilli(lastPoint.sampledAtEpochMillis),
+                )
+            }
+        ) return false
 
         val accuracyTotal = (previous.averageHorizontalAccuracyMeters ?: 0.0) * persistedPointCount +
             input.points.sumOf { it.horizontalAccuracyMeters }
@@ -1451,6 +1486,34 @@ class RoomRepositories @Inject constructor(
                         !segment.startedAt.isAfter(segmentPoints.first().sampledAt)
                 }
         }
+    }
+
+    private fun hasValidPersistedRouteAppendTimes(
+        input: AppendWorkoutRoutePointsInput,
+        lastSampledAtEpochMillis: Long?,
+    ): Boolean {
+        val cursorEpochMillis = input.cursor.lastSampledAt?.let {
+            it.toEpochMilliOrNull() ?: return false
+        }
+        if (cursorEpochMillis != lastSampledAtEpochMillis ||
+            input.segments.any { it.startedAt.toEpochMilliOrNull() == null }
+        ) return false
+
+        var previousEpochMillis = lastSampledAtEpochMillis
+        for (point in input.points) {
+            val currentEpochMillis = point.sampledAt.toEpochMilliOrNull() ?: return false
+            val previous = previousEpochMillis
+            if (previous != null && currentEpochMillis <= previous) return false
+            previousEpochMillis = currentEpochMillis
+        }
+        return true
+    }
+
+    private fun Instant.toEpochMilliOrNull(): Long? = try {
+        val epochMillis = toEpochMilli()
+        epochMillis.takeIf { Instant.ofEpochMilli(it) == this }
+    } catch (_: ArithmeticException) {
+        null
     }
 
     private fun approximatelyEqual(first: Double, second: Double): Boolean {
