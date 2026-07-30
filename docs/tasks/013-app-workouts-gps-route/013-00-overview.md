@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 5/17 subtarefas concluídas
+- **Progresso:** 6/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [x] [013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md](013-03-define-generalized-workout-session-route-gps-and-correlation-contracts.md)
 - [x] [013-04-add-location-permissions-dependencies-preferences-and-navigation.md](013-04-add-location-permissions-dependencies-preferences-and-navigation.md)
 - [x] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
-- [ ] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
+- [x] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
 - [ ] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
 - [ ] [013-08-implement-active-workout-foreground-service-and-recovery.md](013-08-implement-active-workout-foreground-service-and-recovery.md)
 - [ ] [013-09-implement-walking-running-route-capture-and-live-metrics.md](013-09-implement-walking-running-route-capture-and-live-metrics.md)
@@ -84,3 +84,11 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   `loadRecoverySnapshot` físico continuam follow-up separado. Conforme limitação
   explícita da task, `013-05` foi concluída e o progresso atualizado para
   `5/17`.
+- `013-06` concluída com fonte Android nativa isolada por runtime, cleanup
+  idempotente, descarte de callbacks antigos, readiness primária por fix,
+  complemento GNSS opcional, filtro e acumulador puros e logging categórico
+  sanitizado. Build completo passou; validação manual das variações reais de GPS
+  no Galaxy S22 permanece para os gates físicos das subtarefas de integração.
+- Revisão independente de `013-06` encontrou e aprovou correções para idade de
+  fix monotônica e rejeição de saltos após lacunas. `lint`, builds debug/release
+  e `installDebug` passaram; nenhum bloqueio permanece nesta subtarefa.

@@ -250,7 +250,13 @@ data class GpsReadinessInput(
     val isMock: Boolean,
     val wasPreviouslyReady: Boolean,
     val gnss: GnssQualitySupplement? = null,
-)
+    /** Idade monotônica do fix; quando presente, timestamps civis não participam da readiness. */
+    val fixAge: Duration? = null,
+) {
+    init {
+        require(fixAge == null || !fixAge.isNegative)
+    }
+}
 
 @ConsistentCopyVisibility
 data class GpsReadiness private constructor(
@@ -281,22 +287,24 @@ data class GpsReadiness private constructor(
                 return safe(GpsReadinessState.LOCATION_DISABLED, input = input)
             }
 
-            val observedAt = input.fixObservedAt
-            if (observedAt == null) {
-                return if (input.horizontalAccuracyMeters != null || input.isMock) {
-                    safe(GpsReadinessState.UNAVAILABLE, GpsAccuracyQuality.UNUSABLE, input = input)
-                } else {
-                    safe(
-                        if (input.wasPreviouslyReady) GpsReadinessState.LOST else GpsReadinessState.SEARCHING,
-                        input = input,
-                    )
+            val age = input.fixAge ?: run {
+                val observedAt = input.fixObservedAt
+                if (observedAt == null) {
+                    return if (input.horizontalAccuracyMeters != null || input.isMock) {
+                        safe(GpsReadinessState.UNAVAILABLE, GpsAccuracyQuality.UNUSABLE, input = input)
+                    } else {
+                        safe(
+                            if (input.wasPreviouslyReady) GpsReadinessState.LOST else GpsReadinessState.SEARCHING,
+                            GpsAccuracyQuality.UNUSABLE,
+                            input = input,
+                        )
+                    }
                 }
+                if (observedAt.isAfter(input.evaluatedAt)) {
+                    return safe(GpsReadinessState.UNAVAILABLE, GpsAccuracyQuality.UNUSABLE, input = input)
+                }
+                Duration.between(observedAt, input.evaluatedAt)
             }
-            if (observedAt.isAfter(input.evaluatedAt)) {
-                return safe(GpsReadinessState.UNAVAILABLE, GpsAccuracyQuality.UNUSABLE, input = input)
-            }
-
-            val age = Duration.between(observedAt, input.evaluatedAt)
             val accuracy = input.horizontalAccuracyMeters
             if (input.isMock || accuracy == null || !accuracy.isFinite() || accuracy <= 0.0) {
                 return safe(
@@ -312,7 +320,15 @@ data class GpsReadiness private constructor(
                 accuracy <= policy.weakMaximumAccuracyMeters -> GpsAccuracyQuality.WEAK
                 else -> GpsAccuracyQuality.UNUSABLE
             }
-            if (age > policy.recentFixMaximumAge || quality == GpsAccuracyQuality.UNUSABLE) {
+            if (age > policy.recentFixMaximumAge) {
+                return safe(
+                    if (input.wasPreviouslyReady) GpsReadinessState.LOST else GpsReadinessState.SEARCHING,
+                    GpsAccuracyQuality.UNUSABLE,
+                    age,
+                    input,
+                )
+            }
+            if (quality == GpsAccuracyQuality.UNUSABLE) {
                 return safe(
                     if (input.wasPreviouslyReady) GpsReadinessState.LOST else GpsReadinessState.SEARCHING,
                     quality,
