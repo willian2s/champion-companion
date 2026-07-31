@@ -1029,3 +1029,92 @@ Nenhum arquivo de produção, dependência, migration, schema ou teste foi alter
 - Ressalva documental corrigida nesta task: o build completo foi repetido após o
   gate e passou.
 - Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Análise do bloqueio — tipos FGS dinâmicos — 2026-07-31
+
+### Causa do escalonamento confirmada
+
+- A revisão independente aprovou o gate `am crash`, mas reprovou a conclusão de
+  `013-08` porque o dump durável exercitou somente o tipo `health`; faltavam
+  `location` e `connectedDevice` nos cenários em que cada capacidade estivesse
+  realmente ativa.
+- O manifesto já declara `health|location|connectedDevice` e suas permissões. Em
+  API 34+, `WorkoutRecordingService.promoteOrUpdateForeground` mantém `health` e
+  acrescenta `location` somente para sessão `ACTIVE` de caminhada/corrida. O
+  serviço não acrescenta `connectedDevice`.
+
+### Avaliação de escopo e decisão
+
+- A tentativa física de caminhada solicitou localização precisa por ação
+  explícita e alcançou fix recente, porém permaneceu em `GPS fraco`. O gate de
+  preparação impediu o countdown e nenhuma sessão, rota ou FGS foi criada. Não
+  houve relaxamento da prontidão nem injeção de localização para fabricar o
+  cenário.
+- A captura GPS após o zero e seu lifecycle pertencem a `013-09`. O aquecimento
+  descartável atual termina no handoff e não é produtor contínuo da sessão. A
+  heurística `ACTIVE + recordsRoute` e os tipos `health`/`location` existentes
+  foram preservados, sem antecipar captura, pontos, métricas ou contrato novo.
+- Mesmo com relógio conectado ao app, não existe owner `APP_WORKOUT_SESSION`,
+  protocolo esportivo live comprovado, lease de participação BLE nem handoff ao
+  serviço. Esses contratos pertencem a `013-11`. Conexão geral do app não prova
+  BLE contínuo da sessão e não autoriza o bit `connectedDevice`.
+- Decisão fail-closed: não adicionar `FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE`
+  à promoção runtime, não criar intent/flag/API especulativa e não alterar
+  ownership. O manifesto continua declarando a capacidade permitida. Completar a
+  composição dinâmica exige handoffs observáveis de produtor em `013-09` e
+  `013-11`; fazê-lo em `013-08` criaria capacidade sem lifecycle e possível
+  corrida entre produtor e owner.
+- O grafo atual cria dependência circular de aceite: `013-09` e `013-11` exigem
+  `013-08` concluída, enquanto a revisão exige produtores dessas duas subtarefas
+  para encerrar o gate dinâmico de `013-08`. Resolver isso requer decisão explícita
+  de planejamento sobre separar aceite da base FGS e validação das integrações;
+  esta execução não alterou dependências nem marcou outra subtarefa.
+- Arquivos alterados nesta execução: esta task e
+  `docs/tasks/013-app-workouts-gps-route/013-00-overview.md`. Nenhum arquivo de
+  produção, manifesto, contrato ou teste foi alterado; nenhum artefato de
+  evidência física foi criado. O bloqueio não é resolvível
+  isoladamente sem ultrapassar o escopo explícito desta subtarefa.
+
+### Comandos e resultados
+
+- `adb devices -l`: Galaxy S22 disponível.
+- `adb shell am start ...` e ações pela UI: preparação de caminhada aberta;
+  permissão precisa concedida pelo prompt do sistema; estado final `GPS fraco`.
+- `adb shell dumpsys activity services PACKAGE`: nenhum serviço ativo após a
+  tentativa; comportamento fail-closed confirmado para prontidão insuficiente.
+- Permissões de localização concedidas somente para a tentativa foram revogadas
+  ao final; arquivo temporário do `uiautomator` foi removido.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Estado e riscos restantes
+
+- Status permanece `in_progress`; item continua `[ ]`; progresso permanece
+  `7/17`.
+- `location` ainda precisa de gate físico com caminhada/corrida realmente
+  iniciada e, depois, de vínculo ao produtor contínuo de `013-09`.
+- `connectedDevice` e a combinação `health|location|connectedDevice` permanecem
+  bloqueados por `013-11`; não devem ser simulados usando apenas associação ou
+  conexão BLE geral do app.
+- Nenhuma próxima subtarefa está elegível pelo grafo atual até decisão explícita
+  sobre a dependência circular do gate dinâmico.
+- Liveness sob Room permanentemente suspenso, relógio civil, safe insets e
+  demais evidências/revisão final continuam bloqueando a conclusão de `013-08`.
+
+## Resultado da revisão independente do bloqueio FGS — 2026-07-31
+
+- Veredito: aprovado com ressalvas somente para execução documental; `013-08` não
+  deve ser concluída.
+- Estrutura SDD, ticker, checklist único, 17 itens e progresso `7/17` foram
+  confirmados. Nenhuma inconsistência de checkbox foi encontrada.
+- Achado corrigido: distinção explícita entre capacidade declarada no manifesto e
+  adição runtime de `FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE`.
+- Bloqueador principal: dependência circular entre aceite de `013-08` e handoffs
+  de produtores de `013-09`/`013-11`; exige decisão de planejamento antes de outra
+  subtarefa avançar.
+- Riscos mantidos: lease GPS ainda não observável, `connectedDevice` sem owner/
+  lease/protocolo live, Room suspenso, relógio civil, safe insets e evidências
+  físicas restantes.
+- `git diff --check` e `./gradlew lint assembleDebug assembleRelease` passaram;
+  nenhum teste automatizado foi criado, alterado ou executado.

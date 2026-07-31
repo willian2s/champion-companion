@@ -257,3 +257,21 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   tipos FGS dinâmicos `location`/`connectedDevice` e trilha durável específica dos
   estados antes/depois do crash, reabertura, retomada e cleanup. Item permanece
   `[ ]`, progresso `7/17`.
+- Análise isolada dos tipos FGS confirmou declaração completa no manifesto e
+  promoção atual `health` + `location` somente em caminhada/corrida `ACTIVE`.
+  Tentativa física de caminhada permaneceu em `GPS fraco`; preparação impediu
+  countdown e FGS, sem relaxar readiness ou injetar localização. O vínculo com
+  produtor GPS contínuo permanece dependência explícita de `013-09`.
+- `connectedDevice` continua deliberadamente ausente da promoção runtime: conexão
+  geral do app não comprova participação BLE contínua da sessão. Owner, lease,
+  protocolo live e handoff pertencem a `013-11`. Nenhuma flag, intent, API ou
+  evidência foi fabricada; tipos `health`/`location` atuais e ownership foram
+  preservados. `013-08` segue `in_progress`, `[ ]`, `7/17`.
+- Há dependência circular de aceite: `013-09`/`013-11` exigem `013-08` concluída,
+  mas o gate dinâmico reprovado exige os produtores dessas subtarefas. Próxima
+  ação requer decisão explícita para separar aceite da base FGS e validação das
+  integrações; nenhum item adicional foi marcado.
+- Revisão independente do bloqueio FGS aprovou somente o registro documental, com
+  ressalvas. Confirmou dependência circular entre `013-08` e handoffs de
+  `013-09`/`013-11`; nenhuma próxima subtarefa é elegível sem decisão explícita de
+  planejamento. Status permanece `in_progress`, item `[ ]` e progresso `7/17`.
