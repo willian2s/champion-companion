@@ -18,7 +18,9 @@ Spec 013; specs/ADR 011/012/014; `013-03/08`; implementação existente de revis
 
 ## Dependências
 
-`013-08` concluída. Paralela a 013-09/11 com isolamento de hotspots.
+Base operacional de `013-08` disponível. Pode iniciar antes do aceite integrado de
+`013-08`, em paralelo com `013-09`/`013-11`, com isolamento de hotspots. Não
+antecipa o aceite integrado de FGS dinâmico GPS/BLE.
 
 ## Arquivos permitidos
 

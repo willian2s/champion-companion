@@ -30,7 +30,11 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 
 ## Observações
 
-- Dependência principal segue grafo da spec. Após `013-08`, `013-09`, `013-10` e `013-11` podem avançar em paralelo sem editar simultaneamente contratos/repositories. Após `013-12`, `013-13` e `013-14` podem avançar em paralelo.
+- Dependência principal segue grafo da spec. A base operacional de `013-08` já
+  permite iniciar `013-09`, `013-10` e `013-11` em paralelo, sem editar
+  simultaneamente contratos/repositories. O aceite integrado de `013-08` aguarda
+  handoffs GPS/BLE e evidências dessas frentes. Após `013-12`, `013-13` e `013-14`
+  podem avançar em paralelo.
 - Hotspots: `AppWorkoutSession.kt`, `WatchWorkoutActivity.kt`, `HeartRateAndSync.kt`, `RepositoryContracts.kt`, `ChampionDatabase.kt`, `ChampionDaos.kt`, `DatabaseMappers.kt`, `RoomRepositories.kt`, `HealthRecordMapper.kt`, `HealthConnectSyncCoordinator.kt`, `ChampionNavigation.kt`, `ExercisesViewModel.kt` e `ExercisesScreen.kt`.
 - Migration prevista: manual `v5 → v6`, sem destructive migration, com schema `6.json`.
 - ADR prevista: ADR-014, sucedendo parcialmente política de rota da ADR-004 e alinhando ADR-012.
@@ -267,11 +271,15 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   protocolo live e handoff pertencem a `013-11`. Nenhuma flag, intent, API ou
   evidência foi fabricada; tipos `health`/`location` atuais e ownership foram
   preservados. `013-08` segue `in_progress`, `[ ]`, `7/17`.
-- Há dependência circular de aceite: `013-09`/`013-11` exigem `013-08` concluída,
-  mas o gate dinâmico reprovado exige os produtores dessas subtarefas. Próxima
-  ação requer decisão explícita para separar aceite da base FGS e validação das
-  integrações; nenhum item adicional foi marcado.
+- Dependência circular de aceite foi identificada e resolvida no planejamento:
+  `013-09`, `013-10` e `013-11` podem iniciar com a base operacional de `013-08`;
+  o aceite integrado de `013-08` aguarda seus handoffs e evidências. Nenhum item
+  adicional foi marcado.
 - Revisão independente do bloqueio FGS aprovou somente o registro documental, com
   ressalvas. Confirmou dependência circular entre `013-08` e handoffs de
   `013-09`/`013-11`; nenhuma próxima subtarefa é elegível sem decisão explícita de
   planejamento. Status permanece `in_progress`, item `[ ]` e progresso `7/17`.
+- Planejamento normalizado: `013-09`, `013-10` e `013-11` podem iniciar usando a
+  base operacional de `013-08`; nenhum item foi marcado como concluído. O aceite
+  integrado de `013-08` continua aguardando handoffs e evidências, e `013-12`
+  permanece dependente da conclusão dessas três frentes.

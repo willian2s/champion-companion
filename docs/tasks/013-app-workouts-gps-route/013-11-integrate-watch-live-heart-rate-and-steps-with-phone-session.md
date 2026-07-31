@@ -18,7 +18,9 @@ Spec 013; ADR-008/014; `013-01/03/08`; protocolos D0/F002, D3/D4, transporte, co
 
 ## Dependências
 
-`013-08` concluída. Paralela a 013-09/10 com contratos/repositories congelados.
+Base operacional de `013-08` disponível. Pode iniciar antes do aceite integrado de
+`013-08` e avançar em paralelo com `013-09`/`013-10`, com contratos/repositories
+congelados. Seu handoff BLE é necessário para o aceite integrado de `013-08`.
 
 ## Arquivos permitidos
 

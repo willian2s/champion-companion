@@ -1064,11 +1064,11 @@ Nenhum arquivo de produção, dependência, migration, schema ou teste foi alter
   composição dinâmica exige handoffs observáveis de produtor em `013-09` e
   `013-11`; fazê-lo em `013-08` criaria capacidade sem lifecycle e possível
   corrida entre produtor e owner.
-- O grafo atual cria dependência circular de aceite: `013-09` e `013-11` exigem
-  `013-08` concluída, enquanto a revisão exige produtores dessas duas subtarefas
-  para encerrar o gate dinâmico de `013-08`. Resolver isso requer decisão explícita
-  de planejamento sobre separar aceite da base FGS e validação das integrações;
-  esta execução não alterou dependências nem marcou outra subtarefa.
+- O grafo anterior criava dependência circular de aceite: `013-09` e `013-11`
+  exigiam `013-08` concluída, enquanto a revisão exigia produtores dessas duas
+  subtarefas para encerrar o gate dinâmico de `013-08`. A normalização posterior
+  separou base operacional de aceite integrado e permitiu iniciar as três frentes;
+  nenhum item foi marcado como concluído.
 - Arquivos alterados nesta execução: esta task e
   `docs/tasks/013-app-workouts-gps-route/013-00-overview.md`. Nenhum arquivo de
   produção, manifesto, contrato ou teste foi alterado; nenhum artefato de

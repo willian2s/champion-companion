@@ -333,23 +333,27 @@ Validação manual no Galaxy S22 cobre todos cenários informados na solicitaç�
 ## Ordem das subtarefas
 
 ```text
-013-01 → 013-02 → 013-03 → 013-04 → 013-05 → 013-06 → 013-07 → 013-08
+013-01 → 013-02 → 013-03 → 013-04 → 013-05 → 013-06 → 013-07 → 013-08 [base]
                                                                   ├→ 013-09 ─┐
                                                                   ├→ 013-10 ─┤
-                                                                  └→ 013-11 ─┘
-                                                                              ↓
-                                                                           013-12
-                                                                              ├→ 013-13
-                                                                              └→ 013-14
-                                                                                  ↓
-                                                                           013-15
-                                                                              ↓
-                                                                           013-16
-                                                                              ↓
-                                                                           013-17
+                                                                  └→ 013-11 ─┤
+                                                                              └→ 013-08 [aceite integrado] → 013-12
+                                                                                                      ├→ 013-13
+                                                                                                      └→ 013-14
+                                                                                                          ↓
+                                                                                                   013-15
+                                                                                                      ↓
+                                                                                                   013-16
+                                                                                                      ↓
+                                                                                                   013-17
 ```
 
-Após `013-08`, `013-09`, `013-10` e `013-11` podem avançar em paralelo, desde que não alterem simultaneamente contratos ou `RoomRepositories`. `013-13` e `013-14` podem avançar em paralelo após `013-12`; integração final em `013-15` exige ambas.
+`013-08` possui dois marcos de planejamento: sua base operacional já permite
+iniciar `013-09`, `013-10` e `013-11`; aceite integrado de `013-08` aguarda os
+handoffs de GPS/BLE e suas evidências. As três frentes podem avançar em paralelo,
+desde que não alterem simultaneamente contratos ou `RoomRepositories`. `013-13`
+e `013-14` podem avançar em paralelo após `013-12`; integração final em `013-15`
+exige ambas.
 
 ## Matriz de rastreabilidade
 

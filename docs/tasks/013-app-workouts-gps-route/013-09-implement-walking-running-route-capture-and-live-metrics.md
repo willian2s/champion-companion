@@ -18,7 +18,10 @@ Spec 013; ADR-014; `013-05/06/08`; política de privacidade atualizada.
 
 ## Dependências
 
-`013-08` concluída. Pode avançar em paralelo com 013-10/11 sem editar contratos/repositories simultaneamente.
+Base operacional de `013-08` disponível. Pode iniciar antes do aceite integrado de
+`013-08` e avançar em paralelo com `013-10`/`013-11`, sem editar
+contratos/repositories simultaneamente. Seu handoff de captura GPS é necessário
+para o aceite integrado de `013-08`.
 
 ## Arquivos permitidos
 
