@@ -599,11 +599,12 @@ feat/012-health-connect
 feat/013-phone-workouts
 feat/014-background-services
 feat/015-calendar-profile
-feat/017-backup-restore
-feat/018-transition
-feat/019-diagnostics
-feat/020-security
-feat/021-quality
+feat/017-alinhamento-visual-margens-cabecalhos
+feat/018-backup-restore
+feat/019-transition
+feat/020-diagnostics
+feat/021-security
+feat/022-quality
 ```
 
 ## Documentação
@@ -1637,6 +1638,13 @@ no Galaxy S22 com Health Connect real, após correção da identidade de sync po
 operações cumulativas para incrementos imutáveis, com checkpoint transacional,
 retry determinístico e compatibilidade com legado. Ver
 `docs/specs/016-health-connect-incremental-daily-steps.md`.
+
+**Refinamento visual independente (Spec 017):** margens e cabeçalhos de
+Calendário, detalhe diário, Dispositivo, Selecionar treino e Preparar serão
+alinhados ao padrão visual existente, sem reabrir Fases 006, 013 ou 015 e sem
+alterar contratos funcionais. Ver
+`docs/specs/017-alinhamento-visual-margens-cabecalhos.md` e o overview em
+`docs/tasks/017-alinhamento-visual-margens-cabecalhos/017-00-overview.md`.
 
 ## Objetivo
 
@@ -2713,7 +2721,9 @@ Fase 25 — Lançamento
 # 13. Priorização
 
 Fase 15 está concluída. Fase 13 está em execução documental; Fase 14 permanece
-backlog adiado. Nenhuma fase seguinte foi iniciada automaticamente.
+backlog adiado. O refinamento visual da Spec 017 é pacote independente e não
+constitui nova fase nem altera essa ordem. Nenhuma fase seguinte foi iniciada
+automaticamente.
 
 Spec 016 (passos incrementais) foi aplicada como refinamento pós-Fase-12 sobre
 a sincronização de passos do Health Connect. Nenhuma fase nova foi criada para
@@ -2746,6 +2756,7 @@ isso — o escopo permanece dentro da Fase 12.
 ## Média
 
 - visual;
+- refinamento visual da Spec 017;
 - diagnóstico;
 - gráficos;
 - personalização.

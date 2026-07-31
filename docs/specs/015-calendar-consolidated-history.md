@@ -13,6 +13,11 @@ cardíaca de atividades importadas,
 revisão e calibração de atividades, peso e fila local de Health Connect. Saúde
 possui shells de passos e distância; Calendário ainda é placeholder.
 
+Após o fechamento da fase, o refinamento estritamente visual de Calendário e
+detalhe diário foi separado na [Spec 017](017-alinhamento-visual-margens-cabecalhos.md).
+Ele não reabre a Fase 15 nem altera o read model, estados, navegação ou
+comportamento local entregue aqui.
+
 Room continua fonte operacional e visual primária. Health Connect é destino
 write-only. A Fase 15 deve transformar dados já persistidos em projeção temporal
 local, sem iniciar coleta, sincronização ou escrita de dados.

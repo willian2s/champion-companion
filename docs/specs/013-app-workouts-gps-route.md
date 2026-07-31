@@ -49,6 +49,8 @@ Entregar exercícios iniciados pelo celular com:
 - `docs/specs/012-native-health-connect.md`;
 - `docs/specs/015-calendar-consolidated-history.md`;
 - `docs/tasks/015-calendar-consolidated-history/015-00-overview.md`;
+- `docs/specs/017-alinhamento-visual-margens-cabecalhos.md` para o refinamento
+  visual independente das superfícies compartilhadas;
 - `docs/protocol/heart-rate-d0-f002.md`;
 - `docs/protocol/workouts-d3-d4.md`;
 - `docs/protocol/ble-transport.md`;
@@ -214,6 +216,12 @@ Entregar exercícios iniciados pelo celular com:
 82. Detalhe mostra presença de rota, pontos, segmentos, precisão média, distância GPS e status de sync; sem mapa/tiles/API key.
 83. UI cobre descrições acessíveis de GPS, countdown anunciado sem excesso, botões grandes, contraste, fonte aumentada, landscape, confirmações e estados de falha requeridos.
 84. Mudanças visuais produzem screenshots na execução das subtarefas correspondentes.
+
+O alinhamento de margem e cabeçalho das superfícies já existentes é tratado
+separadamente pela Spec 017. A subtarefa `013-15` permanece responsável pela
+integração funcional de atividades phone/correlacionadas, estados, histórico,
+sincronização e acessibilidade específica da Fase 13; não absorve esse pacote
+visual nem tem suas dependências alteradas por ele.
 
 ## Abordagem escolhida
 

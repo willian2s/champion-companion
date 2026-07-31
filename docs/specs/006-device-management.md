@@ -20,6 +20,11 @@ Documentos autoritativos:
 - `docs/roadmap/champion-companion-roadmap.md`
 - `docs/baseline/current-baseline.md` apenas como referência; pode estar desatualizado após Fase 05.
 
+O alinhamento visual posterior da tela de Dispositivo está planejado
+separadamente na [Spec 017](017-alinhamento-visual-margens-cabecalhos.md). Esse
+refinamento não reabre esta fase nem altera seus contratos BLE, estados ou
+critérios funcionais.
+
 ## Estado Atual Após Fase 05
 
 - Núcleo BLE da Fase 04 existe em `core/bluetooth`, `core/bluetooth/android` e `core/bluetooth/internal`.

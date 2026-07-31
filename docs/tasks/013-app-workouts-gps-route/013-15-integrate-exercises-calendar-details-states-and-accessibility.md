@@ -14,7 +14,8 @@ Fase 15 usa read model local e algumas queries exigem import. Fluxos 013-13/14 d
 
 ## Documentos obrigatórios
 
-Spec 013; spec/overview 015; ADR-009/013/014; `013-07/08/12/13/14`; design system/a11y existente.
+Spec 013; spec/overview 015; Spec 017 para o refinamento visual independente;
+ADR-009/013/014; `013-07/08/12/13/14`; design system/a11y existente.
 
 ## Dependências
 
@@ -61,7 +62,9 @@ Mapa, tiles, arquivo, servidor e nova regra de negócio de captura/sync.
 6. Consolidar BPM com identidade de atividade final e dedup.
 7. Integrar route sync status e permissão em detalhes/Settings.
 8. Implementar todos estados/erros seguros e mensagens sem detalhes técnicos.
-9. Ajustar semantics/live regions/botões/contraste/font scale/landscape.
+9. Ajustar semantics/live regions/botões/contraste/font scale/landscape nas
+   superfícies de integração funcional, sem absorver o alinhamento geral de
+   margens e cabeçalhos definido pela Spec 017.
 10. Capturar screenshots e atualizar overview.
 
 ## Critérios de aceite
@@ -99,7 +102,7 @@ Integração visual completa pronta para gate físico; overview atualizado.
 
 ## Riscos e cuidados
 
-Hotspots UI grandes. Não misturar refatorações. Live metrics não devem causar recomposição/announcement excessivos.
+Hotspots UI grandes. Não misturar refatorações. Live metrics não devem causar recomposição/announcement excessivos. O pacote visual de margens e cabeçalhos das superfícies existentes pertence à Spec 017; não duplicar sua implementação nesta subtarefa.
 
 ## Rollback
 
