@@ -49,12 +49,13 @@ Escopo factual atual já inclui também na Fase 12:
   ponte de compatibilidade com legado. Ver
   `docs/specs/016-health-connect-incremental-daily-steps.md`.
 
-O refinamento visual planejado na **Spec 017** é independente das fases
-concluídas: registra correções pendentes de margem e cabeçalho nas superfícies
-de Calendário, detalhe diário, Dispositivo, Selecionar treino e Preparar. Até a
-execução das subtarefas, o comportamento factual dessas telas permanece o
-mesmo; a spec não altera estado, contratos, navegação, BLE ou persistência. Ver
-`docs/specs/017-alinhamento-visual-margens-cabecalhos.md`.
+O refinamento visual da **Spec 017** foi concluído de forma independente das
+fases anteriores: margens e cabeçalhos foram alinhados nas superfícies de
+Calendário, detalhe diário, Dispositivo, Selecionar treino e Preparar. O
+comportamento factual dessas telas permanece o mesmo; a spec não alterou
+estado, contratos, navegação, BLE ou persistência. Ver
+`docs/specs/017-alinhamento-visual-margens-cabecalhos.md` e o overview
+`docs/tasks/017-alinhamento-visual-margens-cabecalhos/017-00-overview.md`.
 
 Escopo factual atual do código ainda não inclui, além da base de foreground
 service da sessão adicionada na Fase 13:

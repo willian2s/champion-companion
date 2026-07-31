@@ -1,7 +1,7 @@
 # 017 — Alinhamento visual de margens e cabeçalhos
 
 - **Ticker:** `017`
-- **Status:** pending
+- **Status:** concluída.
 - **Tipo:** pacote visual independente
 
 ## Contexto
