@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [017-alinhamento-visual-margens-cabecalhos.md](../../specs/017-alinhamento-visual-margens-cabecalhos.md)
-- **Progresso:** 1/3 subtarefas concluídas
+- **Progresso:** 2/3 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ contratos, estado, comportamento ou navegação.
 ## Checklist
 
 - [x] [017-01-alinhar-calendario-e-detalhe-diario.md](017-01-alinhar-calendario-e-detalhe-diario.md)
-- [ ] [017-02-alinhar-tela-dispositivo.md](017-02-alinhar-tela-dispositivo.md)
+- [x] [017-02-alinhar-tela-dispositivo.md](017-02-alinhar-tela-dispositivo.md)
 - [ ] [017-03-alinhar-selecao-e-preparacao-de-treino.md](017-03-alinhar-selecao-e-preparacao-de-treino.md)
 
 ## Observações
@@ -39,3 +39,7 @@ contratos, estado, comportamento ou navegação.
   sanitizados e comandos obrigatórios aprovados. Rótulos da navegação inferior
   quebram em duas linhas com fonte `1,3x`, sem corte ou bloqueio; acompanhar nas
   próximas superfícies.
+- `017-02` concluída com estado associado/conectado validado em dispositivo
+  físico, screenshots sanitizados e comandos obrigatórios aprovados. Estados de
+  busca e vazio não foram acionados para não iniciar BLE; branches permanecem
+  preservadas no diff e sem bloqueio.

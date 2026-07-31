@@ -44,14 +44,15 @@ import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionStatus
 import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionVisualState
@@ -328,17 +329,10 @@ private fun DeviceManagementScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(ChampionSpacing.extraLarge),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Dispositivo", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    text = "Gerencie busca, conexão, associação e informações seguras do Champion C001.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+            DeviceHeader()
 
             HealthCard(
                 title = "Resumo da conexão",
@@ -464,6 +458,34 @@ private fun DeviceManagementScreen(
 }
 
 @Composable
+private fun DeviceHeader() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Dispositivo",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Gerencie busca, conexão, associação e informações seguras do Champion C001.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AssociatedDeviceSection(
     device: DeviceManagementAssociatedDevice,
     connectionState: DeviceManagementConnectionState,
@@ -482,8 +504,8 @@ private fun AssociatedDeviceSection(
         )
         HorizontalDivider(modifier = Modifier.padding(vertical = ChampionSpacing.medium))
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
             AssistChip(onClick = {}, enabled = false, label = { Text(device.safeIdentifier) })
             device.firmware?.let { firmware ->
@@ -544,7 +566,7 @@ private fun ScanResultsSection(
                 message = "Inicie uma nova busca para procurar um dispositivo compatível por perto.",
             )
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
                 candidates.forEach { candidate ->
                     CandidateRow(
                         candidate = candidate,

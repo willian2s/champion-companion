@@ -2,7 +2,7 @@
 
 - **Ticker:** `017`
 - **Número:** `02`
-- **Status:** pending
+- **Status:** concluído
 
 ## Objetivo e resultado esperado
 
@@ -114,3 +114,71 @@ Smoke manual obrigatório:
   ações, rótulos e alvos de toque sem criar comportamento novo.
 - Screenshots não devem expor identificador completo, relatório ou dado pessoal.
 - Não reabrir Fase 006 nem alterar dívida já aceita.
+
+## Registro de execução
+
+### Status
+
+Concluído. Subtarefa limitada à tela Dispositivo; `017-03` não foi iniciada.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceScreen.kt`;
+- `017-02-dispositivo-portrait.png`;
+- `017-02-dispositivo-fonte-1-3x.png`;
+- `017-02-dispositivo-landscape.png`.
+
+As capturas foram sanitizadas antes do registro: conteúdo do dispositivo
+associado foi coberto, metadados removidos quando aplicável e nenhum relatório,
+identificador completo ou payload BLE foi incluído.
+
+### Decisões e desvios
+
+- A margem da página passou a usar `ChampionSpacing.extraLarge` e o ritmo
+  principal passou a usar `ChampionSpacing.large`.
+- O cabeçalho textual foi encapsulado em `DeviceHeader`, com `Card`,
+  `ChampionShapeLarge`, `surfaceContainerLowest`, padding `large`,
+  `headlineSmall`, peso seminegrito, texto de apoio `bodyMedium` e um heading.
+- Literais de spacing tocados foram substituídos por `ChampionSpacing.small` e
+  `ChampionSpacing.medium`; dimensões de componentes não foram convertidas.
+- Branches de estado, intents, callbacks, lifecycle, permissões, scan,
+  conexão, associação, diagnóstico, exportação, diálogos e PoC debug não foram
+  alterados.
+- Não houve desvio funcional. Nenhum teste automatizado foi criado, alterado ou
+  executado.
+
+### Comandos executados e resultados
+
+- `git diff --check` — passou antes da validação Gradle.
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`;
+  relatório lint sem erros.
+- `./gradlew installDebug` — `BUILD SUCCESSFUL`; instalado em `SM-S901E - 16`.
+- `adb devices` — dispositivo físico disponível para smoke visual.
+
+### Evidências visuais e smoke manual
+
+- Portrait: header em card, margem externa, resumo de conexão e estado associado
+  conectado observados; textos e ações permaneceram acessíveis.
+- Fonte aumentada: `font_scale=1.3`; título e texto de apoio fizeram wrap sem
+  corte. A navegação inferior manteve rótulos visíveis, com quebra em duas
+  linhas já registrada no pacote.
+- Landscape: header, texto de apoio e resumo de conexão permaneceram visíveis;
+  status de conexão não foi ocultado.
+- O fluxo disponível no aparelho foi inspecionado sem iniciar busca, conexão,
+  exportação ou diagnóstico. Nenhum prompt novo de permissão, scan, conexão ou
+  exportação apareceu.
+- Branches de vazio, busca e candidatos foram preservadas por inspeção do diff;
+  não foram disparadas para evitar ação BLE não solicitada durante smoke.
+
+### Riscos residuais
+
+- Estados de busca e vazio não foram acionados manualmente nesta validação, pois
+  isso iniciaria fluxo BLE; permanecem sem alteração estrutural no diff.
+- Em fonte `1,3x`, rótulos da navegação inferior quebram em duas linhas, sem
+  corte e fora do escopo desta subtarefa.
+
+### Revisão independente
+
+Aprovada com ressalvas não bloqueantes. Revisão confirmou ticker, checklist,
+escopo visual, tokens, header, preservação de BLE/estado/callbacks, screenshots
+sanitizados e comandos registrados.
