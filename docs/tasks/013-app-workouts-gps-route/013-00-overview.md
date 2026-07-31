@@ -162,3 +162,30 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   sem testes automatizados. `013-08` permanece `in_progress`, item `[ ]` e
   progresso `7/17`; gate manual, screenshots e dumps sanitizados ainda bloqueiam
   conclusão.
+- Gate manual parcial executou countdowns `0/5/10`, FGS `health`, pausa/continuação,
+  background, rotação, fonte aumentada, force-stop, recuperação, confirmações,
+  descarte, swipe da task e permissão de notificações. Item permanece `[ ]` e
+  progresso `7/17`.
+- Registro intermediário anterior marcou reboot e ações de notificação como
+  pendentes enquanto ADB estava `offline`; retificação posterior confirmou
+  reboot sem restart automático, ações diretas `Pausar`/`Finalizar` e gates de
+  notificações. CAS, banco indisponível/lento, relógio civil e countdown `3`
+  intermediário seguem pendentes em `013-08`.
+- Correções visuais pós-gate concluídas: `Finalizar` tornou-se icon-only com
+  descrição acessível, e a Activity aberta pela notificação passou a usar tema
+  dedicado sem action bar, header do nome do app ou fundo teal da splash.
+  Build/install e validação manual passaram; `013-08` permanece `[ ]`, `7/17`,
+  aguardando CAS/banco/relógio e revisão independente.
+- Fundo da janela de sessão agora é determinístico via `Surface` Compose de tela
+  inteira, inclusive confirmação; captura visual confirmou ausência de teal
+  residual. `013-08` continua `[ ]`, `7/17`.
+- Pendências restantes de `013-08` foram consolidadas no [follow-up de validação
+  adversarial](../../integration/013-08-foreground-service-recovery-follow-up.md):
+  CAS, Room indisponível/lento, relógio civil, countdown `3`, safe insets e
+  evidências duráveis.
+- Reboot foi repetido após reconexão: nenhum FGS/notificação iniciou antes da
+  abertura do app, e recuperação apareceu somente depois. Bloqueios global e
+  isolado do canal foram validados com retry/retomada após reativação. O usuário
+  confirmou manualmente `Pausar` e `Finalizar` diretamente na notificação;
+  permanecem somente CAS, banco indisponível/lento, relógio civil e countdown
+  `3` intermediário.

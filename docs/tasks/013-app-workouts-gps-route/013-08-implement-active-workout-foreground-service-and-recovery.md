@@ -257,6 +257,62 @@ Não criar, alterar ou executar testes automatizados.
 ### Estado
 
 - Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+
+As pendências adversariais foram separadas em
+[`013-08-foreground-service-recovery-follow-up.md`](../../../integration/013-08-foreground-service-recovery-follow-up.md).
+
+## Revisão independente pós-correção de fundo — 2026-07-31
+
+- Veredito: aprovado com ressalvas; nenhum bloqueador estático em tema, Compose,
+  confirmação ou ações de notificação.
+- Confirmados `Surface` de tela inteira, background Compose, tema sem action bar,
+  botão icon-only acessível, `singleTop` e `onNewIntent` preservados.
+- Ressalvas restantes: gate físico de CAS/Room/relógio/countdown `3`, evidências
+  duráveis no repositório/PR e validação de safe insets em aparelhos adicionais.
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+
+## Correções visuais e validação complementar — 2026-07-31
+
+### Correções
+
+- O controle visual de finalização na sessão ativa agora exibe somente o ícone
+  de parada, com `contentDescription` de `Finalizar treino`; confirmação segura
+  permanece obrigatória e o alvo de toque não depende do texto do botão.
+- `WorkoutSessionActivity` usa `Theme.ChampionCompanion.WorkoutSession`, tema
+  dedicado sem action bar e sem background da splash. A tela retomada passa a
+  usar somente o layout atual da sessão, sem header `Champion Companion Dev` e
+  sem fundo teal residual.
+
+### Validação complementar
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; instalado no Galaxy S22,
+  Android 16.
+- Em portrait e fonte aumentada, botão de finalização permaneceu icon-only,
+  com anúncio acessível `Finalizar treino` e confirmação abriu corretamente.
+- Abertura da notificação retornou à tela ativa sem header do nome do app.
+- Ações `Pausar` e `Finalizar` pela notificação foram confirmadas manualmente;
+  a segunda abriu confirmação, sem mutação direta.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Estado
+
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+- Permanecem pendentes CAS forçado, banco indisponível/lento, alteração do
+  relógio civil e nova revisão independente final.
+
+## Correção de fundo da Activity — 2026-07-31
+
+- O tema transparente dedicado removia action bar, mas deixava a confirmação e
+  o primeiro frame sem fundo determinístico. `WorkoutSessionActivity` agora
+  envolve todos os shells em `Surface(fillMaxSize(), MaterialTheme.colorScheme.background)`.
+- `WorkoutShellCard` também pinta o background Compose em toda a área rolável;
+  a janela aberta por notificação não exibe mais a cor teal da splash.
+- Build, lint, instalação e diff check passaram após esta correção. A validação
+  visual anterior confirmou fundo de sessão escuro coerente, sem teal residual;
+  Surface também cobre confirmação e primeiro frame.
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
 - Gate manual ainda precisa cobrir conflito CAS persistente, banco indisponível,
   canal bloqueado, bloqueio global, revogação durante pausa e retorno das
   configurações.
@@ -557,3 +613,69 @@ Não criar, alterar ou executar testes automatizados.
 - Validação física completa, screenshots e dumps sanitizados continuam
   bloqueando conclusão. GPS live, BLE live, atividade revisável, Health Connect,
   migration e schema permanecem fora desta correção.
+
+## Registro de gate manual — execução parcial no Galaxy S22
+
+### Cenários aprovados
+
+- Countdowns `0`, `5` e `10` iniciaram sessão somente após preparação; `10`
+  exibiu `7 segundos` antes da promoção.
+- FGS ativo foi observado com tipo `health`; notificação exibiu tipo e duração.
+- Pausar/continuar pela tela, background, retorno pela notificação, rotação e
+  fonte aumentada funcionaram sem duplicar o serviço.
+- `force-stop` produziu recuperação explícita; retomar iniciou FGS novamente.
+- Finalizar exibiu confirmação e persistiu `FINISHING`; descartar exibiu
+  confirmação e persistiu `DISCARDED`.
+- Swipe da task deixou recuperação visível.
+- Negação de `POST_NOTIFICATIONS` bloqueou início; concessão posterior liberou o
+  fluxo.
+
+### Evidências sanitizadas capturadas
+
+- `013-08-preparation.png`, `013-08-countdown-5s.png`;
+- `013-08-recovery.png`;
+- `013-08-finish-confirmation.png`, `013-08-discard-confirmation.png`;
+- `013-08-active-font-130.png`, `013-08-active-landscape.png`.
+
+Arquivos ficaram no diretório temporário do ambiente. Capturas da gaveta que
+continham notificações de terceiros não são evidência e não devem ser anexadas.
+
+### Bloqueios e cenários pendentes
+
+- Registro intermediário anterior não reproduziu os botões no System UI; a
+  validação manual posterior confirmou `Pausar` e `Finalizar` diretamente na
+  notificação. `Finalizar` abriu confirmação, sem mutação direta.
+- Reboot foi repetido após reconexão e confirmou ausência de restart automático.
+- Conflitos CAS, banco indisponível/lento e alteração do relógio civil continuam
+  sem execução física.
+- Countdown `3` iniciou sessão, mas não houve captura explícita do estado
+  intermediário antes de zero.
+
+### Estado
+
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+- Gate manual, evidências finais e nova revisão independente continuam
+  obrigatórios antes de marcar subtarefa como concluída.
+
+## Complemento do gate — reboot e bloqueios de notificação
+
+- Após reconexão do Galaxy S22, não havia `WorkoutRecordingService` em
+  foreground nem notificação antes da abertura do app.
+- Ao abrir o app, sessão anterior apareceu como `Treino interrompido`; retomada
+  posterior promoveu FGS `health` com sucesso.
+- Bloqueio global de notificações apresentou superfície `Tentar preparar
+  recuperação`; após reativação nas configurações, retry e retomada funcionaram.
+- Bloqueio isolado do canal exibiu mensagem específica de canal desativado e
+  manteve a sessão `PAUSED`; reativação permitiu continuar.
+- `dumpsys notification` confirmou ações internas `Pausar` e `Finalizar`; o
+  usuário confirmou toque físico funcional nas duas ações. `Finalizar` abriu
+  confirmação conforme esperado.
+
+### Estado atualizado
+
+- Reboot sem restart automático, bloqueio global e bloqueio isolado do canal
+  agora estão validados.
+- Permanecem pendentes: conflito CAS, indisponibilidade persistente do banco,
+  alteração do relógio civil e captura explícita do countdown `3` antes de zero.
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.

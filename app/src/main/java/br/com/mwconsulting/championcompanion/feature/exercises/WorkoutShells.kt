@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -741,9 +742,7 @@ fun ActiveWorkoutShell(
                         containerColor = MaterialTheme.colorScheme.error,
                     ),
                 ) {
-                    Icon(Icons.Default.Stop, contentDescription = "Finalizar")
-                    Spacer(Modifier.width(8.dp))
-                    Text("Finalizar")
+                    Icon(Icons.Default.Stop, contentDescription = "Finalizar treino")
                 }
             }
         }
@@ -1107,6 +1106,7 @@ private fun WorkoutShellCard(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(ChampionSpacing.extraLarge),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),

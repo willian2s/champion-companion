@@ -6,9 +6,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionCompanionTheme
 import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
@@ -25,30 +29,35 @@ class WorkoutSessionActivity : ComponentActivity() {
         request = intent.toWorkoutSessionRequestOrNull()
         setContent {
             ChampionCompanionTheme {
-                val viewModel = ViewModelProvider(this)[ExercisesViewModel::class.java]
-                when (val current = request) {
-                    is WorkoutSessionRequest.Active -> ActiveWorkoutShell(
-                        sessionId = current.sessionId,
-                        onNavigateTo = ::handleDestination,
-                        onNavigateBack = ::finish,
-                        exercisesViewModel = viewModel,
-                    )
-                    is WorkoutSessionRequest.Recovery -> WorkoutRecoveryShell(
-                        sessionId = current.sessionId,
-                        onNavigateTo = ::handleDestination,
-                        onNavigateBack = ::finish,
-                        exercisesViewModel = viewModel,
-                    )
-                    is WorkoutSessionRequest.FinishConfirmation -> WorkoutFinishConfirmationShell(
-                        sessionId = current.sessionId,
-                        onConfirm = { viewModel.finishSession() },
-                        onCancel = ::finish,
-                        onRecoveryRequired = {
-                            request = WorkoutSessionRequest.Recovery(current.sessionId)
-                        },
-                        exercisesViewModel = viewModel,
-                    )
-                    null -> finish()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    val viewModel = ViewModelProvider(this)[ExercisesViewModel::class.java]
+                    when (val current = request) {
+                        is WorkoutSessionRequest.Active -> ActiveWorkoutShell(
+                            sessionId = current.sessionId,
+                            onNavigateTo = ::handleDestination,
+                            onNavigateBack = ::finish,
+                            exercisesViewModel = viewModel,
+                        )
+                        is WorkoutSessionRequest.Recovery -> WorkoutRecoveryShell(
+                            sessionId = current.sessionId,
+                            onNavigateTo = ::handleDestination,
+                            onNavigateBack = ::finish,
+                            exercisesViewModel = viewModel,
+                        )
+                        is WorkoutSessionRequest.FinishConfirmation -> WorkoutFinishConfirmationShell(
+                            sessionId = current.sessionId,
+                            onConfirm = { viewModel.finishSession() },
+                            onCancel = ::finish,
+                            onRecoveryRequired = {
+                                request = WorkoutSessionRequest.Recovery(current.sessionId)
+                            },
+                            exercisesViewModel = viewModel,
+                        )
+                        null -> finish()
+                    }
                 }
             }
         }

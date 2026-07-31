@@ -837,6 +837,90 @@ screenshots e evidências sanitizadas continuam obrigatórios.
   indisponibilidade persistente e attach durante teardown. Evidências visuais e
   dumps sanitizados continuam obrigatórios.
 
+## Gate manual parcial — 2026-07-31
+
+### Aprovado no Galaxy S22 / Android 16
+
+- Countdowns `0`, `5` e `10`; promoção FGS após countdown; tipo `health` e
+  notificação com duração.
+- Pausa/continuação pela tela; background e retorno pela notificação; rotação e
+  fonte aumentada sem duplicar serviço.
+- `force-stop` com recuperação explícita e retomada; finalização confirmada com
+  `FINISHING`; descarte confirmado com `DISCARDED`.
+- Swipe da task com recuperação; recusa de notificações bloqueando início e
+  concessão posterior liberando o fluxo.
+
+### Bloqueios do gate
+
+- Ação direta da notificação não foi exercitada: System UI abriu Activity em vez
+  de exibir ação de controle.
+- Reboot deixou ADB Wi-Fi `offline`; ausência de restart automático não foi
+  confirmada.
+- CAS, banco indisponível/lento, bloqueio global/canal, relógio civil e estado
+  intermediário explícito do countdown `3` permanecem pendentes.
+
+Status permanece `in_progress`; item desmarcado, progresso `7/17`.
+
+Pendências detalhadas foram movidas para
+[`013-08-foreground-service-recovery-follow-up.md`](013-08-foreground-service-recovery-follow-up.md).
+
+## Atualização do gate — reboot e bloqueios de notificação
+
+- Reboot validado no Galaxy S22: nenhum serviço foreground ou notificação antes
+  da abertura do app; sessão foi oferecida para recuperação somente depois.
+- Bloqueio global exibiu `Tentar preparar recuperação`; reativação seguida de
+  retry e retomada promoveu FGS normalmente.
+- Bloqueio isolado do canal exibiu mensagem específica, manteve `PAUSED` e
+  permitiu continuação após reativação.
+- `dumpsys notification` confirmou `Pausar` e `Finalizar` como ações PendingIntent
+  internas. System UI não expôs toque físico reproduzível nas ações; toque no
+  cartão abriu Activity.
+
+Reboot e gates de notificação deixam de ser pendências. CAS, banco indisponível,
+alteração do relógio civil, countdown `3` intermediário e ação direta da
+notificação continuam bloqueando conclusão; status `in_progress`, item `[ ]`,
+progresso `7/17`.
+
+## Correções visuais pós-gate — 2026-07-31
+
+- `Finalizar` na tela ativa agora é icon-only, mantém alvo acessível e anuncia
+  `Finalizar treino`; confirmação segura continua sendo exibida.
+- `WorkoutSessionActivity` recebeu `Theme.ChampionCompanion.WorkoutSession`,
+  removendo action bar padrão, header `Champion Companion Dev` e fundo teal da
+  splash ao abrir pela notificação. `WorkoutShellCard` pinta background da
+  paleta Compose em toda a janela.
+- Validação manual confirmou icon-only com fonte aumentada, confirmação ao tocar
+  o ícone, retorno da notificação ao layout atual e ações `Pausar`/`Finalizar`
+  da notificação. Finalizar abriu confirmação sem mutação direta.
+- `git diff --check`, lint, assemble debug/release e `installDebug` passaram.
+
+Status permanece `in_progress`; item desmarcado, progresso `7/17`. Restam
+CAS/banco indisponível, relógio civil e revisão independente final.
+
+## Correção adicional de fundo — 2026-07-31
+
+- `WorkoutSessionActivity` envolve Active, Recovery e FinishConfirmation em
+  `Surface` de tela inteira com `MaterialTheme.colorScheme.background`.
+- `WorkoutShellCard` mantém background Compose na área rolável. Isso elimina o
+  fundo teal residual causado pelo `windowBackground` transparente quando a
+  Activity é aberta pela notificação.
+- Build/lint/assemble/install e `git diff --check` passaram; captura visual
+  confirmou fundo coerente e confirmação preservada.
+
+Status continua `in_progress`; item `[ ]`, progresso `7/17`.
+
+## Retificação do gate de notificação — 2026-07-31
+
+- Registro anterior refletia limitação do System UI/ADB. Validação manual do
+  usuário confirmou `Pausar` e `Finalizar` diretamente na notificação.
+- `Finalizar` abriu confirmação segura, sem mutação direta; `Pausar` executou a
+  ação de serviço esperada.
+- Reboot, bloqueio global e bloqueio isolado do canal também estão validados.
+- Pendências reais restantes: conflito CAS, Room indisponível/lento, alteração
+  do relógio civil e countdown `3` intermediário.
+
+Status permanece `in_progress`; item desmarcado, progresso `7/17`.
+
 ## Revisão independente pós-correções finais — 2026-07-31
 
 ### Veredito

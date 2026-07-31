@@ -90,7 +90,7 @@
             android:name=".feature.exercises.WorkoutSessionActivity"
             android:exported="false"
             android:launchMode="singleTop"
-            android:theme="@style/Theme.ChampionCompanion"
+            android:theme="@style/Theme.ChampionCompanion.WorkoutSession"
             android:windowSoftInputMode="adjustResize" />
 
         <service
