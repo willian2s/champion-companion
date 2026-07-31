@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -92,7 +93,7 @@ fun WorkoutTypeSelectionShell(
     onSelectType: (String) -> Unit,
     onNavigateBack: () -> Unit,
 ) {
-    WorkoutShellCard(
+    WorkoutSelectionPreparationLayout(
         title = "Selecionar treino",
         description = "Escolha um tipo. Você revisará todas as condições antes de iniciar.",
         onNavigateBack = onNavigateBack,
@@ -154,7 +155,7 @@ fun WorkoutPreparationShell(
     }
 
     if (selectedType == null) {
-        WorkoutShellCard(
+        WorkoutSelectionPreparationLayout(
             title = "Tipo de treino inválido",
             description = "Volte e selecione caminhada, corrida, treino livre ou esteira.",
             onNavigateBack = onNavigateBack,
@@ -183,7 +184,7 @@ fun WorkoutPreparationShell(
     }
 
     val preparation = state.workoutPreparation
-    WorkoutShellCard(
+    WorkoutSelectionPreparationLayout(
         title = "Preparar ${selectedType.toWorkoutTypeLabel().lowercase()}",
         description = "Confira countdown, GPS quando aplicável e relógio opcional.",
         onNavigateBack = {
@@ -274,6 +275,52 @@ fun WorkoutPreparationShell(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun WorkoutSelectionPreparationLayout(
+    title: String,
+    description: String,
+    onNavigateBack: () -> Unit,
+    content: @Composable () -> Unit = {},
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(ChampionSpacing.extraLarge),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ChampionShapeLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            ),
+        ) {
+            Column(
+                modifier = Modifier.padding(ChampionSpacing.large),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(onClick = onNavigateBack) {
+                    Text("Voltar")
+                }
+            }
+        }
+        content()
     }
 }
 

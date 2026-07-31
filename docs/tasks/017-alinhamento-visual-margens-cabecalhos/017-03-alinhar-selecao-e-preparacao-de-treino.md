@@ -2,7 +2,7 @@
 
 - **Ticker:** `017`
 - **Número:** `03`
-- **Status:** pending
+- **Status:** concluído
 
 ## Objetivo e resultado esperado
 
@@ -131,3 +131,84 @@ Smoke manual obrigatório:
   treino.
 - Não resolver bloqueios, requisitos ou validações pendentes de `013-08` a
   `013-15` nesta subtarefa.
+
+## Registro de execução
+
+### Status
+
+Concluído. Seleção e preparação foram alinhadas sem alterar estado, intents,
+callbacks, countdown, GPS, permissões, notificação, serviço ou sessão.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/WorkoutShells.kt`;
+- `017-03-exercicios-portrait.png`;
+- `017-03-exercicios-fonte-1-3x.png`;
+- `017-03-selecao-portrait.png`;
+- `017-03-preparacao-gps-portrait.png`;
+- `017-03-preparacao-sem-gps-portrait.png`;
+- `017-03-selecao-fonte-1-3x.png`;
+- `017-03-preparacao-sem-gps-fonte-1-3x.png`;
+- `017-03-selecao-landscape-fonte-1-3x.png`;
+- `017-03-preparacao-landscape-fonte-1-3x.png`;
+- `017-03-retorno-selecao-landscape-fonte-1-3x.png`;
+- `017-03-retorno-exercicios-landscape-fonte-1-3x.png`.
+
+As capturas registram superfícies genéricas, sem identificadores pessoais,
+payload BLE ou métricas sensíveis.
+
+### Decisões e desvios
+
+- Foi criado layout local exclusivo de seleção e preparação, mantendo
+  `WorkoutShellCard` intacto para treino ativo e recuperação.
+- O header passou a ser card independente, com margem externa
+  `ChampionSpacing.extraLarge`, ritmo `ChampionSpacing.large`, padding interno
+  `large`, `headlineSmall`, peso seminegrito e heading semântico único.
+- Cards de tipos, countdown, GPS, ausência de GPS, notificação, relógio,
+  notices, estado e texto de segurança passaram a ser irmãos do header.
+- A ação `Voltar` foi movida para dentro do header e usa `OutlinedButton`,
+  seguindo `CalendarDayScreen::DayHeader`; callbacks foram preservados e
+  `ExitWorkoutPreparation` continua antes de `onNavigateBack`.
+- Não houve desvio funcional. Nenhum teste automatizado foi criado, alterado ou
+  executado.
+
+### Comandos executados e resultados
+
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`; lint e
+  builds debug/release concluídos.
+- `./gradlew installDebug` — `BUILD SUCCESSFUL`; instalado em `SM-S901E - 16`.
+- `adb devices` — dispositivo físico disponível para smoke visual.
+
+### Evidências visuais e smoke manual
+
+- Seleção portrait: header independente, título, descrição, botão `Voltar` no
+  padrão outlined e quatro tipos visíveis.
+- Preparação portrait com GPS: countdown, estado GPS, ação de permissão e
+  conteúdo preservados.
+- Preparação portrait sem GPS: card `Sem GPS`, countdown e notificação
+  preservados, sem solicitação de localização.
+- Fonte aumentada: `font_scale=1.3`; seleção e preparação mantiveram título,
+  descrição, botão de retorno e cards acessíveis, com rolagem vertical.
+- Landscape: seleção e preparação mantiveram header, descrição e `Voltar`
+  visíveis; conteúdo permaneceu rolável atrás da navegação inferior.
+- Retorno: `Voltar` na preparação retornou à seleção; `Voltar` na seleção
+  retornou a Exercícios. Fluxo foi interrompido antes de countdown e não criou
+  sessão, atividade, rota ou serviço.
+- O diff não contém alterações em treino ativo, recuperação ou confirmação.
+
+### Riscos residuais
+
+- Estados GPS pronto/perdido e permissão de notificação negada não foram
+  disparados manualmente para evitar iniciar fluxos externos; branches e
+  callbacks permanecem inalterados no diff.
+- Em landscape com fonte aumentada, a navegação inferior ocupa área visual e o
+  conteúdo inferior exige rolagem; header e ação essencial permaneceram
+  acessíveis.
+
+### Revisão independente
+
+Revisão independente concluída. Código visual foi considerado correto; revisão
+inicial reprovou somente por evidências antigas e documentação pendente. Após
+recaptura das telas atuais, execução dos comandos e registro acima, pendências
+foram resolvidas.

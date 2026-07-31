@@ -1,8 +1,8 @@
 # 017 — Alinhamento visual de margens e cabeçalhos
 
-- **Status geral:** in_progress
+- **Status geral:** concluído
 - **Spec:** [017-alinhamento-visual-margens-cabecalhos.md](../../specs/017-alinhamento-visual-margens-cabecalhos.md)
-- **Progresso:** 2/3 subtarefas concluídas
+- **Progresso:** 3/3 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ contratos, estado, comportamento ou navegação.
 
 - [x] [017-01-alinhar-calendario-e-detalhe-diario.md](017-01-alinhar-calendario-e-detalhe-diario.md)
 - [x] [017-02-alinhar-tela-dispositivo.md](017-02-alinhar-tela-dispositivo.md)
-- [ ] [017-03-alinhar-selecao-e-preparacao-de-treino.md](017-03-alinhar-selecao-e-preparacao-de-treino.md)
+- [x] [017-03-alinhar-selecao-e-preparacao-de-treino.md](017-03-alinhar-selecao-e-preparacao-de-treino.md)
 
 ## Observações
 
@@ -43,3 +43,7 @@ contratos, estado, comportamento ou navegação.
   físico, screenshots sanitizados e comandos obrigatórios aprovados. Estados de
   busca e vazio não foram acionados para não iniciar BLE; branches permanecem
   preservadas no diff e sem bloqueio.
+- `017-03` concluída com seleção e preparação validadas em portrait, fonte
+  `1,3x` e landscape. Header independente, botão outlined no padrão do detalhe
+  diário e retorno antes do countdown foram confirmados; nenhum fluxo de sessão
+  foi iniciado.
