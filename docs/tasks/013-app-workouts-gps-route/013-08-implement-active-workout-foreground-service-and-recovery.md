@@ -259,7 +259,7 @@ Não criar, alterar ou executar testes automatizados.
 - Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
 
 As pendências adversariais foram separadas em
-[`013-08-foreground-service-recovery-follow-up.md`](../../../integration/013-08-foreground-service-recovery-follow-up.md).
+[`013-08-foreground-service-recovery-follow-up.md`](../../integration/013-08-foreground-service-recovery-follow-up.md).
 
 ## Revisão independente pós-correção de fundo — 2026-07-31
 
@@ -679,3 +679,242 @@ continham notificações de terceiros não são evidência e não devem ser anex
 - Permanecem pendentes: conflito CAS, indisponibilidade persistente do banco,
   alteração do relógio civil e captura explícita do countdown `3` antes de zero.
 - Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+
+## Gate adversarial complementar — 2026-07-31
+
+### Escopo e resultado
+
+- Executado no Galaxy S22 `SM-S901E`, Android 16, com serial ADB explícito.
+- Countdown `3` exibiu estado intermediário antes de zero. Dump imediato de
+  `dumpsys activity services` retornou `(nothing)`; após a transição final,
+  `WorkoutRecordingService` apareceu em foreground com tipo `0x00000100`, canal
+  `workout_session_active` e duas ações.
+- `force-stop` seguido de abertura explícita exibiu recuperação. Retomada
+  promoveu o FGS novamente; pausa atualizou a notificação para estado pausado.
+- Gaveta de notificações exibiu `Continuar` e `Finalizar`; a repetição atual não
+  considerou o toque em `Continuar` conclusivo por falta de mudança observável
+  no estado após o toque.
+- Capturas sanitizadas e dump resumido foram preservados em
+  `docs/integration/013-08-evidence/` e descritos em
+  `docs/integration/013-08-evidence.md`.
+
+### Desvios e bloqueios
+
+- Alteração do relógio civil não foi executável: `date` retornou `Operation not
+  permitted` no dispositivo não-root. `auto_time` foi restaurado para `1`.
+- Não existe injeção segura para provocar CAS persistente ou Room lento/
+  indisponível sem alterar produção ou manipular banco privado; ambos seguem
+  bloqueados e não foram simulados por meios inseguros.
+- Landscape e fonte aumentada possuem capturas sanitizadas anteriores, mas a
+  matriz completa com navegação de três botões e cutout permanece pendente.
+- A captura de fonte aumentada foi substituída após `installDebug` e confirma
+  controle icon-only sem quebra de texto. A captura landscape anterior permanece
+  apenas como referência visual, não como aprovação de safe insets.
+
+### Arquivos alterados nesta execução
+
+- `docs/integration/013-08-evidence.md`;
+- `docs/integration/013-08-evidence/`;
+- esta task;
+- overview e follow-up da integração.
+
+Nenhum arquivo de produção, dependência, migration ou teste foi alterado.
+
+### Comandos executados e evidências
+
+- `adb -s SERIAL shell input ...`: preparação, countdown, force-stop,
+  recuperação, pausa e gaveta de notificações; concluídos conforme registros
+  acima.
+- `adb -s SERIAL shell dumpsys activity services PACKAGE`: sem serviço durante
+  countdown intermediário; FGS ativo após zero e após retomada.
+- `adb -s SERIAL shell settings put global auto_time 0` e `adb -s SERIAL shell
+  date ...`: bloqueado por permissão; `auto_time` restaurado para `1`.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; instalado no Galaxy S22.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Estado e riscos residuais
+
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+- CAS persistente, Room lento/indisponível, relógio civil e matriz completa de
+  insets continuam pendentes.
+- Tela apagada com múltiplos checkpoints, morte recuperável real do processo e
+  tipos FGS dinâmicos `location`/`connectedDevice` também não foram encerrados;
+  dump atual cobre somente `health`.
+- Evidências visuais e dump sanitizado estão preservados no working tree, mas
+  ainda precisam ser incluídos no conjunto do PR. Revisão independente continua
+  obrigatória antes de qualquer conclusão.
+
+### Resultado da revisão independente — 2026-07-31
+
+- Veredito: bloqueado para conclusão; `013-08` deve permanecer `in_progress`.
+- Estrutura SDD, ticker, checklist único, progresso `7/17` e item `[ ]` foram
+  aprovados.
+- Revisão apontou CAS/Room/relógio/insets ainda pendentes, ação `Continuar` sem
+  confirmação conclusiva nesta repetição e necessidade de proveniência da
+  captura landscape.
+- Serial ADB foi removido da evidência documental. Fonte aumentada foi
+  recapturada após `installDebug` com botão icon-only.
+
+## Análise da primeira pendência — CAS persistente e Room
+
+### Causa do escalonamento confirmada
+
+- Gate físico não consegue produzir duas revisões concorrentes por fluxo de
+  produto: ownership process-scoped serializa reconciliação e serviço, e ações
+  de recuperação duplicadas ficam bloqueadas enquanto uma mutação está ativa.
+- Indisponibilizar somente Room exigiria manipular banco privado, writer/lock
+  externo, fake de DI ou knob de atraso/falha em produção. Esses meios podem
+  corromper estado, alteram o artefato observado ou equivalem a teste/
+  instrumentação proibidos.
+
+### Verificação estática
+
+- `WorkoutSessionOwnershipCoordinator` diferencia `NoOpenSession` de
+  `Unavailable`, limita leitura aberta a duas tentativas com `200 ms` entre elas
+  e limita CAS/reload a duas tentativas.
+- Conflito persistente no coordenador retorna `RecoverySurface` com a última
+  sessão conhecida. Falha de leitura com sessão conhecida também preserva essa
+  superfície; falha sem sessão conhecida retorna `Unavailable`, e
+  `MainActivity` orienta nova abertura sem sintetizar ID.
+- `WorkoutRecordingService` limita compensação a duas tentativas. Se o FGS já
+  está confirmado e a sessão continua `ACTIVE`/`PAUSED`, owner e notificação são
+  preservados. Sem FGS válido, estado aberto confirmado permanece no Room e é
+  reconciliado na próxima abertura.
+- Exceções de repository são convertidas em `StorageUnavailable`, não em
+  `NotFound`. Ausência só é aceita após leitura persistida bem-sucedida.
+- `Semaphore` justo, owner atômico e fases `ATTACHING`/`FOREGROUND`/
+  `TEARING_DOWN` mantêm owner único. Nenhum caminho de reconciliação possui retry
+  infinito.
+
+### Decisão e risco residual
+
+- Nenhuma mudança de produção foi feita. Hook debug, intent especial, fake de
+  repository, atraso artificial e manipulação de banco foram rejeitados.
+- Código já satisfaz fail-closed para conflitos, exceções e lentidão finita:
+  preserva owner válido ou superfície persistida/acionável e nunca interpreta
+  indisponibilidade como ausência.
+- Room permanentemente suspenso pode manter permit/tombstone até a operação
+  retornar ou o processo morrer. Adicionar timeout sem contrato de latência e
+  sem comprovar cancelamento transacional seguro poderia cancelar operação que
+  ainda venha a confirmar; mudança não é justificável apenas para o gate.
+- Reprodução física de CAS persistente e Room lento/indisponível fica
+  formalmente bloqueada. Próxima avaliação deve partir de falha real
+  reproduzível ou decisão explícita sobre timeout, sem instrumentar produção.
+
+### Evidências e validação desta análise
+
+- Caminhos inspecionados: `WorkoutRecordingService`,
+  `WorkoutSessionOwnershipCoordinator`, `MainActivity`, `ExercisesViewModel`,
+  contrato `AppWorkoutSessionRepository`, `AppWorkoutSessionDao` e implementação
+  em `RoomRepositories`.
+- Teste existente de domínio foi somente lido; nenhum teste automatizado foi
+  criado, alterado ou executado.
+- `git diff --check`: passou após atualização documental.
+- Nenhum código, Gradle, manifesto, migration ou schema foi alterado nesta
+  análise documental.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL` após a
+  análise; nenhum teste automatizado foi executado.
+
+Status permanece `in_progress`; item `[ ]`; progresso `7/17`. CAS/Room deixam de
+ser uma solicitação de simulação insegura e permanecem bloqueios formais de
+evidência física. Demais pendências não foram trabalhadas.
+
+## Registro de execução — bloqueio físico do relógio civil — 2026-07-31
+
+- A opção `Data e hora automáticas` foi restaurada pela interface do sistema; o
+  fuso horário automático permaneceu habilitado.
+- Ao desativar a opção automática, os controles manuais apareceram. Ao tocar em
+  `Definir data`, o sistema reativou a sincronização automática imediatamente e não
+  abriu o seletor. Nenhuma data ou hora foi alterada.
+- Não foram usados comando `date`, alteração direta de `settings`, manipulação do
+  banco, hook, atraso artificial ou instrumentação de produção. Valores temporais
+  brutos não foram registrados.
+
+### Resultado e risco residual
+
+- Alteração controlada do relógio civil permanece bloqueada pelo sistema do Galaxy
+  S22. Não há evidência física para duração monotônica, ordenação de auditoria ou
+  round-trip Room sob mudança civil.
+- Nenhum código foi alterado. `013-08` permanece `in_progress`, item `[ ]` e
+  progresso `7/17`; conclusão continua bloqueada por evidências físicas e revisão
+  independente.
+
+### Comandos executados
+
+- `adb -s SERIAL shell input tap ...`: restauração pela interface do sistema.
+- Consultas sanitizadas de `auto_time`, `auto_time_zone` e foco de janela:
+  restauração confirmada; nenhuma informação temporal bruta foi preservada.
+- `git diff --check`: passou após atualização documental.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Resultado da revisão independente — 2026-07-31
+
+- Veredito: bloqueado para conclusão; `013-08` permanece `in_progress`, item `[ ]`
+  e progresso `7/17`.
+- Estrutura SDD, ticker, checklist único com 17 itens e registro do bloqueio físico
+  foram aprovados.
+- Capturas anteriores em `docs/integration/013-08-evidence/` ainda não são
+  evidência sanitizada: três imagens exibiam horários civis da notificação.
+  Versões `*-sanitized.png` foram geradas; os originais foram movidos para fora do
+  workspace e não devem ser versionados.
+- Evidência física de duração monotônica, ordenação de auditoria e round-trip Room
+  sob mudança civil continua ausente. Nenhum teste automatizado foi criado,
+  alterado ou executado.
+
+## Revisão final das evidências — 2026-07-31
+
+- Veredito: documentação aprovada; `013-08` continua bloqueada para conclusão.
+- Capturas gerais permanecem descritas como previamente sanitizadas. As três
+  notificações usam somente versões `*-sanitized.png`, sem relógio civil; os
+  originais foram removidos do workspace.
+- Ticker, checklist único, progresso `7/17`, status `in_progress`, bloqueio físico
+  e riscos residuais foram confirmados. Nenhum teste automatizado foi criado,
+  alterado ou executado.
+
+## Registro de execução — tela apagada e múltiplos checkpoints — 2026-07-31
+
+### Resultado
+
+- Sessão ativa permaneceu com `WorkoutRecordingService` em foreground durante 75
+  segundos com o dispositivo em estado `Dozing`.
+- Dumps sanitizados antes/depois confirmaram canal `workout_session_active`, duas
+  ações e tipo FGS `health`. A janela cobriu mais de dois intervalos previstos de
+  checkpoint, sem leitura de banco ou registro de instante civil bruto.
+- Retorno pela notificação abriu a sessão correta. Pausa exibiu `PAUSED` e
+  `Continuar`; finalização e descarte com confirmação removeram serviço e
+  notificação.
+
+### Evidência e limites
+
+- Evidência textual sanitizada foi adicionada a
+  `docs/integration/013-08-evidence.md`; screenshots com barra de status não foram
+  adicionados ao conjunto durável.
+- O dump sanitizado preserva entradas `screen-off-before`/`screen-off-after`, com
+  estado `Dozing`, FGS, canal e ações; não contém timestamps civis.
+- Gate de tela apagada com múltiplos checkpoints foi aprovado para o tipo FGS
+  exercitado (`health`). Tipos dinâmicos `location`/`connectedDevice`, morte real
+  de processo, CAS/Room, relógio civil e matriz completa de insets permanecem
+  pendentes.
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Comandos e resultados
+
+- `adb -s SERIAL shell input keyevent KEYCODE_POWER`: tela entrou em `Dozing`.
+- Espera de 75 segundos; dumps filtrados antes/depois confirmaram FGS persistente.
+- Abertura pela notificação, pausa, finalização e descarte foram executados pela
+  interface, com confirmações.
+- `git diff --check`: passou após esta atualização documental.
+
+## Resultado da revisão independente do gate de tela apagada — 2026-07-31
+
+- Veredito: aprovado com ressalvas; `013-08` continua `in_progress`, item `[ ]` e
+  progresso `7/17`.
+- Dump sanitizado com `screen-off-before`/`screen-off-after`, `Dozing`, FGS
+  `health`, canal e duas ações foi aprovado sem timestamps civis.
+- Sem bloqueador documental. CAS/Room, relógio civil, morte real de processo,
+  tipos FGS dinâmicos e insets permanecem riscos residuais.
+- `git diff --check`: passou. Nenhum teste automatizado foi criado, alterado ou
+  executado.

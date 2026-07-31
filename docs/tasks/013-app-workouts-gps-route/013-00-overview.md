@@ -189,3 +189,51 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   confirmou manualmente `Pausar` e `Finalizar` diretamente na notificação;
   permanecem somente CAS, banco indisponível/lento, relógio civil e countdown
   `3` intermediário.
+- Gate adversarial complementar de `013-08` confirmou, com dump imediato, ausência
+  de serviço durante countdown `3` e FGS somente após a transição final. Force-stop
+  seguido de abertura exibiu recuperação e retomada promoveu FGS novamente.
+  Capturas e dump sanitizado foram preservados em
+  `docs/integration/013-08-evidence/`. Alteração de relógio civil foi bloqueada
+  por permissão do dispositivo e restaurada; CAS persistente e Room lento/
+  indisponível continuam sem reprodução segura. Item permanece `[ ]`, progresso
+  `7/17`.
+- Revisão independente do gate complementar bloqueou conclusão por CAS, Room,
+  relógio civil, safe insets completos, ação `Continuar` inconclusiva nesta
+  repetição e proveniência landscape. Serial ADB foi removido da documentação;
+  captura de fonte aumentada foi substituída após `installDebug`. Item permanece
+  `[ ]`, progresso `7/17`.
+- Permanecem também sem encerramento explícito tela apagada com múltiplos
+  checkpoints, morte real de processo e tipos FGS dinâmicos `location`/
+  `connectedDevice`; evidência atual cobre somente `health`. Imagens e dump
+  sanitizado estão no working tree e ainda precisam integrar o conjunto do PR.
+- Análise formal de CAS/Room rejeitou hook, fake, atraso artificial e manipulação
+  de banco; código mantém fail-closed e retry limitado. `./gradlew lint
+  assembleDebug assembleRelease` passou novamente; item permanece `[ ]`,
+  progresso `7/17`.
+- Primeira pendência adversarial de `013-08` foi analisada sem avançar para as
+  demais. Não há forma segura de injetar CAS persistente ou Room lento/
+  indisponível pelo produto atual sem alterar produção, criar teste/fake ou
+  manipular banco privado. Inspeção confirmou owner único, duas tentativas
+  máximas, distinção entre ausência e indisponibilidade e preservação de owner
+  válido ou superfície conhecida. Room permanentemente suspenso ainda pode
+  reter permit/tombstone até retorno ou morte do processo; timeout exige contrato
+  e cenário reproduzível. Item segue `[ ]`, progresso `7/17`.
+- Nova tentativa física do relógio civil foi encerrada sem alteração temporal:
+  pela interface do Galaxy S22, `Data e hora automáticas` foi restaurada; ao tocar
+  em `Definir data` após desativá-la, o sistema reativou a sincronização antes do
+  seletor. Sem comando `date`, alteração direta de `settings`, hook ou manipulação
+  de banco. A evidência de duração monotônica, ordenação de auditoria e round-trip
+  Room sob mudança civil permanece bloqueada; `013-08` continua `[ ]`, `7/17`.
+- Revisão independente do bloqueio do relógio civil aprovou estrutura SDD e
+  registro factual, mas manteve `013-08` bloqueada. Capturas anteriores no
+  diretório de evidências exibiam horários civis de notificações; versões
+  sanitizadas foram geradas e os originais não devem ser versionados. Item
+  permanece `[ ]`, progresso `7/17`.
+- Revisão final aprovou documentação e sanitização das notificações. Os originais
+  foram removidos do workspace; `013-08` continua bloqueada por relógio civil,
+  CAS/Room e demais gates físicos, com item `[ ]` e progresso `7/17`.
+- Gate adicional de tela apagada foi aprovado: sessão permaneceu em `Dozing` por
+  75 segundos, FGS `health` e notificação persistiram, retorno pela notificação
+  abriu sessão correta, pausa exibiu `PAUSED`/`Continuar`, e finalização/descarte
+  confirmados removeram serviço. Morte real de processo, relógio civil, CAS/Room,
+  tipos FGS dinâmicos e insets permanecem pendentes; item `[ ]`, `7/17`.
