@@ -2,7 +2,7 @@
 
 - **Ticker:** `017`
 - **Número:** `01`
-- **Status:** pending
+- **Status:** concluído
 
 ## Objetivo e resultado esperado
 
@@ -117,3 +117,74 @@ Smoke manual obrigatório:
 - Preservar duas rotas de retorno existentes e evitar callbacks novos ou
   navegação para pai em vez de pop.
 - Não alterar trabalho válido das Fases 015 ou 013.
+
+## Registro de execução
+
+### Status
+
+Concluído. Subtarefa limitada às duas superfícies de Calendário; nenhuma
+subtarefa seguinte foi iniciada.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarScreen.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarDayScreen.kt`;
+- capturas sanitizadas em `docs/tasks/017-alinhamento-visual-margens-cabecalhos/`:
+  `017-01-calendario-portrait.png`, `017-01-detalhe-portrait.png`,
+  `017-01-calendario-fonte-1-3x.png`, `017-01-detalhe-fonte-1-3x.png`,
+  `017-01-calendario-landscape-fonte-1-3x.png`,
+  `017-01-detalhe-landscape-fonte-1-3x.png`,
+  `017-01-calendario-landscape-grade-fonte-1-3x.png` e
+  `017-01-calendario-landscape-grade-final-fonte-1-3x.png`.
+
+### Decisões e desvios
+
+- Criados headers locais `CalendarHeader` e `DayHeader`, repetindo o padrão
+  vigente de `Card`, `ChampionShapeLarge`, `surfaceContainerLowest`,
+  `ChampionSpacing.large`, `headlineSmall`, peso seminegrito e apoio em
+  `bodyMedium`.
+- `CalendarScreen` passou a usar `ChampionSpacing.extraLarge` nos quatro lados;
+  o ritmo entre blocos permaneceu em `ChampionSpacing.large`.
+- `DayHeader` preservou data localizada, ação contextual e botão final de
+  retorno no fluxo válido. Estado de data inválida também recebe header com um
+  único heading, mantém somente o botão final de retorno existente e evita ação
+  contextual duplicada, sem alterar erro, callback ou navegação.
+- `MonthHeader`, grade, seleção, marcadores, intents, ViewModel, estados,
+  conteúdo dos cards e destinos não foram alterados.
+- Não houve desvio funcional. Não foram criados, alterados ou executados testes
+  automatizados.
+
+### Comandos executados e resultados
+
+- `git diff --check` — passou antes e após a correção final.
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL` após a
+  correção final; relatório lint sem erros.
+- `./gradlew installDebug` — `BUILD SUCCESSFUL` após a correção final; instalado
+  em `SM-S901E - 16`.
+- `adb devices` — dispositivo físico disponível para validação visual.
+
+### Evidências visuais e smoke manual
+
+- Portrait: header de Calendário em card, grade com sete colunas, navegação
+  mensal, Hoje, seleção e marcadores; header de detalhe com data extensa e
+  ação `Voltar para calendário`.
+- Fluxo: meses anterior/próximo e Hoje foram acionados; data com marcadores foi
+  selecionada, `Abrir dia` abriu detalhe diário populado e ação de retorno levou
+  de volta ao Calendário.
+- Fonte aumentada: `font_scale=1.3`; títulos, datas, headers, grade e ações
+  permaneceram visíveis sem corte no conteúdo validado.
+- Landscape: headers, grade de sete colunas, marcadores e detalhe diário foram
+  observados; ação contextual permaneceu acessível.
+- Nenhum prompt de BLE, Health Connect, permissão, escrita ou fluxo novo foi
+  disparado. Capturas não expõem identificadores, payloads BLE ou dados pessoais;
+  validação populada foi feita somente no aparelho privado.
+- Estado de data inválida foi conferido estaticamente: header possui um único
+  heading, erro permanece presente e só `BackButton` fica disponível; fluxo
+  suportado não oferece rota para gerar esse estado manualmente.
+
+### Riscos residuais
+
+- Com fonte `1,3x`, rótulos da navegação inferior podem quebrar em duas linhas;
+  permanecem visíveis e não pertencem ao layout alterado nesta subtarefa.
+- Conteúdo diário extenso continua dependendo de rolagem vertical, preservada
+  pelo shell existente.

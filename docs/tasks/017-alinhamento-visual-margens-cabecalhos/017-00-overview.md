@@ -1,8 +1,8 @@
 # 017 — Alinhamento visual de margens e cabeçalhos
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [017-alinhamento-visual-margens-cabecalhos.md](../../specs/017-alinhamento-visual-margens-cabecalhos.md)
-- **Progresso:** 0/3 subtarefas concluídas
+- **Progresso:** 1/3 subtarefas concluídas
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ contratos, estado, comportamento ou navegação.
 
 ## Checklist
 
-- [ ] [017-01-alinhar-calendario-e-detalhe-diario.md](017-01-alinhar-calendario-e-detalhe-diario.md)
+- [x] [017-01-alinhar-calendario-e-detalhe-diario.md](017-01-alinhar-calendario-e-detalhe-diario.md)
 - [ ] [017-02-alinhar-tela-dispositivo.md](017-02-alinhar-tela-dispositivo.md)
 - [ ] [017-03-alinhar-selecao-e-preparacao-de-treino.md](017-03-alinhar-selecao-e-preparacao-de-treino.md)
 
@@ -35,3 +35,7 @@ contratos, estado, comportamento ou navegação.
   desmarcados.
 - Indisponibilidade de dispositivo, screenshot ou validação manual necessária
   deve permanecer explícita como bloqueio; não fabricar evidência.
+- `017-01` concluída com validação visual em dispositivo físico, screenshots
+  sanitizados e comandos obrigatórios aprovados. Rótulos da navegação inferior
+  quebram em duas linhas com fonte `1,3x`, sem corte ou bloqueio; acompanhar nas
+  próximas superfícies.

@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
@@ -86,20 +87,10 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = ChampionSpacing.small, vertical = ChampionSpacing.extraLarge),
+                .padding(ChampionSpacing.extraLarge),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
-            Text(
-                text = "Calendário",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Histórico local por dia",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            CalendarHeader()
             MonthHeader(
                 month = state.selectedMonth,
                 locale = locale,
@@ -172,6 +163,34 @@ fun CalendarScreen(
                     onRetry = { calendarViewModel.onIntent(CalendarIntent.Retry) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CalendarHeader() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Calendário",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Histórico local por dia",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
