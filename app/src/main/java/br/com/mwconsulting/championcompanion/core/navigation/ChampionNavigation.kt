@@ -459,6 +459,11 @@ private fun ChampionNavDisplay(
             onNavigateTo(AppDestination.ActiveWorkout(sessionId))
         }
     }
+    LaunchedEffect(Unit) {
+        exercisesViewModel.workoutRecoveryRequired.collect { sessionId ->
+            onNavigateTo(AppDestination.WorkoutRecovery(sessionId))
+        }
+    }
 
     AnimatedContent(
         targetState = currentDestination,

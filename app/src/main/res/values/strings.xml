@@ -2,4 +2,5 @@
     <string name="app_name">Champion Companion</string>
     <string name="notification_channel_workout_name">Treino ativo</string>
     <string name="notification_channel_workout_desc">Notificação persistente de treino ativo</string>
+    <string name="workout_recovery_unavailable">Não foi possível verificar um treino em andamento. Abra o app novamente para tentar.</string>
 </resources>

@@ -434,11 +434,14 @@ interface TreadmillCalibrationDao {
 
 @Dao
 interface AppWorkoutSessionDao {
-    @Query("SELECT * FROM app_workout_sessions WHERE state = 'AWAITING_RECOVERY' ORDER BY createdAtEpochMillis")
+    @Query("SELECT * FROM app_workout_sessions WHERE state IN ('CREATED', 'AWAITING_RECOVERY', 'FINISHING') ORDER BY createdAtEpochMillis")
     fun observeRecoverable(): Flow<List<AppWorkoutSessionEntity>>
 
     @Query("SELECT * FROM app_workout_sessions WHERE state IN ('ACTIVE', 'PAUSED', 'FINISHING') ORDER BY lastTransitionAtEpochMillis DESC, id DESC LIMIT 1")
     fun observeActive(): Flow<AppWorkoutSessionEntity?>
+
+    @Query("SELECT * FROM app_workout_sessions WHERE state IN ('CREATED', 'ACTIVE', 'PAUSED', 'AWAITING_RECOVERY', 'FINISHING') ORDER BY createdAtEpochMillis LIMIT 1")
+    fun observeOpen(): Flow<AppWorkoutSessionEntity?>
 
     @Query("SELECT * FROM app_workout_sessions WHERE id = :id")
     fun observeById(id: String): Flow<AppWorkoutSessionEntity?>

@@ -1,7 +1,10 @@
 package br.com.mwconsulting.championcompanion.feature.exercises
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,10 +24,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -37,6 +42,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +55,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -60,6 +70,7 @@ import br.com.mwconsulting.championcompanion.core.model.GpsReadinessState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
+import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
 import java.time.Duration
 
 private data class WorkoutTypeOption(
@@ -124,6 +135,17 @@ fun WorkoutPreparationShell(
     val selectedType = workoutType.toWorkoutTypeOrNull()
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+    val requiresNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    var notificationAvailability by remember(selectedType) {
+        mutableStateOf(workoutNotificationAvailability(context))
+    }
+    var notificationPermissionRequested by rememberSaveable(selectedType) { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {
+        notificationPermissionRequested = true
+        notificationAvailability = workoutNotificationAvailability(context)
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) {
@@ -145,7 +167,10 @@ fun WorkoutPreparationShell(
     DisposableEffect(lifecycleOwner, selectedType) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> onIntent(ExercisesIntent.EnterWorkoutPreparation(selectedType))
+                Lifecycle.Event.ON_START -> {
+                    notificationAvailability = workoutNotificationAvailability(context)
+                    onIntent(ExercisesIntent.EnterWorkoutPreparation(selectedType))
+                }
                 Lifecycle.Event.ON_STOP -> onIntent(ExercisesIntent.SuspendWorkoutPreparation)
                 else -> Unit
             }
@@ -192,6 +217,30 @@ fun WorkoutPreparationShell(
             NoGpsCard(selectedType)
         }
 
+        if (requiresNotificationPermission ||
+            notificationAvailability != WorkoutNotificationAvailability.AVAILABLE
+        ) {
+            val showNotificationRationale = (context as? Activity)?.let {
+                ActivityCompat.shouldShowRequestPermissionRationale(
+                    it,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                )
+            }.orFalse()
+            NotificationPermissionCard(
+                availability = notificationAvailability,
+                deniedAfterRequest = notificationPermissionRequested,
+                canRequestRuntimePermission = notificationAvailability ==
+                    WorkoutNotificationAvailability.RUNTIME_PERMISSION_REQUIRED &&
+                    (!notificationPermissionRequested || showNotificationRationale),
+                onRequest = {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                },
+                onOpenSettings = {
+                    context.openWorkoutNotificationSettings(notificationAvailability)
+                },
+            )
+        }
+
         OptionalWatchCard(
             hasAssociatedDevice = state.hasAssociatedDevice,
             associatedDeviceName = state.associatedDeviceName,
@@ -213,7 +262,8 @@ fun WorkoutPreparationShell(
             -> PrimaryActionButton(
                 label = if (preparation.countdownSeconds == 0) "Iniciar agora" else "Iniciar countdown",
                 onClick = { onIntent(ExercisesIntent.StartWorkoutCountdown) },
-                enabled = preparation.workoutType == selectedType && preparation.canStartCountdown,
+                enabled = preparation.workoutType == selectedType && preparation.canStartCountdown &&
+                    notificationAvailability == WorkoutNotificationAvailability.AVAILABLE,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -225,6 +275,78 @@ fun WorkoutPreparationShell(
         )
     }
 }
+
+@Composable
+private fun NotificationPermissionCard(
+    availability: WorkoutNotificationAvailability,
+    deniedAfterRequest: Boolean,
+    canRequestRuntimePermission: Boolean,
+    onRequest: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val granted = availability == WorkoutNotificationAvailability.AVAILABLE
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(
+            containerColor = if (granted) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Notificação da sessão", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                when {
+                    granted -> "Permitida. O treino permanecerá visível enquanto estiver ativo."
+                    availability == WorkoutNotificationAvailability.CHANNEL_BLOCKED ->
+                        "O canal da sessão está desativado. Reative-o nas configurações para iniciar ou continuar o treino."
+                    availability == WorkoutNotificationAvailability.APP_NOTIFICATIONS_BLOCKED ->
+                        "As notificações do app estão desativadas. Reative-as nas configurações para iniciar ou continuar o treino."
+                    deniedAfterRequest ->
+                        "Permissão recusada. Ela é necessária para manter a sessão visível; conceda-a antes de iniciar ou continuar."
+                    else ->
+                        "Permita notificações para manter controles e estado do treino visíveis. Sem essa permissão, o início fica bloqueado."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (!granted) {
+                PrimaryActionButton(
+                    label = if (canRequestRuntimePermission) {
+                        "Permitir notificações"
+                    } else {
+                        "Abrir configurações de notificações"
+                    },
+                    onClick = if (canRequestRuntimePermission) onRequest else onOpenSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+private fun Context.openWorkoutNotificationSettings(
+    availability: WorkoutNotificationAvailability,
+) {
+    val intent = if (availability == WorkoutNotificationAvailability.CHANNEL_BLOCKED) {
+        Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            putExtra(Settings.EXTRA_CHANNEL_ID, WorkoutNotificationChannel.CHANNEL_ID)
+        }
+    } else {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        }
+    }
+    startActivity(intent)
+}
+
+private fun Boolean?.orFalse(): Boolean = this ?: false
 
 @Composable
 private fun CountdownPreferenceCard(
@@ -474,16 +596,50 @@ fun ActiveWorkoutShell(
     val session by exercisesViewModel.activeSession.collectAsState()
     val durationText by exercisesViewModel.activeDurationText.collectAsState()
     val isPaused by exercisesViewModel.isPaused.collectAsState()
+    val activeCommandNotice by exercisesViewModel.activeCommandNotice.collectAsState()
+    val finishCommandState by exercisesViewModel.finishCommandState.collectAsState()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val requiresNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    var notificationAvailability by remember(sessionId) {
+        mutableStateOf(workoutNotificationAvailability(context))
+    }
+    var notificationPermissionRequested by rememberSaveable(sessionId) { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {
+        notificationPermissionRequested = true
+        notificationAvailability = workoutNotificationAvailability(context)
+    }
+    var showFinishConfirmation by rememberSaveable(sessionId) { mutableStateOf(false) }
+    val finishInProgress = (finishCommandState as? WorkoutFinishCommandState.InProgress)
+        ?.sessionId == sessionId
 
     LaunchedEffect(sessionId) {
         exercisesViewModel.onActiveWorkoutScreenShown(sessionId)
+    }
+    DisposableEffect(lifecycleOwner, sessionId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                notificationAvailability = workoutNotificationAvailability(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val sessionState = session?.state
 
     LaunchedEffect(sessionState) {
-        if (sessionState == AppWorkoutSessionState.FINISHING) {
-            onNavigateBack()
+        when (sessionState) {
+            AppWorkoutSessionState.CREATED,
+            AppWorkoutSessionState.AWAITING_RECOVERY,
+            AppWorkoutSessionState.FINISHING,
+            -> onNavigateTo(AppDestination.WorkoutRecovery(sessionId))
+            AppWorkoutSessionState.FINISHED,
+            AppWorkoutSessionState.DISCARDED,
+            -> onNavigateBack()
+            else -> Unit
         }
     }
 
@@ -526,6 +682,32 @@ fun ActiveWorkoutShell(
 
             Spacer(modifier = Modifier.height(48.dp))
 
+            activeCommandNotice?.let { PreparationNotice(it, isError = true) }
+
+            if (isPaused && (requiresNotificationPermission ||
+                    notificationAvailability != WorkoutNotificationAvailability.AVAILABLE)
+            ) {
+                val showNotificationRationale = (context as? Activity)?.let {
+                    ActivityCompat.shouldShowRequestPermissionRationale(
+                        it,
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    )
+                }.orFalse()
+                NotificationPermissionCard(
+                    availability = notificationAvailability,
+                    deniedAfterRequest = notificationPermissionRequested,
+                    canRequestRuntimePermission = notificationAvailability ==
+                        WorkoutNotificationAvailability.RUNTIME_PERMISSION_REQUIRED &&
+                        (!notificationPermissionRequested || showNotificationRationale),
+                    onRequest = {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    },
+                    onOpenSettings = {
+                        context.openWorkoutNotificationSettings(notificationAvailability)
+                    },
+                )
+            }
+
             // Controls
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -535,6 +717,7 @@ fun ActiveWorkoutShell(
                 if (isPaused) {
                     FilledTonalButton(
                         onClick = { exercisesViewModel.resumeSession() },
+                        enabled = notificationAvailability == WorkoutNotificationAvailability.AVAILABLE,
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = "Continuar")
                         Spacer(Modifier.width(8.dp))
@@ -552,7 +735,8 @@ fun ActiveWorkoutShell(
 
                 // Finish button
                 Button(
-                    onClick = { exercisesViewModel.finishSession() },
+                    onClick = { showFinishConfirmation = true },
+                    enabled = !finishInProgress,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                     ),
@@ -564,6 +748,20 @@ fun ActiveWorkoutShell(
             }
         }
     }
+
+    if (showFinishConfirmation && session != null) {
+        WorkoutMutationConfirmationDialog(
+            workoutType = session!!.type,
+            durationText = durationText,
+            confirmLabel = "Confirmar",
+            onConfirm = {
+                if (exercisesViewModel.finishSession()) {
+                    showFinishConfirmation = false
+                }
+            },
+            onCancel = { showFinishConfirmation = false },
+        )
+    }
 }
 
 @Composable
@@ -574,10 +772,54 @@ fun WorkoutRecoveryShell(
     exercisesViewModel: ExercisesViewModel,
 ) {
     val recoverableSession by exercisesViewModel.recoverableSession.collectAsState()
+    val actionState by exercisesViewModel.recoveryActionState.collectAsState()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val requiresNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    var notificationAvailability by remember(sessionId) {
+        mutableStateOf(workoutNotificationAvailability(context))
+    }
+    var notificationPermissionRequested by rememberSaveable(sessionId) { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {
+        notificationPermissionRequested = true
+        notificationAvailability = workoutNotificationAvailability(context)
+    }
     val session = recoverableSession
+    var pendingConfirmation by rememberSaveable(sessionId) {
+        mutableStateOf<RecoveryAction?>(null)
+    }
+    val isBusy = actionState is RecoveryActionState.InProgress
 
     LaunchedEffect(sessionId) {
         exercisesViewModel.onRecoveryScreenShown(sessionId)
+    }
+    DisposableEffect(lifecycleOwner, sessionId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                notificationAvailability = workoutNotificationAvailability(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(actionState) {
+        when (val result = actionState) {
+            is RecoveryActionState.Success -> when (result.action) {
+                RecoveryAction.RESUME -> {
+                    exercisesViewModel.consumeRecoveryActionResult()
+                    onNavigateTo(AppDestination.ActiveWorkout(result.sessionId))
+                }
+                RecoveryAction.DISCARD -> {
+                    exercisesViewModel.consumeRecoveryActionResult()
+                    onNavigateBack()
+                }
+                RecoveryAction.FINISH -> exercisesViewModel.consumeRecoveryActionResult()
+            }
+            else -> Unit
+        }
     }
 
     WorkoutShellCard(
@@ -603,7 +845,14 @@ fun WorkoutRecoveryShell(
             } else {
                 // Session info
                 Text(
-                    text = "Seu treino foi interrompido.",
+                    text = when (session.state) {
+                        AppWorkoutSessionState.CREATED -> "O início do treino não foi concluído."
+                        AppWorkoutSessionState.ACTIVE,
+                        AppWorkoutSessionState.PAUSED,
+                        -> "A sessão ficou sem serviço ativo e precisa ser preparada para recuperação."
+                        AppWorkoutSessionState.FINISHING -> "A finalização está pendente."
+                        else -> "Seu treino foi interrompido."
+                    },
                     style = MaterialTheme.typography.titleLarge,
                 )
 
@@ -619,42 +868,221 @@ fun WorkoutRecoveryShell(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Action buttons
-                Button(
-                    onClick = {
-                        exercisesViewModel.recoverSession()
-                        onNavigateTo(AppDestination.ActiveWorkout(session.id.value.toString()))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Retomar treino")
+                when (val result = actionState) {
+                    is RecoveryActionState.InProgress -> Row(
+                        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator()
+                        Text("Processando ação…")
+                    }
+                    is RecoveryActionState.Failure -> PreparationNotice(result.message, isError = true)
+                    else -> Unit
                 }
 
-                OutlinedButton(
-                    onClick = {
-                        exercisesViewModel.finishRecoveredSession()
-                        onNavigateBack()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                if (session.state == AppWorkoutSessionState.AWAITING_RECOVERY &&
+                    (requiresNotificationPermission ||
+                        notificationAvailability != WorkoutNotificationAvailability.AVAILABLE)
                 ) {
-                    Text("Finalizar treino")
-                }
-
-                TextButton(
-                    onClick = {
-                        exercisesViewModel.discardRecoveredSession()
-                        onNavigateBack()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Descartar treino",
-                        color = MaterialTheme.colorScheme.error,
+                    val showNotificationRationale = (context as? Activity)?.let {
+                        ActivityCompat.shouldShowRequestPermissionRationale(
+                            it,
+                            Manifest.permission.POST_NOTIFICATIONS,
+                        )
+                    }.orFalse()
+                    NotificationPermissionCard(
+                        availability = notificationAvailability,
+                        deniedAfterRequest = notificationPermissionRequested,
+                        canRequestRuntimePermission = notificationAvailability ==
+                            WorkoutNotificationAvailability.RUNTIME_PERMISSION_REQUIRED &&
+                            (!notificationPermissionRequested || showNotificationRationale),
+                        onRequest = {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        },
+                        onOpenSettings = {
+                            context.openWorkoutNotificationSettings(notificationAvailability)
+                        },
                     )
+                }
+
+                // Action buttons
+                if (session.state in setOf(
+                        AppWorkoutSessionState.ACTIVE,
+                        AppWorkoutSessionState.PAUSED,
+                    )
+                ) {
+                    Button(
+                        onClick = { exercisesViewModel.reconcileStaleRecoverySession() },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Tentar preparar recuperação")
+                    }
+                }
+
+                if (session.state == AppWorkoutSessionState.AWAITING_RECOVERY) {
+                    Button(
+                        onClick = { exercisesViewModel.recoverSession() },
+                        enabled = !isBusy &&
+                            notificationAvailability == WorkoutNotificationAvailability.AVAILABLE,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Retomar treino")
+                    }
+
+                    OutlinedButton(
+                        onClick = { pendingConfirmation = RecoveryAction.FINISH },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Finalizar treino")
+                    }
+                }
+
+                if (session.state == AppWorkoutSessionState.FINISHING) {
+                    Text(
+                        "A finalização foi registrada, mas a atividade revisável ainda está pendente. Você pode manter esta sessão ou descartá-la.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (session.state in setOf(
+                        AppWorkoutSessionState.CREATED,
+                        AppWorkoutSessionState.AWAITING_RECOVERY,
+                        AppWorkoutSessionState.FINISHING,
+                    )
+                ) {
+                    TextButton(
+                        onClick = { pendingConfirmation = RecoveryAction.DISCARD },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            "Descartar treino",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
         }
     }
+
+
+    val confirmedSession = session
+    if (pendingConfirmation != null && confirmedSession != null) {
+        WorkoutMutationConfirmationDialog(
+            workoutType = confirmedSession.type,
+            durationText = formatDuration(confirmedSession.activeDuration),
+            confirmLabel = "Confirmar",
+            onConfirm = {
+                val action = pendingConfirmation
+                pendingConfirmation = null
+                when (action) {
+                    RecoveryAction.FINISH -> exercisesViewModel.finishRecoveredSession()
+                    RecoveryAction.DISCARD -> exercisesViewModel.discardRecoveredSession()
+                    else -> Unit
+                }
+            },
+            onCancel = { pendingConfirmation = null },
+        )
+    }
+}
+
+@Composable
+fun WorkoutFinishConfirmationShell(
+    sessionId: String,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    onRecoveryRequired: () -> Unit,
+    exercisesViewModel: ExercisesViewModel,
+) {
+    val session by exercisesViewModel.activeSession.collectAsState()
+    val durationText by exercisesViewModel.activeDurationText.collectAsState()
+    val activeCommandNotice by exercisesViewModel.activeCommandNotice.collectAsState()
+    val finishCommandState by exercisesViewModel.finishCommandState.collectAsState()
+    val finishInProgress = (finishCommandState as? WorkoutFinishCommandState.InProgress)
+        ?.sessionId == sessionId
+    val finishPersisted = (finishCommandState as? WorkoutFinishCommandState.Persisted)
+        ?.sessionId == sessionId
+
+    LaunchedEffect(sessionId) {
+        exercisesViewModel.onActiveWorkoutScreenShown(sessionId)
+    }
+    LaunchedEffect(session?.state) {
+        when (session?.state) {
+            AppWorkoutSessionState.CREATED,
+            AppWorkoutSessionState.AWAITING_RECOVERY,
+            AppWorkoutSessionState.FINISHING,
+            -> onRecoveryRequired()
+            AppWorkoutSessionState.FINISHED,
+            AppWorkoutSessionState.DISCARDED,
+            -> onCancel()
+            else -> Unit
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(ChampionSpacing.extraLarge),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (session == null) {
+            CircularProgressIndicator()
+        } else {
+            Text("Tipo: ${session!!.type.toWorkoutTypeLabel()}")
+            Text("Duração: $durationText")
+            activeCommandNotice?.let { PreparationNotice(it, isError = true) }
+            if (finishInProgress) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator()
+                    Text("Confirmando finalização…")
+                }
+            }
+            Spacer(Modifier.height(ChampionSpacing.large))
+            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+                Button(
+                    onClick = onConfirm,
+                    enabled = !finishInProgress && !finishPersisted,
+                ) {
+                    Text("Confirmar")
+                }
+                TextButton(onClick = onCancel, enabled = !finishInProgress && !finishPersisted) {
+                    Text("Cancelar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutMutationConfirmationDialog(
+    workoutType: WorkoutType,
+    durationText: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+                Text("Tipo: ${workoutType.toWorkoutTypeLabel()}")
+                Text("Duração: $durationText")
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) { Text(confirmLabel) }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("Cancelar") }
+        },
+    )
 }
 
 private fun formatDuration(duration: Duration): String {

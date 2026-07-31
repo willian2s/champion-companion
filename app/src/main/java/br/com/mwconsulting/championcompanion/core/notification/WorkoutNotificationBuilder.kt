@@ -48,7 +48,7 @@ class WorkoutNotificationBuilder @Inject constructor(
                     } else {
                         addAction(0, "Pausar", serviceActionIntent(WorkoutRecordingService.ACTION_PAUSE, sessionId))
                     }
-                    addAction(0, "Finalizar", serviceActionIntent(WorkoutRecordingService.ACTION_FINISH, sessionId))
+                    addAction(0, "Finalizar", finishConfirmationIntent(sessionId))
                 }
             }
             .build()
@@ -74,6 +74,18 @@ class WorkoutNotificationBuilder @Inject constructor(
         return PendingIntent.getService(
             context,
             actionRequestCode(action, sessionId),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
+    private fun finishConfirmationIntent(sessionId: String): PendingIntent {
+        val intent = WorkoutSessionActivity.finishConfirmationIntent(context, sessionId).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context,
+            actionRequestCode(WorkoutRecordingService.ACTION_FINISH, sessionId),
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.core.model
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -323,10 +324,15 @@ data class AppWorkoutSessionCheckpoint(
     val runtimeGeneration: Long,
     val at: Instant,
     val aggregates: AppWorkoutSessionAggregates,
+    val activeDuration: Duration? = null,
+    val pausedDuration: Duration? = null,
 ) {
     init {
         require(expectedRevision >= 0)
         require(runtimeGeneration >= 0)
+        require((activeDuration == null) == (pausedDuration == null))
+        require(activeDuration == null || !activeDuration.isNegative)
+        require(pausedDuration == null || !pausedDuration.isNegative)
     }
 }
 
@@ -334,9 +340,14 @@ data class AppWorkoutSessionMutation(
     val sessionId: AppWorkoutSessionId,
     val expectedRevision: Long,
     val at: Instant,
+    val activeDuration: Duration? = null,
+    val pausedDuration: Duration? = null,
 ) {
     init {
         require(expectedRevision >= 0)
+        require((activeDuration == null) == (pausedDuration == null))
+        require(activeDuration == null || !activeDuration.isNegative)
+        require(pausedDuration == null || !pausedDuration.isNegative)
     }
 }
 
@@ -356,8 +367,18 @@ data class AssociateWorkoutActivityInput(
  */
 interface AppWorkoutSessionRepository {
     suspend fun create(session: AppWorkoutSession): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
+    suspend fun createStarted(session: AppWorkoutSession, startedAt: Instant): RepositoryResult<AppWorkoutSession> =
+        RepositoryResult.Conflict
     fun observeActive(): Flow<AppWorkoutSession?> = flowOf(null)
+    /**
+     * Superfície persistida para recuperação no próximo app open. Inclui somente
+     * `CREATED`, `ACTIVE`, `PAUSED`, `AWAITING_RECOVERY` e `FINISHING`.
+     */
+    fun observeOpen(): Flow<AppWorkoutSession?> = observeActive()
     fun observeSession(sessionId: AppWorkoutSessionId): Flow<AppWorkoutSession?> = flowOf(null)
+    /** Confirma por leitura pontual que a sessão ainda pertence à superfície de recuperação. */
+    suspend fun loadOpenForRecovery(sessionId: AppWorkoutSessionId): RepositoryResult<AppWorkoutSession> =
+        RepositoryResult.NotFound
     fun observeRecoverable(): Flow<List<AppWorkoutSession>>
     suspend fun start(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict
     suspend fun checkpoint(input: AppWorkoutSessionCheckpoint): RepositoryResult<AppWorkoutSession> = RepositoryResult.Conflict

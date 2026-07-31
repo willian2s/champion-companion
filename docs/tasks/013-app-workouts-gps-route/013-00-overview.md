@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 8/17 subtarefas concluídas
+- **Progresso:** 7/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [x] [013-05-migrate-room-for-phone-activities-routes-and-correlation.md](013-05-migrate-room-for-phone-activities-routes-and-correlation.md)
 - [x] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
 - [x] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
-- [x] [013-08-implement-active-workout-foreground-service-and-recovery.md](013-08-implement-active-workout-foreground-service-and-recovery.md)
+- [ ] [013-08-implement-active-workout-foreground-service-and-recovery.md](013-08-implement-active-workout-foreground-service-and-recovery.md)
 - [ ] [013-09-implement-walking-running-route-capture-and-live-metrics.md](013-09-implement-walking-running-route-capture-and-live-metrics.md)
 - [ ] [013-10-implement-free-workout-and-treadmill-phone-sessions.md](013-10-implement-free-workout-and-treadmill-phone-sessions.md)
 - [ ] [013-11-integrate-watch-live-heart-rate-and-steps-with-phone-session.md](013-11-integrate-watch-live-heart-rate-and-steps-with-phone-session.md)
@@ -99,7 +99,15 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   `lint`, builds debug/release e `installDebug` passaram; validação física
   parcial confirmou seleção acessível e treino livre sem prompt GPS. Roteiro
   completo de GPS, countdown, permissões, rotação, fonte aumentada e landscape
-  permanece pendente para gate manual.
+   permanece pendente para gate manual.
+- `013-08` reaberta após validação independente de 2026-07-31. Permanecem
+  pendentes validação física e evidências visuais. Correções estáticas cobrem
+  criação/start transacional, compensação para recuperação, resultado das ações,
+  confirmações seguras, duração monotônica, permissão runtime de notificações,
+  preservação explícita de `CREATED`, remoção da captura GPS prematura,
+  compensação CAS limitada e bloqueio global/do canal de notificações.
+  `lint`, builds debug/release e `installDebug` passaram sem execução de testes.
+  Item segue desmarcado e progresso permanece `7/17` até revisão e gate manual.
 - Correção parcial de `013-14` removeu offsets UTC fixos dos records derivados
   de `WorkoutActivity` e passou a congelar o timezone na fila v6 existente,
   sem migration ou reenvio automático. O item permanece desmarcado e bloqueado
@@ -108,3 +116,49 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - A validação desta execução passou em `git diff --check` e em
   `./gradlew lint assembleDebug assembleRelease`. Nenhum teste foi criado,
   alterado ou executado, conforme restrição explícita.
+- Correção residual de `013-08` formalizou leitura pontual da superfície aberta
+  de recuperação e passou a tratar todos os resultados de `interrupt` com duas
+  tentativas CAS/reload no máximo. Falha persistente preserva owner quando o FGS
+  já está válido; cleanup só ocorre após estado recuperável, superfície aberta
+  ou ausência persistida confirmados. `onTaskRemoved` usa a mesma reconciliação.
+- `013-08` permanece `in_progress`, item `[ ]` e progresso `7/17`. Gate manual,
+  screenshots, dumps sanitizados e nova revisão independente seguem bloqueando
+  conclusão.
+- Correção concorrente de `013-08` adicionou coordenador process-scoped para
+  serializar attach/promoção/reconciliação e revalidar owner da mesma sessão
+  antes do CAS. `isAlive` foi removido da decisão. Finalização agora aguarda
+  confirmação persistida de `FINISHING`/`FINISHED` e reabilita ações após
+  timeout seguro. Item permanece `[ ]`, progresso `7/17`; gate manual e
+  evidências continuam bloqueando conclusão.
+- Correção residual de `013-08` substituiu o `Mutex` por exclusão process-scoped
+  com `Semaphore` justo e não vinculado à thread. `onDestroy` agora marca
+  `TEARING_DOWN` dentro da mesma seção crítica de attach, promoção, consulta de
+  owner e reconciliação; `release` comum não remove essa fase, bloqueando novo
+  attach até o fechamento process-scoped. Retry/CAS limitado e
+  indisponibilidade explícita foram preservados.
+- `git diff --check`, `./gradlew lint assembleDebug assembleRelease` e
+  `./gradlew installDebug` passaram sem execução de testes. `013-08` segue
+  `in_progress`, item `[ ]` e progresso `7/17`; gate manual e evidências
+  sanitizadas continuam bloqueando conclusão.
+- Correção final de exclusão de `013-08` tornou aquisição do `Semaphore` segura
+  contra cancelamento e removeu espera bloqueante de `onDestroy`. Teardown usa
+  `tryAcquire`, CAS para `TEARING_DOWN`, tombstone contra corrida com `release`
+  e reconciliação process-scoped, bloqueando novo attach sem prender lifecycle.
+- Abertura e falha transitória com sessão observada recebem no máximo duas
+  tentativas com intervalo de `200 ms`. `Unavailable` permanece distinto de
+  ausência; sem sessão conhecida não há ID/destino inventado. Reconciliação
+  duplicada sem consumidor no ViewModel foi removida.
+- `013-08` continua `in_progress`, item `[ ]` e progresso `7/17`. Gate manual de
+  cancelamento/teardown/Room, screenshots e dumps sanitizados ainda bloqueiam
+  conclusão. `git diff --check`, build completo e `installDebug` passaram;
+  nenhum teste automatizado foi criado, alterado ou executado.
+- Bloqueador final de `013-08` corrigido: `ATTACHING` agora é reservado antes da
+  primeira leitura suspensa, e `onStartCommand` registra o ID pendente da sessão
+  para teardown anterior à execução da coroutine. Coordenador instala tombstone sem
+  sobrescrever owner concorrente, preserva owner foreground válido da mesma
+  sessão e mantém reconciliação process-scoped com retry/CAS limitado.
+- `Unavailable` em abertura agora produz aviso explícito para tentar novamente,
+  sem ID fictício. `git diff --check`, build completo e `installDebug` passaram
+  sem testes automatizados. `013-08` permanece `in_progress`, item `[ ]` e
+  progresso `7/17`; gate manual, screenshots e dumps sanitizados ainda bloqueiam
+  conclusão.

@@ -49,11 +49,11 @@ Escopo factual atual já inclui também na Fase 12:
   ponte de compatibilidade com legado. Ver
   `docs/specs/016-health-connect-incremental-daily-steps.md`.
 
-Escopo factual atual do código ainda não inclui:
+Escopo factual atual do código ainda não inclui, além da base de foreground
+service da sessão adicionada na Fase 13:
 
 - leitura do Health Connect;
 - GPS de sessão, localização persistida, rotas ou `ExerciseRoute`;
-- foreground service;
 - `WorkManager`;
 - background BLE permanente;
 - sync agressivo ou automático ao abrir o app.
@@ -68,10 +68,11 @@ Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por varian
 
 ## Política autorizada da Fase 13
 
-A ADR-014 autoriza, mas ainda não implementa, rota persistida somente para
-caminhada/corrida iniciada explicitamente pelo usuário. A autorização inclui
-GPS preciso durante a sessão, foreground service mínimo, persistência
-incremental, recuperação e sincronização da mesma sessão Health Connect.
+A ADR-014 autoriza rota persistida somente para caminhada/corrida iniciada
+explicitamente pelo usuário. A base de foreground service mínimo, persistência
+de sessão e recuperação explícita já está implementada parcialmente na Fase 13;
+GPS preciso, captura incremental de rota e sincronização da mesma sessão Health
+Connect permanecem nas subtarefas seguintes.
 
 Treino livre e esteira continuam sem localização. Não há rastreamento passivo,
 servidor, exportação, GPX, TCX, FIT, backup ou device transfer de rota. Logs e

@@ -39,6 +39,15 @@ class WorkoutSessionActivity : ComponentActivity() {
                         onNavigateBack = ::finish,
                         exercisesViewModel = viewModel,
                     )
+                    is WorkoutSessionRequest.FinishConfirmation -> WorkoutFinishConfirmationShell(
+                        sessionId = current.sessionId,
+                        onConfirm = { viewModel.finishSession() },
+                        onCancel = ::finish,
+                        onRecoveryRequired = {
+                            request = WorkoutSessionRequest.Recovery(current.sessionId)
+                        },
+                        exercisesViewModel = viewModel,
+                    )
                     null -> finish()
                 }
             }
@@ -73,6 +82,7 @@ class WorkoutSessionActivity : ComponentActivity() {
         return when (getStringExtra(EXTRA_MODE)) {
             MODE_ACTIVE -> WorkoutSessionRequest.Active(sessionId)
             MODE_RECOVERY -> WorkoutSessionRequest.Recovery(sessionId)
+            MODE_FINISH_CONFIRMATION -> WorkoutSessionRequest.FinishConfirmation(sessionId)
             else -> null
         }
     }
@@ -82,6 +92,7 @@ class WorkoutSessionActivity : ComponentActivity() {
         private const val EXTRA_SESSION_ID = "workout_session_id"
         private const val MODE_ACTIVE = "active"
         private const val MODE_RECOVERY = "recovery"
+        private const val MODE_FINISH_CONFIRMATION = "finish_confirmation"
 
         fun activeIntent(context: Context, sessionId: String): Intent =
             Intent(context, WorkoutSessionActivity::class.java).apply {
@@ -94,6 +105,12 @@ class WorkoutSessionActivity : ComponentActivity() {
                 putExtra(EXTRA_MODE, MODE_RECOVERY)
                 putExtra(EXTRA_SESSION_ID, sessionId)
             }
+
+        fun finishConfirmationIntent(context: Context, sessionId: String): Intent =
+            Intent(context, WorkoutSessionActivity::class.java).apply {
+                putExtra(EXTRA_MODE, MODE_FINISH_CONFIRMATION)
+                putExtra(EXTRA_SESSION_ID, sessionId)
+            }
     }
 }
 
@@ -102,4 +119,5 @@ private sealed interface WorkoutSessionRequest {
 
     data class Active(override val sessionId: String) : WorkoutSessionRequest
     data class Recovery(override val sessionId: String) : WorkoutSessionRequest
+    data class FinishConfirmation(override val sessionId: String) : WorkoutSessionRequest
 }

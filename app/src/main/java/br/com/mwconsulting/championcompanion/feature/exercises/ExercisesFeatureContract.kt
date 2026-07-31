@@ -76,6 +76,30 @@ data class WorkoutStartRequest(
     val gpsReadinessGeneration: Long?,
 )
 
+enum class RecoveryAction {
+    RESUME,
+    FINISH,
+    DISCARD,
+}
+
+sealed interface RecoveryActionState {
+    data object Idle : RecoveryActionState
+    data class InProgress(val action: RecoveryAction, val sessionId: String) : RecoveryActionState
+    data class Success(val action: RecoveryAction, val sessionId: String) : RecoveryActionState
+    data class Failure(
+        val action: RecoveryAction,
+        val sessionId: String,
+        val message: String,
+    ) : RecoveryActionState
+}
+
+sealed interface WorkoutFinishCommandState {
+    data object Idle : WorkoutFinishCommandState
+    data class InProgress(val sessionId: String) : WorkoutFinishCommandState
+    data class Persisted(val sessionId: String) : WorkoutFinishCommandState
+    data class Failure(val sessionId: String, val message: String) : WorkoutFinishCommandState
+}
+
 sealed interface ExerciseDetailState {
     data object Loading : ExerciseDetailState
     data class Ready(

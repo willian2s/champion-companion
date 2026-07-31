@@ -35,6 +35,33 @@ data class AppWorkoutSessionAggregates(
     }
 }
 
+/**
+ * Produz instante de auditoria representável pelo Room sem usar relógio civil
+ * para medir duração. O piso temporal deriva somente dos acumulados monotônicos.
+ */
+fun AppWorkoutSession.nextAuditInstant(
+    now: Instant,
+    nextActiveDuration: Duration = activeDuration,
+    nextPausedDuration: Duration = pausedDuration,
+): Instant {
+    val durationFloor = startedAt?.let { started ->
+        runCatching { started.plus(nextActiveDuration).plus(nextPausedDuration) }
+            .getOrNull()
+            ?.ceilToEpochMilliOrNull()
+    }
+    return listOfNotNull(
+        now.ceilToEpochMilliOrNull(),
+        lastTransitionAt,
+        durationFloor,
+    ).maxOrNull() ?: lastTransitionAt
+}
+
+private fun Instant.ceilToEpochMilliOrNull(): Instant? = runCatching {
+    val epochMillis = toEpochMilli()
+    val truncated = Instant.ofEpochMilli(epochMillis)
+    if (truncated == this) truncated else Instant.ofEpochMilli(Math.addExact(epochMillis, 1L))
+}.getOrNull()
+
 /** Estado local persistível; runtime Android e callbacks permanecem fora do domínio. */
 @ConsistentCopyVisibility
 data class AppWorkoutSession private constructor(
@@ -128,6 +155,34 @@ data class AppWorkoutSession private constructor(
         }
     }
 
+    /**
+     * Checkpoint de runtime. Durações vêm de relógio monotônico; [at] serve
+     * somente para auditoria e ordenação persistente.
+     */
+    fun checkpoint(
+        at: Instant,
+        activeDuration: Duration,
+        pausedDuration: Duration,
+        aggregates: AppWorkoutSessionAggregates,
+    ): DomainResult<AppWorkoutSession> {
+        if (state !in CHECKPOINTABLE_STATES || !areValid(aggregates) ||
+            !areMonotonic(this.aggregates, aggregates) || !isAtOrAfterLastTransition(at) ||
+            !hasValidRuntimeDurations(activeDuration, pausedDuration) ||
+            !auditInstantContainsDurations(at, activeDuration, pausedDuration)
+        ) {
+            return invalidState()
+        }
+        return DomainResult.Success(copy(
+            activeDuration = activeDuration,
+            pausedDuration = pausedDuration,
+            lastTransitionAt = at,
+            activeSince = at.takeIf { state == AppWorkoutSessionState.ACTIVE },
+            pausedSince = at.takeIf { state == AppWorkoutSessionState.PAUSED },
+            aggregates = aggregates,
+            revision = revision + 1,
+        ))
+    }
+
     /** Adapter de leitura legado; mutações runtime usam [checkpoint] com instante e revisão. */
     fun updateAggregates(aggregates: AppWorkoutSessionAggregates): DomainResult<AppWorkoutSession> =
         if ((state !in CHECKPOINTABLE_STATES && state != AppWorkoutSessionState.CREATED) || !areValid(aggregates) ||
@@ -154,6 +209,28 @@ data class AppWorkoutSession private constructor(
             invalidState()
         }
 
+    fun pause(
+        at: Instant,
+        activeDuration: Duration,
+        pausedDuration: Duration,
+    ): DomainResult<AppWorkoutSession> =
+        if (state == AppWorkoutSessionState.ACTIVE && isAtOrAfterLastTransition(at) &&
+            hasValidRuntimeDurations(activeDuration, pausedDuration) &&
+            auditInstantContainsDurations(at, activeDuration, pausedDuration)
+        ) {
+            DomainResult.Success(copy(
+                lastTransitionAt = at,
+                activeDuration = activeDuration,
+                pausedDuration = pausedDuration,
+                activeSince = null,
+                pausedSince = at,
+                state = AppWorkoutSessionState.PAUSED,
+                revision = revision + 1,
+            ))
+        } else {
+            invalidState()
+        }
+
     fun resume(at: Instant): DomainResult<AppWorkoutSession> =
         if (state == AppWorkoutSessionState.PAUSED && isAtOrAfter(at, pausedSince) &&
             isAtOrAfterLastTransition(at)
@@ -163,6 +240,29 @@ data class AppWorkoutSession private constructor(
                 pausedDuration = pausedDuration + Duration.between(pausedSince!!, at),
                 pausedSince = null,
                 activeSince = at,
+                state = AppWorkoutSessionState.ACTIVE,
+                runtimeGeneration = runtimeGeneration + 1,
+                revision = revision + 1,
+            ))
+        } else {
+            invalidState()
+        }
+
+    fun resume(
+        at: Instant,
+        activeDuration: Duration,
+        pausedDuration: Duration,
+    ): DomainResult<AppWorkoutSession> =
+        if (state == AppWorkoutSessionState.PAUSED && isAtOrAfterLastTransition(at) &&
+            hasValidRuntimeDurations(activeDuration, pausedDuration) &&
+            auditInstantContainsDurations(at, activeDuration, pausedDuration)
+        ) {
+            DomainResult.Success(copy(
+                lastTransitionAt = at,
+                activeDuration = activeDuration,
+                pausedDuration = pausedDuration,
+                activeSince = at,
+                pausedSince = null,
                 state = AppWorkoutSessionState.ACTIVE,
                 runtimeGeneration = runtimeGeneration + 1,
                 revision = revision + 1,
@@ -202,6 +302,28 @@ data class AppWorkoutSession private constructor(
             invalidTemporalOrder()
         }
         else -> invalidState()
+    }
+
+    fun interrupt(
+        at: Instant,
+        activeDuration: Duration,
+        pausedDuration: Duration,
+    ): DomainResult<AppWorkoutSession> = when {
+        state == AppWorkoutSessionState.AWAITING_RECOVERY && isAtOrAfterLastTransition(at) ->
+            DomainResult.Success(this)
+        state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED) ||
+            !isAtOrAfterLastTransition(at) ||
+            !hasValidRuntimeDurations(activeDuration, pausedDuration) ||
+            !auditInstantContainsDurations(at, activeDuration, pausedDuration) -> invalidState()
+        else -> DomainResult.Success(copy(
+            lastTransitionAt = at,
+            activeDuration = activeDuration,
+            pausedDuration = pausedDuration,
+            activeSince = null,
+            pausedSince = null,
+            state = AppWorkoutSessionState.AWAITING_RECOVERY,
+            revision = revision + 1,
+        ))
     }
 
     fun recover(at: Instant): DomainResult<AppWorkoutSession> =
@@ -247,6 +369,32 @@ data class AppWorkoutSession private constructor(
             endedAt = at,
             activeDuration = finalActiveDuration,
             pausedDuration = finalPausedDuration,
+            activeSince = null,
+            pausedSince = null,
+            state = AppWorkoutSessionState.FINISHING,
+            revision = revision + 1,
+        ))
+    }
+
+    fun beginFinishing(
+        at: Instant,
+        activeDuration: Duration,
+        pausedDuration: Duration,
+    ): DomainResult<AppWorkoutSession> {
+        if (state == AppWorkoutSessionState.FINISHING) {
+            return if (isAtOrAfterLastTransition(at)) DomainResult.Success(this) else invalidTemporalOrder()
+        }
+        if (state !in FINISHABLE_STATES || !isAtOrAfterLastTransition(at) ||
+            !hasValidRuntimeDurations(activeDuration, pausedDuration) ||
+            !auditInstantContainsDurations(at, activeDuration, pausedDuration)
+        ) {
+            return invalidState()
+        }
+        return DomainResult.Success(copy(
+            lastTransitionAt = at,
+            endedAt = at,
+            activeDuration = activeDuration,
+            pausedDuration = pausedDuration,
             activeSince = null,
             pausedSince = null,
             state = AppWorkoutSessionState.FINISHING,
@@ -512,6 +660,34 @@ data class AppWorkoutSession private constructor(
             val durationLimit = endedAt ?: lastTransitionAt
             val elapsed = Duration.between(started, durationLimit)
             return !elapsed.isNegative && activeDuration.plus(pausedDuration) <= elapsed
+        }
+
+        private fun AppWorkoutSession.hasValidRuntimeDurations(
+            nextActiveDuration: Duration,
+            nextPausedDuration: Duration,
+        ): Boolean {
+            if (nextActiveDuration.isNegative || nextPausedDuration.isNegative ||
+                nextActiveDuration < activeDuration || nextPausedDuration < pausedDuration
+            ) return false
+            return when (state) {
+                AppWorkoutSessionState.ACTIVE -> nextPausedDuration == pausedDuration
+                AppWorkoutSessionState.PAUSED -> nextActiveDuration == activeDuration
+                AppWorkoutSessionState.AWAITING_RECOVERY ->
+                    nextActiveDuration == activeDuration && nextPausedDuration == pausedDuration
+                else -> false
+            }
+        }
+
+        private fun AppWorkoutSession.auditInstantContainsDurations(
+            at: Instant,
+            nextActiveDuration: Duration,
+            nextPausedDuration: Duration,
+        ): Boolean {
+            val started = startedAt ?: return false
+            val minimumAuditInstant = runCatching {
+                started.plus(nextActiveDuration).plus(nextPausedDuration)
+            }.getOrNull() ?: return false
+            return !at.isBefore(minimumAuditInstant)
         }
 
         private fun <T> invalidState(): DomainResult<T> = DomainResult.Failure(DomainValidationError.INVALID_STATE)

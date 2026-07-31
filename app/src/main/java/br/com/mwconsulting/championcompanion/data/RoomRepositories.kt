@@ -19,6 +19,7 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionCheckpo
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutation
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.AppendWorkoutRoutePointsInput
 import br.com.mwconsulting.championcompanion.core.model.AssociateWorkoutActivityInput
 import br.com.mwconsulting.championcompanion.core.model.CALENDAR_HEART_RATE_SOURCES
@@ -829,10 +830,33 @@ class RoomRepositories @Inject constructor(
         .map { it?.toDomain() }
         .flowOn(ioDispatcher)
 
+    override fun observeOpen(): Flow<AppWorkoutSession?> = database.appWorkoutSessionDao().observeOpen()
+        .map { it?.toDomain() }
+        .flowOn(ioDispatcher)
+
     override fun observeSession(sessionId: AppWorkoutSessionId): Flow<AppWorkoutSession?> =
         database.appWorkoutSessionDao().observeById(sessionId.value.toString())
             .map { it?.toDomain() }
             .flowOn(ioDispatcher)
+
+    override suspend fun loadOpenForRecovery(
+        sessionId: AppWorkoutSessionId,
+    ): RepositoryResult<AppWorkoutSession> = read {
+        val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString())
+            ?: return@read RepositoryResult.NotFound
+        val session = entity.toDomain() ?: return@read RepositoryResult.UnexpectedState
+        if (session.state !in setOf(
+                AppWorkoutSessionState.CREATED,
+                AppWorkoutSessionState.ACTIVE,
+                AppWorkoutSessionState.PAUSED,
+                AppWorkoutSessionState.AWAITING_RECOVERY,
+                AppWorkoutSessionState.FINISHING,
+            )
+        ) {
+            return@read RepositoryResult.NotFound
+        }
+        RepositoryResult.Success(session)
+    }
 
     override suspend fun create(session: AppWorkoutSession): RepositoryResult<AppWorkoutSession> = write {
         if (session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.CREATED ||
@@ -852,6 +876,30 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(session)
     }
 
+    override suspend fun createStarted(
+        session: AppWorkoutSession,
+        startedAt: Instant,
+    ): RepositoryResult<AppWorkoutSession> = write {
+        if (session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.CREATED ||
+            session.toEntity().toDomain() != session
+        ) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        val started = session.start(startedAt).valueOrNull()
+            ?: return@write RepositoryResult.UnexpectedState
+        if (started.toEntity().toDomain() != started) return@write RepositoryResult.UnexpectedState
+        val dao = database.appWorkoutSessionDao()
+        if (dao.findById(session.id.value.toString()) != null || dao.findOpenSession() != null) {
+            return@write RepositoryResult.Conflict
+        }
+        val deviceId = session.associatedDeviceId?.value?.toString()
+        if (deviceId != null && database.deviceDao().findById(deviceId) == null) {
+            return@write RepositoryResult.NotFound
+        }
+        dao.insert(started.toEntity())
+        RepositoryResult.Success(started)
+    }
+
     override suspend fun start(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
         mutateSession(input.sessionId, input.expectedRevision) { it.start(input.at) }
     }
@@ -860,6 +908,13 @@ class RoomRepositories @Inject constructor(
         mutateSession(input.sessionId, input.expectedRevision) { session ->
             if (session.runtimeGeneration != input.runtimeGeneration) {
                 DomainResult.Failure(br.com.mwconsulting.championcompanion.core.model.DomainValidationError.INVALID_STATE)
+            } else if (input.activeDuration != null && input.pausedDuration != null) {
+                session.checkpoint(
+                    at = input.at,
+                    activeDuration = input.activeDuration,
+                    pausedDuration = input.pausedDuration,
+                    aggregates = input.aggregates,
+                )
             } else {
                 session.checkpoint(input.at, input.aggregates)
             }
@@ -867,15 +922,33 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun pause(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
-        mutateSession(input.sessionId, input.expectedRevision) { it.pause(input.at) }
+        mutateSession(input.sessionId, input.expectedRevision) {
+            if (input.activeDuration != null && input.pausedDuration != null) {
+                it.pause(input.at, input.activeDuration, input.pausedDuration)
+            } else {
+                it.pause(input.at)
+            }
+        }
     }
 
     override suspend fun resume(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
-        mutateSession(input.sessionId, input.expectedRevision) { it.resume(input.at) }
+        mutateSession(input.sessionId, input.expectedRevision) {
+            if (input.activeDuration != null && input.pausedDuration != null) {
+                it.resume(input.at, input.activeDuration, input.pausedDuration)
+            } else {
+                it.resume(input.at)
+            }
+        }
     }
 
     override suspend fun interrupt(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
-        mutateSession(input.sessionId, input.expectedRevision) { it.interrupt(input.at) }
+        mutateSession(input.sessionId, input.expectedRevision) {
+            if (input.activeDuration != null && input.pausedDuration != null) {
+                it.interrupt(input.at, input.activeDuration, input.pausedDuration)
+            } else {
+                it.interrupt(input.at)
+            }
+        }
     }
 
     override suspend fun recover(
@@ -889,7 +962,13 @@ class RoomRepositories @Inject constructor(
     override suspend fun beginFinishing(
         input: AppWorkoutSessionMutation,
     ): RepositoryResult<AppWorkoutSession> = write {
-        mutateSession(input.sessionId, input.expectedRevision) { it.beginFinishing(input.at) }
+        mutateSession(input.sessionId, input.expectedRevision) {
+            if (input.activeDuration != null && input.pausedDuration != null) {
+                it.beginFinishing(input.at, input.activeDuration, input.pausedDuration)
+            } else {
+                it.beginFinishing(input.at)
+            }
+        }
     }
 
     override suspend fun associateActivity(
