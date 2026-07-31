@@ -918,3 +918,114 @@ evidência física. Demais pendências não foram trabalhadas.
   tipos FGS dinâmicos e insets permanecem riscos residuais.
 - `git diff --check`: passou. Nenhum teste automatizado foi criado, alterado ou
   executado.
+
+## Registro de execução — tentativa de morte real do processo — 2026-07-31
+
+- Sessão limpa de treino livre foi iniciada explicitamente com countdown e FGS
+  `health` confirmado.
+- `am kill` não encerrou o processo nem o foreground service. `kill -9` foi recusado
+  pelo Android com `Operation not permitted`; `force-stop`, root, hook e
+  manipulação de banco não foram usados.
+- Sessão foi finalizada e descartada pela UI após a tentativa; serviço e notificação
+  foram removidos.
+
+### Resultado e risco residual
+
+- Morte real recuperável do processo permanece bloqueada neste aparelho. Nenhuma
+  evidência foi fabricada ou tratada como aprovação.
+- Status permanece `in_progress`; item `[ ]`; progresso `7/17`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Comandos e resultados
+
+- `adb -s SERIAL shell am kill PACKAGE`: processo permaneceu vivo; FGS continuou
+  presente.
+- `adb -s SERIAL shell kill -9 PID`: recusado com `Operation not permitted`.
+- Ações de finalização e descarte foram executadas pela interface, com confirmação.
+- `git diff --check`: passou após esta atualização documental.
+
+## Resultado da revisão independente da tentativa de process death — 2026-07-31
+
+- Veredito: registro documental aprovado com ressalvas; gate de morte real e
+  conclusão de `013-08` permanecem bloqueados.
+- Estrutura SDD, ticker, checklist único, progresso `7/17`, privacidade e limpeza
+  posterior foram confirmados.
+- `am kill` preservou processo/FGS; `kill -9` foi recusado. Próxima tentativa pode
+  avaliar `am crash` se o mecanismo for aceito como morte real, sem `force-stop`,
+  root, hook ou banco, com saída sanitizada antes/depois e recuperação explícita.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Registro de execução — `am crash` e recuperação após reabertura — 2026-07-31
+
+### Decisão de aceitação
+
+- `adb shell am crash PACKAGE` foi aceito como mecanismo de morte induzida real do
+  processo para este gate: o Android encerrou o processo do app e removeu o FGS,
+  sem usar `force-stop`, root, hook, banco ou instrumentação de produção.
+- A aceitação cobre morte induzida pelo Android; não equivale a evidência de morte
+  espontânea por OEM ou pressão de memória.
+
+### Execução e resultado
+
+- Treino livre foi iniciado explicitamente com countdown `3`; antes do crash,
+  `WorkoutRecordingService` estava em foreground com duas ações e tipo `0x00000100`.
+- Comando executado: `adb -s SERIAL shell am crash PACKAGE`.
+- Após o comando, `pidof PACKAGE` não retornou processo e o dump de serviços não
+  encontrou `WorkoutRecordingService`/FGS.
+- Reabertura explícita de `MainActivity` exibiu `Treino interrompido`, `Tipo:
+  Treino livre`, `Retomar treino`, `Finalizar treino` e `Descartar treino`.
+- `Retomar treino` foi acionado após a reabertura. A tela exibiu `Treino ativo` e
+  `Pausar`; dump posterior confirmou o FGS novamente com tipo `0x00000100` e duas
+  ações.
+- Sessão foi finalizada com confirmação e descartada com confirmação. Dump final
+  não encontrou serviço ou notificação ativa.
+
+### Arquivos alterados nesta execução
+
+- esta task;
+- `docs/tasks/013-app-workouts-gps-route/013-00-overview.md`;
+- `docs/integration/013-08-evidence.md`;
+- `docs/integration/013-08-foreground-service-recovery-follow-up.md`.
+
+Nenhum arquivo de produção, dependência, migration, schema ou teste foi alterado.
+
+### Comandos, resultados e evidências
+
+- `adb -s SERIAL shell input ...`: preparação, countdown, retomada, finalização e
+  descarte; concluídos.
+- `adb -s SERIAL shell dumpsys activity services PACKAGE`: FGS presente antes do
+  crash, ausente após o crash e presente novamente após `Retomar treino`.
+- `adb -s SERIAL shell am crash PACKAGE`: processo e FGS ausentes após execução.
+- `adb -s SERIAL shell am start -n PACKAGE/MainActivity`: reabertura exibiu a
+  superfície de recuperação.
+- `adb -s SERIAL shell uiautomator dump ...`: confirmou recuperação e retomada por
+  textos sanitizados da UI.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; 103 tarefas,
+  3 executadas e 100 atualizadas.
+- Nenhum teste automatizado foi criado, alterado ou executado; `installDebug` não
+  foi necessário porque nenhuma APK ou fonte de produção mudou nesta execução.
+
+### Estado e riscos residuais
+
+- Status permanece `in_progress`; item continua `[ ]`; progresso permanece `7/17`.
+- Gate de morte induzida real do processo foi aprovado com `am crash` e recuperação
+  confirmada após reabertura.
+- Permanecem pendentes CAS persistente, Room lento/indisponível, alteração do
+  relógio civil, matriz completa de safe insets, tipos FGS dinâmicos
+  `location`/`connectedDevice`, evidências duráveis completas e revisão
+  independente final.
+
+## Resultado da revisão independente do gate `am crash` — 2026-07-31
+
+- Gate `am crash`: aprovado. A ordem processo/FGS ausentes → reabertura →
+  recuperação visível → retomada → FGS restaurado foi considerada coerente.
+- `013-08`: reprovada para conclusão. Status permanece `in_progress`, item `[ ]`
+  e progresso `7/17`.
+- Bloqueadores: validação física dos tipos FGS dinâmicos `location`/
+  `connectedDevice`; liveness sob Room permanentemente suspenso; evidência
+  durável específica do gate ainda precisa preservar excertos sanitizados dos
+  estados antes/depois e da recuperação.
+- Ressalva documental corrigida nesta task: o build completo foi repetido após o
+  gate e passou.
+- Nenhum teste automatizado foi criado, alterado ou executado.

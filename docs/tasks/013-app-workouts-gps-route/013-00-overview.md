@@ -237,3 +237,23 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   abriu sessão correta, pausa exibiu `PAUSED`/`Continuar`, e finalização/descarte
   confirmados removeram serviço. Morte real de processo, relógio civil, CAS/Room,
   tipos FGS dinâmicos e insets permanecem pendentes; item `[ ]`, `7/17`.
+- Tentativa adicional de morte real do processo foi bloqueada pelo dispositivo:
+  `am kill` não encerrou o FGS e `kill -9` retornou `Operation not permitted`.
+  Sem `force-stop`, root, hook ou banco. Sessão foi limpa pela UI; gate permanece
+  pendente e `013-08` segue `[ ]`, `7/17`.
+- Revisão independente aprovou o registro documental com ressalvas e confirmou o
+  bloqueio. Nova tentativa pode avaliar `am crash` se aceita como mecanismo de
+  morte real, mantendo sem `force-stop`, root, hook ou banco; item permanece `[ ]`,
+  progresso `7/17`.
+- Gate repetido com `adb shell am crash PACKAGE` foi aceito como morte induzida real
+  do processo: processo e FGS desapareceram; após reabrir o app, a recuperação
+  exibiu `Retomar treino`, a retomada restaurou `Treino ativo` e o FGS, e a sessão
+  foi finalizada/descartada com confirmação. Evidência cobre crash induzido pelo
+  Android, não morte espontânea por OEM. `013-08` segue `[ ]`, `in_progress` e
+  `7/17` por CAS, Room, relógio civil, safe insets, tipos FGS dinâmicos, evidências
+  duráveis e revisão independente.
+- Revisão independente do gate `am crash` aprovou o gate, mas reprovou conclusão de
+  `013-08`: permanecem bloqueadores de liveness sob Room suspenso, validação de
+  tipos FGS dinâmicos `location`/`connectedDevice` e trilha durável específica dos
+  estados antes/depois do crash, reabertura, retomada e cleanup. Item permanece
+  `[ ]`, progresso `7/17`.

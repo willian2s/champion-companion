@@ -94,6 +94,61 @@ Resultado: gate de tela apagada com múltiplos checkpoints foi aprovado para o t
 FGS atualmente exercitado (`health`). Tipos dinâmicos `location`/`connectedDevice`,
 morte real de processo, CAS/Room, relógio civil e demais gates permanecem abertos.
 
+## Atualização de execução — tentativa de morte real do processo — 2026-07-31
+
+- Sessão limpa foi iniciada explicitamente como treino livre, com countdown e FGS
+  `health` confirmado antes da tentativa.
+- `am kill` não encerrou o processo nem o foreground service. `kill -9` foi recusado
+  pelo Android com `Operation not permitted`; nenhum `force-stop`, root, hook ou
+  manipulação de banco foi usado.
+- Sessão foi finalizada e descartada pela UI após a tentativa; serviço e notificação
+  foram removidos.
+
+Resultado: morte real recuperável do processo permanece bloqueada neste aparelho;
+não há evidência para marcar esse gate como aprovado.
+
+## Revisão independente da tentativa de process death — 2026-07-31
+
+- Veredito: registro documental aprovado com ressalvas; gate de morte real e
+  conclusão de `013-08` permanecem bloqueados.
+- Ticker `013`, checklist único com 17 itens, progresso `7/17`, item `[ ]`,
+  privacidade e limpeza posterior foram confirmados.
+- `am kill` preservou processo/FGS; `kill -9` foi recusado. Próxima tentativa pode
+  avaliar `am crash` somente se aceita como morte real no gate, sem `force-stop`,
+  root, hook ou banco, preservando saída sanitizada antes/depois e recuperação.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Atualização de execução — `am crash` e recuperação confirmada — 2026-07-31
+
+- `adb -s SERIAL shell am crash PACKAGE` foi aceito como morte induzida real do
+  processo para este gate. Antes do comando, treino livre tinha FGS ativo; depois,
+  `pidof PACKAGE` não retornou processo e o dump não encontrou o serviço.
+- Reabertura explícita de `MainActivity` exibiu `Treino interrompido`, o tipo do
+  treino e as ações `Retomar treino`, `Finalizar treino` e `Descartar treino`.
+- `Retomar treino` foi acionado após a reabertura. A tela exibiu `Treino ativo` e o
+  dump confirmou FGS novamente com tipo `0x00000100` e duas ações.
+- Finalização e descarte foram confirmados pela UI; dump final não encontrou FGS.
+- Sem `force-stop`, root, hook, banco ou instrumentação. Esta evidência cobre morte
+  induzida pelo Android, não morte espontânea/OEM.
+
+Resultado: gate de morte induzida real do processo aprovado; recuperação após
+reabrir app confirmada. Permanecem CAS persistente, Room lento/indisponível,
+relógio civil, safe insets completos, tipos FGS dinâmicos, evidências duráveis
+completas e revisão independente. Estado permanece `in_progress`, item `[ ]`,
+progresso `7/17`.
+
+## Resultado da revisão independente — gate `am crash` — 2026-07-31
+
+- Gate `am crash` aprovado: processo/FGS ausentes após crash, recuperação exibida
+  somente depois de reabrir app e retomada restaurou FGS.
+- `013-08` reprovada para conclusão. Permanecem liveness sob Room suspenso,
+  validação de tipos FGS dinâmicos `location`/`connectedDevice` e revisão final.
+- Excertos categóricos antes/depois do crash, reabertura, retomada e cleanup foram
+  adicionados a `docs/integration/013-08-evidence.md`, sem identificadores ou
+  timestamps brutos.
+- Checklist, ticker, status e progresso permanecem válidos: `[ ]`, `in_progress`,
+  `7/17`.
+
 ## Revisão independente do gate de tela apagada — 2026-07-31
 
 - Veredito: aprovado com ressalvas; `013-08` continua bloqueada para conclusão.

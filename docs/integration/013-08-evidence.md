@@ -47,6 +47,66 @@ temporal bruta do banco. Ao retornar pela notificação, a sessão correta abriu
 pausa exibiu `PAUSED`/`Continuar`, e finalização seguida de descarte confirmado
 removeu o serviço e a notificação.
 
+Tentativa de morte real do processo: `am kill` não encerrou o processo nem o FGS;
+a tentativa de `kill -9` foi recusada pelo Android com `Operation not permitted`.
+Não foi usado `force-stop` para fabricar evidência. A sessão foi finalizada e
+descartada pela UI após a tentativa. Gate de process death permanece sem prova.
+
+O registro acima corresponde somente à tentativa anterior com `am kill`/`kill -9`.
+
+## Gate `am crash` — recuperação após reabertura — 2026-07-31
+
+- Treino livre foi iniciado com countdown `3`; dump anterior confirmou
+  `WorkoutRecordingService` em foreground, tipo `0x00000100` e duas ações.
+- `adb -s SERIAL shell am crash PACKAGE` encerrou o processo do app. Após o
+  comando, `pidof PACKAGE` não retornou processo e o dump de serviços não
+  encontrou `WorkoutRecordingService`.
+- Reabertura explícita de `MainActivity` exibiu `Treino interrompido`, `Tipo:
+  Treino livre`, `Retomar treino`, `Finalizar treino` e `Descartar treino`.
+- Após tocar `Retomar treino`, a UI exibiu `Treino ativo`/`Pausar`; dump posterior
+  confirmou novamente FGS, tipo `0x00000100` e duas ações.
+- Finalização e descarte confirmados removeram FGS e notificação. Nenhum
+  `force-stop`, root, hook, banco ou instrumentação foi usado.
+
+Este gate aceita `am crash` como morte induzida real do processo. Não representa
+morte espontânea por OEM ou pressão de memória.
+
+### Excertos sanitizados do gate
+
+```text
+before-am-crash:
+  pidof: present
+  WorkoutRecordingService: present
+  isForeground: true
+  foregroundType: 0x00000100
+  notificationActions: 2
+
+after-am-crash:
+  pidof: absent
+  WorkoutRecordingService: absent
+  foregroundService: absent
+
+after-reopen:
+  surface: Treino interrompido
+  recoveryAction: Retomar treino
+
+after-resume:
+  surface: Treino ativo
+  action: Pausar
+  WorkoutRecordingService: present
+  isForeground: true
+  foregroundType: 0x00000100
+  notificationActions: 2
+
+after-cleanup:
+  WorkoutRecordingService: absent
+  foregroundService: absent
+  notification: absent
+```
+
+Os valores acima são estados categóricos, sem serial ADB, identificadores de
+sessão, timestamps, coordenadas, BPM ou payloads.
+
 `active-font-130.png` foi recapturada após `installDebug` e mostra controle de
 finalização icon-only sem quebra de texto. `active-landscape.png` permanece
 captura sanitizada de gate anterior; não é considerada prova final da matriz de
@@ -127,11 +187,12 @@ ACTIVITY MANAGER SERVICES
 
 ## Estado
 
-Evidências visuais sanitizadas e dump sanitizado agora estão preservados no working
-tree. Os arquivos ainda precisam ser incluídos no conjunto do PR. Gate de tela
+Evidências visuais sanitizadas e dump sanitizado estão preservados no working tree;
+somente versões sanitizadas devem integrar o conjunto do PR. Gate de tela
 apagada com múltiplos checkpoints foi aprovado para `health`; isso não conclui
-gate de CAS, Room, relógio civil, morte real de processo, tipos FGS dinâmicos ou
-matriz completa de insets.
+gate de CAS, Room, relógio civil, tipos FGS dinâmicos ou matriz completa de insets.
+O gate de morte induzida por `am crash` foi aprovado com recuperação confirmada;
+isso não cobre morte espontânea/OEM.
 
 ## Verificação do repositório
 
@@ -139,3 +200,11 @@ matriz completa de insets.
 - `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
 - `./gradlew installDebug`: `BUILD SUCCESSFUL`; instalado no Galaxy S22.
 - Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Resultado da revisão independente — gate `am crash` — 2026-07-31
+
+- Gate `am crash` aprovado: morte de processo e recuperação após reabertura foram
+  confirmadas na ordem correta.
+- Subtask `013-08` permanece reprovada para conclusão por tipos FGS dinâmicos,
+  liveness sob Room suspenso e demais evidências físicas pendentes.
+- `git diff --check` e `./gradlew lint assembleDebug assembleRelease` passaram.
