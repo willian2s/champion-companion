@@ -334,14 +334,13 @@ data class WorkoutActivity private constructor(
         }
         if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 || input.deviceId != associatedDeviceId ||
             input.crc != currentImport.key.crc || importedAt.isBefore(currentImport.importedAt) ||
-            !isValidInput(input)
+            recordedAt.isBefore(input.metrics.startedAt) || !isValidInput(input)
         ) {
             return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
         }
 
         return DomainResult.Success(copy(
             watchImportContext = nextImport,
-            recordedAt = importedAt,
             metrics = input.metrics.copy(
                 distances = input.metrics.distances.copy(
                     calibratedMeters = metrics.distances.calibratedMeters,

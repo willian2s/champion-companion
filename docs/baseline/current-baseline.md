@@ -70,7 +70,12 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v5`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v8`; a migration 7→8 corrige ordem temporal legada de atividades reimportadas já revisadas, sem reparar operações de sync. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+
+Spec 018 corrigiu falso `UNRESOLVED_AGGREGATE` no Calendário após reimportação
+D3/D4: `recordedAt` original é preservado e caminhos de reimportação falham
+com segurança quando a nova atividade não mantém ordem temporal válida. Ver
+`docs/specs/018-integridade-do-calendario-apos-importacao-de-treino.md` e ADR-016.
 
 Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service da sessão e rotas continuam ausentes do código da Fase 12. Backup e device transfer continuam negados.
 

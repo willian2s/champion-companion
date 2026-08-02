@@ -4,7 +4,7 @@
 
 O **Champion Companion** será um novo aplicativo Android nativo, desenvolvido em Kotlin e Jetpack Compose, dedicado exclusivamente à integração com o relógio Champion C001.
 
-O aplicativo será uma reimplementação das funcionalidades atualmente existentes no MotionLog mobile, utilizando como baseline funcional a branch local:
+O aplicativo será uma reimplementação das funcionalidades atualmente existentes no MotionLog mobile, utilizando como baseline funcional a branch do repositório MotionLog:
 
 ```text
 feat/015-watch-workouts-d3-d4
@@ -581,9 +581,10 @@ willian2s/champion-companion
 main
 ```
 
-## Branches sugeridas
+## Branches existentes verificadas
 
 ```text
+009-watch-heart-rate-history-d1
 feat/001-project-bootstrap
 feat/002-design-system
 feat/003-room-foundation
@@ -592,20 +593,31 @@ feat/005-native-ble-poc
 feat/006-device-management
 feat/007-daily-summary
 feat/008-heart-rate
-feat/009-watch-history-d1
 feat/010-watch-workouts-d3-d4
 feat/011-activity-review-calibration
 feat/012-health-connect
 feat/013-phone-workouts
-feat/014-background-services
-feat/015-calendar-profile
-feat/017-alinhamento-visual-margens-cabecalhos
-feat/018-backup-restore
-feat/019-transition
-feat/020-diagnostics
-feat/021-security
-feat/022-quality
+fix/015-11-sync-integrity
 ```
+
+`feat/013-phone-workouts` é branch de integração atual. Specs 015, 015A, 016,
+017 e 018 foram concluídas nessa linha de integração ou em branch de correção;
+não há branches dedicadas publicadas para elas. A branch
+`feat/015-watch-workouts-d3-d4` citada neste roadmap pertence ao repositório
+MotionLog e continua sendo somente baseline externa.
+
+## Padrões de branches futuras sugeridos
+
+Usar somente como convenção de nome quando trabalho futuro for aprovado; não são
+branches existentes nem reservam tickers de Specs:
+
+```text
+feat/<fase>-<slug>
+fix/<ticker>-<slug>
+```
+
+Não sugerir branch para backup Android, device transfer ou exportação de rota:
+`android:allowBackup="false"` e as regras de privacidade atuais permanecem.
 
 ## Documentação
 

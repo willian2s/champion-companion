@@ -2590,9 +2590,16 @@ internal fun planWatchWorkoutPersistence(
         )
     }
     val persistedActivity = existingActivity ?: return null
+    if (persistedActivity.recordedAtEpochMillis < incomingActivity.startedAtEpochMillis ||
+        (persistedActivity.reviewedAtEpochMillis != null &&
+            persistedActivity.reviewedAtEpochMillis < persistedActivity.recordedAtEpochMillis)
+    ) {
+        return null
+    }
     return PlannedWatchWorkoutPersistence(
         persistedActivity = incomingActivity.copy(
             id = persistedActivity.id,
+            recordedAtEpochMillis = persistedActivity.recordedAtEpochMillis,
             title = persistedActivity.title,
             notes = persistedActivity.notes,
             confirmedType = persistedActivity.confirmedType,

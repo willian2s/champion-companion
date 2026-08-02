@@ -272,6 +272,18 @@ val MIGRATION_6_7: Migration = object : Migration(6, 7) {
     }
 }
 
+/** Restaura ordem temporal de atividades reimportadas já revisadas. */
+val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "UPDATE workout_activities SET recordedAtEpochMillis = reviewedAtEpochMillis " +
+                "WHERE reviewedAtEpochMillis IS NOT NULL " +
+                "AND reviewedAtEpochMillis >= startedAtEpochMillis " +
+                "AND reviewedAtEpochMillis < recordedAtEpochMillis",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(
