@@ -121,6 +121,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     val backStack = rememberSaveable(saver = appBackStackSaver) {
         mutableStateListOf<AppDestination>(AppDestination.Home)
     }
+    var preservedActiveWorkoutSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     val currentDestination = backStack.lastOrNull()
     var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
@@ -150,16 +151,36 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
         }
         animationDirection = NavigationAnimationDirection.Forward
         if (destination.isTopLevelDestination()) {
+            if (destination == AppDestination.Device) {
+                val activeWorkout = backStack.lastOrNull { it is AppDestination.ActiveWorkout }
+                    as? AppDestination.ActiveWorkout
+                preservedActiveWorkoutSessionId = activeWorkout?.let {
+                    exercisesViewModel.activeWorkoutSessionIdForNavigation(it.sessionId)
+                }
+            }
+            val sessionIdToRestore = if (destination == AppDestination.Exercises) {
+                preservedActiveWorkoutSessionId?.takeIf { sessionId ->
+                    exercisesViewModel.activeWorkoutSessionIdForNavigation(sessionId) == sessionId
+                }
+            } else {
+                null
+            }
             if (backStack.contains(AppDestination.Calendar)) {
                 backStack.removeCalendarDestinations()
             }
             if (currentDestination.isHealthDestination()) {
                 backStack.removeHealthDestinations()
             }
-            if (currentDestination.isExercisesDestination()) {
+            if (currentDestination.isExercisesDestination() || sessionIdToRestore != null) {
                 backStack.removeExercisesDestinations()
             }
             backStack.navigateToTopLevel(destination)
+            if (sessionIdToRestore != null) {
+                backStack.navigateForward(AppDestination.ActiveWorkout(sessionIdToRestore))
+            }
+            if (destination == AppDestination.Exercises) {
+                preservedActiveWorkoutSessionId = null
+            }
         } else {
             backStack.navigateForward(destination)
         }

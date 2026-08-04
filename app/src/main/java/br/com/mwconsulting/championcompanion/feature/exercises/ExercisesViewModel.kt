@@ -793,6 +793,21 @@ class ExercisesViewModel internal constructor(
         )
     }
 
+    /**
+     * Retorna somente a sessão atualmente observada em estado operacional de
+     * treino. A leitura vem de [onActiveWorkoutScreenShown], que observa a
+     * sessão persistida por ID; a navegação usa a verificação para não
+     * reabrir uma sessão em recuperação, finalização ou estado terminal.
+     */
+    fun activeWorkoutSessionIdForNavigation(expectedSessionId: String): String? {
+        val session = _activeSession.value ?: return null
+        if (session.id.value.toString() != expectedSessionId) return null
+        if (session.state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED)) {
+            return null
+        }
+        return session.id.value.toString()
+    }
+
     fun finishSession(): Boolean {
         val session = _activeSession.value ?: return false
         if (session.state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED) ||

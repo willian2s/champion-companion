@@ -1,6 +1,6 @@
 # 013 — Exercícios iniciados pelo Champion Companion com GPS e rota
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
 - **Progresso:** 8/17 subtarefas concluídas
 
@@ -482,9 +482,35 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   aprovando gate de desconexão. Reconexão não expôs candidato nem reabriu ação de
   associação; conflito, rollover, screenshots, handoff e BPM live seguem
   bloqueados. `013-11` permanece `[ ]`, `in_progress`, progresso `8/17`.
+- Validação pós-correção de reconexão instalou APK no Galaxy S22 e confirmou que
+  `Mais → Dispositivo → desconectar → Exercícios` restaura `ActiveWorkout` da
+  mesma sessão, com FGS preservado. A tela Dispositivo chegou a mostrar
+  desconectado/`Conectar`, mas o retorno ao treino mostrou `Status: Conectado`
+  sem retry explícito observável; reconexão controlada permanece inconclusiva.
+  Sessão foi limpa após validação. Item permanece `[ ]`, status `in_progress`,
+  progresso `8/17`; conflito, rollover, handoff, screenshots e BPM live seguem
+  bloqueados.
 - Revisão independente final aprovou a implementação estática de `013-11` com
   ressalvas e bloqueou o fechamento somente por falta de gates físicos: falha não
   cancelável/reuso, desconexão/reconexão, conflito, rollover/perda de lease,
   handoff de `013-08`, screenshots e BPM live. Scan, lifecycle do POC, conflito
   estático e protocolos proibidos não têm bloqueador. `013-11` permanece `[ ]`,
   status `in_progress`, progresso `8/17`.
+- Correção de reconexão de `013-11` implementada sem alterar owner, serviço,
+  coordinator, protocolos BLE ou handoff de `013-08`. Ao sair de
+  `ActiveWorkout` para `Device`, a navegação preserva somente o `sessionId` cuja
+  sessão persistida ainda está `ACTIVE` ou `PAUSED`; ao retornar a Exercícios,
+  valida novamente esse ID e reabre `ActiveWorkout`, nunca
+  `FINISHING`/`AWAITING_RECOVERY`/terminal. O retry continua no caminho
+  `ExercisesViewModel.retryWatchParticipation()` → `WorkoutRecordingService` →
+  `WatchWorkoutParticipationCoordinator`, mantendo `APP_WORKOUT_SESSION` em
+  desconexão. Arquivos alterados: `ChampionNavigation.kt`,
+  `ExercisesViewModel.kt`, este overview e a task `013-11`.
+- A validação desta correção passou em `git diff --check`,
+  `./gradlew lint assembleDebug assembleRelease` e `./gradlew installDebug`;
+  `adb devices` confirmou Galaxy S22 disponível. Nenhum teste automatizado foi
+  criado, alterado ou executado. O gate físico pós-correção de desconexão →
+  retorno a Exercícios → retry → reconexão ainda não foi executado nesta rodada;
+  screenshots, conflito, rollover/perda de lease, handoff de `013-08` e BPM/
+  passos live continuam bloqueados. Item permanece `[ ]`, status `in_progress`,
+  progresso `8/17`.

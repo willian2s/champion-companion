@@ -100,6 +100,7 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DevicePocCoordinator.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementDebugPoc.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ChampionWatchWorkoutImportCoordinator.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
 - este arquivo e `013-00-overview.md`
 
 ### Decisões e desvios
@@ -482,6 +483,62 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
   Nenhum teste automatizado foi criado, alterado ou executado.
 - Riscos restantes: reconexão, conflito, rollover/perda de lease, falha não
   cancelável/reuso, screenshots duráveis, handoff `013-08` e BPM/passos live.
+
+### Correção de reconexão — 2026-08-04
+
+- **Status:** `in_progress`; item do overview permanece `[ ]`; progresso da fase
+  permanece `8/17`.
+- Causa confirmada: `ChampionNavigation.removeExercisesDestinations()` removia
+  `AppDestination.ActiveWorkout` ao abrir `Device`, e a tela de Exercícios era
+  recriada como landing. A navegação agora guarda somente o `sessionId` da
+  superfície `ActiveWorkout` quando a observação persistida correspondente está
+  `ACTIVE` ou `PAUSED`, remove a superfície apenas da pilha visível e a restaura
+  ao voltar a Exercícios. A validação ocorre na saída e no retorno; sessões
+  `FINISHING`, `AWAITING_RECOVERY`, `FINISHED` e `DISCARDED` não são reabertas.
+- O retry de relógio não foi duplicado na feature Dispositivo: a ação continua
+  em `WorkoutShells` e percorre `ExercisesViewModel.retryWatchParticipation()` →
+  `WorkoutRecordingService.ACTION_RETRY_WATCH` →
+  `WatchWorkoutParticipationCoordinator.enable()`. Nenhum coordinator foi
+  chamado diretamente pela `DeviceScreen`, nenhum gate foi contornado e
+  `APP_WORKOUT_SESSION` continua retido durante desconexão.
+- Arquivos alterados nesta correção: `core/navigation/ChampionNavigation.kt`,
+  `feature/exercises/ExercisesViewModel.kt`, esta task e
+  `013-00-overview.md`. Não houve alteração em Device VM/Screen, contratos,
+  Room, GPS, Health Connect, handoff/startForeground de `013-08` ou protocolos
+  BLE; BPM/passos continuam ausentes sem evidência segura.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`;
+  warning preexistente de cast não verificado em `ExercisesViewModel.kt` foi
+  mantido.
+- `adb devices`: Galaxy S22 disponível.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; APK instalado no Galaxy S22.
+- Nenhum teste automatizado foi criado, alterado ou executado. Não foi executado
+  gate físico novo de reconexão nesta rodada; portanto, a correção estática está
+  validada, mas o risco físico de retorno, retry, reconexão real e preservação do
+  FGS permanece aberto. Também continuam bloqueados conflito, rollover/perda de
+  lease, handoff de `013-08`, screenshots duráveis e BPM/passos live.
+
+### Validação física pós-correção de navegação — 2026-08-04
+
+- APK corrigido foi instalado no Galaxy S22. Sessão livre iniciou, Champion C001
+  foi associado explicitamente e mostrou `Status: Conectado`.
+- Após abrir `Mais → Dispositivo`, desconectar e voltar por `Exercícios`, a
+  navegação restaurou `Treino ativo`/`ActiveWorkout` na mesma sessão, em vez de
+  recriar landing. FGS permaneceu ativo durante a sessão.
+- Em uma segunda repetição, `DeviceScreen` mostrou estado desconectado com ação
+  `Conectar` disponível; ao retornar a `ActiveWorkout`, a UI mostrou
+  `Status: Conectado`. Isso comprova restauração da superfície, mas não comprova
+  retry explícito nem reconexão controlada; o estado visual precisa ser tratado
+  como evidência inconclusiva até novo gate.
+- Após validação, force-stop e descarte limparam a sessão; `dumpsys activity
+  services` terminou sem serviço ativo.
+- Comandos executados: `git diff --check`,
+  `./gradlew lint assembleDebug assembleRelease`, `./gradlew installDebug`,
+  `adb devices`, `adb shell uiautomator dump ...`,
+  `adb shell dumpsys activity services ...` e `adb shell am force-stop ...`.
+- Nenhum teste automatizado foi criado, alterado ou executado. Item permanece
+  `in_progress`, `[ ]`, progresso `8/17`; retry explícito, conflito, rollover,
+  handoff `013-08`, screenshots e BPM/passos live continuam pendentes.
 
 ## Screenshots
 
