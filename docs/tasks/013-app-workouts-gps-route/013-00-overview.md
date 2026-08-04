@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 7/17 subtarefas concluídas
+- **Progresso:** 8/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [x] [013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md](013-06-implement-gps-readiness-gnss-quality-and-point-filtering.md)
 - [x] [013-07-implement-workout-preparation-countdown-and-permission-flow.md](013-07-implement-workout-preparation-countdown-and-permission-flow.md)
 - [ ] [013-08-implement-active-workout-foreground-service-and-recovery.md](013-08-implement-active-workout-foreground-service-and-recovery.md)
-- [ ] [013-09-implement-walking-running-route-capture-and-live-metrics.md](013-09-implement-walking-running-route-capture-and-live-metrics.md)
+- [x] [013-09-implement-walking-running-route-capture-and-live-metrics.md](013-09-implement-walking-running-route-capture-and-live-metrics.md)
 - [ ] [013-10-implement-free-workout-and-treadmill-phone-sessions.md](013-10-implement-free-workout-and-treadmill-phone-sessions.md)
 - [ ] [013-11-integrate-watch-live-heart-rate-and-steps-with-phone-session.md](013-11-integrate-watch-live-heart-rate-and-steps-with-phone-session.md)
 - [ ] [013-12-finalize-phone-session-into-reviewable-activity.md](013-12-finalize-phone-session-into-reviewable-activity.md)
@@ -117,6 +117,48 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   sem migration ou reenvio automático. O item permanece desmarcado e bloqueado
   por `013-12`, pela implementação de `ExerciseRoute`/workflow e pela validação
   física no provider.
+
+- `013-09` recebeu integração estática de rota GPS e métricas live no serviço,
+  com source por geração, captura somente `ACTIVE` de caminhada/corrida, lotes
+  confirmados após sucesso, segmentação de pausa/gap/loss/recovery, retry seguro
+  de falha de persistência e UI sem coordenadas. `lint`, builds debug/release,
+  `git diff --check` e `installDebug` passaram; nenhum teste foi criado,
+  alterado ou executado.
+- `013-09` permanece `in_progress`, item `[ ]` e progresso `7/17`: gate manual
+  de caminhada/corrida, pausa/retomada, perda/recuperação GPS, gaps, process
+  death com lotes, falha de persistência e screenshots obrigatórios não foram
+  concluídos. `013-08` continua `in_progress`; `013-12` ainda finaliza rota e
+  atividade.
+- Revisão independente de `013-09` aprovou implementação estática após limite
+  de um ponto por confirmação, reconciliação de append ambíguo e separação de
+  métricas confirmadas/pending. `git diff --check`, lint, builds debug/release e
+  `installDebug` passaram. Gate físico e screenshots seguem bloqueando conclusão;
+  item permanece `[ ]`, status `in_progress` e progresso `7/17`.
+- Validação manual parcial de `013-09` usou atividade `WALKING` existente no
+  Galaxy S22: snapshot sanitizado preservou 41 pontos, 2 segmentos, 155,9 m e
+  sequência `0..40` após `am crash` e reabertura. UI não exibiu coordenadas e
+  nenhum FGS permaneceu ativo. A atividade estava `FINISHING`; tela ativa,
+  pausa/retomada, perda/recuperação GPS, falha de escrita e screenshots ainda
+  não foram validados. Item permanece `[ ]`, `in_progress`, `7/17`.
+- Gate manual adicional de `013-09` validou sessão GPS nova: pausa em 26 m,
+  retomada com segmentos `1..5`, perda por localização desativada sem aumento de
+  distância, recuperação para `GPS pronto`, background/tela apagada com FGS
+  presente e `am crash` seguido de `Retomar treino`. Sessão livre não mostrou
+  card GPS. Screenshots sanitizados foram capturados temporariamente. Falha real
+  de persistência não foi reproduzida; item permanece `[ ]`, `in_progress`,
+  `7/17`.
+- Tentativa controlada de falha em `013-09` tornou SQLite somente leitura, mas
+  conexões Room já abertas continuaram escrevendo; após force-stop, app não
+  apresentou UI com arquivos somente leitura. Permissões foram restauradas para
+  `600`, recuperação confirmou funcionamento e sessão de teste foi descartada.
+  Não há evidência válida de degradação em write failure; item permanece `[ ]`,
+  `in_progress`, `7/17`.
+- `013-09` está bloqueada no aceite: não há mecanismo seguro e reproduzível para
+  falhar `appendAcceptedPoints` no dispositivo não-root. Permissões não bastam,
+  armazenamento cheio e alteração de banco são inadequados, e fault injection
+  exige decisão explícita para build debug. Item permanece `[ ]`, progresso
+  `7/17`; desbloqueio depende de ambiente controlado, seam debug aprovada ou
+  waiver formal.
 - A validação desta execução passou em `git diff --check` e em
   `./gradlew lint assembleDebug assembleRelease`. Nenhum teste foi criado,
   alterado ou executado, conforme restrição explícita.
@@ -294,3 +336,10 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   atividade correlacionada ignora distância do relógio. Correção de record
   agregado legado, retry e validação com app terceiro permanecem bloqueados por
   `013-12` e pela implementação da subtarefa.
+- `013-09` concluída com waiver explícito do usuário para único critério sem
+  evidência física: falha de `appendAcceptedPoints` não é reproduzível com
+  segurança no dispositivo não-root disponível. Todos os demais gates manuais,
+  GPS real, pausa/retomada, perda/recuperação, background, process death,
+  métricas, tipos sem GPS e privacidade foram validados; builds passaram.
+  Item marcado `[x]`; progresso atualizado para `8/17`. Risco de write failure
+  permanece documentado como residual, sem alegação de teste executado.

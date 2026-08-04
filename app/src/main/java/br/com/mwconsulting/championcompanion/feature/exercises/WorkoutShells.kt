@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,6 +75,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
 import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
 import java.time.Duration
+import java.util.Locale
 
 private data class WorkoutTypeOption(
     val type: WorkoutType,
@@ -643,6 +645,7 @@ fun ActiveWorkoutShell(
 ) {
     val session by exercisesViewModel.activeSession.collectAsState()
     val durationText by exercisesViewModel.activeDurationText.collectAsState()
+    val liveMetrics by exercisesViewModel.activeLiveMetrics.collectAsState()
     val isPaused by exercisesViewModel.isPaused.collectAsState()
     val activeCommandNotice by exercisesViewModel.activeCommandNotice.collectAsState()
     val finishCommandState by exercisesViewModel.finishCommandState.collectAsState()
@@ -728,6 +731,13 @@ fun ActiveWorkoutShell(
                 )
             }
 
+            if (session?.recordsRoute == true) {
+                WorkoutGpsMetricsCard(
+                    metrics = liveMetrics,
+                    onRetryCapture = { exercisesViewModel.retryRouteCapture() },
+                )
+            }
+
             Spacer(modifier = Modifier.height(48.dp))
 
             activeCommandNotice?.let { PreparationNotice(it, isError = true) }
@@ -808,6 +818,115 @@ fun ActiveWorkoutShell(
             onCancel = { showFinishConfirmation = false },
         )
     }
+}
+
+@Composable
+private fun WorkoutGpsMetricsCard(
+    metrics: WorkoutLiveMetricsSnapshot?,
+    onRetryCapture: () -> Unit,
+) {
+    val current = metrics ?: return
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Métricas GPS. Distância ${formatRouteDistance(current.distanceMeters)}. " +
+                    "GPS ${current.gpsStatus.toDisplayLabel()}."
+            },
+        colors = CardDefaults.cardColors(
+            containerColor = if (current.captureError == null) {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            } else {
+                MaterialTheme.colorScheme.errorContainer
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Métricas GPS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "GPS: ${current.gpsStatus.toDisplayLabel()}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Distância: ${formatRouteDistance(current.distanceMeters)}",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.large)) {
+                MetricValue("Ritmo atual", formatPace(current.currentPaceSecondsPerKilometer))
+                MetricValue("Ritmo médio", formatPace(current.averagePaceSecondsPerKilometer))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.large)) {
+                MetricValue("Velocidade", formatSpeed(current.currentSpeedMetersPerSecond))
+                MetricValue("Média", formatSpeed(current.averageSpeedMetersPerSecond))
+            }
+            Text(
+                "${current.acceptedPointCount} pontos aceitos · ${current.segmentCount} segmentos",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            current.captureError?.let { message ->
+                PreparationNotice(message, isError = true)
+                OutlinedButton(onClick = onRetryCapture, modifier = Modifier.fillMaxWidth()) {
+                    Text("Tentar salvar rota novamente")
+                }
+            }
+            if (current.captureError == null && current.gpsStatus in setOf(
+                    WorkoutGpsCaptureStatus.UNAVAILABLE,
+                    WorkoutGpsCaptureStatus.LOCATION_DISABLED,
+                    WorkoutGpsCaptureStatus.PERMISSION_REQUIRED,
+                )
+            ) {
+                OutlinedButton(onClick = onRetryCapture, modifier = Modifier.fillMaxWidth()) {
+                    Text("Verificar GPS novamente")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.MetricValue(label: String, value: String) {
+    Column(modifier = Modifier.weight(1f)) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private fun formatRouteDistance(distanceMeters: Double): String = if (distanceMeters >= 1_000.0) {
+    String.format(Locale.getDefault(), "%.2f km", distanceMeters / 1_000.0)
+} else {
+    String.format(Locale.getDefault(), "%.0f m", distanceMeters)
+}
+
+private fun formatPace(secondsPerKilometer: Double?): String {
+    if (secondsPerKilometer == null || !secondsPerKilometer.isFinite() || secondsPerKilometer <= 0.0) {
+        return "—"
+    }
+    val totalSeconds = secondsPerKilometer.toLong().coerceAtLeast(1L)
+    return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')} /km"
+}
+
+private fun formatSpeed(metersPerSecond: Double?): String = if (
+    metersPerSecond == null || !metersPerSecond.isFinite() || metersPerSecond < 0.0
+) {
+    "—"
+} else {
+    String.format(Locale.getDefault(), "%.1f km/h", metersPerSecond * 3.6)
+}
+
+private fun WorkoutGpsCaptureStatus.toDisplayLabel(): String = when (this) {
+    WorkoutGpsCaptureStatus.STARTING -> "iniciando"
+    WorkoutGpsCaptureStatus.READY -> "pronto"
+    WorkoutGpsCaptureStatus.SEARCHING -> "procurando sinal"
+    WorkoutGpsCaptureStatus.LOST -> "sinal perdido"
+    WorkoutGpsCaptureStatus.UNAVAILABLE -> "indisponível"
+    WorkoutGpsCaptureStatus.PERMISSION_REQUIRED -> "permissão necessária"
+    WorkoutGpsCaptureStatus.LOCATION_DISABLED -> "localização desativada"
+    WorkoutGpsCaptureStatus.PAUSED -> "pausado"
+    WorkoutGpsCaptureStatus.ERROR -> "captura pausada"
 }
 
 @Composable

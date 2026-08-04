@@ -25,6 +25,7 @@ class WorkoutNotificationBuilder @Inject constructor(
         overrideActiveDuration: Duration? = null,
         overridePausedDuration: Duration? = null,
         overrideState: AppWorkoutSessionState? = null,
+        overrideGpsStatus: String? = null,
     ): Notification {
         val effectiveState = overrideState ?: session.state
         val effectiveActiveDuration = overrideActiveDuration ?: session.activeDuration
@@ -34,10 +35,15 @@ class WorkoutNotificationBuilder @Inject constructor(
         val isFinishing = effectiveState == AppWorkoutSessionState.FINISHING
         val sessionId = session.id.value.toString()
 
+        val durationDescription = buildString {
+            append(if (isPaused) "Duração: $durationText · Pausado" else "Duração: $durationText")
+            overrideGpsStatus?.let { append(" · GPS: ").append(it) }
+        }
+
         return NotificationCompat.Builder(context, WorkoutNotificationChannel.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_champion)
             .setContentTitle(if (isPaused) "$typeLabel pausado" else typeLabel)
-            .setContentText(if (isPaused) "Duração: $durationText · Pausado" else "Duração: $durationText")
+            .setContentText(durationDescription)
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(openSessionIntent(sessionId))

@@ -27,6 +27,7 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
@@ -40,6 +41,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
@@ -83,6 +86,37 @@ private val RECOVERY_VISIBLE_STATES = setOf(
     AppWorkoutSessionState.AWAITING_RECOVERY,
     AppWorkoutSessionState.FINISHING,
 )
+
+private data class ActiveWorkoutObservation(
+    val session: AppWorkoutSession?,
+    val route: WorkoutRoute?,
+    val liveMetrics: WorkoutLiveMetricsSnapshot?,
+)
+
+private fun AppWorkoutSession.toLiveMetrics(route: WorkoutRoute?): WorkoutLiveMetricsSnapshot? {
+    if (!recordsRoute) return null
+    val distance = route?.metrics?.distanceMeters
+        ?: (aggregates.distanceMeters as? DomainValue.Present)?.value
+        ?: 0.0
+    val activeSeconds = activeDuration.seconds.toDouble() + activeDuration.nano / 1_000_000_000.0
+    val averageSpeed = distance.takeIf { it > 0.0 && activeSeconds > 0.0 }
+        ?.div(activeSeconds)
+    return WorkoutLiveMetricsSnapshot(
+        sessionId = id,
+        distanceMeters = distance,
+        currentPaceSecondsPerKilometer = null,
+        averagePaceSecondsPerKilometer = averageSpeed?.takeIf { it > 0.0 }?.let { 1_000.0 / it },
+        currentSpeedMetersPerSecond = null,
+        averageSpeedMetersPerSecond = averageSpeed,
+        acceptedPointCount = route?.metrics?.acceptedPointCount ?: 0L,
+        segmentCount = route?.metrics?.segmentCount ?: 0,
+        gpsStatus = if (state == AppWorkoutSessionState.PAUSED) {
+            WorkoutGpsCaptureStatus.PAUSED
+        } else {
+            WorkoutGpsCaptureStatus.STARTING
+        },
+    )
+}
 
 internal enum class WorkoutNotificationAvailability {
     AVAILABLE,
@@ -129,6 +163,8 @@ class ExercisesViewModel internal constructor(
     private val scope: CoroutineScope,
     private val ids: UuidV7Generator,
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
+    private val workoutRouteRepository: WorkoutRouteRepository,
+    private val liveMetricsStore: WorkoutLiveMetricsStore,
     private val workoutSessionOwnershipCoordinator: WorkoutSessionOwnershipCoordinator,
     private val applicationContext: Context,
 ) : ViewModel(), ExercisesFeatureContract {
@@ -168,6 +204,9 @@ class ExercisesViewModel internal constructor(
 
     private val _activeDurationText = MutableStateFlow("00:00")
     val activeDurationText: StateFlow<String> = _activeDurationText.asStateFlow()
+
+    private val _activeLiveMetrics = MutableStateFlow<WorkoutLiveMetricsSnapshot?>(null)
+    val activeLiveMetrics: StateFlow<WorkoutLiveMetricsSnapshot?> = _activeLiveMetrics.asStateFlow()
 
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
@@ -356,6 +395,8 @@ class ExercisesViewModel internal constructor(
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
         workoutLocationSourceFactory: WorkoutLocationSourceFactory,
         appWorkoutSessionRepository: AppWorkoutSessionRepository,
+        workoutRouteRepository: WorkoutRouteRepository,
+        liveMetricsStore: WorkoutLiveMetricsStore,
         workoutSessionOwnershipCoordinator: WorkoutSessionOwnershipCoordinator,
         @ApplicationContext applicationContext: Context,
     ) : this(
@@ -369,6 +410,8 @@ class ExercisesViewModel internal constructor(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         ids = UuidV7Generator(),
         appWorkoutSessionRepository = appWorkoutSessionRepository,
+        workoutRouteRepository = workoutRouteRepository,
+        liveMetricsStore = liveMetricsStore,
         workoutSessionOwnershipCoordinator = workoutSessionOwnershipCoordinator,
         applicationContext = applicationContext,
     ) {
@@ -414,6 +457,9 @@ class ExercisesViewModel internal constructor(
     override fun onCleared() {
         stopWorkoutLocation()
         cancelCountdownInternal()
+        activeSessionObserverJob?.cancel()
+        durationTimerJob?.cancel()
+        _activeLiveMetrics.value = null
         if (ownsScope) {
             scope.cancel()
         }
@@ -714,6 +760,15 @@ class ExercisesViewModel internal constructor(
         return sendServiceCommand(WorkoutRecordingService.ACTION_RESUME, id)
     }
 
+    fun retryRouteCapture(): Boolean {
+        val session = _activeSession.value ?: return false
+        if (!session.recordsRoute || session.state != AppWorkoutSessionState.ACTIVE) return false
+        return sendServiceCommand(
+            WorkoutRecordingService.ACTION_RETRY_ROUTE,
+            session.id.value.toString(),
+        )
+    }
+
     fun finishSession(): Boolean {
         val session = _activeSession.value ?: return false
         if (session.state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED) ||
@@ -756,11 +811,21 @@ class ExercisesViewModel internal constructor(
     fun onActiveWorkoutScreenShown(sessionId: String) {
         val id = try { AppWorkoutSessionId(UUID.fromString(sessionId)) } catch (_: Exception) { return }
         activeSessionObserverJob?.cancel()
+        _activeLiveMetrics.value = null
         activeSessionObserverJob = scope.launch {
-            appWorkoutSessionRepository.observeSession(id).collect { session ->
+            combine(
+                appWorkoutSessionRepository.observeSession(id),
+                workoutRouteRepository.observeBySession(id),
+                liveMetricsStore.observe(id),
+            ) { session, route, liveMetrics ->
+                ActiveWorkoutObservation(session, route, liveMetrics)
+            }.collect { observation ->
+                val session = observation.session
                 _activeSession.value = session
                 _isPaused.value = session?.state == AppWorkoutSessionState.PAUSED
                 session?.let(::synchronizeDisplayTimer)
+                _activeLiveMetrics.value = observation.liveMetrics
+                    ?: session?.toLiveMetrics(observation.route)
                 acknowledgePersistedFinish(id, session)
             }
         }
