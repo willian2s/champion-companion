@@ -472,9 +472,16 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   atualizadas). `./gradlew installDebug` também terminou com `BUILD SUCCESSFUL`
   e instalou o APK no Galaxy S22; nenhum teste foi criado, alterado ou
   executado. `013-11`
-   permanece `in_progress`, item `[ ]`, progresso `8/17`; falha não cancelável,
-   reuso pós-falha, desconexão/reconexão, conflito, handoff e screenshots
-   duráveis continuam bloqueados.
+ permanece `in_progress`, item `[ ]`, progresso `8/17`; falha não cancelável,
+  reuso pós-falha, desconexão/reconexão, conflito, handoff e screenshots
+  duráveis continuam bloqueados.
+- Validação física adicional de `013-11` confirmou sessão livre com Champion C001
+  associado, participação explícita e `Status: Conectado`, sem BPM/passos. Após
+  `Desconectar` na tela Dispositivo, a UI mostrou `Dispositivo desconectado` e o
+  `WorkoutRecordingService` permaneceu foreground (`startForegroundCount=1`),
+  aprovando gate de desconexão. Reconexão não expôs candidato nem reabriu ação de
+  associação; conflito, rollover, screenshots, handoff e BPM live seguem
+  bloqueados. `013-11` permanece `[ ]`, `in_progress`, progresso `8/17`.
 - Revisão independente final aprovou a implementação estática de `013-11` com
   ressalvas e bloqueou o fechamento somente por falta de gates físicos: falha não
   cancelável/reuso, desconexão/reconexão, conflito, rollover/perda de lease,

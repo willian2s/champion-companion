@@ -457,6 +457,32 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
 - Status permanece `in_progress`; item `[ ]`; progresso `8/17`. Nenhum teste foi
   criado ou executado; nenhuma evidência foi fabricada.
 
+### Validação física adicional — 2026-08-04
+
+- Galaxy S22 reconheceu Champion C001 associado e conectado. Sessão de treino
+  livre iniciou após countdown e a tela ativa confirmou `Sessão sem GPS`,
+  `Nenhuma métrica opcional disponível no momento` e `Status: Associado` antes da
+  participação explícita.
+- A ação explícita `Associar relógio à sessão` foi executada. A tela confirmou
+  `Status: Conectado`, manteve BPM/passos ausentes e informou que o modo esportivo
+  continua não comprovado. `dumpsys activity services` confirmou
+  `WorkoutRecordingService` foreground, `startForegroundCount=1`, notificação
+  privada com duas ações e tipos FGS `0x00000110`.
+- Com sessão ativa, a tela Dispositivo executou `Desconectar`. A UI confirmou
+  `Dispositivo desconectado` e `Desconectado`; o FGS permaneceu ativo com
+  `startForegroundCount=1`. Gate físico de desconexão aprovado.
+- Reconexão não foi concluída: ao retornar à tela Dispositivo, `Tentar novamente`
+  não expôs candidato selecionável nem reabriu a superfície da sessão ativa para
+  nova ação `Associar relógio à sessão`. Não há evidência suficiente para marcar
+  reconexão ou conflito.
+- Force-stop e descarte foram usados somente para limpar a sessão de validação;
+  `dumpsys activity services` terminou sem serviço ativo.
+- Comandos: `adb devices`, `adb shell uiautomator dump ...`,
+  `adb shell dumpsys activity services ...`, `adb shell am force-stop ...`.
+  Nenhum teste automatizado foi criado, alterado ou executado.
+- Riscos restantes: reconexão, conflito, rollover/perda de lease, falha não
+  cancelável/reuso, screenshots duráveis, handoff `013-08` e BPM/passos live.
+
 ## Screenshots
 
 Obrigatórias: status sem relógio, conectado, desconectado e conflito; sem BPM identificável se screenshot sair do ambiente privado.
