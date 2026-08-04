@@ -51,6 +51,19 @@ elegíveis sincronizam e a rota local permanece pendente para retry posterior.
 Esta política está documentada, mas a implementação e a validação física
 pertencem às subtarefas 013-05, 013-08, 013-09, 013-14 e 013-16.
 
+### Correção planejada da distância temporal na Fase 13
+
+O mapeamento agregado de `DISTANCE` descrito para a Fase 12 é histórico. No
+fluxo de exercícios da Fase 13, `013-14` deve enviar uma série de
+`DistanceRecord` por intervalo temporal, com delta positivo, início/fim válidos,
+ordenação determinística e sem sobreposição. Sessão phone usa somente deltas
+phone; watch-only usa intervalos D3/D4 elegíveis; atividade phone correlacionada
+ignora distância e intervalos do relógio.
+
+O record agregado legado não pode coexistir com a série corrigida. A fila deve
+preservar IDs e versões para retry/reconciliação, sem apagar records de terceiros
+ou inventar distribuição temporal para uma fonte que só possua total.
+
 ## Mapeamento Planejado Champion Companion
 
 | Origem local Champion Companion | Record planejado | Politica Champion Companion Fase 12 |
@@ -59,7 +72,7 @@ pertencem às subtarefas 013-05, 013-08, 013-09, 013-14 e 013-16.
 | `heart_rate_measurements` manual | `HeartRate` | uma operacao por medicao persistida, timestamp exato, retry idempotente |
 | `heart_rate_measurements` D1 | `HeartRate` | uma operacao por ponto persistido valido, sem selecao manual |
 | `workout_activities` | `ExerciseSession` | sessao obrigatoria, so por acao explicita do usuario |
-| `workout_activities` | `Distance` | complementar opcional e independente, usando distancia final calibrada > original > estimada |
+| `workout_activities` | `Distance` | complementar opcional e independente; Fase 12 usou distância final, Fase 13 usa série temporal da fonte elegível |
 | `workout_activities` | `TotalCaloriesBurned` | complementar opcional e independente |
 | `workout_activities` + `workout_heart_rate_samples` | `HeartRate` | complementar opcional com amostras reais da sessao |
 | `weight_measurements` | `Weight` | so quando houver dado local elegivel |
@@ -95,7 +108,7 @@ Ausência de permissão exigida, provedor indisponível, plataforma não Android
 | `daily_summaries` | `Steps` | `count`, metadata | Passos inteiros arredondados; início dia local; fim é agora para dia corrente ou próximo início local para dia concluído. |
 | `heart_rate_measurements`, inclusive D1 | `HeartRate` | uma amostra `beatsPerMinute`, metadata | BPM inteiro arredondado; `startTime`, `endTime` e tempo amostra iguais a `measuredAt`. |
 | `exercise_sessions` | `ExerciseSession` | tipo, início, fim, notas opcionais, metadata | ISO de `startedAt`/`endedAt`; tipo: caminhada, corrida, esteira, força para `free`, demais `OTHER_WORKOUT`. |
-| Sessão exercício válida | `Distance` opcional | distância, metadata | metros; mesmo intervalo sessão; somente caminhada, corrida ou esteira; valor finito maior que zero. |
+| Sessão exercício válida | `Distance` opcional | distância, metadata | Fase 12: metros no intervalo da sessão; Fase 13: deltas em intervalos temporais válidos, ordenados e não sobrepostos; valor finito maior que zero. |
 | Sessão exercício válida | `TotalCaloriesBurned` opcional | energia, metadata | quilocalorias; mesmo intervalo sessão; valor finito maior que zero. |
 | Amostras BPM da sessão | `HeartRate` opcional | amostras dentro intervalo, metadata | BPM inteiro arredondado; mesmo intervalo sessão. Sem amostras, `avgBpm` válido gera pontos início/fim. |
 | Perfil | `Weight`, `Height` opcionais | peso ou altura, metadata | peso em quilogramas; altura local cm convertida para metros; instante `updatedAt`, ou agora se ausente/inválido. |

@@ -178,12 +178,12 @@ Entregar exercícios iniciados pelo celular com:
 56. Desconexão não encerra treino; reconexão é controlada e não apaga amostras.
 57. Novo owner `APP_WORKOUT_SESSION` bloqueia D1, D3/D4, medição manual e refresh conflitantes.
 58. UI orienta usuário a iniciar treino no relógio se quiser dados do Champion C001.
-59. Fonte prioritária segue tabela da solicitação: celular para sessão/tempo/tipo/GPS/rota/distância/ritmo/velocidade; relógio para BPM/passos e calorias válidas; revisão para título/notas.
+59. Fonte prioritária segue tabela da solicitação: celular para sessão/tempo/tipo/GPS/rota/distância/ritmo/velocidade/calorias/passos/intervalos; relógio somente para BPM real elegível, quando a associação temporal for segura; revisão para título/notas.
 
 ### Correlação D3/D4
 
 60. Antes de criar nova atividade D3/D4, procura atividade do celular com `abs(startedAt)` `<=60 s`, sobreposição relevante, candidato único e mesmo dispositivo quando associado.
-61. Correlação segura mantém atividade do celular, vincula `WatchWorkoutImport`, preserva CRC/metadata, agrega BPM/passos/calorias elegíveis e nunca substitui rota/métricas GPS.
+61. Correlação segura mantém somente a atividade do celular, vincula `WatchWorkoutImport` para proveniência e idempotência, associa somente BPM real elegível e não copia passos, calorias, distância, tempo, tipo, ritmo, velocidade, intervalos ou rota do relógio.
 62. Sem correlação segura, importação normal cria atividade independente.
 63. Ambiguidade cria atividade do relógio pendente de revisão e diagnóstico sanitizado.
 64. Reimportação do mesmo CRC permanece idempotente e não cria segunda atividade.
@@ -207,7 +207,9 @@ Entregar exercícios iniciados pelo celular com:
 76. Operação interna equivalente a rota representa projeção/enriquecimento da mesma `ExerciseSessionRecord`.
 77. Ordem remota: sessão base primeiro; rota e complementos granulares depois; falha de rota não bloqueia complementos independentes.
 78. Atividade só vira `SYNCED` quando todos os componentes elegíveis, inclusive rota autorizada, concluírem.
-79. Metadata da sessão/rota/distância usa telefone; BPM pode manter proveniência do relógio.
+79. Metadata da sessão/rota/distância/calorias e intervalos usa telefone; BPM pode manter proveniência do relógio.
+80. `DISTANCE` é enviado como série temporal de intervalos da mesma fonte da atividade, nunca como agregado de sessão; atividade correlacionada usa somente intervalos do celular e atividade watch-only usa intervalos D3/D4 quando temporalmente reconstruíveis.
+81. Correção da série temporal não deixa record agregado antigo coexistir com os intervalos corrigidos nem usa distância total do relógio como fallback silencioso.
 
 ### Superfícies e acessibilidade
 
@@ -264,7 +266,19 @@ Owner `APP_WORKOUT_SESSION` arbitra conexão durante sessão. D0 continua exclus
 
 ### Correlação
 
-Ordem: deduplicação por CRC existente; depois busca candidato phone por janela de 60 segundos, device quando disponível, sobreposição e unicidade. Merge transacional adiciona import e dados permitidos. Ambiguidade nunca mescla silenciosamente.
+Ordem: deduplicação por CRC existente; depois busca candidato phone por janela de 60 segundos, device quando disponível, sobreposição e unicidade. A associação transacional retém `WatchWorkoutImport` para proveniência e supressão idempotente, mas só permite BPM real elegível; não há merge de métricas. A atividade phone continua dona de sessão, tempo, distância, calorias, intervalos, ritmo, velocidade e rota. Ambiguidade nunca associa silenciosamente.
+
+### Distância temporal no Health Connect
+
+`DISTANCE` não representa mais apenas o total da sessão. A implementação de
+`013-14` deve projetar records temporais positivos, ordenados e não sobrepostos,
+com início/fim e delta de distância da mesma fonte da atividade. Para sessão
+phone, cada delta deriva de pontos aceitos do celular e não atravessa pausa,
+lacuna ou segmento. Para atividade watch-only, cada intervalo D3/D4 elegível
+forma seu próprio record; o total agregado do pacote não é fallback. Atividade
+correlacionada ignora intervalos e totais D3/D4 para distância e usa somente a
+série phone. IDs, versões, retry e reconciliação devem impedir coexistência de
+record agregado legado com a série corrigida.
 
 ### `ExerciseRoute`
 

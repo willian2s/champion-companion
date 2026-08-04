@@ -176,6 +176,21 @@ Continuam proibidos:
 
 Sincronização desta fase é foreground, controlada e manual/derivada de ações explícitas já existentes. `WorkManager`, retry em background, foreground service e sincronização periódica ficam explicitamente adiados para a Fase 14.
 
+### Adendo Fase 13 — distância temporal de exercícios
+
+A granularidade de atividade da Fase 12 continua factual e write-only, mas a
+implementação de exercícios da Fase 13 corrige a projeção de `DISTANCE`. Para
+atividades processadas por `013-14`, distância deve ser enviada como série de
+records temporais positivos, ordenados e não sobrepostos, cada um com delta,
+início e fim da mesma fonte da atividade. O record agregado da sessão não deve
+coexistir com essa série.
+
+Sessão phone usa deltas dos pontos/segmentos phone; watch-only usa intervalos
+D3/D4 elegíveis; atividade phone correlacionada ignora distância, intervalos e
+agregados do relógio. A Fase 12 não é reaberta retroativamente: o adendo define
+correção e reconciliação futura no fluxo da Fase 13, sem apagar records de
+terceiros nem inventar distribuição temporal quando a fonte não a fornece.
+
 ## Consequências
 
 ### Positivas

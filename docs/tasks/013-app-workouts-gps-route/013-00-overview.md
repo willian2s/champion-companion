@@ -281,5 +281,16 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   planejamento. Status permanece `in_progress`, item `[ ]` e progresso `7/17`.
 - Planejamento normalizado: `013-09`, `013-10` e `013-11` podem iniciar usando a
   base operacional de `013-08`; nenhum item foi marcado como concluído. O aceite
-  integrado de `013-08` continua aguardando handoffs e evidências, e `013-12`
-  permanece dependente da conclusão dessas três frentes.
+   integrado de `013-08` continua aguardando handoffs e evidências, e `013-12`
+   permanece dependente da conclusão dessas três frentes.
+- Decisão de produto registrada para `013-13`: correlação phone/watch não faz
+  merge de métricas nem cria atividade duplicada. A atividade phone mantém
+  sessão, tempo, distância, calorias, intervalos, ritmo, velocidade e rota; o
+  import `WatchWorkoutImport` fica retido para CRC/proveniência/idempotência e
+  somente BPM real elegível pode ser associado.
+- Escopo de `013-14` ampliado para distância temporal: `DistanceRecord` deve
+  representar intervalos da fonte correta, sem agregado concorrente. Sessão
+  phone usa sua série phone, watch-only usa intervalos D3/D4 elegíveis e uma
+  atividade correlacionada ignora distância do relógio. Correção de record
+  agregado legado, retry e validação com app terceiro permanecem bloqueados por
+  `013-12` e pela implementação da subtarefa.

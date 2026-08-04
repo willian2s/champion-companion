@@ -98,21 +98,29 @@ Fontes têm prioridade explícita:
 
 | Dado | Fonte prioritária |
 |---|---|
-| tipo, início, fim, duração, GPS, rota, distância, ritmo e velocidade | sessão do celular |
-| BPM, passos e calorias válidas do relógio | amostras do relógio, quando associação temporal e transporte forem seguros |
+| tipo, início, fim, duração, GPS, rota, distância, ritmo, velocidade, calorias, passos e intervalos | sessão do celular |
+| BPM real | amostras do relógio, quando associação temporal e transporte forem seguros |
 | título e observações | revisão do usuário |
 | CRC, índice, parser e metadata de importação | `WatchWorkoutImport` |
 
 Antes de criar atividade independente para D3/D4, procurar atividade da sessão
 do celular com início em janela absoluta de até 60 segundos, sobreposição
 relevante, candidato único e mesmo dispositivo quando dispositivo estiver
-associado. Correlação segura preserva atividade phone, vincula a importação,
-mantém CRC e metadata e agrega somente BPM, passos e calorias elegíveis. Nunca
-substitui rota ou métricas GPS do celular.
+associado. Correlação segura preserva somente a atividade phone, vincula a
+importação para proveniência e deduplicação, mantém CRC e metadata e associa
+somente BPM real elegível. Não copia passos, calorias, distância, tempo, tipo,
+ritmo, velocidade, intervalos ou rota do relógio. Nunca substitui métricas do
+celular.
 
 CRC repetido permanece idempotente. Sem candidato seguro, cria-se atividade
 independente. Ambiguidade não faz merge silencioso e permanece pendente para
 revisão com diagnóstico sanitizado.
+
+Quando houver candidato phone seguro, o import D3/D4 do relógio não cria nem
+mantém uma segunda atividade. A retenção técnica de `WatchWorkoutImport` não
+constitui merge de métricas: ela existe para CRC, proveniência e reimportação
+idempotente. Ausência de BPM elegível não autoriza fallback de qualquer outra
+métrica do relógio.
 
 ### 6. Retry e finalização
 
@@ -138,6 +146,14 @@ versão anterior. Sem `WRITE_EXERCISE_ROUTE`, sessão e complementos autorizados
 podem sincronizar e rota local fica pendente. Concessão posterior atualiza a
 mesma sessão; retry não apaga sessão, métricas ou rota e nenhum upsert futuro
 pode rebaixar sessão que já possui rota local elegível.
+
+O complemento `DISTANCE` usa records temporais por intervalo, com delta
+positivo, janela válida, ordem determinística e IDs próprios. Sessão phone usa
+somente deltas da série phone; watch-only usa intervalos D3/D4 elegíveis; uma
+atividade correlacionada nunca usa total ou intervalos D3/D4 para distância.
+Correção de uma projeção agregada legada deve remover ou substituir somente o
+record exato do app antes de inserir a série, sem apagar dados de terceiros e
+sem deixar agregado e intervalos somando em duplicidade.
 
 A Fase 12 e atividades D3/D4 permanecem sem rota. A permissão de rota só é
 considerada para a sessão phone de caminhada/corrida autorizada nesta ADR.

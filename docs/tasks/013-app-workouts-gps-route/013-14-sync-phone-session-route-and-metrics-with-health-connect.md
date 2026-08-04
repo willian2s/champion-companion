@@ -6,15 +6,24 @@
 
 ## Objetivo e resultado esperado
 
-Adicionar `ExerciseRoute` à mesma `ExerciseSessionRecord` com identidade canônica, versão monotônica e retry granular. Resultado: sessão pode sincronizar sem permissão de rota e ser enriquecida depois sem duplicação/downgrade.
+Adicionar `ExerciseRoute` à mesma `ExerciseSessionRecord` com identidade
+canônica, versão monotônica, retry granular e distância temporal. Resultado:
+sessão pode sincronizar sem permissão de rota, ser enriquecida depois sem
+duplicação/downgrade e expor série de distância que permita cálculo correto de
+ritmo por apps terceiros.
 
 ## Contexto
 
-Fila atual separa sessão/distância/calorias/BPM. Rota é campo da sessão, não record independente. SDK 1.1.0 deve ser validado antes de upgrade. Metadata phone/watch deve preservar proveniência.
+Fila atual separa sessão/distância/calorias/BPM, mas `DISTANCE` ainda é
+projetado como agregado da sessão. Rota é campo da sessão, não record
+independente. SDK 1.1.0 deve ser validado antes de upgrade. Metadata
+phone/watch deve preservar proveniência. A correção deve cobrir sessão phone,
+watch-only e atividade phone correlacionada sem usar distância agregada do
+relógio.
 
 ## Documentos obrigatórios
 
-Spec 013; ADR-012/014; spec 012; `013-03/04/05/12`; documentação oficial Health Connect da versão usada.
+Spec 013; ADR-012/014; spec 012; `013-03/04/05/12/13`; documentação oficial Health Connect da versão usada.
 
 ## Dependências
 
@@ -26,7 +35,7 @@ Spec 013; ADR-012/014; spec 012; `013-03/04/05/12`; documentação oficial Healt
 
 ## Arquivos e símbolos prováveis
 
-`HealthRecordMapper`, `HealthConnectGateway`, `HealthConnectSyncCoordinator`, `HealthSyncOperation`, `HealthSyncRecordType.EXERCISE_SESSION`, nova projeção de route enrichment, `SettingsViewModel` e rationale Activity.
+`HealthRecordMapper`, `HealthConnectGateway`, `HealthConnectSyncCoordinator`, `HealthSyncOperation`, `HealthSyncRecordType.EXERCISE_SESSION`, projeção de route enrichment, fan-out temporal de `DISTANCE`, reconciliação de IDs antigos, `SettingsViewModel` e rationale Activity.
 
 ## Arquivos proibidos
 
@@ -45,6 +54,8 @@ WRITE_EXERCISE_ROUTE; mesma sessão/ID; versão; permissão ausente/posterior; r
 - mapper de route points ordenados/segmentados para API;
 - upsert completo sempre inclui rota local elegível já existente;
 - workflow e falha parcial.
+- série temporal de `DistanceRecord` por intervalo da fonte correta;
+- correção de record agregado legado sem coexistência ou soma duplicada.
 
 ## Fora do escopo
 
@@ -60,10 +71,13 @@ Mapa, leitura remota, delete amplo, servidor, WorkManager, sync automático de a
 6. Enviar base primeiro; sem route permission, manter enrichment pendente/falha `PERMISSION_REQUIRED`.
 7. Após concessão, upsert mesma ID com versão maior e rota.
 8. Garantir que todo upsert posterior inclua rota já elegível.
-9. Processar distância/calorias/BPM granularmente; BPM watch com metadata de watch, sessão/rota/distância phone.
-10. Marcar atividade SYNCED só quando elegíveis concluem.
-11. Tratar sucesso remoto+falha local por retry mesma ID/versão.
-12. Atualizar overview.
+9. Processar calorias/BPM granularmente; BPM watch com metadata de watch, sessão/rota/calorias/distância phone.
+10. Enviar `DISTANCE` como records temporais positivos, ordenados e não sobrepostos: deltas dos pontos/segmentos phone para sessão phone e intervalos D3/D4 para watch-only.
+11. Em atividade correlacionada, ignorar distância total e intervalos D3/D4; usar somente a série phone e não usar agregado como fallback.
+12. Reconciliar/remover o record agregado legado exato antes de inserir a série, sem apagar records de terceiros; retry reutiliza IDs, janelas e valores.
+13. Marcar atividade SYNCED só quando elegíveis concluem.
+14. Tratar sucesso remoto+falha local por retry mesma ID/versão.
+15. Atualizar overview.
 
 ## Critérios de aceite
 
@@ -73,11 +87,15 @@ Mapa, leitura remota, delete amplo, servidor, WorkManager, sync automático de a
 - concessão posterior atualiza mesma sessão;
 - retry não duplica nem apaga rota;
 - falha de route não apaga outros sucessos;
+- `DISTANCE` usa intervalos temporais da mesma fonte da atividade, sem agregado concorrente;
+- watch-only usa intervalos D3/D4 elegíveis e atividade correlacionada usa somente distância phone;
+- app terceiro consegue calcular ritmo a partir da série temporal;
+- retry de distância repete IDs e não duplica deltas;
 - route nunca vira record independente.
 
 ## Validação manual
 
-Provider real: sem permissão route; sync base; conceder; retry; visualizar rota; retry posterior; editar/upsert posterior e confirmar rota preservada; falhas parciais; uma única sessão.
+Provider real: sem permissão route; sync base; conceder; retry; visualizar rota; retry posterior; editar/upsert posterior e confirmar rota preservada; phone-only; watch-only com intervalos D3/D4; phone+watch correlacionado sem métricas watch; records temporais sem agregado; ritmo calculado por app terceiro; falhas parciais; uma única sessão.
 
 ## Comandos
 
@@ -88,7 +106,7 @@ Provider real: sem permissão route; sync base; conceder; retry; visualizar rota
 
 ## Evidências
 
-Permissões, IDs canônicos sanitizados/parcialmente redigidos, versões, estados da fila, contagem remota de sessão, rota visível, comandos e screenshots.
+Permissões, IDs canônicos sanitizados/parcialmente redigidos, versões, estados da fila, janelas/quantidades de `DistanceRecord`, ausência de agregado concorrente, contagem remota de sessão, rota visível, ritmo calculado por app terceiro, comandos e screenshots.
 
 ### Registro parcial — correção de offsets derivados de `WorkoutActivity`
 
@@ -165,14 +183,35 @@ Obrigatórias: Settings/capacidade de rota, falha parcial/status e Health Connec
 
 ## Definição de pronto
 
-Upsert route idempotente comprovado fisicamente; overview atualizado.
+Upsert route e série temporal de distância idempotentes comprovados fisicamente; watch-only e correlação phone-first validados; overview atualizado.
 
 ## Riscos e cuidados
 
-Sem atomicidade Room/provider. Limites de pontos e comportamento do provider exigem evidência física. Nunca fazer write route-less com versão superior após rota synced.
+Sem atomicidade Room/provider. Limites de pontos/records e comportamento do provider exigem evidência física. Record agregado legado pode duplicar distância se não for reconciliado. Esteira sem série temporal não deve receber distribuição inventada. Nunca fazer write route-less com versão superior após rota synced.
 
 ## Rollback
 
 Parar de criar novos enrichments sem apagar records já enviados; manter rota local e operações pendentes. Não remover permissão/mapper se isso causar downgrade remoto; preferir forward fix.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Atualização de planejamento — 2026-08-03
+
+- **Status:** blocked; planejamento ajustado, implementação não iniciada.
+- **Arquivos alterados:** esta subtarefa, `013-13`, `013-00-overview.md`, spec
+  013, ADR-014, ADR-012, spec 012 e baseline de mapeamento Health Connect.
+- **Decisões e desvios:** `DISTANCE` deixa de ser um agregado único no fluxo
+  corrigido. Sessão phone usa deltas temporais phone; watch-only usa intervalos
+  D3/D4 elegíveis; atividade correlacionada ignora distância do relógio. IDs,
+  versões e reconciliação devem impedir agregado legado concorrente e retry não
+  pode duplicar deltas. Esteira sem série temporal não recebe distribuição
+  inventada.
+- **Comandos executados:** `git diff --check`.
+- **Resultados e evidências:** passou; diff documental registra fan-out de
+  `DistanceRecord`, correção do agregado legado, preservação de uma sessão e
+  validação por app terceiro. Nenhum build ou teste automatizado é pertinente
+  a esta alteração de plano.
+- **Riscos residuais:** schema/fila atual modela uma operação `DISTANCE`,
+  `WorkoutInterval` não expõe início/fim explícitos e provider pode impor
+  limites de records. Migração de IDs remotos, permissões, rota e validação
+  física continuam bloqueadas por `013-12` e pela implementação futura.
