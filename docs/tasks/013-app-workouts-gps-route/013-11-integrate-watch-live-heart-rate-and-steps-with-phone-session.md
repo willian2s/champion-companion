@@ -408,6 +408,38 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
 - Status permanece `in_progress`; item do overview permanece `[ ]`, progresso
   `8/17`.
 
+### Correções P1/P2 adicionais após revisão — 2026-08-04
+
+- Causa do P1 confirmada: após `connectAssociatedDevice()` criar o transporte,
+  uma falha de handshake caía apenas em `setDisconnectedLocked()`. O transporte
+  inválido permanecia ativo e uma nova ação podia reutilizar `currentSession()`
+  sem novo handshake.
+- `enable()` agora encaminha falha não cancelável e exceção externa para cleanup
+  identitário em `NonCancellable`. O cleanup exige simultaneamente sessão do
+  treino, owner/operationId e referência do permit da tentativa; valida
+  `transportKey`, `ChampionSessionId`, estado publicado e referência do
+  `ChampionTransportSession` quando disponível. Desconecta somente transporte
+  que satisfaz toda a identidade esperada, libera o owner da tentativa quando o
+  transporte deixou de ser válido e bloqueia reuso do transporte marcado como
+  inválido até novo bootstrap.
+- `ChampionBleState.Disconnected` agora restaura `DISCONNECTED`, limpa
+  `acceptedTransportSessionId`, `pendingTransportSessionId` e o tipo foreground,
+  mas mantém `enabledSessionId` e `APP_WORKOUT_SESSION` para reconexão explícita.
+  Cleanup não altera permit ou transporte de outra sessão.
+- Nenhum protocolo D0/F002/FEA1/A8/D8/D1/D3/D4, contrato, Room, GPS, rota,
+  teste ou arquivo da subtarefa `013-08` foi alterado.
+
+### Validação desta correção
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; 103
+  tarefas acionáveis, 29 executadas e 74 atualizadas.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; APK instalado no Galaxy S22.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+- Corridas físicas de falha não cancelável, reuso após transporte inválido,
+  desconexão normal/reconexão, conflito e screenshots duráveis continuam sem
+  evidência; o status permanece `in_progress`, item `[ ]`, progresso `8/17`.
+
 ## Screenshots
 
 Obrigatórias: status sem relógio, conectado, desconectado e conflito; sem BPM identificável se screenshot sair do ambiente privado.

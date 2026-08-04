@@ -458,3 +458,20 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   `013-11` permanece `in_progress`, item `[ ]`, progresso `8/17`. Corridas
   físicas de cancelamento/perda de lease, conflito, desconexão, reconexão,
   handoff, métricas live e screenshots duráveis continuam bloqueadas.
+- Revisão adicional confirmou P1 em falha não cancelável de
+  `connectAssociatedDevice()`: transporte inválido podia permanecer ativo e
+  ser reutilizado por `currentSession()` sem novo handshake. `enable()` agora
+  executa cleanup identitário em `NonCancellable`, validando sessão, permit,
+  `transportKey`, referência e `ChampionSessionId`; desconecta somente o
+  transporte esperado, marca identidade inválida para impedir reuso e libera
+  somente owner da tentativa sem tocar `APP_WORKOUT_SESSION` de outra sessão.
+  `ChampionBleState.Disconnected` restaura `DISCONNECTED`, limpa transporte
+  rastreado e mantém owner da sessão para reconexão controlada.
+- `git diff --check` passou e `./gradlew lint assembleDebug assembleRelease`
+  terminou com `BUILD SUCCESSFUL` (103 tarefas acionáveis; 29 executadas, 74
+  atualizadas). `./gradlew installDebug` também terminou com `BUILD SUCCESSFUL`
+  e instalou o APK no Galaxy S22; nenhum teste foi criado, alterado ou
+  executado. `013-11`
+  permanece `in_progress`, item `[ ]`, progresso `8/17`; falha não cancelável,
+  reuso pós-falha, desconexão/reconexão, conflito, handoff e screenshots
+  duráveis continuam bloqueados.

@@ -87,6 +87,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
     private var enabledSessionId: AppWorkoutSessionId? = null
     private var acceptedTransportSessionId: ChampionSessionId? = null
     private var pendingTransportSessionId: ChampionSessionId? = null
+    private var invalidTransportSessionId: ChampionSessionId? = null
     private var permit: ForegroundBleOperationPermit? = null
     private var terminalObserverJob: Job? = null
 
@@ -192,15 +193,48 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 }
                 true
             }
-            if (!shouldConnect) return false
-            val connectedDevice = device ?: return false
+            if (!shouldConnect) {
+                if (permitAcquiredByAttempt != null) {
+                    cleanupEnableAttempt(
+                        sessionId = sessionId,
+                        expectedPermit = attemptPermit,
+                        permitAcquiredByAttempt = permitAcquiredByAttempt,
+                        expectedTransportKey = device?.platformIdentifier,
+                        connectionAttemptStarted = connectionAttemptStarted,
+                        returnedTransport = returnedTransport,
+                        releaseExpectedPermit = true,
+                    )
+                }
+                return false
+            }
+            val connectedDevice = device ?: run {
+                cleanupEnableAttempt(
+                    sessionId = sessionId,
+                    expectedPermit = attemptPermit,
+                    permitAcquiredByAttempt = permitAcquiredByAttempt,
+                    expectedTransportKey = null,
+                    connectionAttemptStarted = connectionAttemptStarted,
+                    returnedTransport = returnedTransport,
+                    releaseExpectedPermit = true,
+                )
+                return false
+            }
 
             val current = connectionManager.currentSession()
-            if (current != null && current.session.transportKey == connectedDevice.platformIdentifier) {
+            val currentState = connectionManager.state.value
+            val currentTransportIsReady = currentState is ChampionBleState.TransportReady &&
+                currentState.session.id == current?.session?.id &&
+                currentState.session.transportKey == connectedDevice.platformIdentifier
+            if (current != null &&
+                current.session.transportKey == connectedDevice.platformIdentifier &&
+                current.session.id != invalidTransportSessionId &&
+                currentTransportIsReady
+            ) {
                 return operationMutex.withLock {
                     if (enabledSessionId != sessionId || permit != attemptPermit) return@withLock false
                     acceptedTransportSessionId = current.session.id
                     pendingTransportSessionId = null
+                    invalidTransportSessionId = null
                     setConnectedLocked(sessionId)
                     true
                 }
@@ -214,7 +248,18 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 setConnectingLocked(sessionId)
                 true
             }
-            if (!started) return false
+            if (!started) {
+                cleanupEnableAttempt(
+                    sessionId = sessionId,
+                    expectedPermit = attemptPermit,
+                    permitAcquiredByAttempt = permitAcquiredByAttempt,
+                    expectedTransportKey = connectedDevice.platformIdentifier,
+                    connectionAttemptStarted = connectionAttemptStarted,
+                    returnedTransport = returnedTransport,
+                    releaseExpectedPermit = true,
+                )
+                return false
+            }
 
             val result = try {
                 connectionBootstrap.connectAssociatedDevice(
@@ -228,48 +273,73 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             if (result is ChampionBleResult.Success) {
                 returnedTransport = result.value.transport
             }
-            return operationMutex.withLock {
+            val accepted = operationMutex.withLock {
                 if (enabledSessionId != sessionId || permit != attemptPermit) return@withLock false
                 when {
                     result is ChampionBleResult.Success &&
                         result.value.transport.session.transportKey == connectedDevice.platformIdentifier -> {
                         acceptedTransportSessionId = result.value.transport.session.id
                         pendingTransportSessionId = null
+                        invalidTransportSessionId = null
                         setConnectedLocked(sessionId)
                         true
                     }
 
-                    else -> {
-                        setDisconnectedLocked(sessionId)
-                        false
-                    }
+                    else -> false
                 }
             }
+            if (accepted) return true
+            cleanupEnableAttempt(
+                sessionId = sessionId,
+                expectedPermit = attemptPermit,
+                permitAcquiredByAttempt = permitAcquiredByAttempt,
+                expectedTransportKey = connectedDevice.platformIdentifier,
+                connectionAttemptStarted = connectionAttemptStarted,
+                returnedTransport = returnedTransport,
+                releaseExpectedPermit = true,
+            )
+            return false
         } catch (error: CancellationException) {
-            cleanupCancelledEnable(
+            cleanupEnableAttempt(
                 sessionId = sessionId,
                 expectedPermit = attemptPermit,
                 permitAcquiredByAttempt = permitAcquiredByAttempt,
                 expectedTransportKey = device?.platformIdentifier,
                 connectionAttemptStarted = connectionAttemptStarted,
                 returnedTransport = returnedTransport,
+                releaseExpectedPermit = false,
             )
             throw error
+        } catch (_: Exception) {
+            cleanupEnableAttempt(
+                sessionId = sessionId,
+                expectedPermit = attemptPermit,
+                permitAcquiredByAttempt = permitAcquiredByAttempt,
+                expectedTransportKey = device?.platformIdentifier,
+                connectionAttemptStarted = connectionAttemptStarted,
+                returnedTransport = returnedTransport,
+                releaseExpectedPermit = true,
+            )
+            return false
         }
     }
 
-    private suspend fun cleanupCancelledEnable(
+    private suspend fun cleanupEnableAttempt(
         sessionId: AppWorkoutSessionId,
         expectedPermit: ForegroundBleOperationPermit?,
         permitAcquiredByAttempt: ForegroundBleOperationPermit?,
         expectedTransportKey: String?,
         connectionAttemptStarted: Boolean,
         returnedTransport: ChampionTransportSession?,
+        releaseExpectedPermit: Boolean,
     ) {
         withContext(NonCancellable) {
             var permitToRelease: ForegroundBleOperationPermit? = null
             operationMutex.withLock {
                 if (expectedPermit == null ||
+                    expectedPermit.owner != ForegroundBleOperationOwner.APP_WORKOUT_SESSION ||
+                    expectedPermit.operationId != sessionId.value.toString() ||
+                    (permitAcquiredByAttempt != null && permitAcquiredByAttempt != expectedPermit) ||
                     enabledSessionId != sessionId ||
                     permit != expectedPermit
                 ) {
@@ -287,7 +357,11 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 } else {
                     null
                 }
-                val expectedTransportSessionId = returnedTransport?.session?.id
+                val returnedTransportSessionId = returnedTransport
+                    ?.takeIf { it.session.transportKey == expectedTransportKey }
+                    ?.session
+                    ?.id
+                val expectedTransportSessionId = returnedTransportSessionId
                     ?: pendingTransportSessionId
                     ?: acceptedTransportSessionId
                     ?: expectedTransportKey?.let {
@@ -307,6 +381,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
 
                 try {
                     if (canDisconnectExpectedTransport) {
+                        invalidTransportSessionId = expectedTransportSessionId
                         connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
                     }
                 } catch (_: CancellationException) {
@@ -315,10 +390,11 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                     // Estado e owner ainda precisam ser restaurados mesmo sem teardown BLE.
                 } finally {
                     setDisconnectedLocked(sessionId)
-                    if (permitAcquiredByAttempt != null && permit == permitAcquiredByAttempt) {
+                    val shouldReleasePermit = releaseExpectedPermit || permitAcquiredByAttempt != null
+                    if (shouldReleasePermit && permit == expectedPermit) {
                         permit = null
                         enabledSessionId = null
-                        permitToRelease = permitAcquiredByAttempt
+                        permitToRelease = expectedPermit
                     }
                 }
             }
@@ -363,6 +439,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             enabledSessionId = null
             acceptedTransportSessionId = null
             pendingTransportSessionId = null
+            invalidTransportSessionId = null
             boundSessionId = boundSessionId?.takeUnless { it == sessionId }
             mutableState.value = WatchWorkoutParticipationState()
             permit.also { permit = null }
@@ -406,6 +483,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             )
             acceptedTransportSessionId = null
             pendingTransportSessionId = null
+            invalidTransportSessionId = null
             foregroundBleSessionId = null
             return
         }
@@ -422,6 +500,17 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         }
 
         val readyTransport = transportReadyFor(device)
+        if (readyTransport?.id == invalidTransportSessionId) {
+            if (enabledSessionId == sessionId) {
+                setDisconnectedLocked(sessionId)
+            } else {
+                mutableState.value = WatchWorkoutParticipationState(
+                    sessionId = sessionId,
+                    status = WatchWorkoutParticipationStatus.ASSOCIATED,
+                )
+            }
+            return
+        }
         if (readyTransport != null) {
             if (enabledSessionId == sessionId) {
                 if (acceptedTransportSessionId == null) {
@@ -501,7 +590,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 }
             }
 
-            ChampionBleState.Disconnected -> Unit
+            ChampionBleState.Disconnected -> setDisconnectedLocked(sessionId)
 
             is ChampionBleState.Scanning -> Unit
         }
