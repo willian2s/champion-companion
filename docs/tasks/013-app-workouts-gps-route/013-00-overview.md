@@ -472,6 +472,12 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   atualizadas). `./gradlew installDebug` também terminou com `BUILD SUCCESSFUL`
   e instalou o APK no Galaxy S22; nenhum teste foi criado, alterado ou
   executado. `013-11`
-  permanece `in_progress`, item `[ ]`, progresso `8/17`; falha não cancelável,
-  reuso pós-falha, desconexão/reconexão, conflito, handoff e screenshots
-  duráveis continuam bloqueados.
+   permanece `in_progress`, item `[ ]`, progresso `8/17`; falha não cancelável,
+   reuso pós-falha, desconexão/reconexão, conflito, handoff e screenshots
+   duráveis continuam bloqueados.
+- Revisão independente final aprovou a implementação estática de `013-11` com
+  ressalvas e bloqueou o fechamento somente por falta de gates físicos: falha não
+  cancelável/reuso, desconexão/reconexão, conflito, rollover/perda de lease,
+  handoff de `013-08`, screenshots e BPM live. Scan, lifecycle do POC, conflito
+  estático e protocolos proibidos não têm bloqueador. `013-11` permanece `[ ]`,
+  status `in_progress`, progresso `8/17`.

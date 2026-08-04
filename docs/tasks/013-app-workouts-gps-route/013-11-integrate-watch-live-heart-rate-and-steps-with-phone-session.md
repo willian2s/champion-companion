@@ -440,6 +440,23 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
   desconexão normal/reconexão, conflito e screenshots duráveis continuam sem
   evidência; o status permanece `in_progress`, item `[ ]`, progresso `8/17`.
 
+### Revisão independente final — 2026-08-04
+
+- Veredito: implementação aprovada estaticamente com ressalvas; fechamento
+  bloqueado por ausência de gates físicos.
+- A revisão confirmou cleanup `NonCancellable` para falha não cancelável,
+  identidade de sessão/permit/`operationId`/`transportKey`/`ChampionSessionId`,
+  bloqueio de reuso por `invalidTransportSessionId` e retenção correta do owner
+  durante desconexão normal.
+- Scan com `DEVICE_CONNECTION`, lifecycle do POC, conflito com
+  `APP_WORKOUT_SESSION` e ausência de protocolos proibidos não têm bloqueador
+  estático.
+- Permanecem pendentes falha não cancelável/reuso, desconexão/reconexão,
+  conflito, rollover/perda de lease, handoff integrado de `013-08`, screenshots
+  duráveis e evidência física de BPM/passos live.
+- Status permanece `in_progress`; item `[ ]`; progresso `8/17`. Nenhum teste foi
+  criado ou executado; nenhuma evidência foi fabricada.
+
 ## Screenshots
 
 Obrigatórias: status sem relógio, conectado, desconectado e conflito; sem BPM identificável se screenshot sair do ambiente privado.
