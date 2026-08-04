@@ -66,7 +66,10 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarg
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
+import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionAggregates
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
+import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
 import br.com.mwconsulting.championcompanion.core.model.GpsAccuracyQuality
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.GpsReadinessState
@@ -495,11 +498,16 @@ private fun GpsPreparationCard(
 
 @Composable
 private fun NoGpsCard(workoutType: WorkoutType) {
+    val guidance = if (workoutType == WorkoutType.TREADMILL) {
+        "A distância real fica indisponível durante a sessão. Após finalizar, informe a distância mostrada pela esteira no fluxo de calibração; o app não estima esse valor."
+    } else {
+        "A sessão não mede distância."
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
-                contentDescription = "GPS não usado em ${workoutType.toWorkoutTypeLabel()}. Nenhuma permissão de localização será solicitada."
+                contentDescription = "GPS não usado em ${workoutType.toWorkoutTypeLabel()}. Nenhuma permissão de localização será solicitada. $guidance"
             },
         shape = ChampionShapeMedium,
         colors = CardDefaults.cardColors(
@@ -512,6 +520,7 @@ private fun NoGpsCard(workoutType: WorkoutType) {
         ) {
             Text("Sem GPS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text("${workoutType.toWorkoutTypeLabel()} não usa localização e não solicitará essa permissão.")
+            Text(guidance, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -646,6 +655,7 @@ fun ActiveWorkoutShell(
     val session by exercisesViewModel.activeSession.collectAsState()
     val durationText by exercisesViewModel.activeDurationText.collectAsState()
     val liveMetrics by exercisesViewModel.activeLiveMetrics.collectAsState()
+    val watchParticipation by exercisesViewModel.watchParticipation.collectAsState()
     val isPaused by exercisesViewModel.isPaused.collectAsState()
     val activeCommandNotice by exercisesViewModel.activeCommandNotice.collectAsState()
     val finishCommandState by exercisesViewModel.finishCommandState.collectAsState()
@@ -694,6 +704,11 @@ fun ActiveWorkoutShell(
         }
     }
 
+    val nonGpsSession = session?.takeIf {
+        it.type == WorkoutType.FREE_WORKOUT || it.type == WorkoutType.TREADMILL
+    }
+    val displayedWatchParticipation = watchParticipation.takeIf { it.sessionId == session?.id }
+        ?: WatchWorkoutParticipationState(sessionId = session?.id)
     WorkoutShellCard(
         title = "Treino ativo",
         onNavigateBack = onNavigateBack,
@@ -735,6 +750,19 @@ fun ActiveWorkoutShell(
                 WorkoutGpsMetricsCard(
                     metrics = liveMetrics,
                     onRetryCapture = { exercisesViewModel.retryRouteCapture() },
+                )
+            } else if (nonGpsSession != null) {
+                WorkoutNoGpsMetricsCard(
+                    workoutType = nonGpsSession.type,
+                    aggregates = nonGpsSession.aggregates,
+                )
+            }
+
+            if (session != null) {
+                WatchWorkoutParticipationCard(
+                    state = displayedWatchParticipation,
+                    onEnable = { exercisesViewModel.enableWatchParticipation() },
+                    onRetry = { exercisesViewModel.retryWatchParticipation() },
                 )
             }
 
@@ -819,6 +847,183 @@ fun ActiveWorkoutShell(
         )
     }
 }
+
+@Composable
+private fun WatchWorkoutParticipationCard(
+    state: WatchWorkoutParticipationState,
+    onEnable: () -> Boolean,
+    onRetry: () -> Boolean,
+) {
+    val action = when (state.status) {
+        WatchWorkoutParticipationStatus.NOT_ENABLED,
+        WatchWorkoutParticipationStatus.ASSOCIATED,
+        -> "Associar relógio à sessão" to onEnable
+
+        WatchWorkoutParticipationStatus.CONNECTED,
+        -> if (!state.participationEnabled) {
+            "Associar relógio à sessão" to onEnable
+        } else {
+            null
+        }
+
+        WatchWorkoutParticipationStatus.DISCONNECTED,
+        WatchWorkoutParticipationStatus.CONFLICT,
+        -> "Tentar novamente" to onRetry
+
+        WatchWorkoutParticipationStatus.NO_ASSOCIATED_DEVICE,
+        WatchWorkoutParticipationStatus.CONNECTING,
+        -> null
+    }
+    val statusLabel = when (state.status) {
+        WatchWorkoutParticipationStatus.NOT_ENABLED -> "Não ativado"
+        WatchWorkoutParticipationStatus.NO_ASSOCIATED_DEVICE -> "Sem relógio associado"
+        WatchWorkoutParticipationStatus.ASSOCIATED -> "Associado"
+        WatchWorkoutParticipationStatus.CONNECTING -> "Conectando"
+        WatchWorkoutParticipationStatus.CONNECTED -> "Conectado"
+        WatchWorkoutParticipationStatus.DISCONNECTED -> "Desconectado"
+        WatchWorkoutParticipationStatus.CONFLICT -> "Conflito de operação"
+    }
+    val body = when (state.status) {
+        WatchWorkoutParticipationStatus.NOT_ENABLED ->
+            "A sessão continua funcionando sem relógio. A participação só começa após ação explícita."
+        WatchWorkoutParticipationStatus.NO_ASSOCIATED_DEVICE ->
+            "Nenhum relógio está associado. O treino continua funcionando sem relógio."
+        WatchWorkoutParticipationStatus.ASSOCIATED ->
+            "Relógio associado, mas a participação ainda não está ativa. O modo esportivo continua não comprovado."
+        WatchWorkoutParticipationStatus.CONNECTING ->
+            "Conectando ao relógio. O app não inicia modo esportivo e ainda não atribui BPM ou passos."
+        WatchWorkoutParticipationStatus.CONNECTED -> if (state.participationEnabled) {
+            "Relógio conectado. Modo esportivo não comprovado; BPM e passos permanecem ausentes. Inicie também o treino no relógio se quiser dados esportivos."
+        } else {
+            "Relógio associado e conectado, mas ainda não participa desta sessão. A participação só começa após ação explícita."
+        }
+        WatchWorkoutParticipationStatus.DISCONNECTED ->
+            "Relógio desconectado. O treino do celular continua normalmente. Você pode tentar uma reconexão controlada."
+        WatchWorkoutParticipationStatus.CONFLICT ->
+            "${state.conflictOwner.toWorkoutWatchConflictCopy()} Aguarde essa operação terminar antes de associar o relógio ao treino."
+    }
+    val description = "Relógio opcional. Status: $statusLabel. $body"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = description
+                liveRegion = LiveRegionMode.Polite
+            },
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(
+            containerColor = if (state.status == WatchWorkoutParticipationStatus.CONFLICT) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Relógio opcional", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("Status: $statusLabel", style = MaterialTheme.typography.bodyLarge)
+            Text(body, style = MaterialTheme.typography.bodyMedium)
+            action?.let { (label, callback) ->
+                OutlinedButton(onClick = { callback() }) {
+                    Text(label)
+                }
+            }
+        }
+    }
+}
+
+private fun ForegroundBleOperationOwner?.toWorkoutWatchConflictCopy(): String = when (this) {
+    ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização diária do relógio está em andamento."
+    ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento."
+    ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico está em andamento."
+    ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treino do relógio está em andamento."
+    ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "A participação do relógio nesta sessão já está em andamento."
+    ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Uma conexão do dispositivo está em andamento."
+    null -> "Outra operação do relógio está em andamento."
+}
+
+@Composable
+private fun WorkoutNoGpsMetricsCard(
+    workoutType: WorkoutType,
+    aggregates: AppWorkoutSessionAggregates,
+) {
+    val availableMetrics = buildList {
+        if (aggregates.stepsAvailable) {
+            add("Passos ${formatWorkoutSteps(aggregates.steps)}")
+        }
+        when (val calories = aggregates.caloriesKilocalories) {
+            is DomainValue.Present -> add("Calorias ${formatWorkoutCalories(calories.value)}")
+            is DomainValue.Absent -> Unit
+        }
+        when (val averageBpm = aggregates.averageBpm) {
+            is DomainValue.Present -> add("BPM médio ${averageBpm.value}")
+            is DomainValue.Absent -> Unit
+        }
+        when (val minimumBpm = aggregates.minimumBpm) {
+            is DomainValue.Present -> add("BPM mínimo ${minimumBpm.value}")
+            is DomainValue.Absent -> Unit
+        }
+        when (val maximumBpm = aggregates.maximumBpm) {
+            is DomainValue.Present -> add("BPM máximo ${maximumBpm.value}")
+            is DomainValue.Absent -> Unit
+        }
+    }
+    val distanceDescription = if (workoutType == WorkoutType.TREADMILL) {
+        "Distância indisponível antes da calibração."
+    } else {
+        "Distância não medida nesta sessão."
+    }
+    val metricsDescription = if (availableMetrics.isEmpty()) {
+        "Nenhuma métrica opcional disponível no momento."
+    } else {
+        "Métricas disponíveis: ${availableMetrics.joinToString(separator = ", ")}."
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${workoutType.toWorkoutTypeLabel()} sem GPS. $distanceDescription $metricsDescription"
+            },
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Sessão sem GPS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${workoutType.toWorkoutTypeLabel()} não usa GPS. A ausência de GPS não impede o treino.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(distanceDescription, style = MaterialTheme.typography.bodyMedium)
+            if (availableMetrics.isEmpty()) {
+                Text(
+                    metricsDescription,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                availableMetrics.forEach { metric ->
+                    Text(metric, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
+    }
+}
+
+private fun formatWorkoutSteps(value: Long): String =
+    java.text.NumberFormat.getIntegerInstance(Locale.forLanguageTag("pt-BR")).format(value)
+
+private fun formatWorkoutCalories(value: Double): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.0f kcal", value)
 
 @Composable
 private fun WorkoutGpsMetricsCard(

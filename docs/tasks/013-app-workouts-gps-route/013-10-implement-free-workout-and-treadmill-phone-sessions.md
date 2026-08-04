@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `10`
-- **Status:** pending
+- **Status:** blocked
 
 ## Objetivo e resultado esperado
 
@@ -84,7 +84,49 @@ Livre e esteira com countdowns, sem localização, sem relógio, pause/resume, b
 
 ## Evidências
 
-Ausência de prompt GPS, estados/metricas, calibração, comandos e screenshots.
+Implementação estática em `WorkoutShells.kt`: a sessão ativa de treino livre e
+esteira agora mostra card acessível sem GPS, mantém distância de esteira
+indisponível antes da calibração e renderiza passos, calorias e BPM somente
+quando os agregados estão presentes. `NoGpsCard` orienta a calibração da
+esteira.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/WorkoutShells.kt`
+- este arquivo e `013-00-overview.md`
+
+### Decisões e desvios
+
+- Mudança limitada à superfície de Exercícios para evitar conflito com as
+  frentes paralelas `013-08`, `013-09` e `013-11`.
+- Sessão livre continua sem distância; esteira continua sem distância real até
+  calibração. Nenhum valor foi estimado a partir de passos, GPS ou relógio.
+- Finalização em atividade revisável e abertura do fluxo de calibração ficam
+  para `013-12`, conforme fronteira planejada.
+
+### Comandos, resultados e evidências
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: primeira execução excedeu o
+  timeout operacional de 120 s; repetição com timeout ampliado concluiu com
+  `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; instalado em Galaxy S22.
+- Validação manual no Galaxy S22: preparação de treino livre exibiu `Sem GPS`
+  sem solicitação de localização; treino livre iniciou, exibiu `Sessão sem GPS`,
+  duração e ausência explícita de métricas opcionais; finalização e descarte
+  foram confirmados.
+- Validação manual: preparação de esteira exibiu `Sem GPS` e orientação para
+  informar distância no fluxo de calibração, sem estimativa local.
+- Tentativa de iniciar esteira criou sessão `TREADMILL`; após interrupção
+  controlada, recuperação exibiu tipo Esteira e ações de retomada, finalização e
+  descarte. Card ativo de esteira não foi observado porque o handoff de início
+  permaneceu em `START_REQUESTED`, dependência operacional ainda pendente de
+  `013-08`.
+- Capturas temporárias: `013-10-free-preparation.png`,
+  `013-10-free-active.png` e `013-10-treadmill-preparation.png`. Não foram
+  adicionadas ao repositório nesta execução.
+- Nenhum teste automatizado foi criado, alterado ou executado, conforme regra
+  da fase.
 
 ## Screenshots
 
@@ -97,6 +139,25 @@ Tipos sem GPS funcionam isoladamente e overview está atualizado.
 ## Riscos e cuidados
 
 Não reutilizar distância GPS/estimativa de passos como real de esteira. Finalização atômica completa pertence a 013-12.
+
+## Bloqueios e riscos residuais
+
+- Bloqueio de aceite: card ativo e pause/resume da esteira ainda dependem de
+  handoff funcional de `013-08`; a tentativa física ficou em
+  `START_REQUESTED` e foi limpa por recuperação/descarte.
+- Diagnóstico independente confirmou que `startForegroundService()` retorna sem
+  exceção antes de `startForeground()`; `startForegroundCount=0` prova que o
+  início não foi confirmado. A causa provável está no estado compartilhado de
+  `WorkoutRecordingService`/`WorkoutSessionOwnershipCoordinator` durante
+  teardown (`pendingSessionId` ou owner `TEARING_DOWN`), não na policy de
+  `TREADMILL`.
+- Correção exige mudança transversal em `013-08` para handoff serializado,
+  confirmação real de foreground e retry limitado. Não foi aplicada nesta
+  subtarefa para respeitar arquivos e escopo autorizados.
+- Fluxo final de atividade, calibração e distância informada permanece em
+  `013-12`.
+- Screenshots de sessão ativa da esteira e entrada de calibração permanecem
+  pendentes.
 
 ## Rollback
 

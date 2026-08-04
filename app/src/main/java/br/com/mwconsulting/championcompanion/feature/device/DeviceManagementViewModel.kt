@@ -17,8 +17,11 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidBleEn
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationAcquireResult
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationPermit
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
@@ -26,6 +29,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -34,6 +38,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
 
 @HiltViewModel
@@ -57,6 +62,7 @@ class DeviceManagementViewModel @Inject constructor(
     private var functionalConnectionEstablished = false
     private var autoConnectInFlight = false
     private var currentEntryId = 0L
+    private var connectionOperationSequence = 0L
     private var lastAutoConnectAttemptEntryId: Long? = null
     private var isFeatureVisible = false
     private var foregroundBleOperation: ForegroundBleOperationSnapshot? = null
@@ -204,7 +210,24 @@ class DeviceManagementViewModel @Inject constructor(
                     retryAction = null,
                 )
             }
-            when (val result = connectionManager.scan(ChampionScanRequest(timeout = 12.seconds))) {
+            val scanResult = when (val gateResult = acquireDeviceConnectionPermit()) {
+                is ForegroundBleOperationAcquireResult.Acquired -> try {
+                    connectionManager.scan(ChampionScanRequest(timeout = 12.seconds))
+                } finally {
+                    withContext(NonCancellable) {
+                        foregroundBleOperationGate.release(gateResult.permit)
+                    }
+                }
+
+                is ForegroundBleOperationAcquireResult.Rejected -> {
+                    presentForegroundBleBlockError(
+                        owner = gateResult.activeOperation.owner,
+                        retryAction = DeviceManagementRetryAction.RestartScan,
+                    )
+                    return@launch
+                }
+            }
+            when (val result = scanResult) {
                 is ChampionBleResult.Success -> {
                     activeJob = null
                     scanCandidates = result.value
@@ -299,7 +322,10 @@ class DeviceManagementViewModel @Inject constructor(
         val activeForegroundBleOperation = foregroundBleOperation?.owner
         if (activeForegroundBleOperation != null) {
             if (!automatic) {
-                presentForegroundBleBlockError(activeForegroundBleOperation)
+                presentForegroundBleBlockError(
+                    owner = activeForegroundBleOperation,
+                    retryAction = connectionRetryAction(),
+                )
             }
             return
         }
@@ -315,55 +341,77 @@ class DeviceManagementViewModel @Inject constructor(
 
         activeJob?.cancel()
         activeJob = viewModelScope.launch {
+            var gatePermit: ForegroundBleOperationPermit? = null
             functionalConnectionEstablished = false
             autoConnectInFlight = automatic
-            mutableState.update {
-                it.copy(
-                    screenState = DeviceManagementScreenState.Connecting,
-                    activeOperation = DeviceManagementActiveOperation.CONNECTING,
-                    connectionState = if (automatic && isAssociatedDevice) {
-                        DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE
-                    } else {
-                        DeviceManagementConnectionState.CONNECTING
-                    },
-                    error = null,
-                    retryAction = null,
-                )
-            }
+            try {
+                mutableState.update {
+                    it.copy(
+                        screenState = DeviceManagementScreenState.Connecting,
+                        activeOperation = DeviceManagementActiveOperation.CONNECTING,
+                        connectionState = if (automatic && isAssociatedDevice) {
+                            DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE
+                        } else {
+                            DeviceManagementConnectionState.CONNECTING
+                        },
+                        error = null,
+                        retryAction = null,
+                    )
+                }
 
-            when (val result = if (isAssociatedDevice) {
-                connectionBootstrap.connectAssociatedDevice(candidate)
-            } else {
-                connectionBootstrap.connectAndHandshake(candidate)
-            }) {
-                is ChampionBleResult.Success -> {
-                    functionalConnectionEstablished = true
-                    autoConnectInFlight = false
-                    when (persistAssociation(candidate)) {
-                        is RepositoryResult.Success -> {
-                            mutableState.update {
-                                it.copy(
-                                    screenState = DeviceManagementScreenState.Connected,
-                                    activeOperation = null,
-                                    connectionState = DeviceManagementConnectionState.CONNECTED,
-                                    error = null,
-                                    retryAction = null,
-                                )
-                            }
+                when (val gateResult = acquireDeviceConnectionPermit()) {
+                    is ForegroundBleOperationAcquireResult.Acquired -> gatePermit = gateResult.permit
+                    is ForegroundBleOperationAcquireResult.Rejected -> {
+                        autoConnectInFlight = false
+                        if (automatic) {
+                            mutableState.update { it.copy(activeOperation = null) }
+                            refreshIdleSurface(clearError = true)
+                        } else {
+                            presentForegroundBleBlockError(
+                                owner = gateResult.activeOperation.owner,
+                                retryAction = connectionRetryAction(),
+                            )
                         }
-
-                        RepositoryResult.Conflict,
-                        RepositoryResult.NotFound,
-                        RepositoryResult.StorageUnavailable,
-                        RepositoryResult.UnexpectedState,
-                        -> handleRepositoryFailure(DeviceManagementErrorCategory.INTERNAL, DeviceManagementRetryAction.ReconnectAssociatedDevice)
+                        return@launch
                     }
                 }
 
-                is ChampionBleResult.Failure -> {
-                    autoConnectInFlight = false
-                    handleBleFailure(result.error)
+                when (val result = if (isAssociatedDevice) {
+                    connectionBootstrap.connectAssociatedDevice(candidate)
+                } else {
+                    connectionBootstrap.connectAndHandshake(candidate)
+                }) {
+                    is ChampionBleResult.Success -> {
+                        functionalConnectionEstablished = true
+                        autoConnectInFlight = false
+                        when (persistAssociation(candidate)) {
+                            is RepositoryResult.Success -> {
+                                mutableState.update {
+                                    it.copy(
+                                        screenState = DeviceManagementScreenState.Connected,
+                                        activeOperation = null,
+                                        connectionState = DeviceManagementConnectionState.CONNECTED,
+                                        error = null,
+                                        retryAction = null,
+                                    )
+                                }
+                            }
+
+                            RepositoryResult.Conflict,
+                            RepositoryResult.NotFound,
+                            RepositoryResult.StorageUnavailable,
+                            RepositoryResult.UnexpectedState,
+                            -> handleRepositoryFailure(DeviceManagementErrorCategory.INTERNAL, DeviceManagementRetryAction.ReconnectAssociatedDevice)
+                        }
+                    }
+
+                    is ChampionBleResult.Failure -> {
+                        autoConnectInFlight = false
+                        handleBleFailure(result.error)
+                    }
                 }
+            } finally {
+                gatePermit?.let { foregroundBleOperationGate.release(it) }
             }
         }
     }
@@ -424,33 +472,49 @@ class DeviceManagementViewModel @Inject constructor(
         if (mutableState.value.activeOperation != null) return
         activeJob?.cancel()
         activeJob = viewModelScope.launch {
-            mutableState.update {
-                it.copy(
-                    screenState = DeviceManagementScreenState.Disconnecting,
-                    activeOperation = DeviceManagementActiveOperation.DISCONNECTING,
-                    connectionState = DeviceManagementConnectionState.DISCONNECTING,
-                    error = null,
-                    retryAction = null,
-                )
-            }
-            when (val result = connectionManager.disconnect(ChampionDisconnectReason.USER_REQUESTED)) {
-                is ChampionBleResult.Success -> {
-                    functionalConnectionEstablished = false
-                    autoConnectInFlight = false
-                    mutableState.update {
-                        it.copy(
-                            screenState = if (associatedDeviceDomain != null) {
-                                DeviceManagementScreenState.Disconnected
-                            } else {
-                                DeviceManagementScreenState.NoAssociatedDevice
-                            },
-                            activeOperation = null,
-                            connectionState = DeviceManagementConnectionState.DISCONNECTED,
+            var gatePermit: ForegroundBleOperationPermit? = null
+            try {
+                mutableState.update {
+                    it.copy(
+                        screenState = DeviceManagementScreenState.Disconnecting,
+                        activeOperation = DeviceManagementActiveOperation.DISCONNECTING,
+                        connectionState = DeviceManagementConnectionState.DISCONNECTING,
+                        error = null,
+                        retryAction = null,
+                    )
+                }
+                when (val gateResult = acquireDeviceConnectionPermit()) {
+                    is ForegroundBleOperationAcquireResult.Acquired -> gatePermit = gateResult.permit
+                    is ForegroundBleOperationAcquireResult.Rejected -> {
+                        presentForegroundBleBlockError(
+                            owner = gateResult.activeOperation.owner,
+                            retryAction = DeviceManagementRetryAction.RetryDisconnect,
                         )
+                        return@launch
                     }
                 }
 
-                is ChampionBleResult.Failure -> handleBleFailure(result.error)
+                when (val result = connectionManager.disconnect(ChampionDisconnectReason.USER_REQUESTED)) {
+                    is ChampionBleResult.Success -> {
+                        functionalConnectionEstablished = false
+                        autoConnectInFlight = false
+                        mutableState.update {
+                            it.copy(
+                                screenState = if (associatedDeviceDomain != null) {
+                                    DeviceManagementScreenState.Disconnected
+                                } else {
+                                    DeviceManagementScreenState.NoAssociatedDevice
+                                },
+                                activeOperation = null,
+                                connectionState = DeviceManagementConnectionState.DISCONNECTED,
+                            )
+                        }
+                    }
+
+                    is ChampionBleResult.Failure -> handleBleFailure(result.error)
+                }
+            } finally {
+                gatePermit?.let { foregroundBleOperationGate.release(it) }
             }
         }
     }
@@ -459,40 +523,56 @@ class DeviceManagementViewModel @Inject constructor(
         if (mutableState.value.activeOperation != null) return
         activeJob?.cancel()
         activeJob = viewModelScope.launch {
-            mutableState.update {
-                it.copy(
-                    screenState = DeviceManagementScreenState.Forgetting,
-                    activeOperation = DeviceManagementActiveOperation.FORGETTING,
-                    error = null,
-                    retryAction = null,
-                )
-            }
-            connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
-            functionalConnectionEstablished = false
-            autoConnectInFlight = false
-            when (deviceRepository.forgetAssociatedDevice()) {
-                is RepositoryResult.Success -> {
-                    associatedDeviceDomain = null
-                    scanCandidates = emptyList()
-                    mutableState.update {
-                        it.copy(
-                            screenState = DeviceManagementScreenState.NoAssociatedDevice,
-                            associatedDevice = null,
-                            selectedCandidateId = null,
-                            candidates = emptyList(),
-                            activeOperation = null,
-                            connectionState = DeviceManagementConnectionState.DISCONNECTED,
-                            error = null,
+            var gatePermit: ForegroundBleOperationPermit? = null
+            try {
+                mutableState.update {
+                    it.copy(
+                        screenState = DeviceManagementScreenState.Forgetting,
+                        activeOperation = DeviceManagementActiveOperation.FORGETTING,
+                        error = null,
+                        retryAction = null,
+                    )
+                }
+                when (val gateResult = acquireDeviceConnectionPermit()) {
+                    is ForegroundBleOperationAcquireResult.Acquired -> gatePermit = gateResult.permit
+                    is ForegroundBleOperationAcquireResult.Rejected -> {
+                        presentForegroundBleBlockError(
+                            owner = gateResult.activeOperation.owner,
                             retryAction = null,
                         )
+                        return@launch
                     }
                 }
 
-                RepositoryResult.Conflict,
-                RepositoryResult.NotFound,
-                RepositoryResult.StorageUnavailable,
-                RepositoryResult.UnexpectedState,
-                -> handleRepositoryFailure(DeviceManagementErrorCategory.FORGET, null)
+                connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
+                functionalConnectionEstablished = false
+                autoConnectInFlight = false
+                when (deviceRepository.forgetAssociatedDevice()) {
+                    is RepositoryResult.Success -> {
+                        associatedDeviceDomain = null
+                        scanCandidates = emptyList()
+                        mutableState.update {
+                            it.copy(
+                                screenState = DeviceManagementScreenState.NoAssociatedDevice,
+                                associatedDevice = null,
+                                selectedCandidateId = null,
+                                candidates = emptyList(),
+                                activeOperation = null,
+                                connectionState = DeviceManagementConnectionState.DISCONNECTED,
+                                error = null,
+                                retryAction = null,
+                            )
+                        }
+                    }
+
+                    RepositoryResult.Conflict,
+                    RepositoryResult.NotFound,
+                    RepositoryResult.StorageUnavailable,
+                    RepositoryResult.UnexpectedState,
+                    -> handleRepositoryFailure(DeviceManagementErrorCategory.FORGET, null)
+                }
+            } finally {
+                gatePermit?.let { foregroundBleOperationGate.release(it) }
             }
         }
     }
@@ -685,19 +765,36 @@ class DeviceManagementViewModel @Inject constructor(
         connectAssociatedDevice(automatic = true)
     }
 
-    private fun presentForegroundBleBlockError(owner: ForegroundBleOperationOwner) {
+    private suspend fun acquireDeviceConnectionPermit(): ForegroundBleOperationAcquireResult =
+        foregroundBleOperationGate.tryAcquire(
+            ForegroundBleOperationRequest(
+                owner = ForegroundBleOperationOwner.DEVICE_CONNECTION,
+                operationId = "device-connection-${++connectionOperationSequence}",
+                requestedAt = Instant.now(),
+            ),
+        )
+
+    private fun connectionRetryAction(): DeviceManagementRetryAction = when (lastConnectIntent) {
+        DeviceManagementIntent.ConnectSelectedCandidate -> DeviceManagementRetryAction.RetrySelectedCandidateConnection
+        else -> DeviceManagementRetryAction.ReconnectAssociatedDevice
+    }
+
+    private fun presentForegroundBleBlockError(
+        owner: ForegroundBleOperationOwner,
+        retryAction: DeviceManagementRetryAction?,
+    ) {
         activeJob = null
         mutableState.update {
             it.copy(
+                screenState = DeviceManagementScreenState.Error,
+                activeOperation = null,
+                connectionState = currentTransportState.toDeviceManagementConnectionState(),
                 error = DeviceManagementError(
                     category = DeviceManagementErrorCategory.INTERNAL,
                     message = owner.toDeviceManagementForegroundBleBlockMessage(),
-                    isRecoverable = true,
+                    isRecoverable = retryAction != null,
                 ),
-                retryAction = when (lastConnectIntent) {
-                    DeviceManagementIntent.ConnectSelectedCandidate -> DeviceManagementRetryAction.RetrySelectedCandidateConnection
-                    else -> DeviceManagementRetryAction.ReconnectAssociatedDevice
-                },
+                retryAction = retryAction,
             )
         }
     }
@@ -707,6 +804,8 @@ class DeviceManagementViewModel @Inject constructor(
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Há uma medição manual em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico do relógio em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Há uma importação de treinos do relógio em andamento na tela Exercícios."
+        ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "Há uma participação opcional do relógio em andamento na sessão de treino."
+        ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Outra conexão do dispositivo está em andamento."
     }
 
     private fun handleRepositoryFailure(

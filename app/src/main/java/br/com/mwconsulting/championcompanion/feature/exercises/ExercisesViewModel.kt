@@ -165,6 +165,7 @@ class ExercisesViewModel internal constructor(
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
     private val workoutRouteRepository: WorkoutRouteRepository,
     private val liveMetricsStore: WorkoutLiveMetricsStore,
+    private val watchWorkoutParticipationCoordinator: WatchWorkoutParticipationCoordinator,
     private val workoutSessionOwnershipCoordinator: WorkoutSessionOwnershipCoordinator,
     private val applicationContext: Context,
 ) : ViewModel(), ExercisesFeatureContract {
@@ -207,6 +208,9 @@ class ExercisesViewModel internal constructor(
 
     private val _activeLiveMetrics = MutableStateFlow<WorkoutLiveMetricsSnapshot?>(null)
     val activeLiveMetrics: StateFlow<WorkoutLiveMetricsSnapshot?> = _activeLiveMetrics.asStateFlow()
+
+    val watchParticipation: StateFlow<WatchWorkoutParticipationState> =
+        watchWorkoutParticipationCoordinator.state
 
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
@@ -397,6 +401,7 @@ class ExercisesViewModel internal constructor(
         appWorkoutSessionRepository: AppWorkoutSessionRepository,
         workoutRouteRepository: WorkoutRouteRepository,
         liveMetricsStore: WorkoutLiveMetricsStore,
+        watchWorkoutParticipationCoordinator: WatchWorkoutParticipationCoordinator,
         workoutSessionOwnershipCoordinator: WorkoutSessionOwnershipCoordinator,
         @ApplicationContext applicationContext: Context,
     ) : this(
@@ -412,6 +417,7 @@ class ExercisesViewModel internal constructor(
         appWorkoutSessionRepository = appWorkoutSessionRepository,
         workoutRouteRepository = workoutRouteRepository,
         liveMetricsStore = liveMetricsStore,
+        watchWorkoutParticipationCoordinator = watchWorkoutParticipationCoordinator,
         workoutSessionOwnershipCoordinator = workoutSessionOwnershipCoordinator,
         applicationContext = applicationContext,
     ) {
@@ -769,6 +775,24 @@ class ExercisesViewModel internal constructor(
         )
     }
 
+    fun enableWatchParticipation(): Boolean {
+        val session = _activeSession.value ?: return false
+        if (session.state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED)) return false
+        return sendServiceCommand(
+            WorkoutRecordingService.ACTION_ENABLE_WATCH,
+            session.id.value.toString(),
+        )
+    }
+
+    fun retryWatchParticipation(): Boolean {
+        val session = _activeSession.value ?: return false
+        if (session.state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED)) return false
+        return sendServiceCommand(
+            WorkoutRecordingService.ACTION_RETRY_WATCH,
+            session.id.value.toString(),
+        )
+    }
+
     fun finishSession(): Boolean {
         val session = _activeSession.value ?: return false
         if (session.state !in setOf(AppWorkoutSessionState.ACTIVE, AppWorkoutSessionState.PAUSED) ||
@@ -810,6 +834,7 @@ class ExercisesViewModel internal constructor(
 
     fun onActiveWorkoutScreenShown(sessionId: String) {
         val id = try { AppWorkoutSessionId(UUID.fromString(sessionId)) } catch (_: Exception) { return }
+        watchWorkoutParticipationCoordinator.bindSession(id)
         activeSessionObserverJob?.cancel()
         _activeLiveMetrics.value = null
         activeSessionObserverJob = scope.launch {

@@ -141,6 +141,8 @@ enum class ForegroundBleOperationOwner {
     MANUAL_HEART_RATE,
     WATCH_D1_HISTORY,
     WATCH_WORKOUT_IMPORT,
+    APP_WORKOUT_SESSION,
+    DEVICE_CONNECTION,
 }
 
 data class ForegroundBleOperationRequest(

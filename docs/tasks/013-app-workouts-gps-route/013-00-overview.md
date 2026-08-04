@@ -343,3 +343,118 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   métricas, tipos sem GPS e privacidade foram validados; builds passaram.
   Item marcado `[x]`; progresso atualizado para `8/17`. Risco de write failure
   permanece documentado como residual, sem alegação de teste executado.
+- `013-10` recebeu card acessível na sessão ativa para treino livre e esteira,
+  com ausência explícita de GPS, distância de esteira indisponível antes da
+  calibração e métricas opcionais exibidas somente quando agregadas. A
+  preparação passou a orientar a calibração da esteira. `git diff --check`,
+  lint, builds debug/release e `installDebug` passaram. Validação física
+  confirmou treino livre sem GPS, card ativo, duração, finalização/descarte e
+  preparação de esteira sem localização. O handoff de início da esteira ficou
+  em `START_REQUESTED`, bloqueando card ativo, pause/resume e screenshots
+  correspondentes; diagnóstico confirmou falha no handoff compartilhado de
+  `013-08` antes de `startForeground()`, com `startForegroundCount=0`. A
+  correção exige serviço/coordenador compartilhados e confirmação real de
+  foreground, portanto não foi absorvida por `013-10`. Item segue `[ ]`, status
+  `in_progress` e progresso `8/17`.
+- `013-10` foi marcada `blocked` após diagnóstico do handoff compartilhado de
+  `013-08`. A execução pode prosseguir somente em outra subtarefa independente;
+  `013-11` permanece elegível conforme grafo aprovado, sem marcar itens como
+  concluídos.
+- `013-11` foi selecionada explicitamente e marcada `in_progress`. Sua execução
+  permanece isolada de `013-10`, com contratos e repositories congelados.
+- `013-11` adicionou owner `APP_WORKOUT_SESSION`, participação BLE somente por
+  ação explícita, status acessíveis e retenção do treino em desconexão. Builds,
+  instalação, sessão sem participação, associação explícita e estado conectado
+  foram validados no Galaxy S22. Protocolos D0/F002/FEA1 continuam sem contexto
+  esportivo live seguro; BPM/passos permanecem ausentes. Desconexão, reconexão,
+  conflito e screenshots duráveis permanecem pendentes. Item segue `[ ]`, status
+  `in_progress` e progresso `8/17`.
+- Revisão independente encontrou e a execução corrigiu dois riscos de
+  concorrência: `connectedDevice` só é promovido após transporte confirmado e
+  conexões da tela Dispositivo agora usam owner transitório no gate. Callbacks
+  antigos de transporte também são ignorados por sessão. Builds e instalação
+  foram repetidos com sucesso; os gates físicos de desconexão, reconexão,
+  conflito e screenshots duráveis continuam pendentes. Item segue `[ ]`, status
+  `in_progress` e progresso `8/17`.
+- Gate físico sem dispositivo associado foi executado no Galaxy S22: sessão de
+  treino livre iniciou, mostrou `Sem relógio associado`, manteve ausência de
+  BPM/passos e não bloqueou o treino. Desconexão, reconexão, conflito e
+  screenshots duráveis dos demais estados continuam pendentes. Item segue `[ ]`,
+  status `in_progress` e progresso `8/17`.
+- Nova revisão independente aprovou as correções estáticas, mas bloqueou a
+  conclusão por ausência de gates físicos pós-correção: sem dispositivo,
+  desconexão, reconexão e conflito. Screenshots duráveis também permanecem
+  pendentes. Item segue `[ ]`, status `in_progress` e progresso `8/17`.
+- Continuação física de `013-11` em 2026-08-04 reconectou o Champion C001 e
+  confirmou preparação de treino livre sem GPS, ausência segura de BPM/passos e
+  handoff explícito. Após o countdown, a UI permaneceu em `Solicitação de início
+  emitida`; `dumpsys` confirmou FGS ativo com `startForegroundCount=1`, mas sem
+  sessão ativa exposta. A reabertura após limpeza controlada mostrou `Treino
+  interrompido` e recuperação disponível. O bloqueio pertence ao handoff
+  compartilhado de `013-08`; não houve alteração de `013-08`, nenhum protocolo
+  BLE não comprovado foi enviado e `013-11` continua `[ ]`, `in_progress`,
+  progresso `8/17`. Desconexão, reconexão, conflito e screenshots duráveis seguem
+  pendentes.
+- Ainda em 2026-08-04, o Champion C001 foi esquecido e uma sessão de treino livre
+  iniciou sem associação. A tela ativa confirmou `Sessão sem GPS`, ausência de
+  métricas opcionais, `Status: Sem relógio associado` e continuidade do treino.
+  O gate sem dispositivo pós-correção está aprovado; handoff com dispositivo,
+  desconexão, reconexão, conflito e screenshots duráveis permanecem pendentes.
+- Correções mínimas estáticas de `013-11` protegeram o POC debug com o gate
+  compartilhado `DEVICE_CONNECTION`, incluindo cleanup idempotente, e liberaram
+  `APP_WORKOUT_SESSION` após `AWAITING_RECOVERY` persistido antes do cleanup do
+  serviço. Nenhum documento da subtarefa `013-08` foi editado; não houve comando
+  BLE novo nem alteração de contratos, Room, GPS ou rota. `git diff --check`,
+  `app:lintDebug`, lint, builds debug/release e `installDebug` passaram sem
+  testes. Item permanece `[ ]`, status `in_progress` e progresso `8/17`; revisão
+  independente estática deve ser repetida e gates físicos de desconexão,
+   reconexão, conflito, handoff e screenshots continuam bloqueados.
+- Revisão independente encontrou leak residual em falhas de protocolo do POC e
+  construtor com gate local. Correção final removeu o gate local, centralizou
+  cleanup terminal serializado e liberou `DEVICE_CONNECTION` por identidade em
+  falhas de handshake/subscription/D0/FEA1. `git diff --check`, lint, builds
+  debug/release e `installDebug` passaram; nenhum teste foi criado ou executado.
+  O item permanece `[ ]`, status `in_progress`, progresso `8/17`; handoff
+  associado, desconexão, reconexão, conflito e screenshots duráveis continuam
+   bloqueados.
+- Blindagem final de lifecycle de `013-11` adicionou lease por ciclo/sessão,
+  cleanup `NonCancellable`, validação de eventos `Disconnected`/`Failed`, cleanup
+  em cancelamento de BPM e compensação de conexão sem lease. `git diff --check` e
+  `./gradlew lint assembleDebug assembleRelease` passaram; `installDebug` não
+  pôde ser repetido porque `adb devices` estava sem dispositivo. Nenhum teste foi
+  criado ou executado. Item permanece `[ ]`, status `in_progress`, progresso
+  `8/17`; gates físicos e screenshots seguem pendentes.
+- Correção P1 de `013-11` tratou o retorno `Success` de `connect()` quando o bind
+  perde lease ou ciclo: compensação `NonCancellable` agora usa owner transitório
+  `DEVICE_CONNECTION`, revalida ciclo/estado/lease e identidade da sessão sob as
+  sincronizações existentes, e desconecta somente o transporte recém-criado ainda
+  ativo. Owner concorrente, inclusive `APP_WORKOUT_SESSION`, bloqueia a
+  compensação; release permanece identitário. `connectAndBootstrap`, cleanup
+  existente, contratos e protocolos foram preservados. `git diff --check`, lint,
+  builds debug/release e `installDebug` passaram; nenhum teste foi criado ou
+ executado. `013-11` permanece `in_progress`, item `[ ]`, progresso `8/17`;
+  corrida física de perda de lease/ciclo, desconexão, reconexão, conflito e
+  screenshots duráveis continuam bloqueadas.
+- Correção P1 final de `013-11` fechou a janela de rollover com
+  `activeSessionId` nulo: `disconnectExpectedTransport` agora exige ciclo
+  esperado, sessão esperada e estado PoC pré-bootstrap permitido
+  (`Connecting`/`TransportReady`), além de manter referência do transporte,
+  lease local, owner `DEVICE_CONNECTION` e rejeição de `APP_WORKOUT_SESSION`.
+  `git diff --check` passou e `./gradlew lint assembleDebug assembleRelease`
+  terminou com `BUILD SUCCESSFUL`; `adb devices` não mostrou dispositivo, então
+  `installDebug` ficou bloqueado nesta rodada. Nenhum teste foi criado, alterado
+  ou executado. `013-11` permanece `in_progress`, item `[ ]`, progresso `8/17`;
+  rollover/perda de lease físico, desconexão, reconexão, conflito e screenshots
+  duráveis continuam bloqueados.
+- Revisão P1 adicional de `013-11` confirmou dois caminhos ainda fora do gate:
+  `DeviceManagementViewModel.startScan()` e cancelamento de
+  `WatchWorkoutParticipationCoordinator.enable()`. O scan agora usa owner
+  transitório `DEVICE_CONNECTION`, recusa conflito antes do manager e libera o
+  permit em `finally` `NonCancellable`; `enable()` usa cleanup identitário em
+  `NonCancellable`, restaura `DISCONNECTED`, libera somente permit adquirido
+  pela tentativa e desconecta somente transporte esperado. Nenhum owner de outra
+  sessão é tocado. `git diff --check`, lint, builds debug/release e
+  `installDebug` passaram; nenhum teste foi criado, alterado ou executado.
+  `013-11` permanece `in_progress`, item `[ ]`, progresso `8/17`. Corridas
+  físicas de cancelamento/perda de lease, conflito, desconexão, reconexão,
+  handoff, métricas live e screenshots duráveis continuam bloqueadas.

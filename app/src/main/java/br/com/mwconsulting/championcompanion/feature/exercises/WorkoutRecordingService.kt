@@ -107,6 +107,7 @@ class WorkoutRecordingService : Service() {
     @Inject lateinit var liveMetricsStore: WorkoutLiveMetricsStore
     @Inject lateinit var notificationBuilder: WorkoutNotificationBuilder
     @Inject lateinit var ownershipCoordinator: WorkoutSessionOwnershipCoordinator
+    @Inject lateinit var watchWorkoutParticipationCoordinator: WatchWorkoutParticipationCoordinator
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val commandMutex = Mutex()
@@ -123,6 +124,7 @@ class WorkoutRecordingService : Service() {
     private var appliedRevision: Long? = null
     private var checkpointJob: Job? = null
     private var sessionObserverJob: Job? = null
+    private var watchParticipationJob: Job? = null
     private var notificationUpdateJob: Job? = null
     private var locationSource: WorkoutLocationSource? = null
     private var locationEventsJob: Job? = null
@@ -141,6 +143,8 @@ class WorkoutRecordingService : Service() {
         const val ACTION_PAUSE = "br.com.mwconsulting.championcompanion.action.PAUSE_SESSION"
         const val ACTION_RESUME = "br.com.mwconsulting.championcompanion.action.RESUME_SESSION"
         const val ACTION_RETRY_ROUTE = "br.com.mwconsulting.championcompanion.action.RETRY_ROUTE"
+        const val ACTION_ENABLE_WATCH = "br.com.mwconsulting.championcompanion.action.ENABLE_WATCH"
+        const val ACTION_RETRY_WATCH = "br.com.mwconsulting.championcompanion.action.RETRY_WATCH"
         const val ACTION_FINISH = "br.com.mwconsulting.championcompanion.action.FINISH_SESSION"
         const val EXTRA_SESSION_ID = "session_id"
         const val CHECKPOINT_INTERVAL_MILLIS = 30_000L
@@ -178,6 +182,9 @@ class WorkoutRecordingService : Service() {
             ACTION_PAUSE -> id?.let(::handlePause)
             ACTION_RESUME -> id?.let(::handleResume)
             ACTION_RETRY_ROUTE -> id?.let(::handleRetryRoute)
+            ACTION_ENABLE_WATCH,
+            ACTION_RETRY_WATCH,
+            -> id?.let(::handleWatchParticipation)
             ACTION_FINISH -> id?.let(::handleFinish)
             else -> if (!isForeground) stopSelf(startId)
         }
@@ -195,6 +202,7 @@ class WorkoutRecordingService : Service() {
         stopLocationSource()
         checkpointJob?.cancel()
         sessionObserverJob?.cancel()
+        watchParticipationJob?.cancel()
         notificationUpdateJob?.cancel()
         routeFlushJob?.cancel()
         scope.cancel()
@@ -324,6 +332,15 @@ class WorkoutRecordingService : Service() {
         }
     }
 
+    private fun handleWatchParticipation(id: AppWorkoutSessionId) {
+        launchCommand(id) {
+            val session = ensureAttached(id) ?: return@launchCommand
+            watchWorkoutParticipationCoordinator.bindSession(id)
+            watchWorkoutParticipationCoordinator.enable(id)
+            latestSession?.takeIf { it.id == session.id }?.let(::promoteOrUpdateForeground)
+        }
+    }
+
     private fun handleFinish(id: AppWorkoutSessionId) {
         launchCommand(id) {
             val attached = ensureAttached(id) ?: return@launchCommand
@@ -434,6 +451,11 @@ class WorkoutRecordingService : Service() {
             cleanupAndStop()
             return null
         }
+        if (session.state == AppWorkoutSessionState.AWAITING_RECOVERY) {
+            watchWorkoutParticipationCoordinator.releaseAtRecovery(id)
+            cleanupAndStop()
+            return null
+        }
 
         if (session.state != AppWorkoutSessionState.ACTIVE &&
             session.state != AppWorkoutSessionState.PAUSED &&
@@ -456,6 +478,7 @@ class WorkoutRecordingService : Service() {
     private fun attachSession(session: AppWorkoutSession) {
         if (sessionId != null && sessionId != session.id) return
         sessionId = session.id
+        watchWorkoutParticipationCoordinator.bindSession(session.id)
         applySession(session)
 
         if (sessionObserverJob?.isActive != true) {
@@ -466,6 +489,22 @@ class WorkoutRecordingService : Service() {
         }
         if (notificationUpdateJob?.isActive != true) {
             startNotificationUpdates()
+        }
+        if (watchParticipationJob?.isActive != true) {
+            startWatchParticipationObserver(session.id)
+        }
+    }
+
+    private fun startWatchParticipationObserver(id: AppWorkoutSessionId) {
+        watchParticipationJob = scope.launch {
+            watchWorkoutParticipationCoordinator.state.collect { participation ->
+                if (participation.sessionId != id) return@collect
+                runSerializedCommand {
+                    val session = latestSession?.takeIf { it.id == id } ?: return@runSerializedCommand
+                    if (!isForeground || isStopping) return@runSerializedCommand
+                    promoteOrUpdateForeground(session)
+                }
+            }
         }
     }
 
@@ -492,7 +531,10 @@ class WorkoutRecordingService : Service() {
                             applySession(session)
                             cleanupAndStop()
                         }
-                        AppWorkoutSessionState.AWAITING_RECOVERY,
+                        AppWorkoutSessionState.AWAITING_RECOVERY -> {
+                            watchWorkoutParticipationCoordinator.releaseAtRecovery(id)
+                            cleanupAndStop()
+                        }
                         AppWorkoutSessionState.FINISHED,
                         AppWorkoutSessionState.DISCARDED,
                         AppWorkoutSessionState.CREATED,
@@ -1176,6 +1218,9 @@ class WorkoutRecordingService : Service() {
                 if (session.state == AppWorkoutSessionState.ACTIVE && session.recordsRoute) {
                     serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
                 }
+                if (watchWorkoutParticipationCoordinator.requiresConnectedDeviceForegroundType(session.id)) {
+                    serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                }
                 startForeground(
                     WorkoutNotificationChannel.NOTIFICATION_ID,
                     notification,
@@ -1233,9 +1278,11 @@ class WorkoutRecordingService : Service() {
         }
 
         when (val reconciliation = reconcileInterruptedOwnership(initial)) {
-            is OwnershipReconciliation.RecoveryConfirmed,
-            OwnershipReconciliation.NoOpenSession,
-            -> cleanupAndStop()
+            is OwnershipReconciliation.RecoveryConfirmed -> {
+                watchWorkoutParticipationCoordinator.releaseAtRecovery(id)
+                cleanupAndStop()
+            }
+            OwnershipReconciliation.NoOpenSession -> cleanupAndStop()
             is OwnershipReconciliation.OpenSurfaceConfirmed -> {
                 val session = reconciliation.session
                 if (isForeground && session.state in RUNNING_SESSION_STATES) {
@@ -1405,6 +1452,8 @@ class WorkoutRecordingService : Service() {
         checkpointJob = null
         sessionObserverJob?.cancel()
         sessionObserverJob = null
+        watchParticipationJob?.cancel()
+        watchParticipationJob = null
         notificationUpdateJob?.cancel()
         notificationUpdateJob = null
         if (isForeground) {
