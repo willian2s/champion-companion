@@ -511,6 +511,50 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   `adb devices` confirmou Galaxy S22 disponível. Nenhum teste automatizado foi
   criado, alterado ou executado. O gate físico pós-correção de desconexão →
   retorno a Exercícios → retry → reconexão ainda não foi executado nesta rodada;
-  screenshots, conflito, rollover/perda de lease, handoff de `013-08` e BPM/
+ screenshots, conflito, rollover/perda de lease, handoff de `013-08` e BPM/
   passos live continuam bloqueados. Item permanece `[ ]`, status `in_progress`,
   progresso `8/17`.
+- Correção adicional de `013-11` reconciliou estado stale do coordinator contra
+  transporte/lease atual durante bind e retry. `ACTION_RETRY_WATCH` agora percorre
+  API `retry(sessionId)` distinta de `enable`, preserva `APP_WORKOUT_SESSION`, não
+  adquire `DEVICE_CONNECTION` e publica `CONNECTING`/`CONNECTED`/`DISCONNECTED`.
+  `git diff --check` e lint/builds passaram; `installDebug` não pôde concluir
+  porque `adb devices` estava sem dispositivo. Gate físico de retry/reconexão,
+  screenshots, conflito, rollover, handoff `013-08` e BPM/passos live continuam
+  pendentes. `013-11` permanece `[ ]`, `in_progress`, progresso `8/17`.
+- Cleanup final de retry passou a preservar token de sessão/permit/transportKey/
+  transportSessionId, desconectar somente transporte da tentativa mesmo após
+  liberação local e rejeitar retry/rebind/enable em sessão terminal. Lint e
+  builds debug/release passaram; `installDebug` aguardou dispositivo ADB. Gate
+  físico `DISCONNECTED → Tentar novamente → CONNECTING → CONNECTED`, conflito,
+  rollover, handoff, screenshots e BPM/passos live seguem pendentes. Item
+  permanece `[ ]`, `in_progress`, progresso `8/17`.
+- Bloqueadores estáticos residuais de `013-11` foram corrigidos no coordinator:
+  `TransportReady` agora captura referência, chave, sessão e owner da tentativa;
+  identidade incompleta invalida o transporte e impede adoção stale. Cleanup só
+  desconecta a referência esperada e conserva invalidação fail-closed. Bind,
+  enable, retry e bootstrap revalidam dentro de `operationMutex` os estados
+  `FINISHING`, `AWAITING_RECOVERY`, `FINISHED` e `DISCARDED`; a API retry e os
+  owners `APP_WORKOUT_SESSION`/`DEVICE_CONNECTION` foram preservados. Nenhum
+  arquivo de `013-08`, teste, contrato ou protocolo proibido foi alterado.
+  `git diff --check` e `./gradlew lint assembleDebug assembleRelease` passaram;
+  `adb devices` não encontrou dispositivo, então `installDebug` não foi
+  executado. Item permanece `[ ]`, `in_progress`, progresso `8/17`; gates
+  físicos, handoff, screenshots e BPM/passos live continuam bloqueados.
+- Correção P1 final confirmou corrida em `reconcileBoundStateLocked`: durante
+  `connectionAttemptToken != null`, `TransportReady` pendente agora mantém
+  `CONNECTING`, `pendingTransportSessionId` e token, sem promoção ou limpeza
+  antecipada enquanto `connectAssociatedDevice()` ainda executa A1. Promoção só
+  ocorre após captura identitária validada e `Success` do bootstrap para a mesma
+  referência, chave, `ChampionSessionId`, permit e owner.
+- Cleanup de falha/cancelamento captura estado, sessão e referência enquanto token
+  existe, invalida ID, desconecta somente tentativa própria, limpa token/estado e
+  libera owner esperado. `APP_WORKOUT_SESSION`, `DEVICE_CONNECTION`, retry
+  separado, `canBind` terminal e protocolos proibidos foram preservados; nenhum
+  arquivo de `013-08`, teste ou contrato foi alterado.
+- Nesta rodada, `git diff --check` e `./gradlew lint assembleDebug
+  assembleRelease` passaram. `adb devices` não encontrou dispositivo, então
+  `installDebug` não foi executado; nenhum teste foi criado, alterado ou
+  executado. Item permanece `[ ]`, status `in_progress`, progresso `8/17`;
+  gates físicos de falha/cancelamento, rollover, desconexão, reconexão, conflito,
+  handoff de `013-08`, screenshots e BPM/passos live continuam bloqueados.

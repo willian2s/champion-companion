@@ -540,6 +540,111 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
   `in_progress`, `[ ]`, progresso `8/17`; retry explícito, conflito, rollover,
   handoff `013-08`, screenshots e BPM/passos live continuam pendentes.
 
+### Correção de estado stale e retry explícito — 2026-08-04
+
+- Causa confirmada: `WatchWorkoutParticipationCoordinator` mantinha estado local
+  `CONNECTED` após a tela Dispositivo publicar desconexão; ao restaurar
+  `ActiveWorkout`, a UI não expunha `Tentar novamente`.
+- Coordinator agora reconcilia estado contra `ChampionConnectionManager`, sessão
+  de transporte atual, dispositivo associado, IDs de transporte aceito/pendente,
+  sessão habilitada e permit `APP_WORKOUT_SESSION` durante bind e retry.
+- `ACTION_RETRY_WATCH` agora chama API `retry(sessionId)` distinta de `enable`;
+  retry preserva owner existente, não adquire `DEVICE_CONNECTION`, executa uma
+  única tentativa e publica `CONNECTING`, `CONNECTED` ou `DISCONNECTED`.
+- Nenhum acesso direto da tela Dispositivo ao coordinator foi introduzido; nenhum
+  protocolo BLE, BPM/passos, GPS, Room ou Health Connect foi alterado.
+- Arquivos de produção alterados nesta correção: `WatchWorkoutParticipationCoordinator.kt`
+  e `WorkoutRecordingService.kt`. Arquivos de navegação da correção anterior
+  permanecem no working tree.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: falhou nesta execução porque `adb devices` estava sem
+  dispositivo conectado. Nenhum teste automatizado foi criado, alterado ou
+  executado.
+- Validação física `DISCONNECTED → Tentar novamente → CONNECTING → CONNECTED`
+  permanece pendente; item continua `in_progress`, `[ ]`, progresso `8/17`.
+
+### Correção de cleanup do retry — 2026-08-04
+
+- Falha estática corrigida: cleanup de tentativa agora preserva token com sessão,
+  permit, `operationId`, chave e sessão de transporte esperados, independente de
+  o owner local já ter sido liberado.
+- Falha de handshake não pode deixar `TransportReady` inválido ativo para próximo
+  retry. Cleanup `NonCancellable` desconecta somente transporte identificado da
+  própria tentativa, limpa token/IDs de estado de forma owner-aware e não toca
+  owner concorrente.
+- Retry/rebind/enable rejeitam sessão terminal. Retry sem owner não delega para
+  `enable()` nem readquire/adota transporte alheio.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `installDebug`: não executado nesta correção porque `adb devices` estava sem
+  dispositivo conectado. Nenhum teste automatizado foi criado, alterado ou
+  executado.
+- Gate físico `DISCONNECTED → Tentar novamente → CONNECTING → CONNECTED`, conflito,
+  rollover, handoff `013-08`, screenshots e BPM/passos live permanecem pendentes.
+
+### Correção dos bloqueadores estáticos residuais — 2026-08-04
+
+- Causa do primeiro bloqueador confirmada: `captureAttemptTransport` só aceitava
+  transporte retornado ou sessão já conhecida; uma falha de
+  `DeviceConnectionBootstrap` podia deixar `TransportReady` ativo sem token e
+  `sessionId` completos, permitindo adoção stale no próximo `reconcile`.
+- A captura agora lê `TransportReady` junto com a referência atual do manager,
+  chave, `ChampionSessionId` e owner/permit `APP_WORKOUT_SESSION` da tentativa.
+  Identidade incompleta recebe `transportIdentityInvalid` e
+  `invalidTransportSessionId`; `reconcileBoundStateLocked` não adota essa
+  sessão. Cleanup exige referência, chave, sessão e estado correspondentes,
+  desconecta somente transporte esperado e invalida o estado stale restante.
+- Causa do segundo bloqueador confirmada: a leitura anterior de
+  `canBindSession()` ocorria antes de adquirir `operationMutex` e podia ficar
+  stale antes de bind, aquisição ou bootstrap. A revalidação agora ocorre dentro
+  do lock em `bind`, `enable` e `retry`, e novamente imediatamente antes de
+  iniciar conexão. `FINISHING`, `AWAITING_RECOVERY`, `FINISHED` e `DISCARDED` não
+  reabrem nem entram em retry.
+- `APP_WORKOUT_SESSION`, `DEVICE_CONNECTION`, reconciliação, retry separado e
+  ausência de D0/F002/FEA1/A8/D8/D1/D3/D4 foram preservados. Nenhum arquivo de
+  `013-08`, teste ou contrato foi alterado.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `adb devices`: nenhum dispositivo conectado; `installDebug` não foi executado
+  nesta rodada.
+- Nenhum teste automatizado foi criado, alterado ou executado. Item permanece
+  `in_progress`, `[ ]`, progresso `8/17`. Handoff `013-08`, desconexão/reconexão,
+  conflito, rollover/perda de lease, screenshots e BPM/passos live continuam
+  bloqueados.
+
+### Correção P1 final da corrida durante bootstrap — 2026-08-04
+
+- A causa foi confirmada em `reconcileBoundStateLocked`: `TransportReady`
+  pendente podia promover `CONNECTED` e limpar `connectionAttemptToken` enquanto
+  `connectAssociatedDevice()` ainda executava o handshake A1. Se A1 falhasse,
+  `captureAttemptTransport` e o cleanup perdiam a identidade da tentativa, com
+  risco de manter transporte ativo e `APP_WORKOUT_SESSION` retido.
+- Durante tentativa com token, `TransportReady` pendente agora mantém
+  `CONNECTING`, `pendingTransportSessionId` e o token. A promoção só ocorre após
+  `captureAttemptTransport` validar referência atual, chave, `ChampionSessionId`,
+  permit/owner e após `connectAssociatedDevice()` retornar `Success` para a mesma
+  referência e identidade. O token só é limpo nessa promoção validada.
+- Falha ou cancelamento captura estado, sessão e referência atuais enquanto o
+  token ainda está rastreado. Cleanup invalida a identidade, desconecta somente
+  o transporte da própria tentativa, limpa token/estado e libera somente o owner
+  esperado. `APP_WORKOUT_SESSION`, `DEVICE_CONNECTION`, retry separado,
+  `canBind` terminal e ausência de protocolos proibidos foram preservados.
+- Nenhum arquivo de `013-08`, teste, contrato, Room, GPS, rota ou protocolo
+  proibido foi alterado.
+
+### Validação da correção P1 final
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `adb devices`: nenhum dispositivo conectado; `./gradlew installDebug` não foi
+  executado nesta rodada.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+- Status permanece `in_progress`; item do overview permanece `[ ]`, progresso
+  `8/17`. Permanecem bloqueados gates físicos de falha/cancelamento e rollover,
+  desconexão, reconexão, conflito, handoff de `013-08`, screenshots duráveis e
+  evidência protocolar de BPM/passos live.
+
 ## Screenshots
 
 Obrigatórias: status sem relógio, conectado, desconectado e conflito; sem BPM identificável se screenshot sair do ambiente privado.

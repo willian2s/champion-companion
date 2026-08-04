@@ -182,9 +182,8 @@ class WorkoutRecordingService : Service() {
             ACTION_PAUSE -> id?.let(::handlePause)
             ACTION_RESUME -> id?.let(::handleResume)
             ACTION_RETRY_ROUTE -> id?.let(::handleRetryRoute)
-            ACTION_ENABLE_WATCH,
-            ACTION_RETRY_WATCH,
-            -> id?.let(::handleWatchParticipation)
+            ACTION_ENABLE_WATCH -> id?.let { handleWatchParticipation(it, retry = false) }
+            ACTION_RETRY_WATCH -> id?.let { handleWatchParticipation(it, retry = true) }
             ACTION_FINISH -> id?.let(::handleFinish)
             else -> if (!isForeground) stopSelf(startId)
         }
@@ -332,11 +331,15 @@ class WorkoutRecordingService : Service() {
         }
     }
 
-    private fun handleWatchParticipation(id: AppWorkoutSessionId) {
+    private fun handleWatchParticipation(id: AppWorkoutSessionId, retry: Boolean) {
         launchCommand(id) {
             val session = ensureAttached(id) ?: return@launchCommand
             watchWorkoutParticipationCoordinator.bindSession(id)
-            watchWorkoutParticipationCoordinator.enable(id)
+            if (retry) {
+                watchWorkoutParticipationCoordinator.retry(id)
+            } else {
+                watchWorkoutParticipationCoordinator.enable(id)
+            }
             latestSession?.takeIf { it.id == session.id }?.let(::promoteOrUpdateForeground)
         }
     }
