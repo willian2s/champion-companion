@@ -32,7 +32,7 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Run unit tests
-        timeout-minutes: 20
+        timeout-minutes: 8
         run: ./gradlew testDebugUnitTest
 
       - name: Run lint and assemble
