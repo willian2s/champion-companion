@@ -99,6 +99,10 @@ class DeviceManagementViewModel @Inject constructor(
         viewModelScope.launch {
             foregroundBleOperationGate.observeActiveOperation().collect { operation ->
                 foregroundBleOperation = operation
+                if (currentTransportState is ChampionBleState.TransportReady) {
+                    refreshIdleSurface()
+                }
+                attemptAutoConnectForCurrentEntry()
             }
         }
     }
@@ -613,11 +617,11 @@ class DeviceManagementViewModel @Inject constructor(
     private fun handleTransportState(transportState: ChampionBleState) {
         when (transportState) {
             ChampionBleState.Disconnected -> {
+                functionalConnectionEstablished = false
                 activeJob = null
                 autoConnectInFlight = false
-                if (!functionalConnectionEstablished && mutableState.value.activeOperation == DeviceManagementActiveOperation.CONNECTING) {
-                    refreshIdleSurface()
-                }
+                refreshIdleSurface()
+                attemptAutoConnectForCurrentEntry()
             }
 
             is ChampionBleState.Scanning -> {
@@ -649,9 +653,21 @@ class DeviceManagementViewModel @Inject constructor(
             is ChampionBleState.DiscoveringServices,
             is ChampionBleState.ResolvingChannels,
             is ChampionBleState.ConfiguringSubscriptions,
-            is ChampionBleState.TransportReady,
             -> {
                 if (!functionalConnectionEstablished) {
+                    mutableState.update {
+                        it.copy(
+                            connectionState = DeviceManagementConnectionState.PREPARING_CONNECTION,
+                            screenState = DeviceManagementScreenState.PreparingConnection,
+                        )
+                    }
+                }
+            }
+
+            is ChampionBleState.TransportReady -> {
+                if (hasFunctionalTransport()) {
+                    refreshIdleSurface(clearError = true)
+                } else if (!functionalConnectionEstablished) {
                     mutableState.update {
                         it.copy(
                             connectionState = DeviceManagementConnectionState.PREPARING_CONNECTION,
@@ -746,7 +762,7 @@ class DeviceManagementViewModel @Inject constructor(
         if (!isFeatureVisible) return
         val associatedDevice = associatedDeviceDomain ?: return
         if (mutableState.value.activeOperation != null) return
-        if (functionalConnectionEstablished) return
+        if (hasFunctionalTransport()) return
         if (currentTransportState !is ChampionBleState.Disconnected && currentTransportState !is ChampionBleState.Failed) return
         if (lastAutoConnectAttemptEntryId == currentEntryId) return
         if (foregroundBleOperation?.owner != null) return
@@ -802,7 +818,7 @@ class DeviceManagementViewModel @Inject constructor(
     private fun ForegroundBleOperationOwner.toDeviceManagementForegroundBleBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Há uma sincronização do relógio em andamento na tela inicial."
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Há uma medição manual em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico do relógio em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Há uma importação de treinos do relógio em andamento na tela Exercícios."
         ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "Há uma participação opcional do relógio em andamento na sessão de treino."
         ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Outra conexão do dispositivo está em andamento."
@@ -843,7 +859,7 @@ class DeviceManagementViewModel @Inject constructor(
             return
         }
         val nextScreenState = when {
-            functionalConnectionEstablished && currentTransportState is ChampionBleState.TransportReady -> DeviceManagementScreenState.Connected
+            hasFunctionalTransport() -> DeviceManagementScreenState.Connected
             scanCandidates.isNotEmpty() -> DeviceManagementScreenState.ScanResults
             associatedDeviceDomain != null -> DeviceManagementScreenState.Disconnected
             else -> DeviceManagementScreenState.NoAssociatedDevice
@@ -864,7 +880,7 @@ class DeviceManagementViewModel @Inject constructor(
 
     private fun restoreSurfaceAfterScanStop(clearError: Boolean) {
         val nextScreenState = when {
-            functionalConnectionEstablished && currentTransportState is ChampionBleState.TransportReady -> DeviceManagementScreenState.Connected
+            hasFunctionalTransport() -> DeviceManagementScreenState.Connected
             scanCandidates.isNotEmpty() -> DeviceManagementScreenState.ScanResults
             associatedDeviceDomain != null -> DeviceManagementScreenState.Disconnected
             else -> DeviceManagementScreenState.NoAssociatedDevice
@@ -883,8 +899,15 @@ class DeviceManagementViewModel @Inject constructor(
         }
     }
 
+    private fun hasFunctionalTransport(): Boolean =
+        currentTransportState is ChampionBleState.TransportReady &&
+            (
+                functionalConnectionEstablished ||
+                    foregroundBleOperation?.owner == ForegroundBleOperationOwner.APP_WORKOUT_SESSION
+                )
+
     private fun currentConnectionStateForIdleSurface(): DeviceManagementConnectionState = when {
-        functionalConnectionEstablished && currentTransportState is ChampionBleState.TransportReady -> DeviceManagementConnectionState.CONNECTED
+        hasFunctionalTransport() -> DeviceManagementConnectionState.CONNECTED
         else -> DeviceManagementConnectionState.DISCONNECTED
     }
 
