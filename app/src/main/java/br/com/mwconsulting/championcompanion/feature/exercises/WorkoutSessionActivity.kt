@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionCompanionTheme
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.UUID
@@ -43,7 +44,6 @@ class WorkoutSessionActivity : ComponentActivity() {
                         )
                         is WorkoutSessionRequest.Recovery -> WorkoutRecoveryShell(
                             sessionId = current.sessionId,
-                            onNavigateTo = ::handleDestination,
                             onNavigateBack = ::finish,
                             exercisesViewModel = viewModel,
                         )
@@ -61,6 +61,18 @@ class WorkoutSessionActivity : ComponentActivity() {
                 }
             }
         }
+        if (PhoneWorkoutPolicy.isDiscontinued()) {
+            val shutdownGeneration = PhoneWorkoutPolicy.requestShutdown()
+            runCatching {
+                startService(
+                    WorkoutRecordingService.shutdownDiscontinuedIntent(
+                        context = this,
+                        sessionId = intent.getStringExtra(EXTRA_SESSION_ID),
+                        shutdownGeneration = shutdownGeneration,
+                    ),
+                )
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -71,7 +83,11 @@ class WorkoutSessionActivity : ComponentActivity() {
 
     private fun handleDestination(destination: AppDestination) {
         request = when (destination) {
-            is AppDestination.ActiveWorkout -> WorkoutSessionRequest.Active(destination.sessionId)
+            is AppDestination.ActiveWorkout -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                WorkoutSessionRequest.Recovery(destination.sessionId)
+            } else {
+                WorkoutSessionRequest.Active(destination.sessionId)
+            }
             is AppDestination.WorkoutRecovery -> destination.sessionId?.let(WorkoutSessionRequest::Recovery)
                 ?: run {
                     finish()
@@ -89,9 +105,17 @@ class WorkoutSessionActivity : ComponentActivity() {
             ?.takeIf { runCatching { UUID.fromString(it) }.isSuccess }
             ?: return null
         return when (getStringExtra(EXTRA_MODE)) {
-            MODE_ACTIVE -> WorkoutSessionRequest.Active(sessionId)
+            MODE_ACTIVE -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                WorkoutSessionRequest.Recovery(sessionId)
+            } else {
+                WorkoutSessionRequest.Active(sessionId)
+            }
             MODE_RECOVERY -> WorkoutSessionRequest.Recovery(sessionId)
-            MODE_FINISH_CONFIRMATION -> WorkoutSessionRequest.FinishConfirmation(sessionId)
+            MODE_FINISH_CONFIRMATION -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                WorkoutSessionRequest.Recovery(sessionId)
+            } else {
+                WorkoutSessionRequest.FinishConfirmation(sessionId)
+            }
             else -> null
         }
     }

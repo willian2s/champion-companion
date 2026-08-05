@@ -50,7 +50,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 | 013-14 | `cancelled` | Não executada; sem `ExerciseRoute` ou sync de rota phone | Reorientação de produto | Health Connect granular de treinos do relógio na Fase 014, se redefinido |
 | 013-15 | `cancelled` | Não executada; sem integração de superfícies phone específica | Reorientação de produto | Redefinição de revisão/calendário do relógio na Fase 014 |
 | 013-16 | `cancelled` | Não executada; sem gate físico integral phone/GPS/Health Connect | Reorientação de produto | Encerrar novos gates físicos phone; futura validação explícita do relógio |
-| 013-17 | `in_progress` | Bloco A documental em andamento; matriz, status e reorientação registradas | B, C e D ainda não encerrados | Desativação operacional pendente; preservar sessões/dados; fechamento final `partially_delivered` futuro |
+| 013-17 | `in_progress` | Guard central, bloqueios de entrada/runtime phone e recovery histórico seguro implementados; revisão independente pendente | Aceite final depende de revisão e evidência manual completa | Preservar sessões/dados/legado; fechamento final `partially_delivered` somente após revisão |
 
 ## Observações
 
@@ -59,10 +59,16 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   e podem mencionar progressos/status que eram verdadeiros naquele momento.
 - A Fase 013 está `closing`, não concluída. `013-17` permanece `in_progress`;
   nenhum item foi marcado por ausência de implementação ou evidência.
-- O Bloco B (desativação operacional dos pontos de entrada phone) continua
-  pendente; não se afirma que o código já esteja desativado. O Bloco C preserva
-  migrations, schemas, sessões, dados e evidências. O Bloco D registrará
-  `partially_delivered` somente após evidência própria dos blocos anteriores.
+- O Bloco B foi implementado nesta execução: entradas, criação/retomada,
+  foreground service, GPS, rota e BLE phone estão bloqueados por política
+  central. O aceite final ainda depende de revisão independente e dos gates
+  manuais restantes. O Bloco C preserva migrations, schemas, sessões, dados e
+  evidências. O Bloco D registrará `partially_delivered` somente após evidência
+  própria dos blocos anteriores.
+- Gate D foi encerrado como `PASS/N/A`, pois não havia sessão phone histórica
+  elegível e o cenário não pode ser fabricado com segurança. Gate E passou com
+  importação real do relógio (`inseridos 1`, `parciais 1`) e atividade pendente
+  de revisão.
 - A direção futura prioriza importação, derivação, revisão e sincronização com
   Health Connect de treinos iniciados pelo relógio. A Fase 014 será redefinida
   para esse refinamento; WorkManager permanece somente detalhe técnico de

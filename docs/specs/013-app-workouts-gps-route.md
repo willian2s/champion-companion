@@ -31,9 +31,9 @@
   decisão própria e não autoriza expandir GPS, rota, `ExerciseRoute` ou BLE live
   em sessão phone.
 - **Aviso de escopo:** o que resta da direção phone não é backlog ativo da
-  Fase 013. A desativação operacional dos pontos de entrada ainda não é
-  afirmada como realizada no código; seu registro é etapa de fechamento
-  operacional pendente, não implementação desta spec.
+  Fase 013. A desativação operacional dos pontos de entrada foi implementada
+  em `013-17`, sem remoção do legado; seu aceite final depende de revisão
+  independente. Esta execução não inicia a Fase 014.
 - **Referência futura:** a Fase 014 será redefinida conceitualmente para
   importação, derivação, revisão e sincronização de treinos iniciados pelo
   relógio. WorkManager fica apenas como detalhe técnico finito e adiável; a

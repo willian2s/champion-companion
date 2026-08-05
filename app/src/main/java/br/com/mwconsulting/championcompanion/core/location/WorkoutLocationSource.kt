@@ -5,7 +5,9 @@ import br.com.mwconsulting.championcompanion.core.model.GpsPermissionState
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.GpsServiceState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointCandidate
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 sealed interface WorkoutLocationEvent {
     val runtimeGeneration: Long
@@ -58,4 +60,18 @@ interface WorkoutLocationSource : AutoCloseable {
 fun interface WorkoutLocationSourceFactory {
     /** Cada preparação/sessão recebe runtime isolado. */
     fun create(): WorkoutLocationSource
+}
+
+/** Fonte histórica que falha fechada enquanto treinos phone estão descontinuados. */
+internal class DiscontinuedWorkoutLocationSource : WorkoutLocationSource {
+    private val noEvents = MutableSharedFlow<WorkoutLocationEvent>()
+
+    override val events: SharedFlow<WorkoutLocationEvent> = noEvents.asSharedFlow()
+
+    override fun start(runtimeGeneration: Long): WorkoutLocationStartResult =
+        WorkoutLocationStartResult.SOURCE_CLOSED
+
+    override fun stop(runtimeGeneration: Long): Boolean = false
+
+    override fun close() = Unit
 }

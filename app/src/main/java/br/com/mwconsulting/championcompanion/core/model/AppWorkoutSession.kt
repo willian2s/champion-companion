@@ -489,7 +489,9 @@ data class AppWorkoutSession private constructor(
             createdAt: Instant,
             associatedDeviceId: DeviceId? = null,
         ): DomainResult<AppWorkoutSession> =
-            if (type == WorkoutType.UNKNOWN) {
+            if (PhoneWorkoutPolicy.blocksNewSession()) {
+                invalidState()
+            } else if (type == WorkoutType.UNKNOWN) {
                 invalidState()
             } else {
                 DomainResult.Success(AppWorkoutSession(

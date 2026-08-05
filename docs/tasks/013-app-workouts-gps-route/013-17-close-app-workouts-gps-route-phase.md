@@ -175,7 +175,7 @@ de migration como rollback documental.
 
 Não criar, alterar ou executar testes automatizados.
 
-## Registro desta execução — verificações documentais
+## Registro anterior desta execução — verificações documentais
 
 ### Resultado
 
@@ -241,8 +241,8 @@ ou teste foi alterado.
 
 ### Riscos e bloqueios restantes
 
-- Bloco B permanece pendente: pontos de entrada phone ainda não são declarados
-  desativados no código; a operação de desativação não foi executada.
+- Bloco B foi implementado e validado parcialmente; a revisão independente final
+  ainda precisa confirmar guards de domínio, cleanup e consumidores históricos.
 - Bloco C exige preservação contínua de migrations, schemas, sessões, dados e
   evidências até autorização explícita de remoção.
 - Bloco D não pode ser concluído enquanto B não possuir evidência operacional e
@@ -250,3 +250,76 @@ ou teste foi alterado.
   conclusão atual.
 - Bloqueios físicos históricos de `013-08`/`013-11` e ausência de execução de
   `013-12` a `013-16` permanecem honestamente registrados.
+
+## Registro desta execução — desativação operacional
+
+### Resultado
+
+- O guard central `PhoneWorkoutPolicy`, com estado
+  `PhoneWorkoutAvailability.DISCONTINUED`, foi introduzido e reutilizado nas
+  fronteiras de UI, navegação, repository, foreground service, ownership,
+  localização e participação BLE.
+- A entrada visível de treino phone foi removida da tela Exercícios. Seleção,
+  preparação, countdown, sessão ativa, recovery operacional e intents antigos
+  agora redirecionam ou falham fechados para Exercícios/recurso descontinuado.
+- A criação de nova `AppWorkoutSession` e as mutações operacionais phone são
+  recusadas antes de persistência. Leituras históricas permanecem disponíveis.
+- `WorkoutRecordingService` recusa `START`, `RESUME`, `RETRY_WATCH` e ações de
+  recuperação sob a política descontinuada. O shutdown aguarda cleanup de
+  ownership/BLE quando possível e possui fallback idempotente em `onDestroy`.
+- Sessões históricas abertas permanecem preservadas. `CREATED`, `ACTIVE`,
+  `PAUSED` e `AWAITING_RECOVERY` podem ser descartadas somente após confirmação
+  e shutdown confirmado; `FINISHING` permanece sem ação e preservada.
+- Nenhuma tabela, coluna, migration, schema, atividade, rota, evidência,
+  parser D3/D4 ou política de distância foi removida ou alterada.
+
+### Arquivos alterados
+
+- Código: `MainActivity.kt`, `ChampionDaos.kt`,
+  `core/model/PhoneWorkoutAvailability.kt`, `LocationModule.kt`,
+  `WorkoutLocationSource.kt`, `AndroidWorkoutLocationSource.kt`,
+  `ChampionNavigation.kt`, `RoomRepositories.kt`, `ExercisesScreen.kt`,
+  `ExercisesViewModel.kt`, `WatchWorkoutParticipationCoordinator.kt`,
+  `WorkoutRecordingService.kt`, `WorkoutSessionActivity.kt`,
+  `WorkoutSessionOwnershipCoordinator.kt`, `WorkoutShells.kt` e
+  `HomeViewModel.kt`.
+- Documentação: este arquivo, `013-00-overview.md` e
+  `docs/integration/013-closure-summary.md`.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+
+### Comandos e resultados
+
+```text
+git diff --check — PASS
+./gradlew lint assembleDebug assembleRelease — PASS
+./gradlew installDebug — PASS; instalado em 1 dispositivo
+adb devices — PASS; dispositivo Galaxy S22 disponível
+```
+
+### Gates manuais
+
+- Gate A — PASS: Exercícios não exibe CTA phone; `Buscar treinos no relógio`
+  permanece acessível.
+- Gate B — PASS parcial: Activity antiga não exportada rejeitou intent externo;
+  destinos restaurados são convertidos para recovery/Exercícios; countdown não
+  apareceu. Retorno de back stack real não foi reproduzido.
+- Gate C — PASS: tentativas de `ACTION_START` direto não produziram foreground
+  service, notificação de treino, request ativo de localização ou owner visível.
+  O `ServiceRecord` do shell permaneceu sem processo/foreground e foi tratado
+  como evidência de tentativa externa, não runtime ativo.
+- Gate D — PASS/N/A: não havia sessão phone histórica elegível no dispositivo;
+  o cenário é impossível de produzir com segurança sem manipular o banco.
+  Nenhum banco foi manipulado e nenhuma backdoor foi criada.
+- Gate E — PASS: Champion associado; busca no relógio importou um treino pronto,
+  registrando `inseridos 1`, `parciais 1`, `inválidos 0`, com atividade pendente
+  de revisão. Nenhum foreground service, GPS ou sessão phone foi iniciado.
+
+### Status, decisões e riscos
+
+- `013-17` permanece `in_progress`; item do checklist permanece `[ ]` até revisão
+  independente confirmar os critérios. Fase 013 permanece `closing`.
+- Classes, modelos e estruturas phone legadas permanecem deliberadamente no
+  código para leitura, compatibilidade e preservação histórica.
+- Risco residual: gates D e parte de E não possuem evidência física nesta rodada;
+  consumidores históricos do serviço continuam presentes, mas protegidos pelo
+  guard central.

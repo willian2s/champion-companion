@@ -5,6 +5,7 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutation
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
 import java.time.Instant
@@ -70,6 +71,7 @@ class WorkoutSessionOwnershipCoordinator @Inject constructor(
 
     /** Chamado pelo serviço somente dentro de [withSerializedServiceOperation]. */
     internal fun reserveAttachment(token: Any, sessionId: AppWorkoutSessionId): Boolean {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return false
         while (true) {
             val current = operationalOwner.get()
             if (current != null && (current.token !== token || current.sessionId != sessionId)) {
@@ -83,6 +85,7 @@ class WorkoutSessionOwnershipCoordinator @Inject constructor(
     }
 
     internal fun confirmForeground(token: Any, sessionId: AppWorkoutSessionId): Boolean {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return false
         while (true) {
             val current = operationalOwner.get() ?: return false
             if (current.token !== token || current.sessionId != sessionId) return false
@@ -207,6 +210,9 @@ class WorkoutSessionOwnershipCoordinator @Inject constructor(
     private suspend fun reconcileLocked(
         initial: AppWorkoutSession,
     ): StaleWorkoutReconciliation {
+        if (PhoneWorkoutPolicy.isDiscontinued()) {
+            return StaleWorkoutReconciliation.RecoverySurface(initial)
+        }
         var candidate = initial
         repeat(MAX_RECONCILIATION_ATTEMPTS) { attempt ->
             if (candidate.state !in RUNNING_STATES) {
@@ -271,7 +277,7 @@ class WorkoutSessionOwnershipCoordinator @Inject constructor(
     }
 
     private fun isForegroundOwnerLocked(sessionId: AppWorkoutSessionId): Boolean =
-        operationalOwner.get()?.let {
+        !PhoneWorkoutPolicy.isDiscontinued() && operationalOwner.get()?.let {
             it.sessionId == sessionId && it.state == OperationalOwnerState.FOREGROUND
         } == true
 

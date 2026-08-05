@@ -22,6 +22,7 @@ import br.com.mwconsulting.championcompanion.core.model.GpsPermissionState
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.GpsReadinessInput
 import br.com.mwconsulting.championcompanion.core.model.GpsServiceState
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointCandidate
 import java.time.Duration
 import java.time.Instant
@@ -51,6 +52,7 @@ internal class AndroidWorkoutLocationSource(
     private var isClosed = false
 
     override fun start(runtimeGeneration: Long): WorkoutLocationStartResult {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return WorkoutLocationStartResult.SOURCE_CLOSED
         require(runtimeGeneration >= 0)
         val previous: Runtime?
         val runtime: Runtime

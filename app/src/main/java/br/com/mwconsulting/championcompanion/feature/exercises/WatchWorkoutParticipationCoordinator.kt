@@ -18,6 +18,7 @@ import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOw
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationPermit
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationSnapshot
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.common.BleDispatcher
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
 import java.time.Instant
@@ -180,6 +181,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
      * conexão é feita no máximo uma vez por chamada.
      */
     suspend fun enable(sessionId: AppWorkoutSessionId): Boolean {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return false
         val device = loadAssociatedDevice()
         var attemptPermit: ForegroundBleOperationPermit? = null
         var permitAcquiredByAttempt: ForegroundBleOperationPermit? = null
@@ -291,6 +293,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
      * DEVICE_CONNECTION and never releases the workout owner on disconnect.
      */
     suspend fun retry(sessionId: AppWorkoutSessionId): Boolean {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return false
         val device = loadAssociatedDevice()
         var expectedPermit: ForegroundBleOperationPermit? = null
 
@@ -546,7 +549,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         attemptToken: ConnectionAttemptToken? = null,
         releaseExpectedPermit: Boolean,
     ) {
-        withContext(NonCancellable) {
+        return withContext(NonCancellable) {
             var permitToRelease: ForegroundBleOperationPermit? = null
             operationMutex.withLock {
                 val cleanupPermit = attemptToken?.expectedPermit ?: expectedPermit
@@ -701,26 +704,34 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
     }
 
     /** Owner permanece retido em desconexão e sai em recuperação persistida ou estado terminal. */
-    suspend fun releaseAtTerminal(sessionId: AppWorkoutSessionId) {
-        releaseAtInactiveState(
+    suspend fun releaseAtTerminal(sessionId: AppWorkoutSessionId): Boolean {
+        return releaseAtInactiveState(
             sessionId = sessionId,
             allowedStates = TERMINAL_STATES,
         )
     }
 
     /** Interrupção confirmada abre recuperação; owner não pode vazar nesse estado. */
-    suspend fun releaseAtRecovery(sessionId: AppWorkoutSessionId) {
-        releaseAtInactiveState(
+    suspend fun releaseAtRecovery(sessionId: AppWorkoutSessionId): Boolean {
+        return releaseAtInactiveState(
             sessionId = sessionId,
             allowedStates = setOf(AppWorkoutSessionState.AWAITING_RECOVERY),
+        )
+    }
+
+    /** Desativação phone libera owner/transporte sem alterar sessão histórica. */
+    suspend fun releaseAtDiscontinued(sessionId: AppWorkoutSessionId): Boolean {
+        return releaseAtInactiveState(
+            sessionId = sessionId,
+            allowedStates = DISCONTINUED_OPEN_STATES,
         )
     }
 
     private suspend fun releaseAtInactiveState(
         sessionId: AppWorkoutSessionId,
         allowedStates: Set<AppWorkoutSessionState>,
-    ) {
-        if (!isSessionInState(sessionId, allowedStates)) return
+    ): Boolean {
+        if (!isSessionInState(sessionId, allowedStates)) return true
 
         val callerJob = currentCoroutineContext()[Job]
         val attemptToCancel = operationMutex.withLock {
@@ -733,7 +744,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             connectionAttemptToken?.takeIf { it.sessionId == sessionId }
         }
 
-        withContext(NonCancellable) {
+        return withContext(NonCancellable) {
             attemptToCancel?.job?.takeIf { it !== callerJob }?.cancelAndJoin()
 
             val attemptStillTracked = attemptToCancel?.let { attempt ->
@@ -755,8 +766,8 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 )
             }
 
-            disconnectAcceptedTransportAtInactiveState(sessionId)
-            if (!isSessionInState(sessionId, allowedStates)) return@withContext
+            if (!disconnectAcceptedTransportAtInactiveState(sessionId)) return@withContext false
+            if (!isSessionInState(sessionId, allowedStates)) return@withContext false
 
             val permitToRelease = operationMutex.withLock {
                 if (enabledSessionId != sessionId && boundSessionId != sessionId) return@withLock null
@@ -772,11 +783,16 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 mutableState.value = WatchWorkoutParticipationState()
                 permit.also { permit = null }
             }
-            permitToRelease?.let { foregroundBleOperationGate.release(it) }
+            try {
+                permitToRelease?.let { foregroundBleOperationGate.release(it) }
+            } catch (_: Exception) {
+                return@withContext false
+            }
+            true
         }
     }
 
-    private suspend fun disconnectAcceptedTransportAtInactiveState(sessionId: AppWorkoutSessionId) {
+    private suspend fun disconnectAcceptedTransportAtInactiveState(sessionId: AppWorkoutSessionId): Boolean {
         val expected = operationMutex.withLock {
             val expectedPermit = permit
             val expectedTransportId = acceptedTransportSessionId ?: return@withLock null
@@ -788,25 +804,23 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 return@withLock null
             }
             InactiveTransportCleanup(expectedPermit, expectedTransportId, expectedTransportKey)
-        } ?: return
+        } ?: return true
 
         val currentTransport = try {
             connectionManager.currentSession()
         } catch (_: Exception) {
-            null
-        } ?: return
+            return false
+        } ?: return true
         if (currentTransport.session.id != expected.transportSessionId ||
             currentTransport.session.transportKey != expected.transportKey
-        ) {
-            return
-        }
+        ) return true
 
         val stillOwned = operationMutex.withLock {
             enabledSessionId == sessionId &&
                 permit == expected.permit &&
                 acceptedTransportSessionId == expected.transportSessionId
         }
-        if (!stillOwned) return
+        if (!stillOwned) return true
 
         try {
             connectionManager.disconnectExpectedTransport(
@@ -814,8 +828,9 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 ChampionDisconnectReason.CLEANUP,
             )
         } catch (_: Exception) {
-            // Owner ainda é liberado abaixo; callbacks tardios permanecem identitários.
+            return false
         }
+        return true
     }
 
     private suspend fun isSessionInState(
@@ -830,17 +845,22 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
     }
 
     fun requiresConnectedDeviceForegroundType(sessionId: AppWorkoutSessionId): Boolean =
-        foregroundBleSessionId == sessionId
+        !PhoneWorkoutPolicy.isDiscontinued() && foregroundBleSessionId == sessionId
 
-    private suspend fun canBindSessionLocked(sessionId: AppWorkoutSessionId): Boolean = try {
-        appWorkoutSessionRepository.observeSession(sessionId).first()
-            ?.let { it.state !in NON_BINDABLE_SESSION_STATES }
-            ?: false
-    } catch (error: CancellationException) {
-        throw error
-    } catch (_: Exception) {
-        false
-    }
+    private suspend fun canBindSessionLocked(sessionId: AppWorkoutSessionId): Boolean =
+        if (PhoneWorkoutPolicy.isDiscontinued()) {
+            false
+        } else {
+            try {
+                appWorkoutSessionRepository.observeSession(sessionId).first()
+                    ?.let { it.state !in NON_BINDABLE_SESSION_STATES }
+                    ?: false
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                false
+            }
+        }
 
     /** Captures transport identity while this attempt still owns the gate. */
     private suspend fun captureAttemptTransport(
@@ -947,6 +967,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
     private suspend fun reconcileBoundStateLocked(
         sessionId: AppWorkoutSessionId? = boundSessionId,
     ): Boolean {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return false
         captureAttemptSessionIdLocked(connectionManager.state.value)
         val boundId = sessionId ?: return false
         if (boundSessionId != boundId) return false
@@ -1317,5 +1338,12 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             AppWorkoutSessionState.AWAITING_RECOVERY,
         ) + TERMINAL_STATES
         val RELEASE_OWNER_STATES = TERMINAL_STATES + AppWorkoutSessionState.AWAITING_RECOVERY
+        val DISCONTINUED_OPEN_STATES = setOf(
+            AppWorkoutSessionState.CREATED,
+            AppWorkoutSessionState.ACTIVE,
+            AppWorkoutSessionState.PAUSED,
+            AppWorkoutSessionState.AWAITING_RECOVERY,
+            AppWorkoutSessionState.FINISHING,
+        )
     }
 }

@@ -69,6 +69,7 @@ import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
@@ -859,6 +860,7 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun create(session: AppWorkoutSession): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.blocks(session)) return@write RepositoryResult.UnexpectedState
         if (session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.CREATED ||
             session.toEntity().toDomain() != session
         ) {
@@ -880,6 +882,7 @@ class RoomRepositories @Inject constructor(
         session: AppWorkoutSession,
         startedAt: Instant,
     ): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.blocks(session)) return@write RepositoryResult.UnexpectedState
         if (session.state != br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.CREATED ||
             session.toEntity().toDomain() != session
         ) {
@@ -901,10 +904,12 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun start(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(input.sessionId, input.expectedRevision) { it.start(input.at) }
     }
 
     override suspend fun checkpoint(input: AppWorkoutSessionCheckpoint): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(input.sessionId, input.expectedRevision) { session ->
             if (session.runtimeGeneration != input.runtimeGeneration) {
                 DomainResult.Failure(br.com.mwconsulting.championcompanion.core.model.DomainValidationError.INVALID_STATE)
@@ -922,6 +927,7 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun pause(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(input.sessionId, input.expectedRevision) {
             if (input.activeDuration != null && input.pausedDuration != null) {
                 it.pause(input.at, input.activeDuration, input.pausedDuration)
@@ -932,6 +938,7 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun resume(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(input.sessionId, input.expectedRevision) {
             if (input.activeDuration != null && input.pausedDuration != null) {
                 it.resume(input.at, input.activeDuration, input.pausedDuration)
@@ -942,6 +949,7 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun interrupt(input: AppWorkoutSessionMutation): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(input.sessionId, input.expectedRevision) {
             if (input.activeDuration != null && input.pausedDuration != null) {
                 it.interrupt(input.at, input.activeDuration, input.pausedDuration)
@@ -956,12 +964,14 @@ class RoomRepositories @Inject constructor(
         expectedRevision: Long,
         at: Instant,
     ): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(sessionId, expectedRevision) { it.recover(at) }
     }
 
     override suspend fun beginFinishing(
         input: AppWorkoutSessionMutation,
     ): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         mutateSession(input.sessionId, input.expectedRevision) {
             if (input.activeDuration != null && input.pausedDuration != null) {
                 it.beginFinishing(input.at, input.activeDuration, input.pausedDuration)
@@ -974,6 +984,7 @@ class RoomRepositories @Inject constructor(
     override suspend fun associateActivity(
         input: AssociateWorkoutActivityInput,
     ): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val session = database.appWorkoutSessionDao().findById(input.sessionId.value.toString())
             ?: return@write RepositoryResult.NotFound
         val activity = database.workoutActivityDao().findById(input.activityId.value.toString())
@@ -989,6 +1000,7 @@ class RoomRepositories @Inject constructor(
         expectedRevision: Long,
         at: Instant,
     ): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val session = database.appWorkoutSessionDao().findById(sessionId.value.toString())
             ?: return@write RepositoryResult.NotFound
         val activityId = session.workoutActivityId ?: return@write RepositoryResult.UnexpectedState
@@ -1004,6 +1016,12 @@ class RoomRepositories @Inject constructor(
         val sessionId = input.sessionId.value.toString()
         val session = database.appWorkoutSessionDao().findById(sessionId)
             ?: return@write RepositoryResult.NotFound
+        val domainSession = session.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        if (PhoneWorkoutPolicy.isDiscontinued() &&
+            domainSession.state == AppWorkoutSessionState.FINISHING
+        ) {
+            return@write RepositoryResult.UnexpectedState
+        }
         if (session.workoutActivityId != null || database.workoutActivityDao().findBySessionId(sessionId) != null) {
             return@write RepositoryResult.Conflict
         }
@@ -1017,6 +1035,7 @@ class RoomRepositories @Inject constructor(
 
     @Suppress("DEPRECATION_ERROR")
     override suspend fun recover(sessionId: AppWorkoutSessionId, at: Instant): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString())
             ?: return@write RepositoryResult.NotFound
         mutateSession(sessionId, entity.revision) { it.recover(at) }
@@ -1024,6 +1043,7 @@ class RoomRepositories @Inject constructor(
 
     @Suppress("DEPRECATION_ERROR")
     override suspend fun finish(sessionId: AppWorkoutSessionId, activityId: WorkoutActivityId, at: Instant): RepositoryResult<AppWorkoutSession> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val activity = database.workoutActivityDao().findById(activityId.value.toString())
             ?: return@write RepositoryResult.NotFound
         val entity = database.appWorkoutSessionDao().findById(sessionId.value.toString())
@@ -1033,6 +1053,7 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun create(route: WorkoutRoute): RepositoryResult<WorkoutRoute> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val canonicalRoute = WorkoutRoute.create(
             id = route.id,
             sessionId = route.sessionId,
@@ -1082,6 +1103,7 @@ class RoomRepositories @Inject constructor(
     override suspend fun appendAcceptedPoints(
         input: AppendWorkoutRoutePointsInput,
     ): RepositoryResult<WorkoutRoute> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val routeDao = database.workoutRouteDao()
         val routeEntity = routeDao.findById(input.routeId.value.toString())
             ?: return@write RepositoryResult.NotFound
@@ -1142,6 +1164,7 @@ class RoomRepositories @Inject constructor(
         expectedRevision: Long,
         endedAt: Instant,
     ): RepositoryResult<WorkoutRoute> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val dao = database.workoutRouteDao()
         val route = dao.findById(routeId.value.toString())?.toDomain()
             ?: return@write RepositoryResult.NotFound
@@ -1154,6 +1177,7 @@ class RoomRepositories @Inject constructor(
     }
 
     override suspend fun deleteBeforeActivity(sessionId: AppWorkoutSessionId): RepositoryResult<Unit> = write {
+        if (PhoneWorkoutPolicy.isDiscontinued()) return@write RepositoryResult.UnexpectedState
         val session = database.appWorkoutSessionDao().findById(sessionId.value.toString())
             ?: return@write RepositoryResult.NotFound
         if (session.workoutActivityId != null ||

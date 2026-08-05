@@ -33,6 +33,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
@@ -412,10 +413,7 @@ class HomeViewModel @Inject constructor(
             WorkoutType.FREE_WORKOUT -> "Treino pendente"
             WorkoutType.UNKNOWN -> "Atividade pendente"
         },
-        subtitle = when (state) {
-            br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.AWAITING_RECOVERY -> "Sessao interrompida aguardando retomada"
-            else -> "Sessao pendente"
-        },
+        subtitle = PhoneWorkoutPolicy.NON_RESUMABLE_MESSAGE,
     )
 
     private fun WorkoutWorkflowSummary.toWorkoutPendingBanner(): HomeWorkoutPendingBanner? {

@@ -122,7 +122,15 @@ Não é objetivo funcional desta decisão nem controla sessão ativa.
 
 ## Limites de implementação
 
-Esta ADR prepara decisão e direção. Não declara que importação, derivação por
-passos, revisão, sincronização granular, desativação dos pontos de entrada phone
-ou qualquer migração operacional já estejam implementadas. A ausência de
-implementação deve permanecer visível nos documentos da Fase 013 e no roadmap.
+Esta ADR preparou decisão e direção no momento de sua aprovação. Não declarava
+que importação, derivação por passos, revisão, sincronização granular ou
+desativação dos pontos de entrada phone já estivessem implementadas. A ausência
+de implementação permaneceu visível nos documentos da Fase 013 e no roadmap
+até a execução operacional de `013-17`.
+
+### Atualização operacional de 2026-08-05
+
+`013-17` implementou desativação fail-closed dos pontos de entrada e do runtime
+phone, sem remover legado, dados, migrations, schemas ou evidências. Importação,
+revisão e sincronização de treinos iniciados pelo relógio permanecem preservadas.
+O aceite final da subtarefa ainda aguarda revisão independente.

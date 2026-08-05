@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.LocationManager
 import br.com.mwconsulting.championcompanion.core.location.android.AndroidWorkoutLocationSource
 import br.com.mwconsulting.championcompanion.core.logging.StructuredLogger
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,7 +25,11 @@ object LocationModule {
         val locationManager = applicationContext.getSystemService(LocationManager::class.java)
         val logger = WorkoutLocationLogger(structuredLogger)
         return WorkoutLocationSourceFactory {
-            AndroidWorkoutLocationSource(applicationContext, locationManager, logger)
+            if (PhoneWorkoutPolicy.isDiscontinued()) {
+                DiscontinuedWorkoutLocationSource()
+            } else {
+                AndroidWorkoutLocationSource(applicationContext, locationManager, logger)
+            }
         }
     }
 }

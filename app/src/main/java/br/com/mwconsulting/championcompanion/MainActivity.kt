@@ -8,10 +8,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionCompanionTheme
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.navigation.ChampionNavigation
 import br.com.mwconsulting.championcompanion.feature.exercises.StaleWorkoutReconciliation
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutSessionActivity
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutSessionOwnershipCoordinator
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutRecordingService
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -32,15 +34,29 @@ class MainActivity : ComponentActivity() {
         offerRecoverableWorkout()
     }
 
+    private fun stopDiscontinuedWorkoutService(sessionId: String): Long? {
+        if (!PhoneWorkoutPolicy.isDiscontinued()) return null
+        val generation = PhoneWorkoutPolicy.requestShutdown()
+        runCatching {
+            startService(
+                WorkoutRecordingService.shutdownDiscontinuedIntent(
+                    context = this,
+                    sessionId = sessionId,
+                    shutdownGeneration = generation,
+                ),
+            )
+        }
+        return generation
+    }
+
     private fun offerRecoverableWorkout() {
         lifecycleScope.launch {
             val recoverable = when (
                 val reconciliation = workoutSessionOwnershipCoordinator.reconcileOpenSession()
             ) {
                 is StaleWorkoutReconciliation.RecoverySurface -> reconciliation.session
-                is StaleWorkoutReconciliation.ForegroundOwned,
-                StaleWorkoutReconciliation.NoOpenSession,
-                -> null
+                is StaleWorkoutReconciliation.ForegroundOwned -> reconciliation.session
+                StaleWorkoutReconciliation.NoOpenSession -> null
                 StaleWorkoutReconciliation.Unavailable -> {
                     if (!isFinishing && !isDestroyed) {
                         Toast.makeText(
@@ -53,6 +69,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            val shutdownGeneration = recoverable?.id?.value?.toString()
+                ?.let(::stopDiscontinuedWorkoutService)
+            if (shutdownGeneration == null || !PhoneWorkoutPolicy.awaitShutdown(shutdownGeneration)) {
+                Toast.makeText(
+                    this@MainActivity,
+                    PhoneWorkoutPolicy.SHUTDOWN_UNCONFIRMED_MESSAGE,
+                    Toast.LENGTH_LONG,
+                ).show()
+                return@launch
+            }
             if (recoverable != null && !isFinishing && !isDestroyed) {
                 startActivity(
                     WorkoutSessionActivity.recoveryIntent(

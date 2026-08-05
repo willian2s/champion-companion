@@ -57,6 +57,7 @@ import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesUiState
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesViewModel
 import br.com.mwconsulting.championcompanion.feature.exercises.WatchWorkoutImportSurfaceState
 import br.com.mwconsulting.championcompanion.feature.exercises.ActiveWorkoutShell
+import br.com.mwconsulting.championcompanion.feature.exercises.PhoneWorkoutDisabledShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutPreparationShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutRecoveryShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutTypeSelectionShell
@@ -75,6 +76,7 @@ import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import java.util.UUID
 
 private data class NavigationItem(
@@ -146,6 +148,12 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     }
 
     fun navigateTo(destination: AppDestination) {
+        if (destination.isPhoneWorkoutCreationDestination()) {
+            if (currentDestination != AppDestination.Exercises) {
+                navigateTo(AppDestination.Exercises)
+            }
+            return
+        }
         if (destination != currentDestination) {
             terminateWorkoutPreparationIfVisible()
         }
@@ -535,9 +543,6 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Exercises -> ExercisesScreen(
                 viewModel = exercisesViewModel,
-                onStartWorkout = {
-                    onNavigateTo(AppDestination.WorkoutTypeSelection)
-                },
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
@@ -550,27 +555,38 @@ private fun ChampionNavDisplay(
                         onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                     },
             )
-            AppDestination.WorkoutTypeSelection -> WorkoutTypeSelectionShell(
-                onSelectType = { workoutType ->
-                    onNavigateTo(AppDestination.WorkoutPreparation(workoutType))
-                },
-                onNavigateBack = onBackRequested,
-            )
-            is AppDestination.WorkoutPreparation -> WorkoutPreparationShell(
-                workoutType = destination.workoutType,
-                state = exercisesState,
-                onIntent = exercisesViewModel::onIntent,
-                onNavigateBack = onBackRequested,
-            )
-            is AppDestination.ActiveWorkout -> ActiveWorkoutShell(
-                sessionId = destination.sessionId,
-                onNavigateTo = onNavigateTo,
-                onNavigateBack = onBackRequested,
-                exercisesViewModel = exercisesViewModel,
-            )
+            AppDestination.WorkoutTypeSelection -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
+            } else {
+                WorkoutTypeSelectionShell(
+                    onSelectType = { workoutType ->
+                        onNavigateTo(AppDestination.WorkoutPreparation(workoutType))
+                    },
+                    onNavigateBack = onBackRequested,
+                )
+            }
+            is AppDestination.WorkoutPreparation -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
+            } else {
+                WorkoutPreparationShell(
+                    workoutType = destination.workoutType,
+                    state = exercisesState,
+                    onIntent = exercisesViewModel::onIntent,
+                    onNavigateBack = onBackRequested,
+                )
+            }
+            is AppDestination.ActiveWorkout -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
+            } else {
+                ActiveWorkoutShell(
+                    sessionId = destination.sessionId,
+                    onNavigateTo = onNavigateTo,
+                    onNavigateBack = onBackRequested,
+                    exercisesViewModel = exercisesViewModel,
+                )
+            }
             is AppDestination.WorkoutRecovery -> WorkoutRecoveryShell(
                 sessionId = destination.sessionId,
-                onNavigateTo = onNavigateTo,
                 onNavigateBack = onBackRequested,
                 exercisesViewModel = exercisesViewModel,
             )
@@ -633,6 +649,16 @@ private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     else -> false
 }
 
+private fun AppDestination.isPhoneWorkoutCreationDestination(): Boolean =
+    PhoneWorkoutPolicy.isDiscontinued() && when (this) {
+        AppDestination.WorkoutTypeSelection,
+        is AppDestination.WorkoutPreparation,
+        is AppDestination.ActiveWorkout,
+        -> true
+
+        else -> false
+    }
+
 private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.Home,
     AppDestination.Health,
@@ -693,8 +719,22 @@ private fun String.toWorkoutActivityId(): WorkoutActivityId = WorkoutActivityId(
 private val appBackStackSaver: Saver<SnapshotStateList<AppDestination>, Any> = listSaver(
     save = { stack: SnapshotStateList<AppDestination> -> stack.map(AppDestination::toSaveToken) },
     restore = { tokens: List<String> ->
+        val restored = tokens.mapNotNull(::fromSaveToken)
+        val hadBlockedPhoneDestination = restored.any { it.isPhoneWorkoutCreationDestination() }
+        val safeRestored = restored.mapNotNull { destination ->
+            when (destination) {
+                is AppDestination.ActiveWorkout -> AppDestination.WorkoutRecovery(destination.sessionId)
+                AppDestination.WorkoutTypeSelection,
+                is AppDestination.WorkoutPreparation,
+                -> null
+                else -> destination
+            }
+        }
         mutableStateListOf<AppDestination>().apply {
-            addAll(tokens.mapNotNull(::fromSaveToken))
+            addAll(safeRestored)
+            if (hadBlockedPhoneDestination && none { it == AppDestination.Exercises }) {
+                add(AppDestination.Exercises)
+            }
             if (isEmpty()) add(AppDestination.Home)
         }
     },

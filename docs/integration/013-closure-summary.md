@@ -13,10 +13,45 @@ Não continuar correções ou expansão de GPS, rota, `ExerciseRoute` ou BLE liv
 sessão phone. O app deve priorizar importação D3/D4, derivação de métricas,
 revisão e sincronização com Health Connect de treinos iniciados pelo relógio.
 
-Esta decisão encerra novos gates físicos da direção phone. Não afirma que os
-pontos de entrada phone já foram desativados no código; a desativação
-operacional permanece pendente de execução explícita. Também não autoriza
-remover migrations, schemas, sessões, dados ou evidências.
+Esta decisão encerra novos gates físicos da direção phone. A desativação
+operacional foi executada nesta rodada, sem remoção definitiva do legado.
+Migrations, schemas, sessões, dados e evidências continuam preservados.
+
+## Desativação operacional executada
+
+- `PhoneWorkoutPolicy` centraliza `DISCONTINUED` e bloqueia criação, retomada,
+  foreground service, ownership, GPS, rota e participação BLE de sessões phone.
+- UI, navegação, back stack restaurado, Activity e intents antigos não iniciam
+  seleção, preparação, countdown ou sessão ativa phone.
+- Sessões históricas permanecem legíveis. `CREATED`, `ACTIVE`, `PAUSED` e
+  `AWAITING_RECOVERY` exibem recovery descontinuado e permitem somente descarte
+  confirmado após shutdown seguro. `FINISHING` permanece preservada e sem ação.
+- `WorkoutRecordingService`, fontes de localização, coordenadores BLE e
+  ownership foram mantidos para compatibilidade histórica, mas operam em modo
+  fail-closed sob a política.
+- Importação/revisão D3/D4, tela Dispositivo, D1, atividades existentes,
+  calendário, histórico e sincronizações sem sessão phone não receberam o guard.
+
+Estruturas deliberadamente preservadas: entidades, tabelas, colunas, migrations,
+schemas, dados de sessão/atividade/rota, permissões, classes legadas, parser D3/D4,
+política de distância e evidências sanitizadas.
+
+### Validação da desativação
+
+- `git diff --check`: PASS.
+- `./gradlew lint assembleDebug assembleRelease`: PASS.
+- `./gradlew installDebug`: PASS em dispositivo Galaxy S22.
+- Gate A: PASS; CTA phone ausente e busca no relógio disponível.
+- Gate B: PASS parcial; intent externo da Activity antiga rejeitado e destinos
+  restaurados convertidos com segurança. Back stack físico não reproduzido.
+- Gate C: PASS; tentativa direta de `ACTION_START` não produziu foreground,
+  notificação de treino, request ativo de localização ou owner visível.
+- Gate D: PASS/N/A; não havia sessão phone histórica elegível e o cenário não
+  pode ser produzido com segurança sem manipular o banco.
+- Gate E: PASS; Champion associado, busca no relógio executada com treino
+  disponível, `inseridos 1`, `parciais 1`, `inválidos 0`, e atividade pendente
+  de revisão; nenhuma sessão phone foi iniciada.
+- Testes automatizados não foram criados, alterados ou executados.
 
 ## Entregas aproveitáveis
 
@@ -47,8 +82,8 @@ remover migrations, schemas, sessões, dados ou evidências.
   correspondentes.
 - `013-11` registrou divergência de estado após desconexão; reconexão, conflito,
   rollover, recuperação, handoff e screenshots permanecem sem aceite.
-- A direção phone não possui fechamento operacional dos pontos de entrada nesta
-  execução.
+- A desativação operacional está implementada, mas `013-17` aguarda revisão
+  independente e evidência manual dos gates D/E antes de ser concluída.
 
 Incompleto não significa aprovado. Os bloqueios permanecem riscos residuais e
 não devem ser reabertos como backlog ativo da Fase 013.
@@ -67,8 +102,12 @@ permanece somente detalhe técnico de tarefas finitas e adiáveis.
 
 ## Riscos residuais
 
-- pontos de entrada phone ainda podem existir no código; desativação operacional
-  não foi executada nem alegada;
+- classes e consumidores legados phone ainda existem no código por preservação;
+  devem permanecer protegidos pelo guard e não podem ser tratados como novas
+  entradas de produto;
+- O gate histórico D foi encerrado como não aplicável por ausência de sessão;
+  consumidores legados phone ainda existem no código por preservação e devem
+  permanecer protegidos pelo guard central;
 - dados de rota/sessão existentes exigem retenção e compatibilidade até task
   explícita de remoção;
 - evidências físicas inconclusivas não podem ser usadas como prova de sucesso;

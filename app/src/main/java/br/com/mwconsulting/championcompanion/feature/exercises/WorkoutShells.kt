@@ -73,6 +73,7 @@ import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOw
 import br.com.mwconsulting.championcompanion.core.model.GpsAccuracyQuality
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.GpsReadinessState
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
@@ -92,6 +93,32 @@ private val workoutTypes = listOf(
     WorkoutTypeOption(WorkoutType.FREE_WORKOUT, "Treino livre", "Sem uso de localização ou GPS."),
     WorkoutTypeOption(WorkoutType.TREADMILL, "Esteira", "Ambiente interno, sem uso de localização ou GPS."),
 )
+
+@Composable
+fun PhoneWorkoutDisabledShell(onGoToExercises: () -> Unit) {
+    LaunchedEffect(Unit) { onGoToExercises() }
+    WorkoutShellCard(
+        title = "Treino pelo celular indisponível",
+        onNavigateBack = onGoToExercises,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(ChampionSpacing.extraLarge),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+        ) {
+            Text(
+                text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            PrimaryActionButton(
+                label = "Ir para Exercícios",
+                onClick = onGoToExercises,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
 
 @Composable
 fun WorkoutTypeSelectionShell(
@@ -1137,63 +1164,31 @@ private fun WorkoutGpsCaptureStatus.toDisplayLabel(): String = when (this) {
 @Composable
 fun WorkoutRecoveryShell(
     sessionId: String?,
-    onNavigateTo: (AppDestination) -> Unit,
     onNavigateBack: () -> Unit,
     exercisesViewModel: ExercisesViewModel,
 ) {
     val recoverableSession by exercisesViewModel.recoverableSession.collectAsState()
     val actionState by exercisesViewModel.recoveryActionState.collectAsState()
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val requiresNotificationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    var notificationAvailability by remember(sessionId) {
-        mutableStateOf(workoutNotificationAvailability(context))
-    }
-    var notificationPermissionRequested by rememberSaveable(sessionId) { mutableStateOf(false) }
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) {
-        notificationPermissionRequested = true
-        notificationAvailability = workoutNotificationAvailability(context)
-    }
     val session = recoverableSession
     var pendingConfirmation by rememberSaveable(sessionId) {
         mutableStateOf<RecoveryAction?>(null)
     }
     val isBusy = actionState is RecoveryActionState.InProgress
+    val discardSucceeded = (actionState as? RecoveryActionState.Success)?.action == RecoveryAction.DISCARD
 
     LaunchedEffect(sessionId) {
         exercisesViewModel.onRecoveryScreenShown(sessionId)
     }
-    DisposableEffect(lifecycleOwner, sessionId) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) {
-                notificationAvailability = workoutNotificationAvailability(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
-    LaunchedEffect(actionState) {
-        when (val result = actionState) {
-            is RecoveryActionState.Success -> when (result.action) {
-                RecoveryAction.RESUME -> {
-                    exercisesViewModel.consumeRecoveryActionResult()
-                    onNavigateTo(AppDestination.ActiveWorkout(result.sessionId))
-                }
-                RecoveryAction.DISCARD -> {
-                    exercisesViewModel.consumeRecoveryActionResult()
-                    onNavigateBack()
-                }
-                RecoveryAction.FINISH -> exercisesViewModel.consumeRecoveryActionResult()
-            }
-            else -> Unit
+    LaunchedEffect(discardSucceeded) {
+        if (discardSucceeded) {
+            exercisesViewModel.consumeRecoveryActionResult()
+            onNavigateBack()
         }
     }
 
     WorkoutShellCard(
-        title = "Treino interrompido",
+        title = "Treino pelo celular descontinuado",
         onNavigateBack = onNavigateBack,
     ) {
         Column(
@@ -1213,17 +1208,18 @@ fun WorkoutRecoveryShell(
                     Text("Voltar")
                 }
             } else {
-                // Session info
                 Text(
-                    text = when (session.state) {
-                        AppWorkoutSessionState.CREATED -> "O início do treino não foi concluído."
-                        AppWorkoutSessionState.ACTIVE,
-                        AppWorkoutSessionState.PAUSED,
-                        -> "A sessão ficou sem serviço ativo e precisa ser preparada para recuperação."
-                        AppWorkoutSessionState.FINISHING -> "A finalização está pendente."
-                        else -> "Seu treino foi interrompido."
-                    },
+                    text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
                     style = MaterialTheme.typography.titleLarge,
+                )
+
+                Text(
+                    text = if (session.state == AppWorkoutSessionState.FINISHING) {
+                        PhoneWorkoutPolicy.FINISHING_NOT_DISCARDABLE_MESSAGE
+                    } else {
+                        PhoneWorkoutPolicy.NON_RESUMABLE_MESSAGE
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
                 )
 
                 Text(
@@ -1250,78 +1246,12 @@ fun WorkoutRecoveryShell(
                     else -> Unit
                 }
 
-                if (session.state == AppWorkoutSessionState.AWAITING_RECOVERY &&
-                    (requiresNotificationPermission ||
-                        notificationAvailability != WorkoutNotificationAvailability.AVAILABLE)
-                ) {
-                    val showNotificationRationale = (context as? Activity)?.let {
-                        ActivityCompat.shouldShowRequestPermissionRationale(
-                            it,
-                            Manifest.permission.POST_NOTIFICATIONS,
-                        )
-                    }.orFalse()
-                    NotificationPermissionCard(
-                        availability = notificationAvailability,
-                        deniedAfterRequest = notificationPermissionRequested,
-                        canRequestRuntimePermission = notificationAvailability ==
-                            WorkoutNotificationAvailability.RUNTIME_PERMISSION_REQUIRED &&
-                            (!notificationPermissionRequested || showNotificationRationale),
-                        onRequest = {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        },
-                        onOpenSettings = {
-                            context.openWorkoutNotificationSettings(notificationAvailability)
-                        },
-                    )
-                }
-
-                // Action buttons
-                if (session.state in setOf(
-                        AppWorkoutSessionState.ACTIVE,
-                        AppWorkoutSessionState.PAUSED,
-                    )
-                ) {
-                    Button(
-                        onClick = { exercisesViewModel.reconcileStaleRecoverySession() },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Tentar preparar recuperação")
-                    }
-                }
-
-                if (session.state == AppWorkoutSessionState.AWAITING_RECOVERY) {
-                    Button(
-                        onClick = { exercisesViewModel.recoverSession() },
-                        enabled = !isBusy &&
-                            notificationAvailability == WorkoutNotificationAvailability.AVAILABLE,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Retomar treino")
-                    }
-
-                    OutlinedButton(
-                        onClick = { pendingConfirmation = RecoveryAction.FINISH },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Finalizar treino")
-                    }
-                }
-
-                if (session.state == AppWorkoutSessionState.FINISHING) {
-                    Text(
-                        "A finalização foi registrada, mas a atividade revisável ainda está pendente. Você pode manter esta sessão ou descartá-la.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
                 if (session.state in setOf(
                         AppWorkoutSessionState.CREATED,
+                        AppWorkoutSessionState.ACTIVE,
+                        AppWorkoutSessionState.PAUSED,
                         AppWorkoutSessionState.AWAITING_RECOVERY,
-                        AppWorkoutSessionState.FINISHING,
-                    )
+                    ) && session.workoutActivityId == null
                 ) {
                     TextButton(
                         onClick = { pendingConfirmation = RecoveryAction.DISCARD },
@@ -1329,7 +1259,7 @@ fun WorkoutRecoveryShell(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            "Descartar treino",
+                            "Descartar",
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -1346,13 +1276,8 @@ fun WorkoutRecoveryShell(
             durationText = formatDuration(confirmedSession.activeDuration),
             confirmLabel = "Confirmar",
             onConfirm = {
-                val action = pendingConfirmation
                 pendingConfirmation = null
-                when (action) {
-                    RecoveryAction.FINISH -> exercisesViewModel.finishRecoveredSession()
-                    RecoveryAction.DISCARD -> exercisesViewModel.discardRecoveredSession()
-                    else -> Unit
-                }
+                exercisesViewModel.discardRecoveredSession()
             },
             onCancel = { pendingConfirmation = null },
         )

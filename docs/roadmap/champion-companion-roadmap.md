@@ -8,8 +8,8 @@
 - Novos treinos iniciados pelo celular foram descontinuados como direção de
   produto. GPS, rota, `ExerciseRoute` e BLE live em sessão phone foram removidos
   da direção futura e não devem ser expandidos.
-- A desativação operacional dos pontos de entrada phone ainda está pendente;
-  este roadmap não afirma que o código já os desativou.
+- A desativação operacional dos pontos de entrada phone foi implementada em
+  `013-17`; o aceite final ainda aguarda revisão independente.
 - Migrations, schemas, sessões, dados, contratos, infraestrutura e evidências
   existentes permanecem preservados até decisão explícita de remoção.
 - A direção futura prioriza importação D3/D4, derivação de métricas, revisão e
@@ -1902,18 +1902,17 @@ Health Connect
 `partially_delivered`. **Motivo:** `product_reorientation`.
 
 Novos treinos iniciados pelo celular não continuam como direção de produto. A
-desativação operacional dos pontos de entrada phone permanece pendente e não é
-afirmada como já realizada no código. Migrations, schemas, sessões, dados,
-infraestrutura e evidências existentes devem ser preservados.
+desativação operacional dos pontos de entrada phone foi implementada em
+`013-17`; o aceite final ainda aguarda revisão independente. Migrations, schemas,
+sessões, dados, infraestrutura e evidências existentes devem ser preservados.
 
 ## Direção atual de encerramento
 
 - `013-01..07` e `013-09` permanecem `completed`.
 - `013-08`, `013-10`, `013-11` e `013-12..16` permanecem `cancelled`, com
   históricos, riscos e evidências preservados; cancelamento não é aceite.
-- `013-17` permanece `in_progress` para consolidar encerramento documental,
-  registrar a operação pendente de desativação e preparar o resultado
-  `partially_delivered`.
+- `013-17` permanece `in_progress` para consolidar revisão da desativação
+  operacional e preparar o resultado `partially_delivered`.
 - A Fase 013 não recebe novos gates físicos phone. A futura direção é a
   importação, derivação, revisão e sincronização de treinos iniciados pelo
   relógio.
@@ -1924,8 +1923,8 @@ infraestrutura e evidências existentes devem ser preservados.
   `1 in_progress`;
 - dados, migrations, schemas e evidências permanecem preservados;
 - não se exige novo treino phone, GPS, rota, `ExerciseRoute` ou mapa;
-- a operação de desativação dos pontos de entrada phone é registrada sem
-  afirmar conclusão inexistente;
+- a operação de desativação dos pontos de entrada phone está implementada e
+  aguarda revisão independente;
 - a Fase 014 é redefinida para treinos do relógio, com WorkManager somente para
   tarefas finitas e adiáveis.
 
