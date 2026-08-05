@@ -102,7 +102,6 @@ class DeviceManagementViewModel @Inject constructor(
                 if (currentTransportState is ChampionBleState.TransportReady) {
                     refreshIdleSurface()
                 }
-                attemptAutoConnectForCurrentEntry()
             }
         }
     }
@@ -621,7 +620,6 @@ class DeviceManagementViewModel @Inject constructor(
                 activeJob = null
                 autoConnectInFlight = false
                 refreshIdleSurface()
-                attemptAutoConnectForCurrentEntry()
             }
 
             is ChampionBleState.Scanning -> {
@@ -818,7 +816,7 @@ class DeviceManagementViewModel @Inject constructor(
     private fun ForegroundBleOperationOwner.toDeviceManagementForegroundBleBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Há uma sincronização do relógio em andamento na tela inicial."
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Há uma medição manual em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico em andamento na tela Saúde."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Há uma importação de histórico do relógio em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Há uma importação de treinos do relógio em andamento na tela Exercícios."
         ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "Há uma participação opcional do relógio em andamento na sessão de treino."
         ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Outra conexão do dispositivo está em andamento."
