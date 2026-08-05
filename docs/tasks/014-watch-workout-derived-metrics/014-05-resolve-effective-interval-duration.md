@@ -1,4 +1,4 @@
-# 014-05 — Resolver duração efetiva dos intervalos
+# 014-05 — Resolver duração efetiva, índices e plausibilidade
 
 - **Ticker:** `014`
 - **Número:** `05`
@@ -6,19 +6,11 @@
 
 ## Objetivo e resultado esperado
 
-Aplicar política temporal da ADR-018 aos intervalos existentes, incluindo último
-intervalo parcial e falha fechada. Resultado: janelas positivas, ordenadas e sem
-síntese, prontas para derivação.
+Aplicar a política temporal da ADR-018 aos intervalos existentes, exigir índices
+contínuos e únicos e registrar plausibilidade sem redistribuir passos.
 
-## Contexto
-
-Parser atual atribui 60 segundos a todo intervalo e não usa o restante da duração
-total. `resolvedEndedAt` também não é propagado explicitamente às métricas.
-
-## Requisitos cobertos
-
-- R4;
-- integridade temporal de R5, R7 e R8.
+Resultado: janelas positivas, ordenadas e sem síntese, com elegibilidade e
+plausibilidade prontas para a derivação canônica.
 
 ## Dependências
 
@@ -31,9 +23,6 @@ total. `resolvedEndedAt` também não é propagado explicitamente às métricas.
 - mappers/repositories de intervalos estritamente necessários;
 - documentação de protocolo e overview.
 
-Símbolos prováveis: `resolvedDurationSeconds`, `resolvedEndedAt`,
-`WorkoutMetrics.endedAt`, resolvedor temporal e persistência de duração efetiva.
-
 ## Arquivos proibidos
 
 - UI, perfil, splits e Health Connect;
@@ -42,43 +31,73 @@ Símbolos prováveis: `resolvedDurationSeconds`, `resolvedEndedAt`,
 
 ## Escopo
 
-- quatro relações entre `T`, `N` e 60 segundos;
-- cauda sem intervalo;
-- índices ausentes/duplicados;
-- propagação do fim temporal efetivo.
+### Índices
+
+A série V1 exige:
+
+```text
+0, 1, 2, ..., N-1
+```
+
+São inelegíveis:
+
+- primeiro índice diferente de zero;
+- índice ausente;
+- índice duplicado;
+- ordem inconsistente após normalização autorizada.
+
+Não calcular a posição temporal apenas pela quantidade de linhas quando houver
+lacuna.
+
+### Duração
+
+Com `T`, `N` elegível e quantum de 60 segundos:
+
+- `T = N×60`: todos completos;
+- `(N−1)×60 < T < N×60`: último recebe o restante;
+- `T <= (N−1)×60`: série inelegível;
+- `T > N×60`: todos completos e cauda sem bucket.
+
+O exemplo `1.637 s` produz 27 intervalos de 60 s e último de 17 s.
+
+### Plausibilidade
+
+- A duração residual permanece mesmo quando a cadência resultante for alta.
+- Registrar `durationResolution = LAST_INTERVAL_RESIDUAL` quando aplicável.
+- Calcular indicadores tipados de plausibilidade definidos em `014-02`.
+- Não alterar passos, duração ou distância para “corrigir” plausibilidade.
+- Projeção granular futura deve poder bloquear série implausível.
 
 ## Fora do escopo
 
 - corrigir timestamps de origem sem evidência;
 - sintetizar intervalo ausente;
 - calcular distância, ritmo ou split;
+- escolher novo limiar fora do contrato de `014-02`;
 - testes automatizados.
 
 ## Passos de implementação
 
-1. Centralizar política temporal em função determinística.
-2. Aplicar 60 segundos aos intervalos anteriores e restante positivo ao último.
-3. Marcar série inelegível quando `T <= (N−1)×60`.
-4. Preservar cauda quando `T > N×60` sem criar bucket.
-5. Persistir duração efetiva e motivo de inelegibilidade.
+1. Validar índices antes da política `T/N`.
+2. Centralizar o resolvedor temporal em função determinística.
+3. Aplicar o restante positivo somente ao último intervalo elegível.
+4. Preservar cauda sem criar bucket.
+5. Persistir duração efetiva, resolução, elegibilidade e plausibilidade.
 6. Propagar `endedAt` resolvido sem inflar duração ativa.
-7. Atualizar protocolo e overview.
+7. Garantir convenção temporal consistente para BPM.
+8. Atualizar protocolo e overview.
 
 ## Critérios de aceite
 
-- `1.637 s` produz 27 intervalos de 60 s e último de 17 s.
+- Lacuna, duplicata ou primeiro índice não zero bloqueia a série.
+- `1.637 s` produz último intervalo de 17 s.
 - `T=N×60` mantém todos com 60 s.
 - Caso curto falha fechado sem truncar fatos.
-- Caso longo preserva sessão e não inventa intervalo.
-- Lacunas não são preenchidas.
+- Caso longo preserva a sessão sem inventar intervalo.
+- Cadência implausível gera indicador, não redistribuição.
+- Janelas válidas são positivas, ordenadas, não sobrepostas e contidas.
 
-## Validação manual
-
-- Exercitar tabela dos quatro casos com dados sanitizados em debug/local.
-- Conferir início/fim do último intervalo e janela da sessão.
-- Verificar reabertura do detalhe após persistência.
-
-## Comandos permitidos
+## Validação
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
@@ -91,26 +110,18 @@ Não criar nem executar testes automatizados.
 
 ## Evidências
 
-- matriz `T/N → durações/elegibilidade`;
+- matriz índice → elegibilidade;
+- matriz `T/N → duração/resolução`;
 - registro sanitizado do exemplo de 1.637 s;
+- matriz de plausibilidade;
 - builds e smoke local.
 
 ## Definição de pronto
 
-Política temporal persistida e consumível, sem intervalos sintéticos, com item
+Política temporal, índices e plausibilidade persistidos sem síntese, com item
 `014-05` marcado.
-
-## Riscos e cuidados
-
-- `N=0` mantém sessão sem série.
-- Amostra BPM na fronteira deve usar convenção temporal consistente.
-- Não converter cauda em passos ou distância zero inventados.
 
 ## Rollback
 
-Desativar resolvedor e leitura de duração efetiva, preservando campos adicionados
-e dados raw; não apagar intervalos.
-
-## Atualização obrigatória do overview
-
-Atualizar `014-00-overview.md`, marcar `014-05` e registrar matriz validada.
+Desativar o resolvedor para novas derivações e preservar campos raw/measured já
+adicionados. Não apagar intervalos.
