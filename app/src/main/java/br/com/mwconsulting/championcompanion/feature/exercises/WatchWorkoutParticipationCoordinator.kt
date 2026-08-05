@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -92,6 +94,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
     private var permit: ForegroundBleOperationPermit? = null
     private var connectionAttemptSessionId: AppWorkoutSessionId? = null
     private var connectionAttemptToken: ConnectionAttemptToken? = null
+    private val connectionAttemptTombstones = mutableListOf<ConnectionAttemptToken>()
     private var terminalObserverJob: Job? = null
 
     @Volatile
@@ -106,6 +109,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
 
     private enum class RetryPreparation {
         START,
+        ENABLE,
         ALREADY_CONNECTED,
         IN_PROGRESS,
         REJECTED,
@@ -124,6 +128,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         val expectedPermit: ForegroundBleOperationPermit,
         val operationId: String,
         val transportKey: String,
+        val job: Job?,
         var transportSessionId: ChampionSessionId? = null,
         var transport: ChampionTransportSession? = null,
         var transportIdentityInvalid: Boolean = false,
@@ -224,10 +229,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                     }
                 }
 
-                reconcileBoundStateLocked(
-                    sessionId = sessionId,
-                    adoptReadyTransport = true,
-                )
+                reconcileBoundStateLocked(sessionId = sessionId)
                 when (mutableState.value.status) {
                     WatchWorkoutParticipationStatus.CONNECTED -> EnablePreparation.ALREADY_CONNECTED
                     WatchWorkoutParticipationStatus.CONNECTING -> EnablePreparation.IN_PROGRESS
@@ -303,7 +305,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 }
             }
             if (!participationEnabledLocked(sessionId)) {
-                return@withLock RetryPreparation.REJECTED
+                return@withLock RetryPreparation.ENABLE
             }
             if (!canBindSessionLocked(sessionId)) return@withLock RetryPreparation.REJECTED
 
@@ -318,6 +320,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         val connectedDevice = device ?: return false
         return when (preparation) {
             RetryPreparation.ALREADY_CONNECTED -> true
+            RetryPreparation.ENABLE -> enable(sessionId)
             RetryPreparation.IN_PROGRESS,
             RetryPreparation.REJECTED,
             -> false
@@ -341,6 +344,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         permitAcquiredByAttempt: ForegroundBleOperationPermit?,
         releaseExpectedPermitOnFailure: Boolean,
     ): Boolean {
+        val attemptJob = currentCoroutineContext()[Job]
         var connectionAttemptStarted = false
         var returnedTransport: ChampionTransportSession? = null
         var attemptToken: ConnectionAttemptToken? = null
@@ -368,6 +372,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                             expectedPermit = expectedPermit,
                             operationId = expectedPermit.operationId,
                             transportKey = device.platformIdentifier,
+                            job = attemptJob,
                         )
                         attemptToken = token
                         connectionAttemptToken = token
@@ -466,11 +471,15 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                     currentReadyState?.session?.id == bootstrapTransport.session.id &&
                     currentReadyState?.session?.transportKey == device.platformIdentifier &&
                     currentTransport === bootstrapTransport
+                if (currentTransportIsBootstrap && !canBindSessionLocked(sessionId)) {
+                    return@withLock false
+                }
                 if (currentTransportIsBootstrap) {
+                    val acceptedAttempt = attemptTransport ?: return@withLock false
                     acceptedTransportSessionId = bootstrapTransport.session.id
                     pendingTransportSessionId = null
                     invalidTransportSessionId = null
-                    connectionAttemptToken = null
+                    forgetConnectionAttemptLocked(acceptedAttempt)
                     connectionAttemptSessionId = null
                     setConnectedLocked(sessionId)
                     true
@@ -559,7 +568,9 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                     (activeOperation == null || activeOperationMatches)
                 val canTouchAttempt = (localOwnerMatches &&
                     (activeOperation == null || activeOperationMatches)) || ownerReleased
-                val tokenStillTracked = attemptToken == null || connectionAttemptToken === attemptToken
+                val tokenStillTracked = attemptToken == null ||
+                    connectionAttemptToken === attemptToken ||
+                    connectionAttemptTombstones.any { it === attemptToken }
                 if (attemptToken != null && !tokenStillTracked) {
                     return@withLock
                 }
@@ -567,7 +578,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                     // A different owner may have replaced this attempt. Only
                     // drop the local token; never clear its state or transport.
                     if (attemptToken != null && tokenStillTracked) {
-                        connectionAttemptToken = null
+                        forgetConnectionAttemptLocked(attemptToken)
                         if (connectionAttemptSessionId == sessionId) {
                             connectionAttemptSessionId = null
                         }
@@ -637,7 +648,10 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 try {
                     if (canDisconnectExpectedTransport) {
                         invalidTransportSessionId = expectedTransportSessionId
-                        connectionManager.disconnect(ChampionDisconnectReason.CLEANUP)
+                        connectionManager.disconnectExpectedTransport(
+                            expectedTransport,
+                            ChampionDisconnectReason.CLEANUP,
+                        )
                     }
                 } catch (_: CancellationException) {
                     // O cancelamento original será relançado após cleanup identitário.
@@ -656,12 +670,14 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                         }
                     }
                     if (attemptToken != null && tokenStillTracked) {
-                        connectionAttemptToken = null
+                        forgetConnectionAttemptLocked(attemptToken)
                     }
                     if (connectionAttemptSessionId == sessionId) {
                         connectionAttemptSessionId = null
                     }
-                    if (localOwnerMatches || ownerReleased) {
+                    val participationStillTracked = enabledSessionId == sessionId ||
+                        boundSessionId == sessionId
+                    if ((localOwnerMatches || ownerReleased) && participationStillTracked) {
                         setDisconnectedLocked(sessionId)
                         val shouldReleasePermit = releaseExpectedPermit || permitAcquiredByAttempt != null
                         if (shouldReleasePermit && localOwnerMatches && permit == cleanupPermit) {
@@ -696,30 +712,113 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         sessionId: AppWorkoutSessionId,
         allowedStates: Set<AppWorkoutSessionState>,
     ) {
-        val canRelease = try {
-            appWorkoutSessionRepository.observeSession(sessionId).first()?.state in allowedStates
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            false
-        }
-        if (!canRelease) return
+        if (!isSessionInState(sessionId, allowedStates)) return
 
-        val permitToRelease = operationMutex.withLock {
+        val callerJob = currentCoroutineContext()[Job]
+        val attemptToCancel = operationMutex.withLock {
             if (enabledSessionId != sessionId && boundSessionId != sessionId) return@withLock null
-            terminalObserverJob?.cancel()
-            terminalObserverJob = null
-            foregroundBleSessionId = null
-            enabledSessionId = null
-            acceptedTransportSessionId = null
-            pendingTransportSessionId = null
-            invalidTransportSessionId = null
-            connectionAttemptSessionId = null
-            boundSessionId = boundSessionId?.takeUnless { it == sessionId }
-            mutableState.value = WatchWorkoutParticipationState()
-            permit.also { permit = null }
+            connectionAttemptToken?.takeIf { it.sessionId == sessionId }?.let { attempt ->
+                if (connectionAttemptTombstones.none { it === attempt }) {
+                    connectionAttemptTombstones += attempt
+                }
+            }
+            connectionAttemptToken?.takeIf { it.sessionId == sessionId }
         }
-        permitToRelease?.let { foregroundBleOperationGate.release(it) }
+
+        withContext(NonCancellable) {
+            attemptToCancel?.job?.takeIf { it !== callerJob }?.cancelAndJoin()
+
+            val attemptStillTracked = attemptToCancel?.let { attempt ->
+                operationMutex.withLock {
+                    connectionAttemptToken === attempt ||
+                        connectionAttemptTombstones.any { it === attempt }
+                }
+            } == true
+            if (attemptToCancel != null && attemptStillTracked) {
+                cleanupEnableAttempt(
+                    sessionId = sessionId,
+                    expectedPermit = attemptToCancel.expectedPermit,
+                    permitAcquiredByAttempt = null,
+                    expectedTransportKey = attemptToCancel.transportKey,
+                    connectionAttemptStarted = true,
+                    returnedTransport = attemptToCancel.transport,
+                    attemptToken = attemptToCancel,
+                    releaseExpectedPermit = false,
+                )
+            }
+
+            disconnectAcceptedTransportAtInactiveState(sessionId)
+            if (!isSessionInState(sessionId, allowedStates)) return@withContext
+
+            val permitToRelease = operationMutex.withLock {
+                if (enabledSessionId != sessionId && boundSessionId != sessionId) return@withLock null
+                terminalObserverJob?.cancel()
+                terminalObserverJob = null
+                foregroundBleSessionId = null
+                enabledSessionId = null
+                acceptedTransportSessionId = null
+                pendingTransportSessionId = null
+                invalidTransportSessionId = null
+                connectionAttemptSessionId = null
+                boundSessionId = boundSessionId?.takeUnless { it == sessionId }
+                mutableState.value = WatchWorkoutParticipationState()
+                permit.also { permit = null }
+            }
+            permitToRelease?.let { foregroundBleOperationGate.release(it) }
+        }
+    }
+
+    private suspend fun disconnectAcceptedTransportAtInactiveState(sessionId: AppWorkoutSessionId) {
+        val expected = operationMutex.withLock {
+            val expectedPermit = permit
+            val expectedTransportId = acceptedTransportSessionId ?: return@withLock null
+            val expectedTransportKey = associatedDevice?.platformIdentifier ?: return@withLock null
+            if (enabledSessionId != sessionId ||
+                expectedPermit?.owner != ForegroundBleOperationOwner.APP_WORKOUT_SESSION ||
+                expectedPermit.operationId != sessionId.value.toString()
+            ) {
+                return@withLock null
+            }
+            InactiveTransportCleanup(expectedPermit, expectedTransportId, expectedTransportKey)
+        } ?: return
+
+        val currentTransport = try {
+            connectionManager.currentSession()
+        } catch (_: Exception) {
+            null
+        } ?: return
+        if (currentTransport.session.id != expected.transportSessionId ||
+            currentTransport.session.transportKey != expected.transportKey
+        ) {
+            return
+        }
+
+        val stillOwned = operationMutex.withLock {
+            enabledSessionId == sessionId &&
+                permit == expected.permit &&
+                acceptedTransportSessionId == expected.transportSessionId
+        }
+        if (!stillOwned) return
+
+        try {
+            connectionManager.disconnectExpectedTransport(
+                currentTransport,
+                ChampionDisconnectReason.CLEANUP,
+            )
+        } catch (_: Exception) {
+            // Owner ainda é liberado abaixo; callbacks tardios permanecem identitários.
+        }
+    }
+
+    private suspend fun isSessionInState(
+        sessionId: AppWorkoutSessionId,
+        allowedStates: Set<AppWorkoutSessionState>,
+    ): Boolean = try {
+        appWorkoutSessionRepository.observeSession(sessionId).first()?.state in allowedStates
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        false
     }
 
     fun requiresConnectedDeviceForegroundType(sessionId: AppWorkoutSessionId): Boolean =
@@ -842,7 +941,6 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
      */
     private suspend fun reconcileBoundStateLocked(
         sessionId: AppWorkoutSessionId? = boundSessionId,
-        adoptReadyTransport: Boolean = false,
     ): Boolean {
         captureAttemptSessionIdLocked(connectionManager.state.value)
         val boundId = sessionId ?: return false
@@ -899,13 +997,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             !attemptInProgressForBoundSession &&
                 (
                     acceptedTransportSessionId == readyState.session.id ||
-                        pendingTransportSessionId == readyState.session.id ||
-                        (
-                            adoptReadyTransport &&
-                                acceptedTransportSessionId == null &&
-                                pendingTransportSessionId == null &&
-                                connectionAttemptToken == null
-                            )
+                        pendingTransportSessionId == readyState.session.id
                     )
             )
 
@@ -1055,6 +1147,19 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
 
     private fun isTrackedTransportLocked(sessionId: ChampionSessionId): Boolean =
         acceptedTransportSessionId == sessionId || pendingTransportSessionId == sessionId
+
+    private fun forgetConnectionAttemptLocked(token: ConnectionAttemptToken) {
+        if (connectionAttemptToken === token) {
+            connectionAttemptToken = null
+        }
+        connectionAttemptTombstones.removeAll { it === token }
+    }
+
+    private data class InactiveTransportCleanup(
+        val permit: ForegroundBleOperationPermit,
+        val transportSessionId: ChampionSessionId,
+        val transportKey: String,
+    )
 
     private fun ChampionBleState.connectionTransportKeyOrNull(): String? = when (this) {
         is ChampionBleState.Connecting -> session.transportKey

@@ -89,6 +89,7 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
 ### Arquivos alterados
 
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionConnectionManager.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/WatchWorkoutParticipationCoordinator.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/WorkoutRecordingService.kt`
@@ -573,8 +574,9 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
   retry. Cleanup `NonCancellable` desconecta somente transporte identificado da
   própria tentativa, limpa token/IDs de estado de forma owner-aware e não toca
   owner concorrente.
-- Retry/rebind/enable rejeitam sessão terminal. Retry sem owner não delega para
-  `enable()` nem readquire/adota transporte alheio.
+- Retry/rebind/enable rejeitam sessão terminal. Naquele ponto, retry sem owner
+  ainda não delegava para `enable()`; correção posterior passou a delegar fora
+  de `operationMutex`, sem adotar transporte alheio.
 - `git diff --check`: passou.
 - `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
 - `installDebug`: não executado nesta correção porque `adb devices` estava sem
@@ -644,6 +646,122 @@ Sem relógio; conectado sem modo esporte; modo esporte com BPM quando observado;
   `8/17`. Permanecem bloqueados gates físicos de falha/cancelamento e rollover,
   desconexão, reconexão, conflito, handoff de `013-08`, screenshots duráveis e
   evidência protocolar de BPM/passos live.
+
+### Correção do bloqueador final de promoção após bootstrap — 2026-08-04
+
+- Causa confirmada: o bloco final de `attemptConnection()` validava `Success`,
+  identidade do transporte, `ChampionSessionId`, permit e `TransportReady`, mas
+  não relia o estado persistido da sessão imediatamente antes de promover
+  `CONNECTED`. Uma sessão que avançasse para `FINISHING`,
+  `AWAITING_RECOVERY`, `FINISHED` ou `DISCARDED` ainda podia ser promovida.
+- A promoção agora revalida `canBindSessionLocked(sessionId)` dentro de
+  `operationMutex`, depois da identidade do bootstrap estar validada e antes de
+  alterar os IDs aceitos, limpar `connectionAttemptToken` ou publicar
+  `CONNECTED`. Rejeição segue o cleanup identitário existente: token permanece
+  rastreado até essa decisão, somente o transporte da tentativa pode ser
+  desconectado e o owner é liberado conforme a política de `enable`/`retry`.
+- `APP_WORKOUT_SESSION`, retry separado, `DEVICE_CONNECTION`, cleanup
+  `NonCancellable` e protocolos D0/F002/FEA1/A8/D8/D1/D3/D4 foram preservados.
+  Nenhum arquivo de `013-08`, contrato ou teste foi alterado.
+
+### Validação do bloqueador final
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; 103
+  tarefas acionáveis, 5 executadas e 98 atualizadas.
+- `adb devices`: Galaxy S22 conectado (`SM-S901E`, Android 16).
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; APK instalado em 1 dispositivo.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+- Não foi executada corrida física durante bootstrap nem novo gate de
+  desconexão, reconexão, conflito, rollover/perda de lease, handoff de `013-08`,
+  screenshots ou BPM/passos live; não há evidência fabricada.
+- Status permanece `in_progress`; item do overview permanece `[ ]`; progresso
+  `8/17`. Esses gates e a evidência protocolar live continuam bloqueados.
+
+### Correção do transporte stale após desconexão — 2026-08-04
+
+- **Causa confirmada no gate físico:** `ChampionConnectionManager.disconnect()`
+  publicava `ChampionBleState.Disconnected`, mas `cleanupSession()` não recebia
+  a referência do transporte encerrado. A limpeza por `sessionId` não
+  distinguia transporte antigo de tentativa concorrente, e
+  `currentSession()` podia continuar expondo uma referência stale para o
+  coordinator durante a reconciliação.
+- `disconnect()` e `handleClientEvent()` agora passam o
+  `ChampionTransportSession` esperado a `cleanupSession()`. `activeTransport` só
+  é limpo quando referência (`===`) e `sessionId` ainda correspondem ao
+  transporte encerrado; tentativa concorrente não é apagada. Caminhos de falha
+  anteriores à criação do wrapper de transporte não limpam uma sessão que não
+  lhes pertence.
+- Owners `APP_WORKOUT_SESSION` e `DEVICE_CONNECTION`, lifecycle, retry separado,
+  adoção fail-closed e protocolos BLE foram preservados. Nenhum arquivo de
+  `013-08`, contrato, persistência, GPS, rota, protocolo proibido ou teste foi
+  alterado. Arquivo de produção alterado: `core/bluetooth/ChampionConnectionManager.kt`.
+
+### Validação da correção
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`; APK instalado no Galaxy S22.
+- Nenhum teste automatizado foi criado, alterado ou executado.
+- A correção estática cobre publicação de `Disconnected`/falha de transporte e
+  impede reuso/adoção de transporte stale sem alterar coordinator ou owners.
+  O gate físico `DISCONNECTED → Tentar novamente → CONNECTING → CONNECTED` ainda
+  não foi repetido após esta correção; conflito, rollover/perda de lease,
+  handoff de `013-08`, screenshots duráveis e BPM/passos live continuam
+  bloqueados.
+- Status permanece `in_progress`; item do overview permanece `[ ]`; progresso
+  `8/17`.
+
+### Correção dos dois P1 residuais de concorrência — 2026-08-04
+
+- Causa do P1 de scan confirmada: `disconnectCurrent()` cancelava o scanner antes
+  de revalidar sua geração. Scan e cancelamento agora usam `scannerMutex`
+  dedicado durante toda a operação do scanner; o mutex principal não permanece
+  adquirido durante I/O BLE. A seleção do transporte continua revalidando
+  geração e referência esperada após o cancelamento serializado.
+- Causa do P1 de cancelamento confirmada: `connect()` limpava recursos em
+  `NonCancellable`, mas podia manter estado intermediário sem transporte ou
+  pending. Somente no caminho de `CancellationException`, helper sob mutex
+  publica `Disconnected` quando geração ainda coincide e `activeTransport` e
+  `pendingConnection` continuam nulos.
+- Cleanup de pending permanece identitário por referência (`===`). Geração nova,
+  transporte novo ou pending novo impedem publicação terminal stale.
+- Arquivo de produção alterado nesta correção:
+  `core/bluetooth/ChampionConnectionManager.kt`. Coordinator, contratos, Room,
+  GPS, rota, testes, Gradle, manifesto e protocolos não foram alterados.
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`; 103 tarefas
+  acionáveis, 28 executadas e 75 atualizadas.
+- Nenhum teste automatizado foi criado, alterado ou executado. Item permanece
+  `in_progress`, `[ ]`, progresso `8/17`; gates físicos de reconexão, conflito,
+  rollover/perda de lease, handoff de `013-08`, screenshots e evidência
+  protocolar de BPM/passos live continuam bloqueados.
+
+### Correções de concorrência após revisão independente — 2026-08-04
+
+- A revisão encontrou quatro riscos estáticos: transporte stale podia publicar
+  estado terminal, tentativa encerrada podia reter token, retry em conflito ou
+  sem owner era recusado e `TransportReady` podia ser adotado sem bootstrap
+  comprovado. A implementação corrigiu esses caminhos sem adicionar protocolo
+  BLE, GPS, rota, Room ou Health Connect.
+- `ChampionConnectionManager` agora protege publicações por geração e
+  referência de transporte. `disconnectExpectedTransport()` só encerra a
+  referência esperada; callback antigo não sobrescreve transporte novo.
+- Tentativas carregam `Job` e tombstone identitário. Estado terminal cancela e
+  aguarda a tentativa antes de liberar `APP_WORKOUT_SESSION`; cleanup tardio não
+  toca owner, transporte ou sessão de outra tentativa.
+- Retry com owner retido continua uma tentativa única e não adquire
+  `DEVICE_CONNECTION`. Retry sem owner delega para `enable()` fora do lock,
+  permitindo repetir conflito ou falha inicial pela ação explícita da UI.
+- Adoção genérica de `TransportReady` foi removida. `CONNECTED` exige sucesso do
+  bootstrap A1 e identidade de transporte/owner revalidada; ausência de prova
+  mantém estado desconectado e não promove `connectedDevice`.
+- `git diff --check`: passou; `./gradlew lint assembleDebug assembleRelease`:
+  `BUILD SUCCESSFUL`; `./gradlew installDebug`: `BUILD SUCCESSFUL`, instalado
+  no Galaxy S22. Nenhum teste automatizado foi criado, alterado ou executado.
+- Status permanece `in_progress`; item do overview permanece `[ ]`; progresso
+  `8/17`. Retry/reconexão, conflito, rollover/perda de lease, handoff de
+  `013-08`, screenshots duráveis e BPM/passos live seguem sem aceite físico.
 
 ## Screenshots
 

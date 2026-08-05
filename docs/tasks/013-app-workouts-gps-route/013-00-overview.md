@@ -553,8 +553,61 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   separado, `canBind` terminal e protocolos proibidos foram preservados; nenhum
   arquivo de `013-08`, teste ou contrato foi alterado.
 - Nesta rodada, `git diff --check` e `./gradlew lint assembleDebug
-  assembleRelease` passaram. `adb devices` não encontrou dispositivo, então
+ assembleRelease` passaram. `adb devices` não encontrou dispositivo, então
   `installDebug` não foi executado; nenhum teste foi criado, alterado ou
   executado. Item permanece `[ ]`, status `in_progress`, progresso `8/17`;
   gates físicos de falha/cancelamento, rollover, desconexão, reconexão, conflito,
   handoff de `013-08`, screenshots e BPM/passos live continuam bloqueados.
+- Bloqueador final de `013-11` corrigido: após `Success` do bootstrap e validação
+  completa da identidade do transporte, `attemptConnection()` agora revalida
+  `canBindSessionLocked(sessionId)` imediatamente antes da promoção final para
+  `CONNECTED`, dentro de `operationMutex`. Sessão em `FINISHING`,
+  `AWAITING_RECOVERY`, `FINISHED` ou `DISCARDED` não é promovida nem tem token
+  limpo prematuramente; o cleanup identitário desconecta somente o transporte da
+  tentativa e aplica a política de owner existente. `APP_WORKOUT_SESSION`,
+  retry separado, `DEVICE_CONNECTION` e protocolos foram preservados. Nenhum
+  arquivo de `013-08`, contrato ou teste foi alterado.
+- A validação passou em `git diff --check` e
+  `./gradlew lint assembleDebug assembleRelease` (`BUILD SUCCESSFUL`; 103
+  tarefas acionáveis, 5 executadas e 98 atualizadas). `adb devices` confirmou
+  Galaxy S22 `SM-S901E` conectado; `./gradlew installDebug` terminou com
+  `BUILD SUCCESSFUL` e instalou o APK em 1 dispositivo. Nenhum teste foi criado,
+  alterado ou executado. Corrida física durante bootstrap, desconexão,
+  reconexão, conflito, rollover/perda de lease, handoff de `013-08`, screenshots
+  e BPM/passos live continuam bloqueados; item permanece `[ ]`, status
+  `in_progress` e progresso `8/17`.
+- Gate físico de reconexão confirmou causa adicional no manager: `disconnect()`
+  publicava `Disconnected`, mas o cleanup não carregava a referência do
+  `ChampionTransportSession` encerrado; `currentSession()` podia continuar
+  expondo transporte stale ou sofrer limpeza indevida durante tentativa
+  concorrente. `disconnect()` e `handleClientEvent` agora passam a referência
+  esperada, e `cleanupSession()` só limpa `activeTransport` quando referência e
+  `sessionId` correspondem. Owners `APP_WORKOUT_SESSION`/`DEVICE_CONNECTION`,
+  lifecycle, protocolos e retry/adoção fail-closed permanecem preservados.
+- Arquivo de produção alterado: `core/bluetooth/ChampionConnectionManager.kt`.
+  Nenhum arquivo de `013-08`, teste, contrato ou protocolo foi alterado. A
+  validação desta correção passou em `git diff --check`,
+  `./gradlew lint assembleDebug assembleRelease` e
+  `./gradlew installDebug` no Galaxy S22. Nenhum teste foi criado, alterado ou
+  executado. Gate físico `DISCONNECTED → Tentar novamente → CONNECTING →
+  CONNECTED`, conflito, rollover, handoff de `013-08`, screenshots e
+  BPM/passos live continuam bloqueados; item permanece `[ ]`, status
+  `in_progress` e progresso `8/17`.
+- Dois P1 residuais de `013-11` foram corrigidos no manager: scan e cancelamento
+  usam mutex dedicado, impedindo disconnect stale de cancelar scan de geração
+  nova; cancelamento externo de `connect()` publica `Disconnected` somente após
+  cleanup identitário, com mesma geração e ausência confirmada de transporte e
+  pending. Cleanup de pending continua por referência e estado novo não é
+  sobrescrito. `git diff --check` e build completo passaram sem testes. Item
+  permanece `[ ]`, `in_progress`, progresso `8/17`; gates físicos, handoff,
+  screenshots e BPM/passos live continuam bloqueados.
+- Correções adicionais de `013-11` fecharam quatro riscos de concorrência:
+  callbacks/cleanup usam geração e referência de transporte; tentativas usam
+  tombstone e `cancelAndJoin` antes da liberação terminal; retry sem owner
+  delega para `enable()` fora do lock; e `TransportReady` não é mais adotado sem
+  bootstrap A1 bem-sucedido. Retry com owner retido continua limitado e sem
+  `DEVICE_CONNECTION`; nenhum protocolo BLE novo foi adicionado. O build e a
+  instalação no Galaxy S22 passaram sem testes automatizados. Gates físicos de
+  retry/reconexão, conflito, rollover, handoff `013-08`, screenshots e BPM/
+  passos live permanecem pendentes; item segue `[ ]`, status `in_progress`,
+  progresso `8/17`.
