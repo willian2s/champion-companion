@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `11`
-- **Status:** in_progress
+- **Status:** cancelled
 - **Última sincronização:** 2026-08-05
 
 ## Objetivo e resultado esperado
@@ -418,3 +418,25 @@ adb exec-out screencap -p                         PASS (capturas sanitizadas)
 adb shell uiautomator dump                       PASS
 testDebugUnitTest                                 NÃO EXECUTADO
 ```
+
+## Encerramento da Fase 013 — cancelada por reorientação de produto
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; a participação live do relógio em
+  sessões iniciadas pelo celular não será continuada nesta direção de produto.
+- **Resultado aproveitável:** ownership `APP_WORKOUT_SESSION`, participação
+  explícita, cleanup identitário, preservação do treino em desconexão e
+  ausência segura de BPM/passos permanecem registrados como infraestrutura e
+  evidência potencialmente reutilizáveis. Não há aceitação integral da
+  subtarefa.
+- **Execução, bloqueios e evidências preservados:** os gates de conexão,
+  desconexão, estado stale, handoff, conflito, rollover, recuperação e
+  screenshots permanecem exatamente como registrados; o gate de desconexão
+  continua `FAIL`/inconclusivo onde indicado. As evidências em
+  `docs/integration/013-11-evidence/` não foram apagadas nem reclassificadas.
+- **Limites:** BPM/passos live continuam sem origem esportiva comprovada; não se
+  alegam reconexão, conflito ou cleanup físico concluídos. Nenhum novo gate foi
+  executado para esta decisão.
+- **Destino:** preservar contratos, dados e evidências sem expandir BLE live em
+  sessão phone. A prioridade passa a ser importar, derivar, revisar e
+  sincronizar treinos iniciados pelo relógio.

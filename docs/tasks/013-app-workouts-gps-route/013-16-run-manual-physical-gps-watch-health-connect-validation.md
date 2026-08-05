@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `16`
-- **Status:** pending
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -114,3 +114,19 @@ Condições GNSS/HC podem não ser reproduzíveis. Não fabricar. Rotas revelam 
 Se risco crítico surgir, desabilitar entrada phone/route sync por mudança na task dona e repetir cenários afetados. Sem downgrade v6.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Encerramento da Fase 013 — cancelada e não executada
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; o gate físico integral de novos treinos
+  phone, GPS, rota e Health Connect não será executado como objetivo desta
+  fase.
+- **Execução:** esta subtarefa não foi executada nem concluída. Nenhum cenário
+  ausente deve ser tratado como aprovado, e nenhuma evidência física nova é
+  criada por este encerramento.
+- **Histórico e riscos:** roteiro, critérios, comandos permitidos, requisitos de
+  privacidade e riscos de não reprodução permanecem preservados acima; gates
+  anteriores de outras subtarefas continuam com seus resultados originais.
+- **Destino:** validações futuras de importação, derivação, revisão e
+  sincronização de treinos do relógio podem ser redefinidas conceitualmente na
+  Fase 014. Novos gates físicos da direção phone estão encerrados.

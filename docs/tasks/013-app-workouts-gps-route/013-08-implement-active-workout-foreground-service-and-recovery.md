@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `08`
-- **Status:** in_progress
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -172,6 +172,33 @@ Não criar, alterar ou executar testes automatizados.
   repetições focada e conjunta passaram. Nenhum teste ou configuração de teste
   foi alterado.
 - Nenhum teste automatizado foi criado, alterado ou executado.
+
+## Encerramento da Fase 013 — cancelada por reorientação de produto
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; novos treinos iniciados pelo celular não
+  continuam como direção de produto da Fase 013.
+- **Resultado aproveitável:** a base de foreground service, sessão persistida,
+  ownership, recuperação, notificações e estados de falha permanece preservada
+  como infraestrutura potencialmente reutilizável. Isso não equivale ao aceite
+  integral desta subtarefa.
+- **Execução e evidências preservadas:** todos os registros históricos acima,
+  incluindo gates aprovados, bloqueios, riscos e referências a evidências
+  sanitizadas em `docs/integration/013-08-evidence/`, continuam válidos como
+  histórico. Nenhuma ausência de evidência foi convertida em sucesso.
+- **Bloqueios não reclassificados:** CAS persistente, Room lento ou
+  indisponível, relógio civil, composição dinâmica de tipos FGS, insets e
+  demais lacunas físicas permanecem documentados; não foram executados novos
+  gates nesta decisão.
+- **Destino:** preservar migrations, schemas, sessões, dados e evidências. Não
+  reabrir implementação phone nesta subtarefa; a desativação operacional de
+  pontos de entrada é etapa posterior do fechamento da Fase 013.
+
+## Registros históricos anteriores ao cancelamento
+
+As seções de execução abaixo registram o estado observado antes da decisão de
+produto. Menções históricas a `in_progress`, progresso e gates pendentes não
+substituem o status atual `cancelled` desta subtarefa.
 
 ### Estado e riscos residuais
 

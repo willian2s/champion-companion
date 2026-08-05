@@ -1,8 +1,47 @@
 # Fase 13 — Exercícios iniciados pelo Champion Companion com GPS e rota
 
 - **Ticker:** `013`
-- **Status:** pending
+- **Status:** closing
+- **Outcome previsto:** `partially_delivered`
+- **Motivo do encerramento:** `product_reorientation`
 - **Base:** Fases 12 e 15 concluídas; Fase 14 posterior
+
+## Encerramento documental — estado atual
+
+- **Status atual:** `closing`. A Fase 013 não está concluída; o overview
+  permanece com `8 completed`, `8 cancelled` e `1 in_progress`.
+- **Resultado parcial:** contratos, preparação, migration/schema, readiness,
+  captura GPS/rota, métricas e parte da base de sessão/FGS foram entregues ou
+  preservados em graus diferentes. O resultado da fase é
+  `partially_delivered`, sem aceite integral dos treinos iniciados pelo celular.
+- **Motivo:** `product_reorientation`. A direção de produto deixou de continuar
+  novos treinos iniciados pelo celular.
+- **Entregues:** `013-01..07` e `013-09` permanecem `completed`, com seus
+  históricos, evidências e ressalvas preservados. `013-08`, `013-10` e
+  `013-11` deixam explícitos os artefatos parciais e bloqueios, sem converter
+  ausência em sucesso.
+- **Cancelados:** `013-08`, `013-10`, `013-11` e `013-12..16` ficam
+  `cancelled`; as últimas cinco não foram executadas ou concluídas. Nenhuma
+  implementação de finalização, correlação, `ExerciseRoute`, integração de
+  superfícies ou gate físico integral é alegada para elas.
+- **Infraestrutura potencialmente reutilizável:** contratos de atividade e
+  sessão, migration/schema e invariantes Room, filtros/readiness, base de FGS e
+  recuperação, ownership BLE, políticas sem GPS, fila Health Connect, dados e
+  evidências sanitizadas permanecem preservados. Reutilização futura exige
+  decisão própria e não autoriza expandir GPS, rota, `ExerciseRoute` ou BLE live
+  em sessão phone.
+- **Aviso de escopo:** o que resta da direção phone não é backlog ativo da
+  Fase 013. A desativação operacional dos pontos de entrada ainda não é
+  afirmada como realizada no código; seu registro é etapa de fechamento
+  operacional pendente, não implementação desta spec.
+- **Referência futura:** a Fase 014 será redefinida conceitualmente para
+  importação, derivação, revisão e sincronização de treinos iniciados pelo
+  relógio. WorkManager fica apenas como detalhe técnico finito e adiável; a
+  nova direção não exige GPS, rota ou mapa obrigatórios.
+
+Os requisitos, decisões, diagramas e histórico abaixo permanecem preservados
+como registro da autorização e da execução histórica da Fase 013. Eles não
+reabrem backlog nem substituem o estado de encerramento acima.
 
 ## Contexto
 

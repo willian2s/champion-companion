@@ -1,5 +1,25 @@
 # Champion Companion — Roadmap completo do aplicativo Android nativo
 
+## Registro atual de encerramento da Fase 013
+
+- **Status:** `closing`.
+- **Resultado previsto:** `partially_delivered`.
+- **Motivo:** `product_reorientation`.
+- Novos treinos iniciados pelo celular foram descontinuados como direção de
+  produto. GPS, rota, `ExerciseRoute` e BLE live em sessão phone foram removidos
+  da direção futura e não devem ser expandidos.
+- A desativação operacional dos pontos de entrada phone ainda está pendente;
+  este roadmap não afirma que o código já os desativou.
+- Migrations, schemas, sessões, dados, contratos, infraestrutura e evidências
+  existentes permanecem preservados até decisão explícita de remoção.
+- A direção futura prioriza importação D3/D4, derivação de métricas, revisão e
+  sincronização com Health Connect de treinos iniciados pelo relógio.
+- A Fase 014 será redefinida para esse refinamento. WorkManager permanece
+  somente como detalhe técnico de trabalho finito e adiável, não como objetivo
+  funcional genérico nem owner de sessão ativa.
+- Critérios finais do roadmap não exigem novos treinos phone, GPS, rota ou
+  mapa. O histórico abaixo permanece preservado e não constitui backlog ativo.
+
 ## 1. Visão geral
 
 O **Champion Companion** será um novo aplicativo Android nativo, desenvolvido em Kotlin e Jetpack Compose, dedicado exclusivamente à integração com o relógio Champion C001.
@@ -236,10 +256,14 @@ O usuário deverá poder:
 
 ---
 
-## 5.6 Localização e rota sob autorização controlada
+## 5.6 Localização e rota sob autorização controlada — política histórica da Fase 013
+
+Esta seção preserva a política autorizada durante a execução histórica da Fase
+013. Após o encerramento da direção phone, ela não é backlog ativo nem autoriza
+novos gates ou expansão de implementação.
 
 A política padrão continua sendo não coletar nem persistir localização. A
-exceção autorizada pela Fase 13 é estreita:
+exceção histórica autorizada pela Fase 13 era estreita:
 
 - somente caminhada ou corrida iniciada explicitamente pelo usuário;
 - somente durante sessão ativa, entre início e fim ou descarte;
@@ -1874,10 +1898,40 @@ Health Connect
 
 # Fase 13 — Exercícios iniciados pelo Champion Companion
 
-**Status:** em execução documental, sem renumeração. Implementação funcional
-continua dependente das subtarefas desta fase.
+**Status:** `closing`, sem renumeração. **Outcome previsto:**
+`partially_delivered`. **Motivo:** `product_reorientation`.
 
-## Objetivo
+Novos treinos iniciados pelo celular não continuam como direção de produto. A
+desativação operacional dos pontos de entrada phone permanece pendente e não é
+afirmada como já realizada no código. Migrations, schemas, sessões, dados,
+infraestrutura e evidências existentes devem ser preservados.
+
+## Direção atual de encerramento
+
+- `013-01..07` e `013-09` permanecem `completed`.
+- `013-08`, `013-10`, `013-11` e `013-12..16` permanecem `cancelled`, com
+  históricos, riscos e evidências preservados; cancelamento não é aceite.
+- `013-17` permanece `in_progress` para consolidar encerramento documental,
+  registrar a operação pendente de desativação e preparar o resultado
+  `partially_delivered`.
+- A Fase 013 não recebe novos gates físicos phone. A futura direção é a
+  importação, derivação, revisão e sincronização de treinos iniciados pelo
+  relógio.
+
+## Critérios finais de encerramento
+
+- documentação e matriz de status refletem `8 completed`, `8 cancelled` e
+  `1 in_progress`;
+- dados, migrations, schemas e evidências permanecem preservados;
+- não se exige novo treino phone, GPS, rota, `ExerciseRoute` ou mapa;
+- a operação de desativação dos pontos de entrada phone é registrada sem
+  afirmar conclusão inexistente;
+- a Fase 014 é redefinida para treinos do relógio, com WorkManager somente para
+  tarefas finitas e adiáveis.
+
+## Histórico do escopo original
+
+## Objetivo histórico
 
 Portar os exercícios do aplicativo.
 
@@ -1959,7 +2013,7 @@ Revisar
 Health Connect
 ```
 
-## Critérios de aceite
+## Critérios históricos (não vigentes)
 
 - caminhada e corrida calculam distância;
 - rota somente é persistida em sessão explícita de caminhada/corrida;
@@ -1971,18 +2025,40 @@ Health Connect
 
 ---
 
-# Fase 14 — WorkManager e tarefas em segundo plano
+# Fase 14 — Refinamento de treinos iniciados pelo relógio e tarefas adiáveis
 
-**Status:** adiada por decisão de produto, sem renumeração. O foreground
-service mínimo da sessão ativa pertence à Fase 13.
+**Status:** redefinida por decisão de produto, sem renumeração. A Fase 014 não é
+uma fase genérica de WorkManager. Seu objetivo funcional é refinar importação,
+derivação, revisão e sincronização de treinos iniciados pelo relógio. O
+foreground service mínimo da sessão phone permanece apenas como infraestrutura
+histórica preservada da Fase 013.
 
-## Objetivo
+## Objetivo atual
 
-Usar os mecanismos Android corretos.
+Priorizar o fluxo:
 
-## WorkManager
+```text
+Champion C001 inicia e encerra
+        ↓
+Importação D3/D4 explícita
+        ↓
+Derivação de métricas por passos e passada pessoal
+        ↓
+Revisão local
+        ↓
+Sincronização Health Connect granular
+```
 
-Usar em:
+O relógio é owner temporal do treino. GPS, rota, mapa e `ExerciseRoute` não são
+obrigatórios. A distância original do relógio é diagnóstica; a distância
+canônica futura deriva de passos válidos e comprimento de passada pessoal,
+conforme ADR-017. Essa direção é preparação documental e não afirma
+implementação nova.
+
+## WorkManager — detalhe técnico finito e adiável
+
+WorkManager pode ser usado somente, quando houver requisito futuro explícito,
+para tarefas finitas e adiáveis como:
 
 - reprocessamento;
 - reenvio autorizado;
@@ -1991,9 +2067,9 @@ Usar em:
 - restauração;
 - tarefas adiáveis.
 
-O WorkManager não controla captura GPS, sessão ativa ou foreground service da
-Fase 13. Ele fica reservado para trabalho adiável posterior, com retry
-limitado e consentimento operacional apropriado.
+O WorkManager não controla captura GPS, sessão ativa, foreground service,
+importação interativa, revisão ou sync imediato. Fica reservado para trabalho
+adiável posterior, com retry limitado e consentimento operacional apropriado.
 
 ## Não implementar
 
@@ -2004,12 +2080,17 @@ limitado e consentimento operacional apropriado.
 - importação silenciosa;
 - retry infinito.
 
-## Critérios de aceite
+## Critérios de aceite da direção redefinida
 
-- sessão ativa da Fase 13 continua com tela apagada e notificação visível;
-- tarefas adiáveis funcionam;
-- sem loops;
-- sessão reconstruível.
+- importação D3/D4 explícita preserva início e fim definidos pelo relógio;
+- derivação de distância usa passos válidos e comprimento de passada pessoal;
+- distância original do relógio permanece diagnóstica e não vira fallback
+  silencioso;
+- revisão local precede sincronização Health Connect granular;
+- falhas parciais permanecem rastreáveis e recuperáveis;
+- tarefas adiáveis, quando aprovadas, são finitas e não controlam sessão ativa;
+- sem GPS, rota, mapa ou `ExerciseRoute` obrigatórios;
+- nenhum critério exige novos treinos iniciados pelo celular.
 
 ---
 
@@ -2663,16 +2744,17 @@ Fases 11 e 12.
 
 ---
 
-## Marco F — Exercícios pelo celular
+## Marco F — Reorientação para treinos iniciados pelo relógio
 
 ```text
-Caminhada
-+ corrida
-+ treino livre
-+ esteira calibrada
+Champion C001 inicia e encerra
++ importação D3/D4
++ derivação por passos e passada pessoal
++ revisão
++ Health Connect granular
 ```
 
-Fases 13 e 14.
+Fases 13 (encerramento) e 14 (refinamento redefinido).
 
 ---
 
@@ -2713,8 +2795,8 @@ Fase 9  — D1 e BPM completo
 Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
 Fase 12 — Health Connect (concluída)
-Fase 13 — Exercícios (em execução documental)
-Fase 14 — WorkManager e background (adiada)
+Fase 13 — Encerramento documental de exercícios phone (`closing`)
+Fase 14 — Refinamento de treinos do relógio e tarefas adiáveis (redefinida)
 Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
@@ -2732,10 +2814,12 @@ Fase 25 — Lançamento
 
 # 13. Priorização
 
-Fase 15 está concluída. Fase 13 está em execução documental; Fase 14 permanece
-backlog adiado. O refinamento visual da Spec 017 é pacote independente e não
-constitui nova fase nem altera essa ordem. Nenhuma fase seguinte foi iniciada
-automaticamente.
+Fase 15 está concluída. Fase 13 está em encerramento documental após a
+descontinuação de novos treinos phone; Fase 14 foi redefinida para refinamento
+de treinos iniciados pelo relógio. WorkManager permanece somente detalhe
+técnico de tarefas finitas e adiáveis. O refinamento visual da Spec 017 é pacote
+independente e não constitui nova fase nem altera essa ordem. Nenhuma fase
+seguinte foi iniciada automaticamente.
 
 Spec 016 (passos incrementais) foi aplicada como refinamento pós-Fase-12 sobre
 a sincronização de passos do Health Connect. Nenhuma fase nova foi criada para
@@ -2758,7 +2842,7 @@ isso — o escopo permanece dentro da Fase 12.
 
 ## Alta
 
-- exercícios;
+- importação, derivação, revisão e sincronização de treinos do relógio;
 - foreground service;
 - recuperação;
 - calendário;
@@ -2913,13 +2997,20 @@ O projeto estará concluído quando:
 - permitir calibrar esteira;
 - recalcular distância, ritmo e velocidade;
 - sincronizar atividades;
-- funcionar com exercícios pelo celular;
-- sobreviver ao segundo plano;
-- respeitar persistência controlada de rota somente na Fase 13;
+ - preservar infraestrutura e dados de treinos phone existentes sem exigir
+   novos treinos phone como critério final;
+ - importar, derivar, revisar e sincronizar treinos iniciados pelo relógio;
+ - sobreviver a interrupções conforme contratos da direção futura;
+ - manter rota histórica somente nos escopos já autorizados, sem expandi-la;
 - possuir backup próprio;
 - iniciar com banco vazio;
 - não depender do MotionLog;
 - atingir paridade;
 - funcionar como fonte confiável para aplicativos terceiros.
+
+Novos treinos iniciados pelo celular, GPS, rota, `ExerciseRoute` e mapa não são
+critérios finais de conclusão do roadmap. A operação de desativação dos pontos
+de entrada phone deve ser registrada separadamente; este documento não afirma
+que ela já ocorreu no código.
 
 O MotionLog poderá ser desinstalado depois da validação final, sem necessidade de transferência dos dados locais.

@@ -1,5 +1,19 @@
 # Source Map - MotionLog Para Champion Companion
 
+## Direção atual após encerramento da Fase 013
+
+O mapa permanece histórico e conceitual. A Fase 013 está em `closing`, com
+resultado previsto `partially_delivered` por `product_reorientation`. Treinos
+phone, GPS, rota, `ExerciseRoute` e BLE live não devem ser ampliados; a
+desativação operacional dos pontos de entrada phone ainda está pendente.
+
+O destino prioritário passa a ser importação D3/D4 de treinos iniciados pelo
+relógio, derivação de métricas, revisão e sincronização Health Connect. Distância
+canônica futura deriva de passos e comprimento pessoal da passada; distância
+original do relógio é diagnóstica. Migrations, schemas, contratos, dados e
+evidências permanecem preservados. WorkManager, se usado, será somente detalhe
+de trabalho finito e adiável na Fase 014 redefinida.
+
 ## Objetivo E Limites
 
 Mapa entre código MotionLog baseline `feat/015-watch-workouts-d3-d4` no commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb` e áreas conceituais permitidas Champion Companion. Destinos indicam responsabilidade, não nomes finais de módulos, classes, pacotes, tabelas ou telas.
@@ -31,26 +45,27 @@ Mapa entre código MotionLog baseline `feat/015-watch-workouts-d3-d4` no commit 
 | Diagnósticos D8/A8 | `champion-commands.ts`; `champion-client.ts`; docs protocolo MotionLog | Mantém comandos sem fluxo/parsers confirmados | `core/bluetooth`; `feature/diagnostics` | `diagnostics-d8-a8.md`; `ble-command-mapping.md` | Parcial: constantes confirmadas; utilidade não confirmada | Exige fixture e validação física antes de virar fluxo produto. |
 | Persistência e migrations legadas | `src/lib/repositories/database/{connection,bootstrap,migrations}.ts`; repositórios e modelos | SQLite, schema, transações, deduplicação e dados operacionais | `core/database` | `database-reference.md`; `feature-inventory.md` | Confirmado pelo código | Banco novo inicia vazio; entidades, exclusões e retenção finais pendentes. |
 | Calendário e detalhe dia | `src/app/(tabs)/calendar/{index,[date]}.tsx`; repositórios resumo, BPM e sessões | Consulta agregados por data e mostra detalhe diário | `feature/home`; `feature/activitydetail`; `core/database` | `feature-inventory.md` | Confirmado pelo código | Navegação e composição futura não definidas. |
-| Notificações e permissões Android | `app.config.ts`; `android/app/src/main/AndroidManifest.xml`; `PermissionRationaleActivity.kt` | Declara BLE, localização, foreground service e notificações | `core/notifications`; `core/bluetooth`; `core/location`; `feature/device` | `feature-inventory.md`; `ble-transport.md`; ADR-014 | Confirmado pelo código | `WRITE_EXERCISE_ROUTE` só pertence à sessão phone autorizada da Fase 13; conjunto final depende implementação futura. |
-| Rotas, mapa e OAuth legados | `components/maps/exercise-route-map.tsx`; `src/app/oauth.tsx`; `src/app/localhost/oauth.tsx` | Exibe rota persistida e callbacks integrações externas | Nenhum destino funcional definido | `feature-inventory.md`; `database-reference.md`; `health-connect-mapping.md` | Confirmado pelo código como legado/fora escopo | Mapas, OAuth, servidor e exportação permanecem fora; rota futura é somente a sessão F13 autorizada. |
+| Notificações e permissões Android | `app.config.ts`; `android/app/src/main/AndroidManifest.xml`; `PermissionRationaleActivity.kt` | Declara BLE, localização, foreground service e notificações | `core/notifications`; `core/bluetooth`; `core/location`; `feature/device` | `feature-inventory.md`; `ble-transport.md`; ADR-014 | Confirmado pelo código | `WRITE_EXERCISE_ROUTE` pertenceu à sessão phone histórica da Fase 13; não há expansão futura autorizada. |
+| Rotas, mapa e OAuth legados | `components/maps/exercise-route-map.tsx`; `src/app/oauth.tsx`; `src/app/localhost/oauth.tsx` | Exibe rota persistida e callbacks integrações externas | Nenhum destino funcional definido | `feature-inventory.md`; `database-reference.md`; `health-connect-mapping.md` | Confirmado pelo código como legado/fora escopo | Mapas, OAuth, servidor e exportação permanecem fora; rota phone é referência histórica, não direção futura. |
 
 ## Regras Transversais De Destino
 
 - `core/bluetooth` concentra protocolo e transporte, não define estrutura Kotlin final.
 - `core/database` recebe fonte operacional e estados de sync; não migra banco MotionLog.
 - `core/healthconnect` recebe destino derivado, nunca fonte operacional.
-- `core/location` pode calcular métricas; persistência de rota só é autorizada
-  para sessão explícita F13 de caminhada/corrida, sem logs, exportação ou
-  servidor.
+- `core/location` pode calcular métricas históricas; persistência de rota foi
+  autorizada somente na sessão explícita F13 de caminhada/corrida, sem logs,
+  exportação ou servidor. Não expandir essa autorização.
 - `feature/diagnostics` abriga apenas ações diagnósticas confirmadas futuramente; D8/A8 não são fluxo principal atual.
 
-## Lacunas Para `000-14`
+## Lacunas históricas — redefinição futura para treinos do relógio
 
 - Decidir arquitetura Android, contratos entre áreas conceituais e nomes definitivos somente em fase de implementação.
 - Consolidar decisões pendentes de retry/reconciliação BLE, Health Connect e recuperação de sessão.
 - Validar fixtures e comportamento físico para A1, D0/F002, D1, D3/D4, D8 e A8.
-- Aplicar política nativa de localização da ADR-014 sem reintroduzir dados em
-  logs, diagnósticos, exportações, backup ou fluxos sem autorização.
+- Preservar a política de privacidade sem reintroduzir dados em logs,
+  diagnósticos, exportações, backup ou fluxos sem autorização; não abrir novos
+  gates phone.
 - Confirmar paridade necessária para gráficos, calendário, estados vazios, notificações e diagnósticos.
 
 ## Fontes Consultadas

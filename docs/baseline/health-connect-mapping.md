@@ -1,5 +1,20 @@
 # Mapeamento Health Connect - MotionLog Para Champion Companion
 
+## Direção atual após encerramento da Fase 013
+
+Fase 013 está em `closing`, com resultado previsto `partially_delivered` por
+`product_reorientation`. O fluxo futuro não exige GPS, rota ou `ExerciseRoute`:
+o relógio inicia e encerra o treino, o app importa D3/D4, deriva métricas,
+permite revisão e sincroniza de forma granular com Health Connect. A distância
+canônica deverá usar passos válidos e comprimento pessoal da passada; a
+distância original do relógio permanece somente diagnóstica.
+
+A desativação operacional dos pontos de entrada phone ainda está pendente. As
+seções históricas de rota phone abaixo não são backlog ativo. WorkManager fica
+fora do objetivo funcional da Fase 014 e pode ser usado somente para trabalho
+finito e adiável. Infraestrutura, filas, dados e evidências existentes devem ser
+preservados.
+
 ## Objetivo E Escopo
 
 Mapear integração Health Connect da baseline MotionLog `feat/015-watch-workouts-d3-d4`, commit `0a2a2d64f8eb88cec9b1fcdf84fe0e46ef704edb`, como referência para Champion Companion. Banco local é fonte operacional; Health Connect é destino derivado. Este documento não define SDK, fila, schema Room ou código Android.
@@ -39,7 +54,7 @@ As decisoes abaixo passam a ser consideradas contrato documental do app novo par
 - peso e altura so quando houver dado local elegivel;
 - ausencia de `WorkManager` e leitura remota nesta fase.
 
-## Política de rota da Fase 13
+## Política histórica de rota da Fase 13 — não vigente
 
 A Fase 13 pode incluir `ExerciseRoute` somente na mesma
 `ExerciseSessionRecord` de uma sessão phone explícita de caminhada/corrida.
@@ -48,8 +63,9 @@ Treino livre, esteira, Fase 12 e D3/D4 permanecem sem rota. A sessão base usa
 monotônica maior. Sem permissão `WRITE_EXERCISE_ROUTE`, sessão e complementos
 elegíveis sincronizam e a rota local permanece pendente para retry posterior.
 
-Esta política está documentada, mas a implementação e a validação física
-pertencem às subtarefas 013-05, 013-08, 013-09, 013-14 e 013-16.
+Esta política foi documentada para a execução histórica. A implementação e a
+validação física incompletas permanecem evidência; não pertencem a backlog
+ativo nem autorizam novos gates ou expansão phone.
 
 ### Correção planejada da distância temporal na Fase 13
 

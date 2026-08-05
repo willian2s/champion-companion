@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `14`
-- **Status:** blocked
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -215,3 +215,19 @@ Não criar, alterar ou executar testes automatizados.
   `WorkoutInterval` não expõe início/fim explícitos e provider pode impor
   limites de records. Migração de IDs remotos, permissões, rota e validação
   física continuam bloqueadas por `013-12` e pela implementação futura.
+
+## Encerramento da Fase 013 — cancelada e não executada
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; rota e sync de novos treinos phone não
+  continuam como objetivo ativo.
+- **Execução:** esta subtarefa não foi executada nem concluída. Não há alegação
+  de `ExerciseRoute`, permissão de rota, versionamento de enriquecimento,
+  retry, fan-out temporal ou validação física no provider implementados neste
+  escopo.
+- **Histórico e riscos:** a correção parcial de timezone, o planejamento,
+  bloqueios e riscos de provider/fila permanecem preservados acima; nenhuma
+  ausência foi tratada como sucesso.
+- **Destino:** o refinamento futuro de Health Connect granular para treinos
+  importados do relógio pode ser redefinido conceitualmente na Fase 014. Não
+  abrir novo backlog phone nem executar novos gates físicos nesta fase.

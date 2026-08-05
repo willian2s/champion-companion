@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `10`
-- **Status:** blocked
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -164,3 +164,23 @@ Não reutilizar distância GPS/estimativa de passos como real de esteira. Finali
 Ocultar tipos na seleção e preservar sessões como descartáveis/recuperáveis.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Encerramento da Fase 013 — cancelada por reorientação de produto
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; novos treinos iniciados pelo celular
+  foram descontinuados como direção ativa.
+- **Resultado aproveitável:** permanecem a política documental de treino livre
+  e esteira sem GPS, o card sem localização e a orientação de calibração
+  registradas na execução. Isso não representa aceite da sessão completa.
+- **Execução e bloqueios preservados:** a tentativa de esteira ficou em
+  `START_REQUESTED`, sem card ativo, pause/resume ou screenshots correspondentes;
+  o bloqueio de handoff compartilhado de `013-08` continua factual. Nenhuma
+  ausência foi convertida em implementação concluída.
+- **Evidências e riscos:** registros físicos, capturas temporárias, diagnóstico
+  de `startForegroundCount=0` e riscos de finalização/calibração permanecem no
+  histórico desta task. Não houve novo gate nesta decisão.
+- **Destino:** preservar código, sessões e documentação existentes sem ampliar
+  entrada phone; uma redefinição conceitual futura de treinos do relógio pode
+  reutilizar somente políticas sem GPS e o fluxo de calibração, sem alegar
+  migração funcional já executada.

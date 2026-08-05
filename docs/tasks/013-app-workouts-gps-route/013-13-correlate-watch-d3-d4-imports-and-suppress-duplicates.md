@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `13`
-- **Status:** pending
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -134,3 +134,18 @@ Não criar, alterar ou executar testes automatizados.
   reabertura de operação `HEART_RATE` após sync exigem implementação e gate
   físico. Ambiguidade continua fallback independente; janela de 60 s não foi
   ampliada.
+
+## Encerramento da Fase 013 — cancelada e não executada
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; a correlação de novos treinos phone com
+  importações do relógio não será implementada como continuação desta fase.
+- **Execução:** a subtarefa não foi executada nem concluída. O planejamento
+  phone-first, a supressão de métricas do relógio e a janela de 60 segundos
+  permanecem requisitos históricos, não evidência de implementação.
+- **Histórico e riscos:** a atualização documental de planejamento e seus riscos
+  permanecem preservados; não foram inventados candidatos, merges, BPM ou
+  gates físicos.
+- **Destino:** a correlação de importações D3/D4 e derivação de métricas do
+  relógio pode migrar conceitualmente para a Fase 014, após redefinição
+  explícita. Não há backlog phone ativo neste encerramento.

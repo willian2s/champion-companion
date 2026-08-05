@@ -1,8 +1,10 @@
 # 013 — Exercícios iniciados pelo Champion Companion com GPS e rota
 
-- **Status geral:** in_progress
+- **Status geral:** closing
+- **Outcome previsto:** `partially_delivered`
+- **Motivo do encerramento:** `product_reorientation`
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 8/17 subtarefas concluídas
+- **Progresso:** 8 `completed` / 8 `cancelled` / 1 `in_progress` (17 subtarefas)
 
 ## Objetivo
 
@@ -28,7 +30,43 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [ ] [013-16-run-manual-physical-gps-watch-health-connect-validation.md](013-16-run-manual-physical-gps-watch-health-connect-validation.md)
 - [ ] [013-17-close-app-workouts-gps-route-phase.md](013-17-close-app-workouts-gps-route-phase.md)
 
+## Matriz de encerramento
+
+| Subtarefa | Status | Resultado entregue | Motivo | Destino/reaproveitamento |
+|---|---|---|---|---|
+| 013-01 | `completed` | Auditoria factual pós-Fase 15 e limites de sessão, localização, BLE e Health Connect | Entrega documental preservada | Fonte histórica para decisões futuras; sem novo escopo phone |
+| 013-02 | `completed` | Política de privacidade, ADR-014, roadmap e fronteira F13/F14 | Decisão documental histórica preservada | ADR-017 reorienta novos treinos; guard e privacidade permanecem |
+| 013-03 | `completed` | Contratos de atividade, sessão, rota, GPS, correlação e projeção Health Connect | Contratos entregues antes da reorientação | Preservar como infraestrutura; não expandir rota phone |
+| 013-04 | `completed` | Permissões, countdown, destinos Navigation3 e shells passivos | Preparação/configuração entregue | Pontos de entrada aguardam desativação operacional do Bloco B |
+| 013-05 | `completed` | Migration v5→v6, schema e invariantes Room com preservação histórica | Gate documental/físico aceito conforme registro | Preservar migrations, schemas, dados e evidências |
+| 013-06 | `completed` | Readiness GPS, GNSS complementar, filtro e acumulador determinísticos | Infraestrutura entregue; gates posteriores não reabertos | Preservar sem nova expansão GPS/rota |
+| 013-07 | `completed` | Seleção, preparação, countdown, permissões contextuais e handoff | Fluxo documental/implementado preservado | Entrada phone permanece pendente de desativação operacional |
+| 013-08 | `cancelled` | Base FGS, sessão, ownership, recuperação e evidências sanitizadas parcialmente entregues | Reorientação; bloqueios físicos não convertidos em sucesso | Preservar infraestrutura e evidências; não corrigir phone |
+| 013-09 | `completed` | Captura GPS, rota, segmentação e métricas com validação manual e waiver explícito | Entrega preservada, sem ampliar direção de produto | Preservar dados/infraestrutura; não criar novos gates phone |
+| 013-10 | `cancelled` | Superfície sem GPS e orientação de esteira parcialmente entregues; handoff ficou bloqueado | Reorientação antes do aceite integral | Preservar política sem GPS; futura redefinição para relógio |
+| 013-11 | `cancelled` | Ownership BLE e participação explícita parcialmente entregues; gates físicos permaneceram falhos ou bloqueados | Reorientação; ausência de métricas live não é sucesso | Preservar evidências; priorizar importação de treinos do relógio |
+| 013-12 | `cancelled` | Não executada; sem finalização phone ou atividade revisável nova | Reorientação de produto | Redefinição conceitual futura na Fase 014 |
+| 013-13 | `cancelled` | Não executada; sem correlação phone/watch nova | Reorientação de produto | Redefinição conceitual futura na Fase 014 |
+| 013-14 | `cancelled` | Não executada; sem `ExerciseRoute` ou sync de rota phone | Reorientação de produto | Health Connect granular de treinos do relógio na Fase 014, se redefinido |
+| 013-15 | `cancelled` | Não executada; sem integração de superfícies phone específica | Reorientação de produto | Redefinição de revisão/calendário do relógio na Fase 014 |
+| 013-16 | `cancelled` | Não executada; sem gate físico integral phone/GPS/Health Connect | Reorientação de produto | Encerrar novos gates físicos phone; futura validação explícita do relógio |
+| 013-17 | `in_progress` | Bloco A documental em andamento; matriz, status e reorientação registradas | B, C e D ainda não encerrados | Desativação operacional pendente; preservar sessões/dados; fechamento final `partially_delivered` futuro |
+
 ## Observações
+
+- A matriz acima é o estado atual autoritativo: `8 completed`, `8 cancelled` e
+  `1 in_progress`. Registros abaixo preservam histórico de execuções anteriores
+  e podem mencionar progressos/status que eram verdadeiros naquele momento.
+- A Fase 013 está `closing`, não concluída. `013-17` permanece `in_progress`;
+  nenhum item foi marcado por ausência de implementação ou evidência.
+- O Bloco B (desativação operacional dos pontos de entrada phone) continua
+  pendente; não se afirma que o código já esteja desativado. O Bloco C preserva
+  migrations, schemas, sessões, dados e evidências. O Bloco D registrará
+  `partially_delivered` somente após evidência própria dos blocos anteriores.
+- A direção futura prioriza importação, derivação, revisão e sincronização com
+  Health Connect de treinos iniciados pelo relógio. A Fase 014 será redefinida
+  para esse refinamento; WorkManager permanece somente detalhe técnico de
+  tarefas finitas e adiáveis.
 
 - Dependência principal segue grafo da spec. A base operacional de `013-08` já
   permite iniciar `013-09`, `013-10` e `013-11` em paralelo, sem editar

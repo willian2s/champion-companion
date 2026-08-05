@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `12`
-- **Status:** pending
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -105,3 +105,17 @@ Provider não participa desta transação. Não mover metadados import-only para
 Desabilitar finalização nova e manter sessões `FINISHING/AWAITING_RECOVERY`; corrigir por forward fix. Sem downgrade v6.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Encerramento da Fase 013 — cancelada e não executada
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; a finalização de novos treinos iniciados
+  pelo celular deixou de ser direção ativa.
+- **Execução:** esta subtarefa não foi executada nem concluída. Não houve
+  implementação, aceite ou evidência de finalização transacional, atividade
+  phone revisável, descarte de rota ou calibração derivados deste escopo.
+- **Histórico e riscos:** objetivo, dependências, critérios, riscos e limites
+  originais permanecem preservados acima; a ausência de execução não é sucesso.
+- **Destino:** requisitos de revisão, derivação e sincronização de treinos do
+  relógio podem ser redefinidos conceitualmente na Fase 014. Nenhum backlog
+  phone ativo é aberto por este registro.

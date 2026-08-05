@@ -1,5 +1,20 @@
 # Inventario Funcional Do MotionLog
 
+## Registro de encerramento da Fase 013
+
+Este inventário permanece referência histórica do MotionLog. A Fase 013 do
+Champion Companion está em `closing`, com resultado previsto
+`partially_delivered` por `product_reorientation`. A direção de treinos phone
+foi descontinuada; a desativação operacional dos pontos de entrada ainda está
+pendente e não deve ser inferida deste inventário. Não continuar GPS, rota,
+`ExerciseRoute` ou BLE live em sessão phone. Priorizar importação D3/D4,
+canônica futura usa passos e comprimento pessoal da passada, enquanto distância
+original do relógio fica diagnóstica.
+
+Os registros sobre GPS, rotas, exercícios phone e background abaixo descrevem o
+baseline MotionLog e a execução histórica. Não constituem backlog ativo nem
+autorização para copiar ou expandir esses fluxos.
+
 ## Objetivo
 
 Documentar estrutura geral, telas, funcionalidades, estados, permissoes e backup atual do MotionLog como referencia funcional para paridade futura do Champion Companion.
@@ -474,13 +489,17 @@ Observacao: nenhuma dependencia Expo ou componente React Native foi copiado para
 | 76. Finalizacao | Coberto | `active.tsx`, `treadmill-calibration.tsx` |
 | 100. Backup e restauracao atuais | Nao confirmado | Docs 013 existem; codigo atual nao encontrado em `src` |
 
-## Lacunas Para Consolidacao Futura
+## Lacunas históricas — não são backlog phone ativo
 
 - Backup/restauracao Firebase nao confirmado no codigo atual.
-- Pausa e retomada de exercicio iniciado pelo celular nao foram encontradas. Decidir em `000-14` se paridade exige criar ambos e como tempo, BPM, GPS e persistencia devem se comportar.
-- Recuperacao de sessao manual/rascunho de esteira apos morte do processo nao existe no fluxo analisado. Definir em `000-14` requisito de recuperacao e descarte seguro.
+- Pausa e retomada de exercicio iniciado pelo celular nao foram encontradas no
+  baseline. O registro permanece histórico; não abrir correção phone na Fase
+  013.
+- Recuperacao de sessao manual/rascunho de esteira apos morte do processo nao
+  existe no fluxo analisado. O registro permanece histórico e não autoriza
+  continuação phone.
 - Background do MotionLog usa Foreground Service conectado ao dispositivo, reconexao recorrente e ciclos D1. Champion Companion deve tratar isto somente como referencia e reconciliar com ADR-014 e limites do roadmap antes de implementar.
-- Notificacao e continuidade de exercicio iniciado pelo celular em background nao foram implementadas no MotionLog. Definir em `013-08` sem assumir paridade com monitoramento BLE geral.
+- Notificacao e continuidade de exercicio iniciado pelo celular em background nao foram implementadas no MotionLog. Não reabrir `013-08` por esse registro.
 - Detalhes de parsers BLE, offsets, endianess e CRC ficam fora desta task.
 - Mapeamento completo de Health Connect fica para `000-11`.
 - Banco detalhado e regras por tabela ficam para `000-10`.

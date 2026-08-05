@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `15`
-- **Status:** pending
+- **Status:** cancelled
 
 ## Objetivo e resultado esperado
 
@@ -109,3 +109,18 @@ Hotspots UI grandes. Não misturar refatorações. Live metrics não devem causa
 Ocultar entradas phone e manter atividades persistidas acessíveis por forward fix; não apagar dados nem reverter v6.
 
 Não criar, alterar ou executar testes automatizados.
+
+## Encerramento da Fase 013 — cancelada e não executada
+
+- **Status atual:** `cancelled`.
+- **Motivo:** `product_reorientation`; a integração de superfícies para novos
+  treinos iniciados pelo celular não continua como objetivo ativo.
+- **Execução:** esta subtarefa não foi executada nem concluída. Não há alegação
+  de CTA phone final, detalhe de rota, integração de Calendário, histórico BPM,
+  Settings, Health Connect ou acessibilidade específicos da Fase 013.
+- **Histórico e riscos:** escopo, dependências, critérios, screenshots exigidos
+  e riscos de UI permanecem preservados; ausência de implementação não é
+  aceite.
+- **Destino:** a experiência de Exercícios, Calendário e revisão para treinos
+  iniciados pelo relógio pode ser redefinida conceitualmente na Fase 014, sem
+  reabrir ou ampliar superfícies phone nesta fase.

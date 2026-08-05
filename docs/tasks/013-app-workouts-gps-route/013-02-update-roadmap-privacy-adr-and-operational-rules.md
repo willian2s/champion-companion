@@ -2,7 +2,7 @@
 
 - **Ticker:** `013`
 - **Número:** `02`
-- **Status:** concluída
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 

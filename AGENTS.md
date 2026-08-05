@@ -59,6 +59,13 @@
   tarefas adiáveis, sem controlar sessão ativa.
 - `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
+## Diretriz autoritativa após encerramento da Fase 013
+
+- Não continuar implementando ou corrigindo treinos iniciados pelo celular.
+- Não expandir GPS, rota, `ExerciseRoute` ou BLE live em sessão phone.
+- Preservar migrations, schemas, dados e evidências existentes até task explícita de remoção.
+- Priorizar importação, derivação, revisão e sincronização com Health Connect de treinos iniciados pelo relógio.
+
 ## Privacidade e backup
 
 - `AndroidManifest.xml` mantém `android:allowBackup="false"`.

@@ -1,5 +1,22 @@
 # Baseline Atual do Projeto
 
+## Registro atual da Fase 013
+
+- A Fase 013 está em `closing`, com resultado previsto
+  `partially_delivered` e motivo `product_reorientation`.
+- Treinos iniciados pelo celular foram descontinuados como direção de produto.
+  A desativação operacional dos pontos de entrada phone ainda está pendente e
+  não é declarada como concluída no código.
+- GPS, rota, `ExerciseRoute` e BLE live não devem ser ampliados em sessão phone.
+  Migrations, schemas, sessões, dados e evidências existentes permanecem
+  preservados até task explícita de remoção.
+- Prioridade futura: importar D3/D4 do Champion C001, derivar métricas,
+  permitir revisão e sincronizar com Health Connect. A distância canônica será
+  derivada de passos e comprimento pessoal da passada; a distância original do
+  relógio permanece somente diagnóstica.
+- A Fase 014 será redefinida para esse refinamento. WorkManager poderá apoiar
+  apenas trabalho finito e adiável, fora do objetivo funcional da fase.
+
 ## Produto e fase
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.
@@ -79,13 +96,14 @@ com segurança quando a nova atividade não mantém ordem temporal válida. Ver
 
 Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service da sessão e rotas continuam ausentes do código da Fase 12. Backup e device transfer continuam negados.
 
-## Política autorizada da Fase 13
+## Política histórica autorizada da Fase 13 — não vigente
 
 A ADR-014 autoriza rota persistida somente para caminhada/corrida iniciada
 explicitamente pelo usuário. A base de foreground service mínimo, persistência
 de sessão e recuperação explícita já está implementada parcialmente na Fase 13;
 GPS preciso, captura incremental de rota e sincronização da mesma sessão Health
-Connect permanecem nas subtarefas seguintes.
+Connect foram requisitos das subtarefas históricas. Não são backlog ativo nem
+autorizam expansão phone após o encerramento documental.
 
 Treino livre e esteira continuam sem localização. Não há rastreamento passivo,
 servidor, exportação, GPX, TCX, FIT, backup ou device transfer de rota. Logs e
