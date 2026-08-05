@@ -7,6 +7,7 @@ data class AppPreferences(
     val healthSyncEnabled: Boolean = false,
     val diagnosticCaptureEnabled: Boolean = false,
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
+    val workoutCountdownSeconds: Int = DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
 )
 
 enum class ThemePreference {

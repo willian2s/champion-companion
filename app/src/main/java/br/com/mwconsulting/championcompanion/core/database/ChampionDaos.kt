@@ -166,14 +166,16 @@ interface HeartRateDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(measurement: HeartRateMeasurementEntity)
+
+    @Query("DELETE FROM heart_rate_measurements WHERE appWorkoutSessionId = :sessionId AND workoutActivityId IS NULL")
+    suspend fun deleteTransientForSession(sessionId: String): Int
 }
 
 @Dao
 interface WorkoutActivityDao {
     @Query(
         "SELECT activity.* FROM workout_activities activity " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
-            "ORDER BY activity.startedAtEpochMillis DESC, activity.importedAtEpochMillis DESC",
+            "ORDER BY activity.startedAtEpochMillis DESC, activity.recordedAtEpochMillis DESC",
     )
     fun observeAll(): Flow<List<WorkoutActivityEntity>>
 
@@ -186,24 +188,22 @@ interface WorkoutActivityDao {
             "importRecord.diagnosticPayloadId AS importDiagnosticPayloadId, " +
             "importRecord.importedAtEpochMillis AS importImportedAtEpochMillis " +
             "FROM workout_activities activity " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
+            "LEFT JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "ORDER BY activity.id",
     )
     fun observeAllHealthSyncCandidates(): Flow<List<HealthSyncWorkoutCandidateRecord>>
 
     @Query(
         "SELECT activity.* FROM workout_activities activity " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "WHERE activity.workflowState = 'PENDING_REVIEW' " +
-            "ORDER BY activity.importedAtEpochMillis",
+            "ORDER BY activity.recordedAtEpochMillis",
     )
     fun observePendingReview(): Flow<List<WorkoutActivityEntity>>
 
     @Query(
         "SELECT activity.* FROM workout_activities activity " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "WHERE activity.workflowState IN (:workflowStates) " +
-            "ORDER BY activity.startedAtEpochMillis DESC, activity.importedAtEpochMillis DESC",
+            "ORDER BY activity.startedAtEpochMillis DESC, activity.recordedAtEpochMillis DESC",
     )
     fun observeByWorkflowStates(workflowStates: List<String>): Flow<List<WorkoutActivityEntity>>
 
@@ -218,13 +218,15 @@ interface WorkoutActivityDao {
             "COALESCE(SUM(CASE WHEN activity.workflowState = 'SYNCED' THEN 1 ELSE 0 END), 0) AS syncedCount, " +
             "COALESCE(SUM(CASE WHEN activity.workflowState = 'SYNC_FAILED' THEN 1 ELSE 0 END), 0) AS syncFailedCount, " +
             "COALESCE(SUM(CASE WHEN activity.workflowState = 'DISCARDED' THEN 1 ELSE 0 END), 0) AS discardedCount " +
-            "FROM workout_activities activity " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id",
+            "FROM workout_activities activity",
     )
     fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummaryRecord>
 
     @Query("SELECT * FROM workout_activities WHERE id = :id")
     suspend fun findById(id: String): WorkoutActivityEntity?
+
+    @Query("SELECT * FROM workout_activities WHERE appWorkoutSessionId = :sessionId LIMIT 1")
+    suspend fun findBySessionId(sessionId: String): WorkoutActivityEntity?
 
     @Query(
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
@@ -248,7 +250,6 @@ interface WorkoutActivityDao {
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
             "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState " +
             "FROM workout_activities activity " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "WHERE activity.workflowState != 'DISCARDED' " +
             "ORDER BY activity.startedAtEpochMillis, activity.id",
     )
@@ -257,8 +258,21 @@ interface WorkoutActivityDao {
     @Query("SELECT activity.* FROM workout_activities activity INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id WHERE importRecord.deviceId = :deviceId AND importRecord.origin = :origin AND importRecord.crc = :crc")
     suspend fun findByImportKey(deviceId: String, origin: String, crc: Int): WorkoutActivityEntity?
 
-    @Query("SELECT * FROM workout_activities WHERE deviceId = :deviceId AND origin = :origin AND startedAtEpochMillis = :startedAtEpochMillis ORDER BY importedAtEpochMillis DESC LIMIT 1")
+    @Query("SELECT * FROM workout_activities WHERE deviceId = :deviceId AND origin = :origin AND startedAtEpochMillis = :startedAtEpochMillis ORDER BY recordedAtEpochMillis DESC LIMIT 1")
     suspend fun findByStartedAt(deviceId: String, origin: String, startedAtEpochMillis: Long): WorkoutActivityEntity?
+
+    @Query(
+        "SELECT id AS activityId, appWorkoutSessionId AS sessionId, origin, startedAtEpochMillis, " +
+            "endedAtEpochMillis, deviceId AS associatedDeviceId FROM workout_activities " +
+            "WHERE origin IN ('PHONE_GPS', 'PHONE_TREADMILL', 'PHONE_FREE_WORKOUT') " +
+            "AND appWorkoutSessionId IS NOT NULL AND workflowState != 'DISCARDED' " +
+            "AND startedAtEpochMillis >= :fromEpochMillis AND startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY startedAtEpochMillis, id",
+    )
+    suspend fun findPhoneCorrelationCandidates(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<PhoneWorkoutCorrelationCandidateRecord>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(activity: WorkoutActivityEntity)
@@ -300,16 +314,25 @@ data class CalendarWorkoutSummaryRecord(
 
 data class HealthSyncWorkoutCandidateRecord(
     @Embedded val activity: WorkoutActivityEntity,
-    val importId: String,
-    val importActivityId: String,
-    val importDeviceId: String,
-    val importOrigin: String,
-    val importCrc: Int,
-    val importExternalBlockIndex: Int,
-    val importParserVersion: String,
-    val importParserValidity: String,
+    val importId: String?,
+    val importActivityId: String?,
+    val importDeviceId: String?,
+    val importOrigin: String?,
+    val importCrc: Int?,
+    val importExternalBlockIndex: Int?,
+    val importParserVersion: String?,
+    val importParserValidity: String?,
     val importDiagnosticPayloadId: String?,
-    val importImportedAtEpochMillis: Long,
+    val importImportedAtEpochMillis: Long?,
+)
+
+data class PhoneWorkoutCorrelationCandidateRecord(
+    val activityId: String,
+    val sessionId: String,
+    val origin: String,
+    val startedAtEpochMillis: Long,
+    val endedAtEpochMillis: Long,
+    val associatedDeviceId: String?,
 )
 
 data class HealthSyncSummaryRecord(
@@ -374,7 +397,6 @@ interface WorkoutDetailDao {
             "activity.confirmedType AS confirmedType " +
             "FROM workout_heart_rate_samples sample " +
             "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
-            "INNER JOIN watch_workout_imports importRecord ON importRecord.activityId = activity.id " +
             "WHERE sample.sampledAtEpochMillis >= :fromEpochMillis " +
             "AND sample.sampledAtEpochMillis < :untilEpochMillis " +
             "AND activity.workflowState != 'DISCARDED' " +
@@ -412,11 +434,26 @@ interface TreadmillCalibrationDao {
 
 @Dao
 interface AppWorkoutSessionDao {
-    @Query("SELECT * FROM app_workout_sessions WHERE state = 'AWAITING_RECOVERY' ORDER BY createdAtEpochMillis")
+    @Query("SELECT * FROM app_workout_sessions WHERE state IN ('CREATED', 'ACTIVE', 'PAUSED', 'AWAITING_RECOVERY', 'FINISHING') ORDER BY createdAtEpochMillis")
     fun observeRecoverable(): Flow<List<AppWorkoutSessionEntity>>
+
+    @Query("SELECT * FROM app_workout_sessions WHERE state IN ('ACTIVE', 'PAUSED', 'FINISHING') ORDER BY lastTransitionAtEpochMillis DESC, id DESC LIMIT 1")
+    fun observeActive(): Flow<AppWorkoutSessionEntity?>
+
+    @Query("SELECT * FROM app_workout_sessions WHERE state IN ('CREATED', 'ACTIVE', 'PAUSED', 'AWAITING_RECOVERY', 'FINISHING') ORDER BY createdAtEpochMillis LIMIT 1")
+    fun observeOpen(): Flow<AppWorkoutSessionEntity?>
+
+    @Query("SELECT * FROM app_workout_sessions WHERE id = :id")
+    fun observeById(id: String): Flow<AppWorkoutSessionEntity?>
+
+    @Query("SELECT * FROM app_workout_sessions WHERE state IN ('CREATED', 'ACTIVE', 'PAUSED', 'AWAITING_RECOVERY', 'FINISHING') ORDER BY createdAtEpochMillis LIMIT 1")
+    suspend fun findOpenSession(): AppWorkoutSessionEntity?
 
     @Query("SELECT * FROM app_workout_sessions WHERE id = :id")
     suspend fun findById(id: String): AppWorkoutSessionEntity?
+
+    @Query("SELECT * FROM app_workout_sessions WHERE workoutActivityId = :activityId LIMIT 1")
+    suspend fun findByWorkoutActivityId(activityId: String): AppWorkoutSessionEntity?
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(session: AppWorkoutSessionEntity)
@@ -424,25 +461,131 @@ interface AppWorkoutSessionDao {
     @Update
     suspend fun update(session: AppWorkoutSessionEntity): Int
 
+    @Query(
+        "UPDATE app_workout_sessions SET type = :type, createdAtEpochMillis = :createdAtEpochMillis, " +
+            "startedAtEpochMillis = :startedAtEpochMillis, endedAtEpochMillis = :endedAtEpochMillis, " +
+            "activeDurationNanos = :activeDurationNanos, pausedDurationNanos = :pausedDurationNanos, " +
+            "activeSinceEpochMillis = :activeSinceEpochMillis, pausedSinceEpochMillis = :pausedSinceEpochMillis, " +
+            "state = :state, steps = :steps, distanceMeters = :distanceMeters, " +
+            "distanceAbsenceReason = :distanceAbsenceReason, " +
+            "caloriesKilocalories = :caloriesKilocalories, caloriesAbsenceReason = :caloriesAbsenceReason, " +
+            "averageBpm = :averageBpm, averageBpmAbsenceReason = :averageBpmAbsenceReason, " +
+            "minimumBpm = :minimumBpm, minimumBpmAbsenceReason = :minimumBpmAbsenceReason, " +
+            "maximumBpm = :maximumBpm, maximumBpmAbsenceReason = :maximumBpmAbsenceReason, " +
+            "workoutActivityId = :workoutActivityId, lastTransitionAtEpochMillis = :lastTransitionAtEpochMillis, " +
+            "associatedDeviceId = :associatedDeviceId, revision = :revision, " +
+            "runtimeGeneration = :runtimeGeneration, stepsAvailable = :stepsAvailable " +
+            "WHERE id = :id AND revision = :expectedRevision",
+    )
+    suspend fun updateCasFields(
+        id: String,
+        type: String,
+        createdAtEpochMillis: Long,
+        startedAtEpochMillis: Long?,
+        endedAtEpochMillis: Long?,
+        activeDurationNanos: Long,
+        pausedDurationNanos: Long,
+        activeSinceEpochMillis: Long?,
+        pausedSinceEpochMillis: Long?,
+        state: String,
+        steps: Long,
+        distanceMeters: Double?,
+        distanceAbsenceReason: String?,
+        caloriesKilocalories: Double?,
+        caloriesAbsenceReason: String?,
+        averageBpm: Int?,
+        averageBpmAbsenceReason: String?,
+        minimumBpm: Int?,
+        minimumBpmAbsenceReason: String?,
+        maximumBpm: Int?,
+        maximumBpmAbsenceReason: String?,
+        workoutActivityId: String?,
+        lastTransitionAtEpochMillis: Long,
+        associatedDeviceId: String?,
+        revision: Long,
+        runtimeGeneration: Long,
+        stepsAvailable: Boolean,
+        expectedRevision: Long,
+    ): Int
+
     @Query("UPDATE app_workout_sessions SET state = :nextState WHERE id = :id AND state IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String): Int
 }
 
 @Dao
+interface WorkoutRouteDao {
+    @Query("SELECT * FROM workout_routes WHERE id = :id")
+    suspend fun findById(id: String): WorkoutRouteEntity?
+
+    @Query("SELECT * FROM workout_routes WHERE sessionId = :sessionId LIMIT 1")
+    suspend fun findBySessionId(sessionId: String): WorkoutRouteEntity?
+
+    @Query("SELECT * FROM workout_routes WHERE sessionId = :sessionId LIMIT 1")
+    fun observeBySessionId(sessionId: String): Flow<WorkoutRouteEntity?>
+
+    @Query("SELECT * FROM workout_route_points WHERE routeId = :routeId ORDER BY sequence, id")
+    suspend fun findPoints(routeId: String): List<WorkoutRoutePointEntity>
+
+    @Query("SELECT * FROM workout_route_points WHERE routeId = :routeId AND segmentIndex = :segmentIndex ORDER BY sequence, id")
+    suspend fun findSegmentPoints(routeId: String, segmentIndex: Int): List<WorkoutRoutePointEntity>
+
+    @Query("SELECT * FROM workout_route_points WHERE routeId = :routeId AND segmentIndex = :segmentIndex ORDER BY sequence, id LIMIT 1")
+    suspend fun findFirstPointInSegment(routeId: String, segmentIndex: Int): WorkoutRoutePointEntity?
+
+    @Query("SELECT * FROM workout_route_points WHERE routeId = :routeId ORDER BY sequence DESC, id DESC LIMIT 1")
+    suspend fun findLastPoint(routeId: String): WorkoutRoutePointEntity?
+
+    @Query("SELECT COUNT(*) FROM workout_route_points WHERE routeId = :routeId")
+    suspend fun countPoints(routeId: String): Long
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(route: WorkoutRouteEntity)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertPoints(points: List<WorkoutRoutePointEntity>)
+
+    @Query(
+        "UPDATE workout_routes SET sessionId = :sessionId, workoutType = :workoutType, " +
+            "state = :state, startedAtEpochMillis = :startedAtEpochMillis, " +
+            "endedAtEpochMillis = :endedAtEpochMillis, acceptedPointCount = :acceptedPointCount, " +
+            "segmentCount = :segmentCount, distanceMeters = :distanceMeters, " +
+            "averageHorizontalAccuracyMeters = :averageHorizontalAccuracyMeters, revision = :revision " +
+            "WHERE id = :id AND revision = :expectedRevision",
+    )
+    suspend fun updateCasFields(
+        id: String,
+        sessionId: String,
+        workoutType: String,
+        state: String,
+        startedAtEpochMillis: Long,
+        endedAtEpochMillis: Long?,
+        acceptedPointCount: Long,
+        segmentCount: Int,
+        distanceMeters: Double,
+        averageHorizontalAccuracyMeters: Double?,
+        revision: Long,
+        expectedRevision: Long,
+    ): Int
+
+    @Query("DELETE FROM workout_routes WHERE sessionId = :sessionId")
+    suspend fun deleteBySessionId(sessionId: String): Int
+}
+
+@Dao
 interface HealthSyncOperationDao {
-    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, id")
+    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, operationSequence, id")
     fun observeAll(): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE id = :id")
     suspend fun findById(id: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType AND operationSequence = 0")
     suspend fun findByNaturalKey(aggregateId: String, aggregateType: String, recordType: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType, operationSequence, id")
     fun observeByAggregateIds(aggregateType: String, aggregateIds: List<String>): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")

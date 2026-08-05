@@ -462,6 +462,38 @@ enum class SafeSyncError {
     INTERNAL,
 }
 
+enum class DailyStepsSyncPayloadKind {
+    INCREMENTAL,
+    LEGACY_BRIDGE,
+}
+
+data class DailyStepsSyncPayload(
+    val kind: DailyStepsSyncPayloadKind,
+    val sequence: Long,
+    val previousTotalSteps: Long,
+    val currentTotalSteps: Long,
+    val stepDelta: Long,
+    val startTime: Instant,
+    val endTime: Instant,
+    val timeZoneId: String,
+) {
+    init {
+        require(sequence >= 0L)
+        require(previousTotalSteps >= 0L)
+        require(currentTotalSteps > previousTotalSteps)
+        require(stepDelta == currentTotalSteps - previousTotalSteps)
+        require(stepDelta > 0L)
+        require(endTime.isAfter(startTime))
+        require(runCatching { ZoneId.of(timeZoneId) }.isSuccess)
+        require(
+            when (kind) {
+                DailyStepsSyncPayloadKind.INCREMENTAL -> sequence > 0L
+                DailyStepsSyncPayloadKind.LEGACY_BRIDGE -> sequence == 0L && previousTotalSteps == 0L
+            },
+        )
+    }
+}
+
 @ConsistentCopyVisibility
 data class HealthSyncOperation private constructor(
     val id: HealthSyncOperationId,
@@ -474,6 +506,7 @@ data class HealthSyncOperation private constructor(
     val clientRecordVersion: Long?,
     val syncedAt: Instant?,
     val timeZoneId: String?,
+    val dailyStepsPayload: DailyStepsSyncPayload?,
     val createdAt: Instant?,
     val updatedAt: Instant?,
 ) {
@@ -535,6 +568,21 @@ data class HealthSyncOperation private constructor(
         if (clientRecordVersion != null && clientRecordVersion < 0L) {
             return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
         }
+        if (this.clientRecordId != null && clientRecordId != this.clientRecordId) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+        if (this.clientRecordVersion != null &&
+            (clientRecordVersion == null || clientRecordVersion < this.clientRecordVersion)
+        ) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
+        if (dailyStepsPayload != null &&
+            (clientRecordId != this.clientRecordId ||
+                clientRecordVersion != this.clientRecordVersion ||
+                timeZoneId != this.timeZoneId)
+        ) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
         return DomainResult.Success(copy(
             clientRecordId = clientRecordId,
             clientRecordVersion = clientRecordVersion,
@@ -551,10 +599,14 @@ data class HealthSyncOperation private constructor(
             clientRecordVersion: Long? = null,
             syncedAt: Instant? = null,
             timeZoneId: String? = null,
+            dailyStepsPayload: DailyStepsSyncPayload? = null,
             createdAt: Instant? = null,
             updatedAt: Instant? = null,
         ): DomainResult<HealthSyncOperation> =
-            if (supports(key) && isValidIdentityMetadata(clientRecordId, clientRecordVersion)) {
+            if (supports(key) &&
+                isValidIdentityMetadata(clientRecordId, clientRecordVersion) &&
+                isValidDailyStepsPayload(key, timeZoneId, dailyStepsPayload)
+            ) {
                 DomainResult.Success(
                     HealthSyncOperation(
                         id = id,
@@ -567,6 +619,7 @@ data class HealthSyncOperation private constructor(
                         clientRecordVersion = clientRecordVersion,
                         syncedAt = syncedAt,
                         timeZoneId = timeZoneId,
+                        dailyStepsPayload = dailyStepsPayload,
                         createdAt = createdAt,
                         updatedAt = updatedAt,
                     ),
@@ -594,5 +647,16 @@ data class HealthSyncOperation private constructor(
             clientRecordVersion: Long?,
         ): Boolean = (clientRecordId == null || clientRecordId.isNotBlank()) &&
             (clientRecordVersion == null || clientRecordVersion >= 0L)
+
+        private fun isValidDailyStepsPayload(
+            key: HealthSyncOperationKey,
+            timeZoneId: String?,
+            payload: DailyStepsSyncPayload?,
+        ): Boolean = when {
+            payload == null -> true
+            key.aggregate !is HealthSyncAggregate.DailySummary -> false
+            key.recordType != HealthSyncRecordType.STEPS -> false
+            else -> payload.timeZoneId == timeZoneId
+        }
     }
 }

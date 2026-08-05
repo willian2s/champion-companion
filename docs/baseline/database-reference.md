@@ -131,16 +131,20 @@ Health Connect e deliberadamente fora da transacao local: persistencia retorna a
 | Estado operacional | monitoramento, erros e logs background | Referencia de diagnostico; retenção atual limita logs para 500 quando chamada a limpeza. |
 | Captura bruta | `raw_hex`, `raw_session_id`, campos raw por minuto | Util para diagnostico/parser. Necessidade de reter no banco novo: `Inferido a partir do codigo`; definir privacidade e retenção. |
 | Snapshots/metricas | peso/altura snapshot, qualidade GPS/BPM, contadores, velocidade, ritmo, calorias | Necessarios para reproduzir historico/revisao de sessao. `Inferido a partir do codigo`. |
-| GPS/rota legado | `exercise_gps_points`, latitude, longitude, altitude, heading, `route_polyline`, flags de rota | Proibidos no Champion Companion. `Decisao ja definida`. |
+| GPS/rota legado | `exercise_gps_points`, latitude, longitude, altitude, heading, `route_polyline`, flags de rota | Não copiar legado. ADR-014 autoriza modelo novo somente para rota de sessão phone explícita de caminhada/corrida. |
 | Strava | tabelas removidas e tokens SecureStore apagados no bootstrap | Nao transportar. `Confirmado pelo codigo` para remocao; exclusao do novo modelo alinhada ao escopo atual. |
 
 Para caminhada/corrida atuais, `resolveRoutePersistenceForCreate` sempre devolve `route_saved=false`, `route_synced=false`, polylines nulas e zero pontos persistidos. Isso confirma que fluxo novo ja evita salvar rota nesses tipos; nao elimina registros GPS legados em bancos existentes. `Confirmado pelo codigo`.
 
 ## Limites Para Banco Novo
 
-### Proibido
+### Limites da persistência autorizada
 
-Nao persistir nem enviar: latitude, longitude, pontos GPS, coordenadas brutas, `route_polyline`, polylines, rotas, mapas, GPX, TCX, FIT ou `ExerciseRoute`. Coordenadas de caminhada/corrida, se usadas para calcular metricas, existem somente em memoria durante sessao. `Decisao ja definida` pelo roadmap/spec.
+Não persistir nem enviar latitude, longitude, pontos GPS, coordenadas brutas,
+`route_polyline`, polylines, rotas, mapas, GPX, TCX, FIT ou `ExerciseRoute` fora
+da sessão phone explícita de caminhada/corrida autorizada pela ADR-014. Treino
+livre, esteira, Fase 12 e D3/D4 continuam sem localização persistida. A
+autorização não inclui servidor, exportação, backup ou device transfer.
 
 ### Referencia Funcional A Preservar
 
@@ -155,7 +159,9 @@ Lista e referencia de comportamento, nao autorizacao para copiar tabelas/colunas
 ## Lacunas Para Task 000-14
 
 - Definir retenção, acesso e necessidade real de `raw_hex`, IDs de sessao brutos, logs e erros de Health Connect; codigo atual nao define politica de privacidade/expurgo geral. `Ainda nao confirmado`.
-- Definir entidades e limites de diagnostico/background do novo app; roadmap muda arquitetura para Foreground Services e WorkManager. `Ainda nao confirmado`.
+- Definir entidades e limites de diagnóstico/background do novo app; ADR-014
+  coloca o foreground service mínimo da sessão na Fase 13 e WorkManager em
+  tarefas adiáveis da Fase 14. `Ainda nao confirmado`.
 - Confirmar modelo novo para exclusao de entidade e fila Health Connect: exclusao de sessao atual nao mostra exclusao de itens de fila relacionados. `Confirmado pelo codigo` para comportamento atual; decisao nova pendente.
 - Definir unicidade desejada para BPM sem `device_id`; indice SQLite atual aceita multiplos `NULL`. `Inferido a partir do codigo`.
 - Confirmar se samples D3/D4 e BPM por exercicio exigem retenção completa ou agregados atendem paridade futura. `Ainda nao confirmado`.

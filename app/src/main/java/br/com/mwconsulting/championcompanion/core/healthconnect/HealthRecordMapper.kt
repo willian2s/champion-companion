@@ -14,7 +14,6 @@ import androidx.health.connect.client.units.Energy
 import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Mass
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
-import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
@@ -30,7 +29,6 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import javax.inject.Inject
@@ -54,7 +52,7 @@ sealed interface HealthRecordMappingResult {
 }
 
 interface HealthRecordMapper {
-    fun mapDailySummary(operation: HealthSyncOperation, summary: DailySummary): HealthRecordMappingResult
+    fun mapDailySummary(operation: HealthSyncOperation): HealthRecordMappingResult
 
     fun mapHeartRateMeasurement(operation: HealthSyncOperation, measurement: HeartRateMeasurement): HealthRecordMappingResult
 
@@ -71,27 +69,21 @@ interface HealthRecordMapper {
 class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
     override fun mapDailySummary(
         operation: HealthSyncOperation,
-        summary: DailySummary,
     ): HealthRecordMappingResult {
         if (operation.key.recordType != HealthSyncRecordType.STEPS) {
             return invalid("Operação de passos esperada para resumo diário.")
         }
         val identity = operation.identityOrNull() ?: return invalid("Operação sem identidade estável para passos.")
-        if (summary.key.origin != DataOrigin.WATCH_DAILY_SUMMARY || summary.steps < 0) {
-            return invalid("Resumo diário incompatível com `StepsRecord`.")
-        }
-        val zoneId = operation.timeZoneId.toZoneIdOrSystemDefault()
-        val start = summary.key.localDate.atStartOfDay(zoneId).toInstant()
-        val end = resolveStepsEnd(summary.key.localDate, summary.collectedAt, zoneId)
-        if (end.isBefore(start)) {
-            return invalid("Intervalo temporal inválido para `StepsRecord`.")
-        }
+        val payload = operation.dailyStepsPayload
+            ?: return invalid("Operação de passos sem payload persistido.")
+        val zoneId = payload.timeZoneId.toZoneIdOrNull()
+            ?: return invalid("Operação de passos sem fuso válido persistido.")
         val record = StepsRecord(
-            start,
-            zoneId.offsetAt(start),
-            end,
-            zoneId.offsetAt(end),
-            summary.steps,
+            payload.startTime,
+            zoneId.offsetAt(payload.startTime),
+            payload.endTime,
+            zoneId.offsetAt(payload.endTime),
+            payload.stepDelta,
             Metadata.autoRecorded(
                 device = watchDevice(),
                 clientRecordId = identity.clientRecordId,
@@ -232,11 +224,12 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
     ): HealthRecordMappingResult {
         val identity = operation.identityOrNull() ?: return invalid("Operação sem identidade estável para atividade.")
         val sessionWindow = activity.sessionWindowOrNull() ?: return invalid("Atividade sem janela temporal válida.")
+        val zoneId = operation.timeZoneId.toZoneIdOrSystemDefault()
         return when (operation.key.recordType) {
-            HealthSyncRecordType.EXERCISE_SESSION -> mapWorkoutSession(identity, activity, sessionWindow.start, sessionWindow.end)
-            HealthSyncRecordType.DISTANCE -> mapWorkoutDistance(identity, activity, sessionWindow.start, sessionWindow.end)
-            HealthSyncRecordType.TOTAL_CALORIES_BURNED -> mapWorkoutCalories(identity, activity, sessionWindow.start, sessionWindow.end)
-            HealthSyncRecordType.HEART_RATE -> mapWorkoutHeartRate(identity, activity, sessionWindow.start, sessionWindow.end)
+            HealthSyncRecordType.EXERCISE_SESSION -> mapWorkoutSession(identity, activity, sessionWindow.start, sessionWindow.end, zoneId)
+            HealthSyncRecordType.DISTANCE -> mapWorkoutDistance(identity, activity, sessionWindow.start, sessionWindow.end, zoneId)
+            HealthSyncRecordType.TOTAL_CALORIES_BURNED -> mapWorkoutCalories(identity, activity, sessionWindow.start, sessionWindow.end, zoneId)
+            HealthSyncRecordType.HEART_RATE -> mapWorkoutHeartRate(identity, activity, sessionWindow.start, sessionWindow.end, zoneId)
             else -> invalid("Tipo de record não suportado para atividade.")
         }
     }
@@ -261,6 +254,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         activity: WorkoutActivity,
         start: Instant,
         end: Instant,
+        zoneId: ZoneId,
     ): HealthRecordMappingResult {
         if (activity.workflowState !in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED, ActivityWorkflowState.SYNCING)) {
             return invalid("Atividade fora de estado elegível para sessão.")
@@ -268,9 +262,9 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         val confirmedType = activity.confirmedType ?: return invalid("Atividade sem tipo confirmado.")
         val record = ExerciseSessionRecord(
             start,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(start),
             end,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(end),
             Metadata.autoRecorded(
                 device = watchDevice(),
                 clientRecordId = identity.clientRecordId,
@@ -294,13 +288,14 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         activity: WorkoutActivity,
         start: Instant,
         end: Instant,
+        zoneId: ZoneId,
     ): HealthRecordMappingResult {
         val distanceMeters = activity.finalDistanceMeters() ?: return invalid("Atividade sem distância elegível.")
         val record = DistanceRecord(
             start,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(start),
             end,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(end),
             Length.meters(distanceMeters),
             Metadata.autoRecorded(
                 device = watchDevice(),
@@ -322,13 +317,14 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         activity: WorkoutActivity,
         start: Instant,
         end: Instant,
+        zoneId: ZoneId,
     ): HealthRecordMappingResult {
         val calories = activity.positiveCaloriesKilocalories() ?: return invalid("Atividade sem calorias elegíveis.")
         val record = TotalCaloriesBurnedRecord(
             start,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(start),
             end,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(end),
             Energy.kilocalories(calories),
             Metadata.autoRecorded(
                 device = watchDevice(),
@@ -350,6 +346,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         activity: WorkoutActivity,
         start: Instant,
         end: Instant,
+        zoneId: ZoneId,
     ): HealthRecordMappingResult {
         val samples = activity.samplesInside(start, end)
         if (samples.isEmpty()) {
@@ -359,9 +356,9 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         val last = samples.last().sampledAt
         val record = HeartRateRecord(
             first,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(first),
             last,
-            ZoneOffset.UTC,
+            zoneId.offsetAt(last),
             samples.map { HeartRateRecord.Sample(it.sampledAt, it.bpm.toLong()) },
             Metadata.autoRecorded(
                 device = watchDevice(),
@@ -412,19 +409,6 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         WorkoutType.UNKNOWN -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
     }
 
-    private fun resolveStepsEnd(
-        localDate: LocalDate,
-        collectedAt: Instant,
-        zoneId: ZoneId,
-    ): Instant {
-        val collectedDate = collectedAt.atZone(zoneId).toLocalDate()
-        return if (localDate == collectedDate) {
-            collectedAt
-        } else {
-            localDate.plusDays(1).atStartOfDay(zoneId).toInstant()
-        }
-    }
-
     private fun invalid(reason: String): HealthRecordMappingResult.Failure =
         HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, reason)
 
@@ -465,6 +449,8 @@ private fun HealthSyncOperation.identityOrNull(): RecordIdentity? {
 
 private fun String?.toZoneIdOrSystemDefault(): ZoneId =
     runCatching { if (this == null) ZoneId.systemDefault() else ZoneId.of(this) }.getOrDefault(ZoneId.systemDefault())
+
+private fun String.toZoneIdOrNull(): ZoneId? = runCatching { ZoneId.of(this) }.getOrNull()
 
 private fun ZoneId.offsetAt(instant: Instant): ZoneOffset = rules.getOffset(instant)
 

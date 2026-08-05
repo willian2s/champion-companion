@@ -52,6 +52,11 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidChamp
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidGattDiscoveryMapper
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.DefaultAndroidBleEnvironment
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.DefaultAndroidGattFacade
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.time.Duration
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -61,12 +66,24 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface DevicePocDependencies {
+    fun foregroundBleOperationGate(): ForegroundBleOperationGate
+}
+
 @Composable
 fun DeviceManagementDebugPocScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
+    val foregroundBleOperationGate = remember(appContext) {
+        EntryPointAccessors.fromApplication(
+            appContext,
+            DevicePocDependencies::class.java,
+        ).foregroundBleOperationGate()
+    }
     val environment = remember(appContext) { DefaultAndroidBleEnvironment(appContext) }
     val coordinator = remember(appContext, environment) {
         val discoveryMapper = AndroidGattDiscoveryMapper()
@@ -80,7 +97,10 @@ fun DeviceManagementDebugPocScreen(
             capabilityResolver = resolver,
             parentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         )
-        DevicePocCoordinator(manager, Dispatchers.IO)
+        DevicePocCoordinator(manager, foregroundBleOperationGate, Dispatchers.IO)
+    }
+    DisposableEffect(coordinator) {
+        onDispose { coordinator.requestCleanup() }
     }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()

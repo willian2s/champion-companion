@@ -1,0 +1,5 @@
+# Gate não executado.
+# Não houve retry explícito após a falha da desconexão concorrente.
+
+result=NOT_EXECUTED
+reason=stop_after_first_divergence

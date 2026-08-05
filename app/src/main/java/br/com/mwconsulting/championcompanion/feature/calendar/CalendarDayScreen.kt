@@ -28,11 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.ViewModelProvider
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
@@ -93,13 +95,23 @@ fun CalendarDayScreen(
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
             if (localDate == null) {
+                DayHeader(
+                    supportingText = "Data inválida",
+                    onNavigateBack = onNavigateBack,
+                    showContextualBack = false,
+                )
                 ErrorState(
                     title = "Data inválida",
                     message = "Não foi possível abrir o detalhe diário. Volte ao calendário e selecione uma data válida.",
                 )
                 BackButton(onNavigateBack)
             } else {
-                DayHeader(localDate, locale, onNavigateBack)
+                DayHeader(
+                    supportingText = localDate.format(
+                        DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale),
+                    ),
+                    onNavigateBack = onNavigateBack,
+                )
                 when {
                     state.dayLoading -> LoadingState(
                         label = "Carregando detalhe diário",
@@ -155,15 +167,37 @@ fun CalendarDayScreen(
 }
 
 @Composable
-private fun DayHeader(localDate: LocalDate, locale: Locale, onNavigateBack: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
-        Text("Detalhe diário", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-        Text(
-            localDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        OutlinedButton(onClick = onNavigateBack) { Text("Voltar para calendário") }
+private fun DayHeader(
+    supportingText: String,
+    onNavigateBack: () -> Unit,
+    showContextualBack: Boolean = true,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                "Detalhe diário",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                supportingText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (showContextualBack) {
+                OutlinedButton(onClick = onNavigateBack) { Text("Voltar para calendário") }
+            }
+        }
     }
 }
 

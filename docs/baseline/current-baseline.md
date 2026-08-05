@@ -1,5 +1,22 @@
 # Baseline Atual do Projeto
 
+## Registro atual da Fase 013
+
+- A Fase 013 está em `closing`, com resultado previsto
+  `partially_delivered` e motivo `product_reorientation`.
+- Treinos iniciados pelo celular foram descontinuados como direção de produto.
+  A desativação operacional dos pontos de entrada phone foi implementada em
+  `013-17`; aceite final foi confirmado por revisão independente.
+- GPS, rota, `ExerciseRoute` e BLE live não devem ser ampliados em sessão phone.
+  Migrations, schemas, sessões, dados e evidências existentes permanecem
+  preservados até task explícita de remoção.
+- Prioridade futura: importar D3/D4 do Champion C001, derivar métricas,
+  permitir revisão e sincronizar com Health Connect. A distância canônica será
+  derivada de passos e comprimento pessoal da passada; a distância original do
+  relógio permanece somente diagnóstica.
+- A Fase 014 será redefinida para esse refinamento. WorkManager poderá apoiar
+  apenas trabalho finito e adiável, fora do objetivo funcional da fase.
+
 ## Produto e fase
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.
@@ -44,12 +61,24 @@ Escopo factual atual já inclui também na Fase 12:
 - sync explícito de atividade com records granulares e falha parcial retomável;
 - `Settings` funcional para disponibilidade, permissões, `Sincronizar agora` e `Gerenciar acesso`;
 - feedback secundário de Health Connect em Home, Saúde e Exercícios.
+- **Spec 016:** sincronização de passos migrou de operações cumulativas para
+  incrementos imutáveis com checkpoint transacional, retry determinístico e
+  ponte de compatibilidade com legado. Ver
+  `docs/specs/016-health-connect-incremental-daily-steps.md`.
 
-Escopo factual atual ainda não inclui:
+O refinamento visual da **Spec 017** foi concluído de forma independente das
+fases anteriores: margens e cabeçalhos foram alinhados nas superfícies de
+Calendário, detalhe diário, Dispositivo, Selecionar treino e Preparar. O
+comportamento factual dessas telas permanece o mesmo; a spec não alterou
+estado, contratos, navegação, BLE ou persistência. Ver
+`docs/specs/017-alinhamento-visual-margens-cabecalhos.md` e o overview
+`docs/tasks/017-alinhamento-visual-margens-cabecalhos/017-00-overview.md`.
+
+Escopo funcional futuro atual não inclui, embora o código preserve infraestrutura
+histórica da Fase 13 protegida por guard operacional:
 
 - leitura do Health Connect;
-- GPS, localização persistida, rotas ou `ExerciseRoute`;
-- foreground service;
+- GPS de sessão, localização persistida, rotas ou `ExerciseRoute`;
 - `WorkManager`;
 - background BLE permanente;
 - sync agressivo ou automático ao abrir o app.
@@ -58,9 +87,28 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v5`. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v8`; a migration 7→8 corrige ordem temporal legada de atividades reimportadas já revisadas, sem reparar operações de sync. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
-Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service, backup e rotas continuam fora do escopo.
+Spec 018 corrigiu falso `UNRESOLVED_AGGREGATE` no Calendário após reimportação
+D3/D4: `recordedAt` original é preservado e caminhos de reimportação falham
+com segurança quando a nova atividade não mantém ordem temporal válida. Ver
+`docs/specs/018-integridade-do-calendario-apos-importacao-de-treino.md` e ADR-016.
+
+Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service da sessão e rotas continuam ausentes do código da Fase 12. Backup e device transfer continuam negados.
+
+## Política histórica autorizada da Fase 13 — não vigente
+
+A ADR-014 autoriza rota persistida somente para caminhada/corrida iniciada
+explicitamente pelo usuário. A base de foreground service mínimo, persistência
+de sessão e recuperação explícita já está implementada parcialmente na Fase 13;
+GPS preciso, captura incremental de rota e sincronização da mesma sessão Health
+Connect foram requisitos das subtarefas históricas. Não são backlog ativo nem
+autorizam expansão phone após o encerramento documental.
+
+Treino livre e esteira continuam sem localização. Não há rastreamento passivo,
+servidor, exportação, GPX, TCX, FIT, backup ou device transfer de rota. Logs e
+diagnósticos continuam sem coordenadas, altitude, rota, BPM, payload BLE,
+identificadores pessoais, título ou observações.
 
 Registro de fechamento da Fase 11: revisão, calibração, descarte lógico e atividades locais até `READY_TO_SYNC` foram consolidados documentalmente. A validação física de 2026-07-28 confirmou build, instalação, lista, filtros, detalhe, métricas, gráfico, intervalos e persistência após reinício no Galaxy S22 `SM-S901E`, mas não reproduziu todos os estados pendentes porque o aparelho continha atividades `SYNCED`. Health Connect funcional pertence à Fase 12 e não altera a fronteira de responsabilidade da Fase 11.
 

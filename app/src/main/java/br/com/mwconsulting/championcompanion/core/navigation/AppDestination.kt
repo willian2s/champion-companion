@@ -68,6 +68,35 @@ sealed class AppDestination {
     }
 
     @Serializable
+    data object WorkoutTypeSelection : AppDestination() {
+        override val route = "exercises/workout"
+    }
+
+    @Serializable
+    data class WorkoutPreparation(val workoutType: String) : AppDestination() {
+        override val route = "exercises/workout/preparation/$workoutType"
+    }
+
+    @Serializable
+    data class ActiveWorkout(val sessionId: String) : AppDestination() {
+        override val route = "exercises/workout/active/$sessionId"
+
+        init {
+            UUID.fromString(sessionId)
+        }
+    }
+
+    @Serializable
+    data class WorkoutRecovery(val sessionId: String? = null) : AppDestination() {
+        override val route = sessionId?.let { "exercises/workout/recovery/$it" }
+            ?: "exercises/workout/recovery"
+
+        init {
+            sessionId?.let(UUID::fromString)
+        }
+    }
+
+    @Serializable
     data object Device : AppDestination() {
         override val route = "device"
     }

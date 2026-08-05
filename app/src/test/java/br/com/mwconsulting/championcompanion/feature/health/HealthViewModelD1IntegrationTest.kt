@@ -135,6 +135,8 @@ class HealthViewModelD1IntegrationTest {
                 dailySummaryRepository = dailySummaryRepository,
                 personalMetricsRepository = personalMetricsRepository,
                 appPreferencesRepository = appPreferencesRepository,
+                healthSyncRepository = FakeHealthSyncRepository(),
+                healthConnectSyncCoordinator = NoOpHealthConnectSyncCoordinator,
                 manualHeartRateCoordinator = manualCoordinator,
                 d1HeartRateSyncCoordinator = d1Coordinator,
                 scope = scope,

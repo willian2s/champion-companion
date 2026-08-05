@@ -10,4 +10,8 @@
     <style name="Theme.ChampionCompanion.PostSplash" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
     </style>
+
+    <style name="Theme.ChampionCompanion.WorkoutSession" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>

@@ -1,0 +1,5 @@
+service=WorkoutRecordingService
+package=br.com.mwconsulting.championcompanion.dev
+active_services=none
+foreground_service=absent
+observed_state=terminal cleanup dump after discard

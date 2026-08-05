@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +56,11 @@ import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesUiState
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesViewModel
 import br.com.mwconsulting.championcompanion.feature.exercises.WatchWorkoutImportSurfaceState
+import br.com.mwconsulting.championcompanion.feature.exercises.ActiveWorkoutShell
+import br.com.mwconsulting.championcompanion.feature.exercises.PhoneWorkoutDisabledShell
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutPreparationShell
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutRecoveryShell
+import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutTypeSelectionShell
 import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
 import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.D1HeartRateImportSurfaceState
@@ -70,6 +76,7 @@ import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import java.util.UUID
 
 private data class NavigationItem(
@@ -116,6 +123,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     val backStack = rememberSaveable(saver = appBackStackSaver) {
         mutableStateListOf<AppDestination>(AppDestination.Home)
     }
+    var preservedActiveWorkoutSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     val currentDestination = backStack.lastOrNull()
     var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
@@ -129,28 +137,65 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             "Voltar para calendário"
         }
         backStack.dropLast(1).lastOrNull() == AppDestination.Health -> "Voltar para Saúde"
+        backStack.dropLast(1).lastOrNull() == AppDestination.Exercises -> "Voltar para Exercícios"
         else -> "Voltar"
     }
 
+    fun terminateWorkoutPreparationIfVisible() {
+        if (currentDestination is AppDestination.WorkoutPreparation) {
+            exercisesViewModel.onIntent(ExercisesIntent.ExitWorkoutPreparation)
+        }
+    }
+
     fun navigateTo(destination: AppDestination) {
+        if (destination.isPhoneWorkoutCreationDestination()) {
+            if (currentDestination != AppDestination.Exercises) {
+                navigateTo(AppDestination.Exercises)
+            }
+            return
+        }
+        if (destination != currentDestination) {
+            terminateWorkoutPreparationIfVisible()
+        }
         animationDirection = NavigationAnimationDirection.Forward
         if (destination.isTopLevelDestination()) {
+            if (destination == AppDestination.Device) {
+                val activeWorkout = backStack.lastOrNull { it is AppDestination.ActiveWorkout }
+                    as? AppDestination.ActiveWorkout
+                preservedActiveWorkoutSessionId = activeWorkout?.let {
+                    exercisesViewModel.activeWorkoutSessionIdForNavigation(it.sessionId)
+                }
+            }
+            val sessionIdToRestore = if (destination == AppDestination.Exercises) {
+                preservedActiveWorkoutSessionId?.takeIf { sessionId ->
+                    exercisesViewModel.activeWorkoutSessionIdForNavigation(sessionId) == sessionId
+                }
+            } else {
+                null
+            }
             if (backStack.contains(AppDestination.Calendar)) {
                 backStack.removeCalendarDestinations()
             }
             if (currentDestination.isHealthDestination()) {
                 backStack.removeHealthDestinations()
             }
-            if (currentDestination.isExercisesDestination()) {
+            if (currentDestination.isExercisesDestination() || sessionIdToRestore != null) {
                 backStack.removeExercisesDestinations()
             }
             backStack.navigateToTopLevel(destination)
+            if (sessionIdToRestore != null) {
+                backStack.navigateForward(AppDestination.ActiveWorkout(sessionIdToRestore))
+            }
+            if (destination == AppDestination.Exercises) {
+                preservedActiveWorkoutSessionId = null
+            }
         } else {
             backStack.navigateForward(destination)
         }
     }
 
     fun navigateBack() {
+        terminateWorkoutPreparationIfVisible()
         animationDirection = NavigationAnimationDirection.Backward
         backStack.removeLastOrNull()
     }
@@ -362,10 +407,11 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             onBackRequested = ::requestBackNavigation,
             onNavigateTo = ::requestNavigation,
             exercisesViewModel = exercisesViewModel,
-                settingsViewModel = settingsViewModel,
-                animationDirection = animationDirection,
-                backLabel = contextualBackLabel,
-            )
+            exercisesState = exercisesState,
+            settingsViewModel = settingsViewModel,
+            animationDirection = animationDirection,
+            backLabel = contextualBackLabel,
+        )
     }
 }
 
@@ -431,10 +477,23 @@ private fun ChampionNavDisplay(
     onBackRequested: () -> Unit,
     onNavigateTo: (AppDestination) -> Unit,
     exercisesViewModel: ExercisesViewModel,
+    exercisesState: ExercisesUiState,
     settingsViewModel: SettingsViewModel,
     animationDirection: NavigationAnimationDirection,
     backLabel: String,
 ) {
+    // Navigate to ActiveWorkout when a workout session is started
+    LaunchedEffect(Unit) {
+        exercisesViewModel.workoutStarted.collect { sessionId ->
+            onNavigateTo(AppDestination.ActiveWorkout(sessionId))
+        }
+    }
+    LaunchedEffect(Unit) {
+        exercisesViewModel.workoutRecoveryRequired.collect { sessionId ->
+            onNavigateTo(AppDestination.WorkoutRecovery(sessionId))
+        }
+    }
+
     AnimatedContent(
         targetState = currentDestination,
         transitionSpec = { animationDirection.contentTransform() },
@@ -492,9 +551,44 @@ private fun ChampionNavDisplay(
                 viewModel = exercisesViewModel,
                 openedActivityId = destination.activityId.toWorkoutActivityId(),
                 onNavigateBack = onBackRequested,
-                onOpenActivity = { activityId ->
-                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
-                },
+                    onOpenActivity = { activityId ->
+                        onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                    },
+            )
+            AppDestination.WorkoutTypeSelection -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
+            } else {
+                WorkoutTypeSelectionShell(
+                    onSelectType = { workoutType ->
+                        onNavigateTo(AppDestination.WorkoutPreparation(workoutType))
+                    },
+                    onNavigateBack = onBackRequested,
+                )
+            }
+            is AppDestination.WorkoutPreparation -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
+            } else {
+                WorkoutPreparationShell(
+                    workoutType = destination.workoutType,
+                    state = exercisesState,
+                    onIntent = exercisesViewModel::onIntent,
+                    onNavigateBack = onBackRequested,
+                )
+            }
+            is AppDestination.ActiveWorkout -> if (PhoneWorkoutPolicy.isDiscontinued()) {
+                PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
+            } else {
+                ActiveWorkoutShell(
+                    sessionId = destination.sessionId,
+                    onNavigateTo = onNavigateTo,
+                    onNavigateBack = onBackRequested,
+                    exercisesViewModel = exercisesViewModel,
+                )
+            }
+            is AppDestination.WorkoutRecovery -> WorkoutRecoveryShell(
+                sessionId = destination.sessionId,
+                onNavigateBack = onBackRequested,
+                exercisesViewModel = exercisesViewModel,
             )
             AppDestination.Device -> DeviceScreen()
             AppDestination.Profile -> ProfileScreen()
@@ -546,10 +640,24 @@ private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppD
 private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     AppDestination.Exercises,
     is AppDestination.ExerciseDetail,
+    AppDestination.WorkoutTypeSelection,
+    is AppDestination.WorkoutPreparation,
+    is AppDestination.ActiveWorkout,
+    is AppDestination.WorkoutRecovery,
     -> true
 
     else -> false
 }
+
+private fun AppDestination.isPhoneWorkoutCreationDestination(): Boolean =
+    PhoneWorkoutPolicy.isDiscontinued() && when (this) {
+        AppDestination.WorkoutTypeSelection,
+        is AppDestination.WorkoutPreparation,
+        is AppDestination.ActiveWorkout,
+        -> true
+
+        else -> false
+    }
 
 private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     AppDestination.Home,
@@ -562,6 +670,10 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     -> true
 
     is AppDestination.ExerciseDetail,
+    AppDestination.WorkoutTypeSelection,
+    is AppDestination.WorkoutPreparation,
+    is AppDestination.ActiveWorkout,
+    is AppDestination.WorkoutRecovery,
     is AppDestination.CalendarDay,
     AppDestination.HealthHeartRate,
     AppDestination.HealthWeight,
@@ -607,8 +719,22 @@ private fun String.toWorkoutActivityId(): WorkoutActivityId = WorkoutActivityId(
 private val appBackStackSaver: Saver<SnapshotStateList<AppDestination>, Any> = listSaver(
     save = { stack: SnapshotStateList<AppDestination> -> stack.map(AppDestination::toSaveToken) },
     restore = { tokens: List<String> ->
+        val restored = tokens.mapNotNull(::fromSaveToken)
+        val hadBlockedPhoneDestination = restored.any { it.isPhoneWorkoutCreationDestination() }
+        val safeRestored = restored.mapNotNull { destination ->
+            when (destination) {
+                is AppDestination.ActiveWorkout -> AppDestination.WorkoutRecovery(destination.sessionId)
+                AppDestination.WorkoutTypeSelection,
+                is AppDestination.WorkoutPreparation,
+                -> null
+                else -> destination
+            }
+        }
         mutableStateListOf<AppDestination>().apply {
-            addAll(tokens.mapNotNull(::fromSaveToken))
+            addAll(safeRestored)
+            if (hadBlockedPhoneDestination && none { it == AppDestination.Exercises }) {
+                add(AppDestination.Exercises)
+            }
             if (isEmpty()) add(AppDestination.Home)
         }
     },
@@ -625,6 +751,11 @@ private fun AppDestination.toSaveToken(): String = when (this) {
     is AppDestination.CalendarDay -> "calendar-day:$localDateIso"
     AppDestination.Exercises -> "exercises"
     is AppDestination.ExerciseDetail -> "exercise-detail:$activityId"
+    AppDestination.WorkoutTypeSelection -> "workout-type-selection"
+    is AppDestination.WorkoutPreparation -> "workout-preparation:$workoutType"
+    is AppDestination.ActiveWorkout -> "active-workout:$sessionId"
+    is AppDestination.WorkoutRecovery -> sessionId?.let { "workout-recovery:$it" }
+        ?: "workout-recovery"
     AppDestination.Device -> "device"
     AppDestination.Profile -> "profile"
     AppDestination.Settings -> "settings"
@@ -642,6 +773,17 @@ private fun fromSaveToken(token: String): AppDestination? = runCatching {
         token.startsWith("calendar-day:") -> AppDestination.CalendarDay(token.removePrefix("calendar-day:"))
         token == "exercises" -> AppDestination.Exercises
         token.startsWith("exercise-detail:") -> AppDestination.ExerciseDetail(token.removePrefix("exercise-detail:"))
+        token == "workout-type-selection" -> AppDestination.WorkoutTypeSelection
+        token.startsWith("workout-preparation:") -> AppDestination.WorkoutPreparation(
+            token.removePrefix("workout-preparation:"),
+        )
+        token.startsWith("active-workout:") -> AppDestination.ActiveWorkout(
+            token.removePrefix("active-workout:"),
+        )
+        token == "workout-recovery" -> AppDestination.WorkoutRecovery()
+        token.startsWith("workout-recovery:") -> AppDestination.WorkoutRecovery(
+            token.removePrefix("workout-recovery:"),
+        )
         token == "device" -> AppDestination.Device
         token == "profile" -> AppDestination.Profile
         token == "settings" -> AppDestination.Settings

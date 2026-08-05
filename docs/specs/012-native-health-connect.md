@@ -848,3 +848,18 @@ Execução física realizada em 2026-07-28 no Galaxy S22 `SM-S901E`, com debug `
 | Gate C físico | `012-13` |
 | Fechamento documental da fase | `012-14` |
 | Identidade de sync por variante | `012-15` |
+
+## Adendo posterior — distância temporal em exercícios da Fase 13
+
+A Fase 12 permanece concluída, write-only e sem rota. Seu mapeamento histórico
+de atividade usava um complemento `DISTANCE` agregado. A Fase 13, por meio de
+`013-14`, corrige esse comportamento para exercícios processados no novo fluxo:
+cada intervalo elegível deve produzir `DistanceRecord` temporal, positivo,
+ordenado e não sobreposto, com delta da mesma fonte da atividade.
+
+Sessão phone usa a série de distância phone; watch-only usa intervalos D3/D4
+quando reconstruíveis; atividade phone correlacionada não usa distância,
+intervalos ou total do relógio. A correção não autoriza distribuição temporal
+inventada, não apaga records de terceiros e deve impedir coexistência do
+agregado legado com a série corrigida. Este adendo não reabre subtarefas da
+Fase 12 nem altera sua validação histórica.

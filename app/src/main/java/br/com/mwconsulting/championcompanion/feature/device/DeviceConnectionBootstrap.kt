@@ -5,15 +5,18 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleResult
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDisconnectReason
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
 import java.time.ZonedDateTime
 import javax.inject.Inject
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -51,14 +54,27 @@ class DeviceConnectionBootstrap @Inject constructor(
             is ChampionBleResult.Failure -> return ChampionBleResult.Failure(result.error)
             is ChampionBleResult.Success -> result.value
         }
-        return when (val result = executeHandshake(transport, dateTime, timeout)) {
-            is ChampionBleResult.Failure -> ChampionBleResult.Failure(result.error)
-            is ChampionBleResult.Success -> ChampionBleResult.Success(
-                DeviceConnectionBootstrapResult(
-                    transport = transport,
-                    protocolState = result.value,
-                ),
-            )
+
+        return try {
+            when (val result = executeHandshake(transport, dateTime, timeout)) {
+                is ChampionBleResult.Failure -> {
+                    cleanupFailedBootstrap(transport)
+                    ChampionBleResult.Failure(result.error)
+                }
+
+                is ChampionBleResult.Success -> ChampionBleResult.Success(
+                    DeviceConnectionBootstrapResult(
+                        transport = transport,
+                        protocolState = result.value,
+                    ),
+                )
+            }
+        } catch (error: CancellationException) {
+            cleanupFailedBootstrap(transport)
+            throw error
+        } catch (error: Exception) {
+            cleanupFailedBootstrap(transport)
+            throw error
         }
     }
 
@@ -120,6 +136,19 @@ class DeviceConnectionBootstrap @Inject constructor(
             }
         } finally {
             observationJob.cancel()
+        }
+    }
+
+    private suspend fun cleanupFailedBootstrap(transport: ChampionTransportSession) {
+        withContext(NonCancellable) {
+            try {
+                connectionManager.disconnectExpectedTransport(
+                    expectedTransport = transport,
+                    reason = ChampionDisconnectReason.CLEANUP,
+                )
+            } catch (_: Exception) {
+                // Cleanup must not replace the original bootstrap failure or cancellation.
+            }
         }
     }
 

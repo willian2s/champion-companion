@@ -1,0 +1,7 @@
+service=WorkoutRecordingService
+package=br.com.mwconsulting.championcompanion.dev
+foreground=true
+startForegroundCount=1
+notification_channel=workout_session_active
+notification_state=ongoing
+observed_state=active phone workout with explicit watch participation

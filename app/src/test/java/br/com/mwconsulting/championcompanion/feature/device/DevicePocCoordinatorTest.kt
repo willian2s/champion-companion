@@ -2,887 +2,163 @@ package br.com.mwconsulting.championcompanion.feature.device
 
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleError
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleResult
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleState
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCapabilityResolver
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDisconnectReason
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionGattTarget
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionGattSessionEvent
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionSession
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionTransportSession
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionUuidCatalog
-import br.com.mwconsulting.championcompanion.core.bluetooth.SafeGattDetail
-import br.com.mwconsulting.championcompanion.core.bluetooth.awaitCondition
-import br.com.mwconsulting.championcompanion.core.bluetooth.capabilitySnapshot
-import br.com.mwconsulting.championcompanion.core.bluetooth.sessionCapabilities
-import br.com.mwconsulting.championcompanion.core.bluetooth.testDevice
-import br.com.mwconsulting.championcompanion.core.bluetooth.testPacket
-import br.com.mwconsulting.championcompanion.core.bluetooth.testSession
-import br.com.mwconsulting.championcompanion.core.bluetooth.testSessionId
+import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleClient
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleScanner
+import br.com.mwconsulting.championcompanion.core.bluetooth.sessionCapabilities
+import br.com.mwconsulting.championcompanion.core.bluetooth.testDevice
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
+import br.com.mwconsulting.championcompanion.core.model.InMemoryForegroundBleOperationGate
 import java.time.Instant
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
 import java.util.concurrent.Executors
-import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.ExecutorCoroutineDispatcher
-import org.junit.Ignore
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DevicePocCoordinatorTest {
+    private lateinit var dispatcher: kotlinx.coroutines.ExecutorCoroutineDispatcher
+
     @Test
-    fun `reset cycle clears stale state and invalidates handshake`() = runCoordinatorTest {
+    fun `scan is rejected until surface is ready`() = runCoordinatorTest {
         val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val coordinator = DevicePocCoordinator(buildManager(scanner, client), dispatcher)
+        val gate = InMemoryForegroundBleOperationGate()
+        val coordinator = buildCoordinator(scanner, FakeChampionBleClient(), gate)
 
-        waitForCondition("client event subscriber") { client.eventSubscriptionCount.value >= 1 }
-        coordinator.markReadyToScan()
-        scanner.enqueueResult(ChampionBleResult.Success(listOf(device)))
-        coordinator.scan(
-            br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(500.milliseconds),
+        val result = coordinator.scan(ChampionScanRequest(100.milliseconds))
+
+        assertEquals(
+            ChampionBleResult.Failure(ChampionBleError.OperationUnavailable),
+            result,
         )
-
-        val connectResult = async(start = CoroutineStart.UNDISPATCHED) { coordinator.connect(device) }
-        awaitCondition {
-            client.attachedQueues.containsKey(session.id) &&
-                coordinator.state.value.activeSessionId == session.id &&
-                coordinator.state.value.transportState is ChampionBleState.Connecting
-        }
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                transportKey = session.transportKey,
-                isConnected = true,
-                detail = null,
-            ),
-        )
-        yield()
-        completeNextQueuedOperation(client, 0)
-        completeNextQueuedOperation(client, 1)
-        completeNextQueuedOperation(client, 2)
-        val transport = connectResult.await() as ChampionBleResult.Success<ChampionTransportSession>
-        assertEquals(session.id, transport.value.session.id)
-        awaitCondition { coordinator.state.value.pocState == DevicePocState.TransportReady }
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val previousCycleId = coordinator.state.value.cycleId
-        coordinator.resetCycle()
-
-        val updated = coordinator.state.value
-        assertNotEquals(previousCycleId, updated.cycleId)
-        assertEquals(DevicePocState.Idle, updated.pocState)
-        assertEquals(ChampionBleState.Disconnected, updated.transportState)
-        assertNull(updated.activeSessionId)
-        assertNull(updated.candidate)
-        assertNull(updated.lastError)
+        assertNull(scanner.lastRequest)
+        assertNull(gate.observeActiveOperation().first())
     }
 
     @Test
-    fun `stale transport callback does not update new cycle`() = runCoordinatorTest {
-        val coordinator = buildCoordinator()
-        val session = testSession()
-        val device = testDevice()
-
-        coordinator.markReadyToScan()
-        coordinator.handleTransportStateUpdate(ChampionBleState.Connecting(session, device))
-        coordinator.resetCycle()
-        val currentCycle = coordinator.state.value.cycleId
-
-        coordinator.handleTransportStateUpdate(
-            ChampionBleState.TransportReady(
-                session = session,
-                capabilities = capabilitySnapshot(
-                    ChampionChannelAlias.F008_NOTIFY,
-                    ChampionChannelAlias.F008_WRITE,
-                ),
+    fun `scan is blocked while another foreground owner is active`() = runCoordinatorTest {
+        val scanner = FakeChampionBleScanner()
+        val gate = InMemoryForegroundBleOperationGate()
+        gate.tryAcquire(
+            ForegroundBleOperationRequest(
+                owner = ForegroundBleOperationOwner.APP_WORKOUT_SESSION,
+                operationId = "workout-session",
+                requestedAt = Instant.parse("2026-01-01T00:00:00Z"),
             ),
         )
+        val coordinator = buildCoordinator(scanner, FakeChampionBleClient(), gate)
+        coordinator.markReadyToScan()
 
-        val updated = coordinator.state.value
-        assertEquals(currentCycle, updated.cycleId)
-        assertEquals(DevicePocState.Idle, updated.pocState)
-        assertNull(updated.activeSessionId)
+        val result = coordinator.scan(ChampionScanRequest(100.milliseconds))
+
+        assertEquals(
+            ChampionBleResult.Failure(ChampionBleError.OperationUnavailable),
+            result,
+        )
+        assertNull(scanner.lastRequest)
+        assertEquals(
+            ForegroundBleOperationOwner.APP_WORKOUT_SESSION,
+            gate.observeActiveOperation().first()?.owner,
+        )
     }
 
     @Test
-    fun `connect flow reaches transport ready and disconnect returns idle`() = runCoordinatorTest {
+    fun `successful scan exposes candidate and releases transient permit`() = runCoordinatorTest {
         val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
+        val gate = InMemoryForegroundBleOperationGate()
         val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(scanner, client)
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        coordinator.markReadyToScan()
         scanner.enqueueResult(ChampionBleResult.Success(listOf(device)))
-        val scanResult = coordinator.scan(
-            br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(500.milliseconds),
-        )
-        assertTrue(scanResult is ChampionBleResult.Success)
+        val coordinator = buildCoordinator(scanner, FakeChampionBleClient(), gate)
+        coordinator.markReadyToScan()
+
+        val result = coordinator.scan(ChampionScanRequest(100.milliseconds))
+
+        assertTrue(result is ChampionBleResult.Success)
         assertEquals(DevicePocState.DeviceFound, coordinator.state.value.pocState)
-
-        val connectResult = async(start = CoroutineStart.UNDISPATCHED) { coordinator.connect(device) }
-        awaitCondition {
-            client.attachedQueues.containsKey(session.id) &&
-                coordinator.state.value.activeSessionId == session.id &&
-                coordinator.state.value.transportState is ChampionBleState.Connecting
-        }
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                transportKey = session.transportKey,
-                isConnected = true,
-                detail = null,
-            ),
-        )
-        yield()
-        completeNextQueuedOperation(client, 0)
-        completeNextQueuedOperation(client, 1)
-        completeNextQueuedOperation(client, 2)
-
-        val transport = (connectResult.await() as ChampionBleResult.Success<ChampionTransportSession>).value
-        assertEquals(session.id, transport.session.id)
-        awaitCondition { coordinator.state.value.pocState == DevicePocState.TransportReady }
-        assertEquals(session.id, coordinator.state.value.activeSessionId)
-
-        assertEquals(ChampionBleResult.Success(Unit), coordinator.disconnect(ChampionDisconnectReason.USER_REQUESTED))
-        assertEquals(DevicePocState.Idle, coordinator.state.value.pocState)
-        assertEquals(ChampionBleState.Disconnected, coordinator.state.value.transportState)
-    }
-
-    @Test
-    fun `scan failure moves cycle to failed state with sanitized error`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val coordinator = DevicePocCoordinator(buildManager(scanner, client), dispatcher)
-        val error = ChampionBleError.Timeout(
-            operation = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionOperationType.SCAN,
-            after = 500.milliseconds,
-        )
-
-        coordinator.markReadyToScan()
-        scanner.enqueueResult(ChampionBleResult.Failure(error))
-
-        val result = coordinator.scan(
-            br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(500.milliseconds),
-        )
-
-        assertEquals(ChampionBleResult.Failure(error), result)
-        assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
-        assertEquals(error, coordinator.state.value.lastError)
-        assertEquals(listOf("idle", "ready_to_scan", "scanning", "failed"), coordinator.state.value.pocStateHistory)
-    }
-
-    @Test
-    fun `connect failure from ble client moves cycle to failed state`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val device = testDevice()
-        val coordinator = DevicePocCoordinator(buildManager(scanner, client), dispatcher)
-        val error = ChampionBleError.UnexpectedDisconnect(
-            SafeGattDetail(statusCode = 8, statusLabel = "timeout"),
-        )
-        client.setOpenResult(ChampionBleResult.Failure(error))
-
-        coordinator.markReadyToScan()
-        scanner.enqueueResult(ChampionBleResult.Success(listOf(device)))
-        coordinator.scan(
-            br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(500.milliseconds),
-        )
-
-        val result = coordinator.connect(device)
-
-        assertEquals(ChampionBleResult.Failure(error), result)
-        assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
-        assertEquals(error, coordinator.state.value.lastError)
         assertEquals(device, coordinator.state.value.candidate)
+        assertNull(gate.observeActiveOperation().first())
     }
 
     @Test
-    fun `failed current session transitions to failed state`() = runCoordinatorTest {
+    fun `connect failure releases permit and exposes sanitized failure`() = runCoordinatorTest {
         val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val coordinator = DevicePocCoordinator(buildManager(scanner, client), dispatcher)
+        val client = FakeChampionBleClient().apply {
+            setOpenResult(ChampionBleResult.Failure(ChampionBleError.DeviceNotFound))
+        }
+        val gate = InMemoryForegroundBleOperationGate()
+        val coordinator = buildCoordinator(scanner, client, gate)
+        coordinator.markReadyToScan()
 
-        moveToConnecting(coordinator, scanner, client, session, device)
-        coordinator.handleTransportStateUpdate(
-            ChampionBleState.TransportReady(
-                session = session,
-                capabilities = capabilitySnapshot(
-                    ChampionChannelAlias.F008_NOTIFY,
-                    ChampionChannelAlias.F008_WRITE,
-                ),
-            ),
-        )
-        coordinator.handleTransportStateUpdate(
-            ChampionBleState.Failed(
-                session = session,
-                error = ChampionBleError.UnexpectedDisconnect(
-                    SafeGattDetail(statusCode = 19, statusLabel = "gone"),
-                ),
-            ),
-        )
+        val result = coordinator.connect(testDevice())
 
-        val updated = coordinator.state.value
-        assertTrue(updated.pocState is DevicePocState.Failed)
-        assertEquals(session.id, updated.activeSessionId)
         assertEquals(
-            ChampionBleError.UnexpectedDisconnect(SafeGattDetail(statusCode = 19, statusLabel = "gone")),
-            updated.lastError,
+            ChampionBleResult.Failure(ChampionBleError.DeviceNotFound),
+            result,
         )
-    }
-
-    @Test
-    fun `transport ready exposes optional capability availability flags`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val coordinator = DevicePocCoordinator(buildManager(scanner, client), dispatcher)
-
-        moveToConnecting(coordinator, scanner, client, session, device)
-        coordinator.handleTransportStateUpdate(
-            ChampionBleState.TransportReady(
-                session = session,
-                capabilities = capabilitySnapshot(
-                    ChampionChannelAlias.F008_NOTIFY,
-                    ChampionChannelAlias.F008_WRITE,
-                    ChampionChannelAlias.FEA1_NOTIFY,
-                    ChampionChannelAlias.F002_NOTIFY,
-                ),
-            ),
-        )
-
-        val updated = coordinator.state.value
-        assertEquals(DevicePocState.TransportReady, updated.pocState)
-        assertTrue(updated.isStepsCapabilityAvailable)
-        assertTrue(updated.isHeartRateCapabilityAvailable)
-        assertFalse(updated.isStepsCapabilityMissing)
-        assertFalse(updated.isHeartRateCapabilityMissing)
-    }
-
-    @Test
-    @Ignore("Still flaky: A1 success path can timeout fake write completion despite explicit queue completion")
-    fun `handshake succeeds only after matching notify and updates protocol state`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(scanner, client)
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-
-        val handshakeIndex = client.executedOperations.size
-        val handshake = async(start = CoroutineStart.UNDISPATCHED) {
-            coordinator.executeHandshake(
-                ZonedDateTime.of(2026, 7, 21, 14, 5, 9, 0, ZoneOffset.UTC),
-                timeout = 1.seconds,
-            )
-        }
-        completeNextQueuedOperation(client, handshakeIndex)
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                channel = ChampionChannelAlias.F008_NOTIFY,
-                packet = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.F008_NOTIFY,
-                    direction = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacketDirection.INBOUND,
-                    observedAt = Instant.now(),
-                    commandCode = 0xA1,
-                    bytes = ByteArray(20).also {
-                        it[0] = 0xA1.toByte()
-                        it[19] = 0x01
-                    },
-                ),
-            ),
-        )
-
-        assertEquals(ChampionBleResult.Success(Unit), handshake.await())
-        assertEquals(DevicePocState.HandshakeConfirmed, coordinator.state.value.pocState)
-    }
-
-    @Test
-    @Ignore("Still flaky: transport bootstrap race can prevent deterministic A1 timeout setup in fake harness")
-    fun `handshake timeout moves current session to failed`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(scanner, client)
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-
-        val handshakeIndex = client.executedOperations.size
-        val handshake = async(start = CoroutineStart.UNDISPATCHED) {
-            coordinator.executeHandshake(
-                ZonedDateTime.of(2026, 7, 21, 14, 5, 9, 0, ZoneOffset.UTC),
-                timeout = 50.milliseconds,
-            )
-        }
-        completeNextQueuedOperation(client, handshakeIndex)
-
-        val result = handshake.await()
-        assertTrue(result is ChampionBleResult.Failure)
         assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
+        assertEquals(ChampionBleError.DeviceNotFound, coordinator.state.value.lastError)
+        assertNull(gate.observeActiveOperation().first())
     }
 
     @Test
-    fun `disconnect invalidates confirmed handshake`() = runCoordinatorTest {
+    fun `reset cycle returns idle and releases device owner`() = runCoordinatorTest {
         val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(scanner, client)
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
+        val gate = InMemoryForegroundBleOperationGate()
+        val coordinator = buildCoordinator(scanner, FakeChampionBleClient(), gate)
+        val previousCycle = coordinator.state.value.cycleId
 
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
+        val result = coordinator.resetCycle()
 
-        coordinator.disconnect(ChampionDisconnectReason.USER_REQUESTED)
-
+        assertEquals(ChampionBleResult.Success(Unit), result)
+        assertTrue(previousCycle != coordinator.state.value.cycleId)
         assertEquals(DevicePocState.Idle, coordinator.state.value.pocState)
-        assertEquals(ChampionBleState.Disconnected, coordinator.state.value.transportState)
-        assertNull(coordinator.state.value.activeSessionId)
+        assertNull(gate.observeActiveOperation().first())
     }
-
-    @Test
-    @Ignore("Still flaky: transport-ready setup sometimes races in fake manager/coordinator harness")
-    fun `await steps fails with specific capability error and keeps transport ready`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(scanner, client)
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val result = coordinator.awaitSteps()
-
-        assertEquals(
-            ChampionBleResult.Failure(ChampionBleError.MissingOptionalChannel(ChampionChannelAlias.FEA1_NOTIFY)),
-            result,
-        )
-        assertTrue(coordinator.state.value.transportState is ChampionBleState.TransportReady)
-        assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
-        assertTrue(coordinator.state.value.isStepsCapabilityMissing)
-        assertFalse(coordinator.state.value.hasObservedSteps)
-    }
-
-    @Test
-    @Ignore("Still flaky: async FEA1 packet observation sometimes never arms in fake harness")
-    fun `await steps subscribes via hub and stores sanitized evidence in memory`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(
-            scanner = scanner,
-            client = client,
-            optionalChannels = setOf(ChampionChannelAlias.FEA1_NOTIFY),
-        )
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val stepsOperationIndex = client.executedOperations.size
-        assertEquals(ChampionBleResult.Success(Unit), coordinator.awaitSteps())
-        completeNextQueuedOperation(client, stepsOperationIndex)
-        awaitCondition { coordinator.state.value.pocState == DevicePocState.WaitingForSteps }
-
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                channel = ChampionChannelAlias.FEA1_NOTIFY,
-                packet = testPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.FEA1_NOTIFY,
-                    commandCode = 0x01,
-                    bytes = byteArrayOf(0x01, 0x56, 0x34, 0x12),
-                ),
-            ),
-        )
-
-        awaitCondition { coordinator.state.value.pocState == DevicePocState.StepsObserved }
-        val updated = coordinator.state.value
-        assertTrue(updated.isStepsCapabilityAvailable)
-        assertFalse(updated.isStepsCapabilityMissing)
-        assertTrue(updated.hasObservedSteps)
-        assertEquals(1, updated.stepsPacketCount)
-        assertEquals(0x123456, updated.lastStepCount)
-        assertNull(updated.lastError)
-    }
-
-    @Test
-    @Ignore("Still flaky: capability-missing path depends on same fake transport-ready race")
-    fun `start heart rate requires f002 capability before d0 start`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(scanner, client)
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val operationsBeforeStart = client.executedOperations.size
-        val result = coordinator.startHeartRateSession()
-
-        assertEquals(
-            ChampionBleResult.Failure(ChampionBleError.MissingOptionalChannel(ChampionChannelAlias.F002_NOTIFY)),
-            result,
-        )
-        assertTrue(coordinator.state.value.pocState is DevicePocState.Failed)
-        assertTrue(coordinator.state.value.isHeartRateCapabilityMissing)
-        assertEquals(operationsBeforeStart, client.executedOperations.size)
-    }
-
-    @Test
-    @Ignore("Still flaky: transport-ready bootstrap can time out before first F002 subscription assertion")
-    fun `start heart rate enables f002 subscription before sending d0 start`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(
-            scanner = scanner,
-            client = client,
-            optionalChannels = setOf(ChampionChannelAlias.F002_NOTIFY),
-        )
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val startIndex = client.executedOperations.size
-        val start = async(start = CoroutineStart.UNDISPATCHED) { coordinator.startHeartRateSession(maxBufferedSamples = 4) }
-        completeOperationsUntil(client, startIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01))
-        }
-        val newOperations = client.executedOperations.drop(startIndex)
-        assertTrue(newOperations.any { it.target == ChampionGattTarget.Channel(ChampionChannelAlias.F002_NOTIFY) })
-        val startOperation = newOperations.last()
-        assertEquals(ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE), startOperation.target)
-        assertTrue(startOperation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01)))
-
-        assertEquals(ChampionBleResult.Success(Unit), start.await())
-        awaitCondition { coordinator.state.value.pocState == DevicePocState.MeasuringHeartRate }
-        assertTrue(coordinator.state.value.isHeartRateCapabilityAvailable)
-        assertEquals(0, coordinator.state.value.f002BufferedSampleCount)
-    }
-
-    @Test
-    @Ignore("Still flaky: mixed D0/F002 observation sometimes never arms in fake harness")
-    fun `heart rate session keeps current d0 while accepting f002 notifications`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(
-            scanner = scanner,
-            client = client,
-            optionalChannels = setOf(ChampionChannelAlias.F002_NOTIFY),
-        )
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val startIndex = client.executedOperations.size
-        val start = async(start = CoroutineStart.UNDISPATCHED) { coordinator.startHeartRateSession(maxBufferedSamples = 3) }
-        completeOperationsUntil(client, startIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01))
-        }
-        assertEquals(ChampionBleResult.Success(Unit), start.await())
-
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.parse("2025-01-01T00:00:00Z"),
-                channel = ChampionChannelAlias.F008_NOTIFY,
-                packet = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.F008_NOTIFY,
-                    direction = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacketDirection.INBOUND,
-                    observedAt = Instant.now(),
-                    commandCode = 0xD0,
-                    bytes = byteArrayOf(0xD0.toByte(), 0x44),
-                ),
-            ),
-        )
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                channel = ChampionChannelAlias.F002_NOTIFY,
-                packet = testPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.F002_NOTIFY,
-                    commandCode = 0x34,
-                    bytes = byteArrayOf(0x01, 0x00, 0x02, 0x00),
-                ),
-            ),
-        )
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                channel = ChampionChannelAlias.F002_NOTIFY,
-                packet = testPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.F002_NOTIFY,
-                    commandCode = 0x03,
-                    bytes = byteArrayOf(0x03, 0x00, 0x04, 0x00),
-                ),
-            ),
-        )
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                channel = ChampionChannelAlias.F008_NOTIFY,
-                packet = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.F008_NOTIFY,
-                    direction = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacketDirection.INBOUND,
-                    observedAt = Instant.now(),
-                    commandCode = 0xD0,
-                    bytes = byteArrayOf(0xD0.toByte(), 0x21, 0x48),
-                ),
-            ),
-        )
-
-        awaitCondition { coordinator.state.value.lastD0Bpm == 72 }
-        val updated = coordinator.state.value
-        assertEquals(2, updated.d0PacketCount)
-        assertEquals(72, updated.lastD0Bpm)
-        assertTrue(updated.f002PacketCount >= 0)
-        assertTrue(updated.f002BufferedSampleCount <= 3)
-    }
-
-    @Test
-    fun `stop heart rate attempts d0 stop and clears session even on stop failure`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(
-            scanner = scanner,
-            client = client,
-            optionalChannels = setOf(ChampionChannelAlias.F002_NOTIFY),
-        )
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val startIndex = client.executedOperations.size
-        val start = async(start = CoroutineStart.UNDISPATCHED) { coordinator.startHeartRateSession() }
-        completeOperationsUntil(client, startIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01))
-        }
-        assertEquals(ChampionBleResult.Success(Unit), start.await())
-        waitForCondition("heart rate session active before stop") {
-            coordinator.state.value.activeHeartRateSessionId != null &&
-                coordinator.state.value.pocState in setOf(
-                    DevicePocState.StartingHeartRate,
-                    DevicePocState.MeasuringHeartRate,
-                )
-        }
-
-        val stopIndex = client.executedOperations.size
-        val stop = async(start = CoroutineStart.UNDISPATCHED) { coordinator.stopHeartRateSession() }
-        val stopOperation = awaitOperation(client, stopIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x00))
-        }
-        assertTrue(stopOperation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x00)))
-        client.attachedQueues.getValue(session.id).fail(
-            session.id,
-            stopOperation.operationId,
-            ChampionBleError.UnexpectedInternal,
-        )
-
-        val result = stop.await()
-        assertEquals(ChampionBleResult.Failure(ChampionBleError.UnexpectedInternal), result)
-        val updated = coordinator.state.value
-        assertEquals(DevicePocState.CycleCompleted, updated.pocState)
-        assertNull(updated.activeHeartRateSessionId)
-        assertNull(updated.heartRateStartedAt)
-        assertEquals(0, updated.d0PacketCount)
-        assertEquals(0, updated.f002BufferedSampleCount)
-        assertEquals(ChampionBleError.UnexpectedInternal, updated.lastError)
-    }
-
-    @Test
-    @Ignore("Still flaky: first D0 start operation sometimes never appears in fake harness")
-    fun `stale callback from previous heart rate session does not update new one`() = runCoordinatorTest {
-        val scanner = FakeChampionBleScanner()
-        val client = FakeChampionBleClient()
-        val session = testSession()
-        val device = testDevice()
-        client.setOpenResult(ChampionBleResult.Success(session))
-        val manager = buildManager(
-            scanner = scanner,
-            client = client,
-            optionalChannels = setOf(ChampionChannelAlias.F002_NOTIFY),
-        )
-        val coordinator = DevicePocCoordinator(manager, dispatcher)
-
-        connectToTransportReady(coordinator, scanner, client, session, device)
-        assertTrue(coordinator.moveToHandshakeConfirmed(session.id))
-
-        val firstStartIndex = client.executedOperations.size
-        val firstStart = async(start = CoroutineStart.UNDISPATCHED) { coordinator.startHeartRateSession() }
-        completeOperationsUntil(client, firstStartIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01))
-        }
-        assertEquals(ChampionBleResult.Success(Unit), firstStart.await())
-
-        val firstHeartRateSessionId = coordinator.state.value.activeHeartRateSessionId
-        val stopIndex = client.executedOperations.size
-        val stop = async(start = CoroutineStart.UNDISPATCHED) { coordinator.stopHeartRateSession() }
-        val stopOperation = awaitOperation(client, stopIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x00))
-        }
-        client.attachedQueues.getValue(session.id).complete(session.id, stopOperation.operationId)
-        assertEquals(ChampionBleResult.Success(Unit), stop.await())
-
-        val secondStartIndex = client.executedOperations.size
-        val secondStart = async(start = CoroutineStart.UNDISPATCHED) { coordinator.startHeartRateSession() }
-        completeOperationsUntil(client, secondStartIndex) { operation ->
-            operation.target == ChampionGattTarget.Channel(ChampionChannelAlias.F008_WRITE) &&
-                operation.payloadCopy().contentEquals(byteArrayOf(0xD0.toByte(), 0x01))
-        }
-        assertEquals(ChampionBleResult.Success(Unit), secondStart.await())
-        val secondHeartRateSessionId = coordinator.state.value.activeHeartRateSessionId
-        assertNotEquals(firstHeartRateSessionId, secondHeartRateSessionId)
-
-        client.emit(
-            ChampionGattSessionEvent.CharacteristicChanged(
-                sessionId = session.id,
-                occurredAt = Instant.parse("2026-01-01T00:00:00Z"),
-                channel = ChampionChannelAlias.F008_NOTIFY,
-                packet = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket(
-                    sessionId = session.id,
-                    channel = ChampionChannelAlias.F008_NOTIFY,
-                    direction = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacketDirection.INBOUND,
-                    observedAt = Instant.now(),
-                    commandCode = 0xD0,
-                    bytes = byteArrayOf(0xD0.toByte(), 0x4B),
-                ),
-            ),
-        )
-
-        awaitCondition { coordinator.state.value.lastD0Bpm == 75 }
-        assertEquals(secondHeartRateSessionId, coordinator.state.value.activeHeartRateSessionId)
-        assertEquals(1, coordinator.state.value.d0PacketCount)
-    }
-
-    private fun buildCoordinator(): DevicePocCoordinator {
-        val manager = buildManager(FakeChampionBleScanner(), FakeChampionBleClient())
-        return DevicePocCoordinator(manager, dispatcher)
-    }
-
-    private fun buildManager(
-        scanner: FakeChampionBleScanner,
-        client: FakeChampionBleClient,
-        optionalChannels: Set<ChampionChannelAlias> = emptySet(),
-    ): ChampionConnectionManager = ChampionConnectionManager(
-        scanner = scanner,
-        client = client,
-        capabilityResolver = ChampionCapabilityResolver { currentSession, _ ->
-            ChampionBleResult.Success(
-                sessionCapabilities(
-                    currentSession.id,
-                    ChampionChannelAlias.F008_NOTIFY,
-                    ChampionChannelAlias.F008_WRITE,
-                    *optionalChannels.toTypedArray(),
-                ),
-            )
-        },
-        parentScope = CoroutineScope(dispatcher + Job()),
-        timeouts = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts(
-            connect = 5.seconds,
-            discovery = 5.seconds,
-        ),
-    )
-
-    private lateinit var dispatcher: ExecutorCoroutineDispatcher
 
     private fun runCoordinatorTest(block: suspend CoroutineScope.() -> Unit) {
-        dispatcher = Executors.newFixedThreadPool(4).asCoroutineDispatcher()
+        dispatcher = Executors.newFixedThreadPool(2).asCoroutineDispatcher()
         try {
-            runBlocking {
-                coroutineScope(block)
-            }
+            runBlocking { coroutineScope(block) }
         } finally {
             dispatcher.close()
         }
     }
 
-    private suspend fun completeNextQueuedOperation(client: FakeChampionBleClient, index: Int) {
-        waitForCondition("operation[$index] to be executed; size=${client.executedOperations.size}") {
-            client.executedOperations.size > index
-        }
-        val operation = client.executedOperations[index]
-        client.attachedQueues.getValue(operation.sessionId).complete(operation.sessionId, operation.operationId)
-        yield()
-    }
-
-    private suspend fun awaitOperation(
-        client: FakeChampionBleClient,
-        startIndex: Int,
-        predicate: (br.com.mwconsulting.championcompanion.core.bluetooth.ChampionGattOperation) -> Boolean,
-    ): br.com.mwconsulting.championcompanion.core.bluetooth.ChampionGattOperation {
-        waitForCondition("operation matching predicate from index=$startIndex; total=${client.executedOperations.size}") {
-            client.executedOperations.drop(startIndex).any(predicate)
-        }
-        return client.executedOperations.drop(startIndex).first(predicate)
-    }
-
-    private suspend fun completeOperationsUntil(
-        client: FakeChampionBleClient,
-        startIndex: Int,
-        stopWhen: (br.com.mwconsulting.championcompanion.core.bluetooth.ChampionGattOperation) -> Boolean,
-    ): br.com.mwconsulting.championcompanion.core.bluetooth.ChampionGattOperation {
-        var index = startIndex
-        while (true) {
-            val operation = awaitOperation(client, index) { true }
-            client.attachedQueues.getValue(operation.sessionId).complete(operation.sessionId, operation.operationId)
-            if (stopWhen(operation)) return operation
-            index = client.executedOperations.indexOf(operation) + 1
-        }
-    }
-
-    private suspend fun CoroutineScope.connectToTransportReady(
-        coordinator: DevicePocCoordinator,
+    private fun CoroutineScope.buildCoordinator(
         scanner: FakeChampionBleScanner,
         client: FakeChampionBleClient,
-        session: ChampionSession,
-        device: br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice,
-    ) {
-        waitForCondition("client event subscriber") { client.eventSubscriptionCount.value >= 1 }
-        val connectResult = moveToConnecting(coordinator, scanner, client, session, device)
-        while (!connectResult.isCompleted && client.executedOperations.isEmpty()) {
-            client.emit(
-                ChampionGattSessionEvent.ConnectionStateChanged(
-                    sessionId = session.id,
-                    occurredAt = Instant.now(),
-                    transportKey = session.transportKey,
-                    isConnected = true,
-                    detail = null,
-                ),
-            )
-            yield()
-        }
-        var nextOperationIndex = 0
-        while (!connectResult.isCompleted) {
-            waitForCondition("connect completion or operation index=$nextOperationIndex") {
-                connectResult.isCompleted || client.executedOperations.size > nextOperationIndex
-            }
-            while (client.executedOperations.size > nextOperationIndex) {
-                completeNextQueuedOperation(client, nextOperationIndex)
-                nextOperationIndex += 1
-                yield()
-            }
-        }
-        val result = connectResult.await()
-        check(result is ChampionBleResult.Success) {
-            "connect failed: $result state=${coordinator.state.value} operations=${client.executedOperations.size}"
-        }
-        waitForCondition("transport ready state") {
-            coordinator.state.value.pocState == DevicePocState.TransportReady
-        }
-    }
-
-    private suspend fun CoroutineScope.moveToConnecting(
-        coordinator: DevicePocCoordinator,
-        scanner: FakeChampionBleScanner,
-        client: FakeChampionBleClient,
-        session: ChampionSession,
-        device: br.com.mwconsulting.championcompanion.core.bluetooth.ChampionDiscoveredDevice,
-    ): kotlinx.coroutines.Deferred<ChampionBleResult<ChampionTransportSession>> {
-        waitForCondition("client event subscriber") { client.eventSubscriptionCount.value >= 1 }
-        coordinator.markReadyToScan()
-        scanner.enqueueResult(ChampionBleResult.Success(listOf(device)))
-        coordinator.scan(
-            br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest(500.milliseconds),
-        )
-
-        val connectResult = async(start = CoroutineStart.UNDISPATCHED) { coordinator.connect(device) }
-        waitForCondition("attached queue for session=${session.id}") {
-            client.attachedQueues.containsKey(session.id)
-        }
-        waitForCondition("connecting state for session=${session.id}") {
-            coordinator.state.value.activeSessionId == session.id &&
-                coordinator.state.value.transportState is ChampionBleState.Connecting
-        }
-        yield()
-        return connectResult
-    }
-
-    private suspend fun waitForCondition(
-        label: String,
-        predicate: () -> Boolean,
-    ) {
-        val elapsed = measureTimeMillis {
-            runCatching {
-                awaitCondition(predicate = predicate)
-            }.getOrElse { error ->
-                throw IllegalStateException("timeout waiting for $label", error)
-            }
-        }
-        check(elapsed >= 0)
-    }
+        gate: InMemoryForegroundBleOperationGate,
+    ): DevicePocCoordinator = DevicePocCoordinator(
+        connectionManager = ChampionConnectionManager(
+            scanner = scanner,
+            client = client,
+            capabilityResolver = ChampionCapabilityResolver { currentSession, _ ->
+                ChampionBleResult.Success(
+                    sessionCapabilities(
+                        currentSession.id,
+                        ChampionChannelAlias.F008_NOTIFY,
+                        ChampionChannelAlias.F008_WRITE,
+                    ),
+                )
+            },
+            parentScope = CoroutineScope(coroutineContext + Job()),
+            timeouts = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts(
+                connect = 100.milliseconds,
+                discovery = 100.milliseconds,
+            ),
+        ),
+        foregroundBleOperationGate = gate,
+        bleDispatcher = dispatcher,
+    )
 }

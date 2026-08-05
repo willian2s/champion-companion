@@ -18,5 +18,6 @@ object DatabaseModule {
     fun provideChampionDatabase(@ApplicationContext context: Context): ChampionDatabase =
         Room.databaseBuilder(context, ChampionDatabase::class.java, "champion-companion.db")
             .setDriver(AndroidSQLiteDriver())
+            .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .build()
 }

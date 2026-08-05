@@ -33,6 +33,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
@@ -237,12 +238,13 @@ class HomeViewModel @Inject constructor(
             }
 
             val metrics = personalMetricsRepository.observeSnapshot().first()
+            val refreshZoneId = ZoneId.systemDefault()
             val refreshResult = when (val result = dailyStepsSyncCoordinator.refresh(
                 DailyStepsRefreshRequest(
                     attempt = attempt,
                     associatedDeviceId = associatedDevice.id,
                     associatedDevicePlatformIdentifier = associatedDevice.platformIdentifier,
-                    zoneId = ZoneId.systemDefault(),
+                    zoneId = refreshZoneId,
                 ),
             )) {
                 is DailyStepsRefreshOutcome.Success -> result.value
@@ -277,6 +279,7 @@ class HomeViewModel @Inject constructor(
                         estimatedDistanceMeters = estimates.distanceMeters,
                         estimatedCaloriesKilocalories = estimates.caloriesKilocalories,
                         parserVersion = refreshResult.parserVersion,
+                        zoneId = refreshZoneId,
                     ),
                 )
             ) {
@@ -410,10 +413,7 @@ class HomeViewModel @Inject constructor(
             WorkoutType.FREE_WORKOUT -> "Treino pendente"
             WorkoutType.UNKNOWN -> "Atividade pendente"
         },
-        subtitle = when (state) {
-            br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState.AWAITING_RECOVERY -> "Sessao interrompida aguardando retomada"
-            else -> "Sessao pendente"
-        },
+        subtitle = PhoneWorkoutPolicy.NON_RESUMABLE_MESSAGE,
     )
 
     private fun WorkoutWorkflowSummary.toWorkoutPendingBanner(): HomeWorkoutPendingBanner? {
@@ -511,6 +511,8 @@ class HomeViewModel @Inject constructor(
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio está em andamento na tela Exercícios."
+        ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "A participação opcional do relógio está em andamento na sessão de treino."
+        ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Uma conexão do dispositivo está em andamento na tela Dispositivo."
     }
 
     private fun br.com.mwconsulting.championcompanion.core.model.DailySyncAttempt.toHomeRefreshAttempt(): HomeRefreshAttempt =

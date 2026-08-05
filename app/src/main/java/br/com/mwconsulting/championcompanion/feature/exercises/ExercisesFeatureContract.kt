@@ -3,6 +3,8 @@ package br.com.mwconsulting.championcompanion.feature.exercises
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
+import br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS
+import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -35,7 +37,68 @@ data class ExercisesUiState(
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
+    val workoutPreparation: WorkoutPreparationUiState = WorkoutPreparationUiState(),
 )
+
+enum class WorkoutPreparationPhase {
+    INACTIVE,
+    WAITING,
+    COUNTING_DOWN,
+    START_REQUESTED,
+}
+
+data class WorkoutPreparationUiState(
+    val workoutType: WorkoutType? = null,
+    val phase: WorkoutPreparationPhase = WorkoutPreparationPhase.INACTIVE,
+    val countdownSeconds: Int = DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
+    val remainingSeconds: Int? = null,
+    val gpsReadiness: GpsReadiness? = null,
+    val gpsReadinessGeneration: Long? = null,
+    val notice: String? = null,
+    val preferenceError: String? = null,
+    val startRequest: WorkoutStartRequest? = null,
+) {
+    val requiresGps: Boolean
+        get() = workoutType == WorkoutType.WALKING || workoutType == WorkoutType.RUNNING
+
+    val canStartCountdown: Boolean
+        get() = phase == WorkoutPreparationPhase.WAITING &&
+            (!requiresGps || gpsReadiness?.canStart == true && gpsReadinessGeneration != null)
+}
+
+/** Handoff idempotente para 013-08; não cria sessão, atividade, rota ou serviço. */
+data class WorkoutStartRequest(
+    val requestId: String,
+    val workoutType: WorkoutType,
+    val requestedAt: Instant,
+    val countdownSeconds: Int,
+    val preparationVisibilityToken: Long,
+    val gpsReadinessGeneration: Long?,
+)
+
+enum class RecoveryAction {
+    RESUME,
+    FINISH,
+    DISCARD,
+}
+
+sealed interface RecoveryActionState {
+    data object Idle : RecoveryActionState
+    data class InProgress(val action: RecoveryAction, val sessionId: String) : RecoveryActionState
+    data class Success(val action: RecoveryAction, val sessionId: String) : RecoveryActionState
+    data class Failure(
+        val action: RecoveryAction,
+        val sessionId: String,
+        val message: String,
+    ) : RecoveryActionState
+}
+
+sealed interface WorkoutFinishCommandState {
+    data object Idle : WorkoutFinishCommandState
+    data class InProgress(val sessionId: String) : WorkoutFinishCommandState
+    data class Persisted(val sessionId: String) : WorkoutFinishCommandState
+    data class Failure(val sessionId: String, val message: String) : WorkoutFinishCommandState
+}
 
 sealed interface ExerciseDetailState {
     data object Loading : ExerciseDetailState
@@ -112,6 +175,13 @@ sealed interface ExercisesIntent {
     data object ConfirmExitImport : ExercisesIntent
     data object AppMovedToBackground : ExercisesIntent
     data object OpenDevice : ExercisesIntent
+    data class EnterWorkoutPreparation(val workoutType: WorkoutType) : ExercisesIntent
+    data object SuspendWorkoutPreparation : ExercisesIntent
+    data object ExitWorkoutPreparation : ExercisesIntent
+    data object RefreshWorkoutLocation : ExercisesIntent
+    data class SelectWorkoutCountdown(val seconds: Int) : ExercisesIntent
+    data object StartWorkoutCountdown : ExercisesIntent
+    data object CancelWorkoutCountdown : ExercisesIntent
 }
 
 sealed interface WatchWorkoutImportSurfaceState {

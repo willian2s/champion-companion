@@ -12,6 +12,8 @@ enum class LogEvent(val value: String) {
     BlePacketObserved("ble_packet_observed"),
     BleTransportState("ble_transport_state"),
     BleOperationResult("ble_operation_result"),
+    GpsRuntimeState("workout_gps_state"),
+    WorkoutPointFilterSummary("workout_point_filter_summary"),
 }
 
 /** Debug logger restricted to a fixed, non-sensitive event schema. */
@@ -86,6 +88,22 @@ private fun LogEvent.approvedFields(): Set<String>? = when (this) {
         "byte_count",
         "result",
         "error_code",
+    )
+
+    LogEvent.GpsRuntimeState -> setOf(
+        "generation",
+        "category",
+        "state",
+        "quality_band",
+        "visible_count",
+        "used_count",
+    )
+
+    LogEvent.WorkoutPointFilterSummary -> setOf(
+        "generation",
+        "category",
+        "accepted_count",
+        "rejected_count",
     )
 }
 

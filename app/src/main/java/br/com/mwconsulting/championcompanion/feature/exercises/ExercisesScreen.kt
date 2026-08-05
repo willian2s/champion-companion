@@ -73,6 +73,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButt
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgress
@@ -221,7 +222,7 @@ private fun ExercisesHeader(state: ExercisesUiState) {
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Importe treinos gravados no relógio e mantenha a revisão para depois.",
+                text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

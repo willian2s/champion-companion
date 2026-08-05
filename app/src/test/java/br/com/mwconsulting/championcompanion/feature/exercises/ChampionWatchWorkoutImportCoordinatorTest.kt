@@ -132,10 +132,12 @@ class ChampionWatchWorkoutImportCoordinatorTest {
     ): ChampionWatchWorkoutImportCoordinator = ChampionWatchWorkoutImportCoordinator(
         connectionManager = manager,
         connectionBootstrap = DeviceConnectionBootstrap(manager),
+        diagnosticPayloadRepository = DiagnosticPayloadRepositoryTestDouble(),
         foregroundBleOperationGate = gate,
         workoutActivityRepository = repository,
         bleDispatcher = dispatcher,
         civilNow = { Instant.parse("2026-01-01T00:00:10Z") },
+        isDebugBuild = false,
     )
 
     private fun buildDomainDevice(transportKey: String): Device =

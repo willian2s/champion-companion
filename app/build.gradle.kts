@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.gradle.api.tasks.testing.Test
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties()
@@ -78,6 +79,11 @@ android {
 
 kotlin {
     jvmToolchain(21)
+}
+
+tasks.withType<Test>().configureEach {
+    failFast = true
+    maxParallelForks = minOf(2, Runtime.getRuntime().availableProcessors().coerceAtLeast(1))
 }
 
 dependencies {

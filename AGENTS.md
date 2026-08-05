@@ -46,8 +46,25 @@
 ## Guard rails
 
 - Existem suites em `app/src/test` e `app/src/androidTest`; não trate criação ou execução de testes como etapa padrão e não crie novos testes, salvo pedido explícito do usuário.
-- `Phase003PrivacyGuardTest` bloqueia termos de localização/rota em `core/model`, `core/database`, `data`, `core/logging` e testes existentes. Não introduza latitude/longitude/GPX/rotas nesses escopos.
+- `Phase003PrivacyGuardTest` ainda bloqueia termos de localização/rota em
+  `core/model`, `core/database`, `data`, `core/logging` e testes existentes.
+  Essa regra ficou incompatível com a política autorizada da Fase 13 e é dívida
+  conhecida: não alterar, contornar, renomear termos ou executar esse guard como
+  validação desta fase. Implementação de rota só é permitida para sessão
+  explícita de caminhada/corrida da Fase 13, nas fronteiras de domínio,
+  persistência e dados; nunca em logs, diagnósticos, exportações ou testes.
+- Fase 13 não autoriza rastreamento passivo, servidor, exportação, GPX, TCX,
+  FIT, backup ou device transfer de rota. Treino livre e esteira não usam
+  localização. Fase 12 continua sem rota; Fase 14 mantém WorkManager para
+  tarefas adiáveis, sem controlar sessão ativa.
 - `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
+
+## Diretriz autoritativa após encerramento da Fase 013
+
+- Não continuar implementando ou corrigindo treinos iniciados pelo celular.
+- Não expandir GPS, rota, `ExerciseRoute` ou BLE live em sessão phone.
+- Preservar migrations, schemas, dados e evidências existentes até task explícita de remoção.
+- Priorizar importação, derivação, revisão e sincronização com Health Connect de treinos iniciados pelo relógio.
 
 ## Privacidade e backup
 

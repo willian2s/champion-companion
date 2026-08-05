@@ -1,5 +1,21 @@
 # Inventario Funcional Do MotionLog
 
+## Registro de encerramento da Fase 013
+
+Este inventário permanece referência histórica do MotionLog. A Fase 013 do
+Champion Companion está em `closing`, com resultado previsto
+`partially_delivered` por `product_reorientation`. A direção de treinos phone
+foi descontinuada; a desativação operacional dos pontos de entrada foi
+implementada em `013-17`, com aceite final confirmado por revisão independente.
+Não continuar GPS, rota,
+`ExerciseRoute` ou BLE live em sessão phone. Priorizar importação D3/D4,
+canônica futura usa passos e comprimento pessoal da passada, enquanto distância
+original do relógio fica diagnóstica.
+
+Os registros sobre GPS, rotas, exercícios phone e background abaixo descrevem o
+baseline MotionLog e a execução histórica. Não constituem backlog ativo nem
+autorização para copiar ou expandir esses fluxos.
+
 ## Objetivo
 
 Documentar estrutura geral, telas, funcionalidades, estados, permissoes e backup atual do MotionLog como referencia funcional para paridade futura do Champion Companion.
@@ -184,7 +200,10 @@ Confirmado em `app.config.ts` e `AndroidManifest.xml`:
 - Foreground services: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
 - Notificacoes: `POST_NOTIFICATIONS`.
 - Health Connect: escrita de passos, BPM, exercicio, distancia, calorias, peso e altura.
-- Manifest atual tambem contem `WRITE_EXERCISE_ROUTE`; roadmap do Champion Companion proibe `ExerciseRoute`.
+- Manifest do MotionLog também contém `WRITE_EXERCISE_ROUTE`; isso é referência
+  histórica e não configuração do Champion Companion. ADR-014 autoriza essa
+  capacidade somente para sessão phone explícita de caminhada/corrida na Fase
+  13.
 - `react-native-ble-plx` configurado com `isBackgroundEnabled: true`.
 - `expo-location` configurado com foreground service habilitado e background location desabilitado no config.
 
@@ -347,7 +366,12 @@ Somente caminhada e corrida chamam `Location.watchPositionAsync` em foreground. 
 
 Distancia, velocidade atual/media/maxima e ritmo medio sao derivados dos pontos aceitos. A linha do tempo BPM pode receber metricas derivadas do GPS correspondentes ao instante da amostra. Ao finalizar, runtime de GPS e acumulador sao interrompidos e limpos.
 
-**Regra obrigatoria para Champion Companion:** coordenadas de caminhada/corrida existem somente em memoria durante sessao. Nao persistir latitude, longitude, pontos GPS, polyline, rota, mapa, GPX, TCX ou FIT. Nao enviar `ExerciseRoute` ao Health Connect.
+**Regra histórica do baseline MotionLog:** coordenadas de caminhada/corrida
+existem somente em memória durante a sessão. Para Champion Companion, ADR-014
+autoriza persistência controlada somente em sessão explícita de
+caminhada/corrida; treino livre, esteira, Fase 12 e D3/D4 permanecem sem rota.
+Mapas, GPX, TCX, FIT, servidor, exportação, backup e device transfer continuam
+proibidos.
 
 MotionLog atual ainda possui schema e leitura de rota legada. Fluxo manual atual chama persistencia com `routeSaved: false`, `routeSynced: false` e nao fornece `gpsPoints`; politica de persistencia devolve zero pontos para caminhada/corrida. Isto confirma ausencia de nova rota no fluxo manual, nao elimina dados legados existentes.
 
@@ -359,7 +383,7 @@ Sem relogio, esteira ainda inicia, mas nao ha fonte alternativa de BPM neste flu
 
 #### Finalizacao E Persistencia
 
-Finalizar tenta encerrar sessao/leitura cardiaca, calcula fim, duracao, passos finais/delta, BPM, metricas GPS e estimativas. Caminhada/corrida usam distancia GPS valida; sem distancia valida, codigo usa estimativa por passos para campo de distancia, mas so calcula calorias desses tipos quando GPS valido. Treino livre usa estimativa por passos para distancia/calorias. `free` nao envia distancia pela politica Health Connect; `walking`, `running` e `treadmill` podem enviar distancia, sempre sem rota.
+Finalizar tenta encerrar sessao/leitura cardiaca, calcula fim, duracao, passos finais/delta, BPM, metricas GPS e estimativas. Caminhada/corrida usam distancia GPS valida; sem distancia valida, codigo usa estimativa por passos para campo de distancia, mas so calcula calorias desses tipos quando GPS valido. Treino livre usa estimativa por passos para distancia/calorias. `free` nao envia distancia pela politica Health Connect; `walking`, `running` e `treadmill` podem enviar distancia. No baseline MotionLog esses fluxos não enviam rota; no Champion Companion, somente caminhada/corrida explícita da Fase 13 poderá fazê-lo conforme ADR-014.
 
 Para caminhada, corrida e treino livre, `createExerciseSession` persiste sessao e amostras BPM somente apos finalizacao bem-sucedida. Erro deixa sessao em memoria para nova tentativa enquanto processo estiver vivo. Para esteira, finalizacao nao cria sessao: cria rascunho em memoria e abre calibracao. Confirmar dados do painel cria sessao com `metric_source = treadmill_calibration`; descartar nao persiste nada.
 
@@ -373,14 +397,14 @@ Servico nativo e Foreground Service `connectedDevice`, iniciado/parado por modul
 
 JS tambem registra task oportunista de sync Health Connect com minimo de 15 minutos e fallback no abrir app. Disponibilidade depende das restricoes do dispositivo; erros e estado ficam no repositorio de monitoramento. Acao nativa `Sincronizar agora` somente emite `sync_now_requested`; encaminhamento para sincronizacao efetiva depende de listener JavaScript ativo e nao foi validado em dispositivo.
 
-Para Champion Companion, isto e **referencia do baseline**, nao especificacao de implementacao: roadmap define futuro Foreground Services e WorkManager, mas proibe BLE permanente, sincronizacao agressiva, BPM continuo, D1 ao abrir e retry infinito. `000-14` deve reconciliar comportamento de continuidade de exercicio, notificacao e limites de background antes de implementacao Android.
+Para Champion Companion, isto e **referencia do baseline**, nao especificacao de implementacao: ADR-014 define foreground service mínimo para sessão ativa da Fase 13; Fase 14 reserva WorkManager para tarefas adiáveis. Permanecem proibidos BLE permanente, sincronizacao agressiva, BPM continuo, D1 ao abrir e retry infinito. `013-08` e `013-16` devem validar continuidade, notificacao e limites de background antes da implementação Android.
 
 ### GPS E Privacidade
 
 - Estado: Funcional.
 - Evidencia: `workout-policy.ts`, `location-foreground.ts`, `exercise-session-persistence.ts`, `active.tsx`.
-- Comportamento: GPS usado para metricas em caminhada/corrida; politica Health Connect define `route: false`.
-- Observacao: banco ainda possui campos/tabelas de rota legada; novo app nao deve persistir coordenadas.
+- Comportamento: GPS usado para metricas em caminhada/corrida no baseline; ADR-014 autoriza rota persistida somente para sessão phone explícita desse tipo.
+- Observacao: banco ainda possui campos/tabelas de rota legada; novo app não deve persistir rota fora da política F13.
 
 ### Health Connect
 
@@ -466,19 +490,27 @@ Observacao: nenhuma dependencia Expo ou componente React Native foi copiado para
 | 76. Finalizacao | Coberto | `active.tsx`, `treadmill-calibration.tsx` |
 | 100. Backup e restauracao atuais | Nao confirmado | Docs 013 existem; codigo atual nao encontrado em `src` |
 
-## Lacunas Para Consolidacao Futura
+## Lacunas históricas — não são backlog phone ativo
 
 - Backup/restauracao Firebase nao confirmado no codigo atual.
-- Pausa e retomada de exercicio iniciado pelo celular nao foram encontradas. Decidir em `000-14` se paridade exige criar ambos e como tempo, BPM, GPS e persistencia devem se comportar.
-- Recuperacao de sessao manual/rascunho de esteira apos morte do processo nao existe no fluxo analisado. Definir em `000-14` requisito de recuperacao e descarte seguro.
-- Background do MotionLog usa Foreground Service conectado ao dispositivo, reconexao recorrente e ciclos D1. Champion Companion deve tratar isto somente como referencia e reconciliar com limites do roadmap antes de implementar.
-- Notificacao e continuidade de exercicio iniciado pelo celular em background nao foram implementadas no MotionLog. Definir em `000-14` sem assumir paridade com monitoramento BLE geral.
+- Pausa e retomada de exercicio iniciado pelo celular nao foram encontradas no
+  baseline. O registro permanece histórico; não abrir correção phone na Fase
+  013.
+- Recuperacao de sessao manual/rascunho de esteira apos morte do processo nao
+  existe no fluxo analisado. O registro permanece histórico e não autoriza
+  continuação phone.
+- Background do MotionLog usa Foreground Service conectado ao dispositivo, reconexao recorrente e ciclos D1. Champion Companion deve tratar isto somente como referencia e reconciliar com ADR-014 e limites do roadmap antes de implementar.
+- Notificacao e continuidade de exercicio iniciado pelo celular em background nao foram implementadas no MotionLog. Não reabrir `013-08` por esse registro.
 - Detalhes de parsers BLE, offsets, endianess e CRC ficam fora desta task.
 - Mapeamento completo de Health Connect fica para `000-11`.
 - Banco detalhado e regras por tabela ficam para `000-10`.
 - Fator de calibracao separado para esteira nao existe no codigo analisado. Decidir em `000-14` se novo app deve apenas substituir pela distancia informada, calcular fator persistido ou adotar outra regra; nao inferir uma das opcoes.
-- `WRITE_EXERCISE_ROUTE` existe no MotionLog atual, mas Champion Companion nao deve usar `ExerciseRoute`.
-- Coordenadas e rota legada aparecem no schema do MotionLog; novo app deve evitar latitude, longitude, rotas, polylines e coordenadas brutas.
+- `WRITE_EXERCISE_ROUTE` existe no MotionLog atual; no Champion Companion só
+  pode ser usado pela sessão phone explícita de caminhada/corrida autorizada
+  pela ADR-014.
+- Coordenadas e rota legada aparecem no schema do MotionLog; novo app deve
+  evitar latitude, longitude, rotas, polylines e coordenadas brutas fora da
+  sessão F13 autorizada, e nunca deve expô-las em logs, backup ou exportação.
 
 ## Conclusao
 

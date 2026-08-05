@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -24,6 +25,7 @@ class ChampionBleConnectionManagerTest {
         val client = FakeChampionBleClient()
         val session = testSession()
         client.setOpenResult(ChampionBleResult.Success(session))
+        val parentScope = CoroutineScope(Dispatchers.Default + Job())
         val manager = ChampionConnectionManager(
             scanner = scanner,
             client = client,
@@ -36,48 +38,55 @@ class ChampionBleConnectionManagerTest {
                     ),
                 )
             },
-            parentScope = CoroutineScope(Dispatchers.Default + Job()),
+            parentScope = parentScope,
             timeouts = ChampionBleTimeouts(connect = 200.milliseconds, discovery = 200.milliseconds),
         )
         val states = mutableListOf<ChampionBleState>()
         val collector = launch { manager.state.collect(states::add) }
-        yield()
 
-        val result = async { manager.connect(testDevice()) }
-        awaitCondition { client.attachedQueues.containsKey(session.id) }
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                transportKey = session.transportKey,
-                isConnected = true,
-                detail = null,
-            ),
-        )
-        completeNextQueuedOperation(client, 0)
-        completeNextQueuedOperation(client, 1)
-        completeNextQueuedOperation(client, 2)
+        try {
+            yield()
 
-        val transport = (result.await() as ChampionBleResult.Success).value
-        assertEquals(session.id, transport.session.id)
-        assertNotNull(manager.currentSession())
-        assertTrue(states.any { it is ChampionBleState.Connecting })
-        assertTrue(states.any { it is ChampionBleState.DiscoveringServices })
-        assertTrue(manager.state.value is ChampionBleState.TransportReady)
+            val result = async { manager.connect(testDevice()) }
+            awaitCondition { client.attachedQueues.containsKey(session.id) }
+            client.emit(
+                ChampionGattSessionEvent.ConnectionStateChanged(
+                    sessionId = session.id,
+                    occurredAt = Instant.now(),
+                    transportKey = session.transportKey,
+                    isConnected = true,
+                    detail = null,
+                ),
+            )
+            completeNextQueuedOperation(client, 0)
+            completeNextQueuedOperation(client, 1)
+            completeNextQueuedOperation(client, 2)
 
-        assertEquals(ChampionBleResult.Success(Unit), manager.disconnect())
-        assertTrue(scanner.cancelReasons.contains(ChampionCancellationReason.DISCONNECT))
-        assertEquals(session.id to ChampionDisconnectReason.USER_REQUESTED, client.disconnects.last())
-        assertEquals(session.id, client.closes.last())
-        collector.cancel()
+            val transport = (result.await() as ChampionBleResult.Success).value
+            assertEquals(session.id, transport.session.id)
+            assertNotNull(manager.currentSession())
+            assertTrue(states.any { it is ChampionBleState.Connecting })
+            assertTrue(states.any { it is ChampionBleState.DiscoveringServices })
+            assertTrue(manager.state.value is ChampionBleState.TransportReady)
+
+            assertEquals(ChampionBleResult.Success(Unit), manager.disconnect())
+            assertTrue(scanner.cancelReasons.contains(ChampionCancellationReason.DISCONNECT))
+            assertEquals(session.id to ChampionDisconnectReason.USER_REQUESTED, client.disconnects.last())
+            assertEquals(session.id, client.closes.last())
+        } finally {
+            collector.cancel()
+            runCatching { manager.disconnect(ChampionDisconnectReason.CLEANUP) }
+            parentScope.cancel()
+        }
     }
 
     @Test
-    fun `connect enables every available default subscription before transport ready`() = runBlocking {
+    fun `connect enables every available default subscription`() = runBlocking {
         val scanner = FakeChampionBleScanner()
         val client = FakeChampionBleClient()
         val session = testSession()
         client.setOpenResult(ChampionBleResult.Success(session))
+        val parentScope = CoroutineScope(Dispatchers.Default + Job())
         val manager = ChampionConnectionManager(
             scanner = scanner,
             client = client,
@@ -92,45 +101,48 @@ class ChampionBleConnectionManagerTest {
                     ),
                 )
             },
-            parentScope = CoroutineScope(Dispatchers.Default + Job()),
+            parentScope = parentScope,
             timeouts = ChampionBleTimeouts(connect = 200.milliseconds, discovery = 200.milliseconds),
         )
-        yield()
 
-        val result = async { manager.connect(testDevice()) }
-        awaitCondition { client.attachedQueues.containsKey(session.id) }
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                transportKey = session.transportKey,
-                isConnected = true,
-                detail = null,
-            ),
-        )
-        completeNextQueuedOperation(client, 0)
-        completeNextQueuedOperation(client, 1)
-        completeNextQueuedOperation(client, 2)
-        completeNextQueuedOperation(client, 3)
-        completeNextQueuedOperation(client, 4)
-        completeNextQueuedOperation(client, 5)
+        try {
+            yield()
 
-        val transport = (result.await() as ChampionBleResult.Success).value
-        assertEquals(session.id, transport.session.id)
-        assertEquals(
-            listOf(
-                ChampionChannelAlias.F008_NOTIFY,
-                ChampionChannelAlias.F008_NOTIFY,
-                ChampionChannelAlias.F002_NOTIFY,
-                ChampionChannelAlias.F002_NOTIFY,
-                ChampionChannelAlias.FEA1_NOTIFY,
-                ChampionChannelAlias.FEA1_NOTIFY,
-            ),
-            client.executedOperations.drop(2).map { operation: ChampionGattOperation ->
-                (operation.target as ChampionGattTarget.Channel).alias
-            },
-        )
-        assertTrue(manager.state.value is ChampionBleState.TransportReady)
+            val result = async { manager.connect(testDevice()) }
+            awaitCondition { client.attachedQueues.containsKey(session.id) }
+            client.emit(
+                ChampionGattSessionEvent.ConnectionStateChanged(
+                    sessionId = session.id,
+                    occurredAt = Instant.now(),
+                    transportKey = session.transportKey,
+                    isConnected = true,
+                    detail = null,
+                ),
+            )
+
+            // One discovery operation plus two physical subscription operations per channel.
+            repeat(7) { index ->
+                completeNextQueuedOperation(client, index)
+            }
+
+            val transport = (result.await() as ChampionBleResult.Success).value
+            assertEquals(session.id, transport.session.id)
+
+            val subscriptionOperations = client.executedOperations
+                .drop(1)
+                .map { operation -> (operation.target as ChampionGattTarget.Channel).alias }
+                .groupingBy { it }
+                .eachCount()
+
+            assertEquals(6, subscriptionOperations.values.sum())
+            assertEquals(2, subscriptionOperations[ChampionChannelAlias.F008_NOTIFY])
+            assertEquals(2, subscriptionOperations[ChampionChannelAlias.F002_NOTIFY])
+            assertEquals(2, subscriptionOperations[ChampionChannelAlias.FEA1_NOTIFY])
+            assertTrue(manager.state.value is ChampionBleState.TransportReady)
+        } finally {
+            runCatching { manager.disconnect(ChampionDisconnectReason.CLEANUP) }
+            parentScope.cancel()
+        }
     }
 
     @Test
@@ -139,6 +151,7 @@ class ChampionBleConnectionManagerTest {
         val client = FakeChampionBleClient()
         val session = testSession()
         client.setOpenResult(ChampionBleResult.Success(session))
+        val parentScope = CoroutineScope(Dispatchers.Default + Job())
         val manager = ChampionConnectionManager(
             scanner = scanner,
             client = client,
@@ -151,53 +164,64 @@ class ChampionBleConnectionManagerTest {
                     ),
                 )
             },
-            parentScope = CoroutineScope(Dispatchers.Default + Job()),
+            parentScope = parentScope,
             timeouts = ChampionBleTimeouts(connect = 200.milliseconds, discovery = 200.milliseconds),
         )
-        yield()
 
-        val connectResult = async { manager.connect(testDevice()) }
-        awaitCondition { client.attachedQueues.containsKey(session.id) }
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                transportKey = session.transportKey,
-                isConnected = true,
-                detail = null,
-            ),
-        )
-        completeNextQueuedOperation(client, 0)
-        completeNextQueuedOperation(client, 1)
-        completeNextQueuedOperation(client, 2)
-        connectResult.await()
+        try {
+            yield()
 
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = testSessionId(2),
-                occurredAt = Instant.now(),
-                transportKey = "stale-device",
-                isConnected = false,
-                detail = SafeGattDetail(statusCode = 8, statusLabel = "old"),
-            ),
-        )
-        awaitCondition { manager.state.value is ChampionBleState.TransportReady }
+            val connectResult = async { manager.connect(testDevice()) }
+            awaitCondition { client.attachedQueues.containsKey(session.id) }
+            client.emit(
+                ChampionGattSessionEvent.ConnectionStateChanged(
+                    sessionId = session.id,
+                    occurredAt = Instant.now(),
+                    transportKey = session.transportKey,
+                    isConnected = true,
+                    detail = null,
+                ),
+            )
+            completeNextQueuedOperation(client, 0)
+            completeNextQueuedOperation(client, 1)
+            completeNextQueuedOperation(client, 2)
+            connectResult.await()
 
-        client.emit(
-            ChampionGattSessionEvent.ConnectionStateChanged(
-                sessionId = session.id,
-                occurredAt = Instant.now(),
-                transportKey = session.transportKey,
-                isConnected = false,
-                detail = SafeGattDetail(statusCode = 19, statusLabel = "gone"),
-            ),
-        )
-        awaitCondition { manager.state.value is ChampionBleState.Failed }
+            client.emit(
+                ChampionGattSessionEvent.ConnectionStateChanged(
+                    sessionId = testSessionId(2),
+                    occurredAt = Instant.now(),
+                    transportKey = "stale-device",
+                    isConnected = false,
+                    detail = SafeGattDetail(statusCode = 8, statusLabel = "old"),
+                ),
+            )
+            awaitCondition { manager.state.value is ChampionBleState.TransportReady }
 
-        val failed = manager.state.value as ChampionBleState.Failed
-        assertEquals(ChampionBleError.UnexpectedDisconnect(SafeGattDetail(statusCode = 19, statusLabel = "gone")), failed.error)
-        assertEquals(session.id to ChampionDisconnectReason.TRANSPORT_FAILURE, client.disconnects.last())
-        assertEquals(session.id, client.closes.last())
+            client.emit(
+                ChampionGattSessionEvent.ConnectionStateChanged(
+                    sessionId = session.id,
+                    occurredAt = Instant.now(),
+                    transportKey = session.transportKey,
+                    isConnected = false,
+                    detail = SafeGattDetail(statusCode = 19, statusLabel = "gone"),
+                ),
+            )
+            awaitCondition { manager.state.value is ChampionBleState.Failed }
+
+            val failed = manager.state.value as ChampionBleState.Failed
+            assertEquals(
+                ChampionBleError.UnexpectedDisconnect(
+                    SafeGattDetail(statusCode = 19, statusLabel = "gone"),
+                ),
+                failed.error,
+            )
+            assertEquals(session.id to ChampionDisconnectReason.TRANSPORT_FAILURE, client.disconnects.last())
+            assertEquals(session.id, client.closes.last())
+        } finally {
+            runCatching { manager.disconnect(ChampionDisconnectReason.CLEANUP) }
+            parentScope.cancel()
+        }
     }
 
     private suspend fun completeNextQueuedOperation(client: FakeChampionBleClient, index: Int) {

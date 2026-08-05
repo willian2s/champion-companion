@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEn
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
+import br.com.mwconsulting.championcompanion.core.database.PhoneWorkoutCorrelationCandidateRecord
 import br.com.mwconsulting.championcompanion.core.database.StoredDeviceModel
 import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
@@ -22,6 +23,8 @@ import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummar
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
 import br.com.mwconsulting.championcompanion.core.model.AbsenceReason
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
@@ -36,6 +39,8 @@ import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryId
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryKey
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncPayload
+import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncPayloadKind
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceImportMetadata
@@ -65,6 +70,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.MetricProvenance
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
+import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutCorrelationCandidate
 import br.com.mwconsulting.championcompanion.core.model.SafeDiagnosticError
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
@@ -85,10 +91,18 @@ import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutMetrics
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteMetrics
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegmentReason
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import java.time.Duration
@@ -270,7 +284,9 @@ internal fun WeightMeasurementEntity.toCalendarSummary(): CalendarWeightMeasurem
 
 internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSummary? {
     val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
-    val mappedOrigin = enum<DataOrigin>(origin) ?: return null
+    val mappedOrigin = enum<WorkoutActivityOrigin>(origin)?.toDataOrigin()
+        ?: enum<DataOrigin>(origin)
+        ?: return null
     val mappedSuggestedType = enum<WorkoutType>(suggestedType) ?: return null
     val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
@@ -320,15 +336,45 @@ internal fun HeartRateMeasurementEntity.toDomain(): HeartRateMeasurement? {
     ).successOrNull()
 }
 
-internal fun WorkoutActivity.toEntity() = WorkoutActivityEntity(
-    id.value.toString(), origin.name, deviceId.value.toString(), parserValidity.name, importedAt.toEpochMilli(), parserVersion.value,
-    diagnosticPayloadId?.value?.toString(), metrics.startedAt.toEpochMilli(), metrics.duration.toNanos(), metrics.steps,
-    metrics.caloriesKilocalories.valueOrNull(), metrics.distances.originalMeters.valueOrNull(), metrics.distances.estimatedMeters.valueOrNull(),
-    metrics.distances.calibratedMeters.valueOrNull(), metrics.averagePaceSecondsPerKilometer.valueOrNull(),
-    metrics.averageSpeedMetersPerSecond.valueOrNull(), metrics.calibratedMetrics?.averagePaceSecondsPerKilometer?.valueOrNull(),
-    metrics.calibratedMetrics?.averageSpeedMetersPerSecond?.valueOrNull(), metrics.averageBpm.valueOrNull(), metrics.minimumBpm.valueOrNull(),
-    metrics.maximumBpm.valueOrNull(), suggestedType.name, title, notes, confirmedType?.name, workflowState.name, reviewedAt?.toEpochMilli(), calibrationId?.value?.toString(),
-)
+internal fun WorkoutActivity.toEntity(): WorkoutActivityEntity {
+    val importContext = watchImportContext
+    return WorkoutActivityEntity(
+        id = id.value.toString(),
+        origin = activityOrigin.name,
+        deviceId = associatedDeviceId?.value?.toString(),
+        parserValidity = importContext?.parserValidity?.name,
+        importedAtEpochMillis = importContext?.importedAt?.toEpochMilli(),
+        parserVersion = importContext?.parserVersion?.value,
+        diagnosticPayloadId = importContext?.diagnosticPayloadId?.value?.toString(),
+        startedAtEpochMillis = metrics.startedAt.toEpochMilli(),
+        durationNanos = metrics.duration.toNanos(),
+        steps = metrics.steps,
+        caloriesKilocalories = metrics.caloriesKilocalories.valueOrNull(),
+        originalDistanceMeters = metrics.distances.originalMeters.valueOrNull(),
+        estimatedDistanceMeters = metrics.distances.estimatedMeters.valueOrNull(),
+        calibratedDistanceMeters = metrics.distances.calibratedMeters.valueOrNull(),
+        importedAveragePaceSecondsPerKilometer = metrics.averagePaceSecondsPerKilometer.valueOrNull(),
+        importedAverageSpeedMetersPerSecond = metrics.averageSpeedMetersPerSecond.valueOrNull(),
+        calibratedAveragePaceSecondsPerKilometer = metrics.calibratedMetrics
+            ?.averagePaceSecondsPerKilometer?.valueOrNull(),
+        calibratedAverageSpeedMetersPerSecond = metrics.calibratedMetrics
+            ?.averageSpeedMetersPerSecond?.valueOrNull(),
+        averageBpm = metrics.averageBpm.valueOrNull(),
+        minimumBpm = metrics.minimumBpm.valueOrNull(),
+        maximumBpm = metrics.maximumBpm.valueOrNull(),
+        suggestedType = suggestedType.name,
+        title = title,
+        notes = notes,
+        confirmedType = confirmedType?.name,
+        workflowState = workflowState.name,
+        reviewedAtEpochMillis = reviewedAt?.toEpochMilli(),
+        calibrationId = calibrationId?.value?.toString(),
+        appWorkoutSessionId = appWorkoutSessionId?.value?.toString(),
+        recordedAtEpochMillis = recordedAt.toEpochMilli(),
+        endedAtEpochMillis = metrics.endedAt.toEpochMilli(),
+        stepsAvailable = metrics.stepsAvailable,
+    )
+}
 
 internal fun WatchWorkoutImport.toEntity() = WatchWorkoutImportEntity(
     id.value.toString(), activityId.value.toString(), key.deviceId.value.toString(), key.origin.name, key.crc,
@@ -351,36 +397,61 @@ internal fun WorkoutActivityEntity.toPendingReviewDomain(
 ): WorkoutActivity? = toDomain(importRecord, intervals, samples)
 
 internal fun WorkoutActivityEntity.toDomain(
-    importRecord: WatchWorkoutImportEntity,
+    importRecord: WatchWorkoutImportEntity?,
     intervals: List<WorkoutIntervalEntity>,
     samples: List<WorkoutHeartRateSampleEntity>,
 ): WorkoutActivity? {
     val activityId = uuid(id)?.let(::WorkoutActivityId) ?: return null
-    val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
-    val mappedParserVersion = parserVersion(parserVersion) ?: return null
-    val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return null
+    val mappedOrigin = enum<WorkoutActivityOrigin>(origin) ?: return null
+    val mappedDeviceId = deviceId?.let(::uuid)?.let(::DeviceId)
+    val mappedSessionId = appWorkoutSessionId?.let(::uuid)?.let(::AppWorkoutSessionId)
+    if (deviceId != null && mappedDeviceId == null) return null
+    if (appWorkoutSessionId != null && mappedSessionId == null) return null
+    val importContext = importRecord?.toActivityContext(activityId) ?: run {
+        if (importRecord != null) return null
+        null
+    }
     val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
-    return WorkoutActivity.createPersistedImported(
+    return WorkoutActivity.restore(
         id = activityId,
-        input = WatchWorkoutParserInput(
-            deviceId = mappedDeviceId,
-            crc = importRecord.crc,
-            externalBlockIndex = importRecord.externalBlockIndex,
-            parserVersion = mappedParserVersion,
-            parserValidity = mappedParserValidity,
-            diagnosticPayloadId = diagnosticPayloadId?.let(::uuid)?.let(::DiagnosticPayloadId),
-            metrics = WorkoutMetrics(
-                Instant.ofEpochMilli(startedAtEpochMillis), Duration.ofNanos(durationNanos), steps,
-                caloriesKilocalories.domainValue(), WorkoutDistanceMetrics(originalDistanceMeters.domainValue(), estimatedDistanceMeters.domainValue(), calibratedDistanceMeters.domainValue()),
-                importedAveragePaceSecondsPerKilometer.domainValue(), importedAverageSpeedMetersPerSecond.domainValue(),
-                averageBpm.domainValue(), minimumBpm.domainValue(), maximumBpm.domainValue(),
-                calibratedMetrics = calibratedMetricsOrNull(),
+        activityOrigin = mappedOrigin,
+        associatedDeviceId = mappedDeviceId,
+        appWorkoutSessionId = mappedSessionId,
+        watchImportContext = importContext,
+        recordedAt = Instant.ofEpochMilli(recordedAtEpochMillis),
+        metrics = WorkoutMetrics(
+            startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+            duration = Duration.ofNanos(durationNanos),
+            steps = steps,
+            caloriesKilocalories = caloriesKilocalories.domainValue(),
+            distances = WorkoutDistanceMetrics(
+                originalDistanceMeters.domainValue(),
+                estimatedDistanceMeters.domainValue(),
+                calibratedDistanceMeters.domainValue(),
             ),
-            intervals = intervals.map { WorkoutInterval(it.intervalIndex, Duration.ofNanos(it.durationNanos), it.steps, it.distanceMeters.domainValue(), it.caloriesKilocalories.domainValue()) },
-            heartRateSamples = samples.map { WorkoutHeartRateSample(Instant.ofEpochMilli(it.sampledAtEpochMillis), it.bpm) },
+            averagePaceSecondsPerKilometer = importedAveragePaceSecondsPerKilometer.domainValue(),
+            averageSpeedMetersPerSecond = importedAverageSpeedMetersPerSecond.domainValue(),
+            averageBpm = averageBpm.domainValue(),
+            minimumBpm = minimumBpm.domainValue(),
+            maximumBpm = maximumBpm.domainValue(),
+            calibratedMetrics = calibratedMetricsOrNull(),
+            stepsAvailable = stepsAvailable,
+            endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
         ),
-        importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
+        intervals = intervals.map {
+            WorkoutInterval(
+                it.intervalIndex,
+                Duration.ofNanos(it.durationNanos),
+                it.steps,
+                it.distanceMeters.domainValue(),
+                it.caloriesKilocalories.domainValue(),
+            )
+        },
+        heartRateSamples = samples.map {
+            WorkoutHeartRateSample(Instant.ofEpochMilli(it.sampledAtEpochMillis), it.bpm)
+        },
+        suggestedType = enum<WorkoutType>(suggestedType) ?: return null,
         title = title,
         notes = notes,
         confirmedType = mappedConfirmedType,
@@ -393,19 +464,8 @@ internal fun WorkoutActivityEntity.toDomain(
 internal fun HealthSyncWorkoutCandidateRecord.toHealthSyncCandidateDomain(
     samples: List<WorkoutHeartRateSampleEntity>,
 ): WorkoutActivity? {
-    val importRecord = WatchWorkoutImportEntity(
-        id = importId,
-        activityId = importActivityId,
-        deviceId = importDeviceId,
-        origin = importOrigin,
-        crc = importCrc,
-        externalBlockIndex = importExternalBlockIndex,
-        parserVersion = importParserVersion,
-        parserValidity = importParserValidity,
-        diagnosticPayloadId = importDiagnosticPayloadId,
-        importedAtEpochMillis = importImportedAtEpochMillis,
-    )
-    if (!importRecord.isStructurallyRelatedTo(activity)) return null
+    val importRecord = optionalImportEntity() ?: if (importId == null) null else return null
+    if (importRecord != null && !importRecord.isStructurallyRelatedTo(activity)) return null
     return activity.toDomain(
         importRecord = importRecord,
         intervals = emptyList(),
@@ -417,28 +477,82 @@ private fun WatchWorkoutImportEntity.isStructurallyRelatedTo(
     activity: WorkoutActivityEntity,
 ): Boolean {
     val mappedOrigin = enum<DataOrigin>(origin) ?: return false
-    val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return false
     val mappedDiagnosticPayloadId = diagnosticPayloadId?.let(::uuid)
     if (diagnosticPayloadId != null && mappedDiagnosticPayloadId == null) return false
-    val activityDiagnosticPayloadId = activity.diagnosticPayloadId?.let(::uuid)
-    if (activity.diagnosticPayloadId != null && activityDiagnosticPayloadId == null) return false
 
     return uuid(id) != null &&
         uuid(activityId) != null &&
         uuid(deviceId) != null &&
         activityId == activity.id &&
-        deviceId == activity.deviceId &&
+        (activity.deviceId == null || deviceId == activity.deviceId) &&
         mappedOrigin == DataOrigin.WATCH_D3_D4 &&
-        origin == activity.origin &&
         crc in 1..0xffff &&
         externalBlockIndex >= 0 &&
         parserVersion(parserVersion) != null &&
-        parserVersion == activity.parserVersion &&
-        mappedParserValidity.name == activity.parserValidity &&
-        mappedDiagnosticPayloadId == activityDiagnosticPayloadId &&
-        importedAtEpochMillis == activity.importedAtEpochMillis &&
+        enum<ParserValidity>(parserValidity) != null &&
         importedAtEpochMillis >= activity.startedAtEpochMillis
 }
+
+private fun WatchWorkoutImportEntity.toActivityContext(
+    mappedActivityId: WorkoutActivityId,
+): br.com.mwconsulting.championcompanion.core.model.WatchWorkoutActivityImportContext? {
+    val import = WatchWorkoutImport.restore(
+        id = uuid(id)?.let(::WatchWorkoutImportId) ?: return null,
+        activityId = mappedActivityId,
+        context = br.com.mwconsulting.championcompanion.core.model.WatchWorkoutActivityImportContext(
+            key = br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportKey(
+                deviceId = uuid(deviceId)?.let(::DeviceId) ?: return null,
+                origin = enum<DataOrigin>(origin) ?: return null,
+                crc = crc,
+            ),
+            externalBlockIndex = externalBlockIndex,
+            parserVersion = parserVersion(parserVersion) ?: return null,
+            parserValidity = enum<ParserValidity>(parserValidity) ?: return null,
+            diagnosticPayloadId = diagnosticPayloadId?.let(::uuid)?.let(::DiagnosticPayloadId),
+            importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
+        ),
+    ).successOrNull() ?: return null
+    return import.activityContext
+}
+
+private fun HealthSyncWorkoutCandidateRecord.optionalImportEntity(): WatchWorkoutImportEntity? {
+    if (listOf(
+            importId,
+            importActivityId,
+            importDeviceId,
+            importOrigin,
+            importCrc,
+            importExternalBlockIndex,
+            importParserVersion,
+            importParserValidity,
+            importImportedAtEpochMillis,
+        ).all { it == null }
+    ) return null
+    return WatchWorkoutImportEntity(
+        id = importId ?: return null,
+        activityId = importActivityId ?: return null,
+        deviceId = importDeviceId ?: return null,
+        origin = importOrigin ?: return null,
+        crc = importCrc ?: return null,
+        externalBlockIndex = importExternalBlockIndex ?: return null,
+        parserVersion = importParserVersion ?: return null,
+        parserValidity = importParserValidity ?: return null,
+        diagnosticPayloadId = importDiagnosticPayloadId,
+        importedAtEpochMillis = importImportedAtEpochMillis ?: return null,
+    )
+}
+
+internal fun PhoneWorkoutCorrelationCandidateRecord.toDomain(): PhoneWorkoutCorrelationCandidate? =
+    runCatching {
+        PhoneWorkoutCorrelationCandidate(
+            activityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null,
+            sessionId = uuid(sessionId)?.let(::AppWorkoutSessionId) ?: return null,
+            origin = enum<WorkoutActivityOrigin>(origin) ?: return null,
+            startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+            endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
+            associatedDeviceId = associatedDeviceId?.let(::uuid)?.let(::DeviceId),
+        )
+    }.getOrNull()
 
 internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup? {
     val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
@@ -496,19 +610,140 @@ internal fun WorkoutWorkflowSummaryRecord.toDomain() = WorkoutWorkflowSummary(
 )
 
 internal fun AppWorkoutSessionEntity.toDomain(): AppWorkoutSession? {
-    val session = AppWorkoutSession.create(uuid(id)?.let(::AppWorkoutSessionId) ?: return null, enum<WorkoutType>(type) ?: return null,
-        Instant.ofEpochMilli(createdAtEpochMillis)).successOrNull() ?: return null
-    val aggregates = AppWorkoutSessionAggregates(steps, distanceMeters.domainValue(), caloriesKilocalories.domainValue(),
-        averageBpm.domainValue(), minimumBpm.domainValue(), maximumBpm.domainValue())
-    return session.updateAggregates(aggregates).successOrNull()
+    val mappedAssociatedDeviceId = associatedDeviceId?.let(::uuid)?.let(::DeviceId)
+    if (associatedDeviceId != null && mappedAssociatedDeviceId == null) return null
+    val mappedActivityId = workoutActivityId?.let(::uuid)?.let(::WorkoutActivityId)
+    if (workoutActivityId != null && mappedActivityId == null) return null
+    return AppWorkoutSession.restore(
+        id = uuid(id)?.let(::AppWorkoutSessionId) ?: return null,
+        type = enum<WorkoutType>(type) ?: return null,
+        createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
+        startedAt = startedAtEpochMillis?.let(Instant::ofEpochMilli),
+        endedAt = endedAtEpochMillis?.let(Instant::ofEpochMilli),
+        activeDuration = Duration.ofNanos(activeDurationNanos),
+        pausedDuration = Duration.ofNanos(pausedDurationNanos),
+        activeSince = activeSinceEpochMillis?.let(Instant::ofEpochMilli),
+        pausedSince = pausedSinceEpochMillis?.let(Instant::ofEpochMilli),
+        state = enum<AppWorkoutSessionState>(state) ?: return null,
+        aggregates = AppWorkoutSessionAggregates(
+            steps = steps,
+            distanceMeters = distanceMeters.sessionDomainValue(distanceAbsenceReason) ?: return null,
+            caloriesKilocalories = caloriesKilocalories.sessionDomainValue(caloriesAbsenceReason) ?: return null,
+            averageBpm = averageBpm.sessionDomainValue(averageBpmAbsenceReason) ?: return null,
+            minimumBpm = minimumBpm.sessionDomainValue(minimumBpmAbsenceReason) ?: return null,
+            maximumBpm = maximumBpm.sessionDomainValue(maximumBpmAbsenceReason) ?: return null,
+            stepsAvailable = stepsAvailable,
+        ),
+        workoutActivityId = mappedActivityId,
+        associatedDeviceId = mappedAssociatedDeviceId,
+        revision = revision,
+        runtimeGeneration = runtimeGeneration,
+        lastTransitionAt = Instant.ofEpochMilli(lastTransitionAtEpochMillis),
+    ).successOrNull()
 }
 
 internal fun AppWorkoutSession.toEntity() = AppWorkoutSessionEntity(
-    id.value.toString(), type.name, createdAt.toEpochMilli(), startedAt?.toEpochMilli(), endedAt?.toEpochMilli(),
-    activeDuration.toNanos(), pausedDuration.toNanos(), activeSince?.toEpochMilli(), pausedSince?.toEpochMilli(), state.name,
-    aggregates.steps, aggregates.distanceMeters.valueOrNull(), aggregates.caloriesKilocalories.valueOrNull(),
-    aggregates.averageBpm.valueOrNull(), aggregates.minimumBpm.valueOrNull(), aggregates.maximumBpm.valueOrNull(), workoutActivityId?.value?.toString(),
+    id = id.value.toString(),
+    type = type.name,
+    createdAtEpochMillis = createdAt.toEpochMilli(),
+    startedAtEpochMillis = startedAt?.toEpochMilli(),
+    endedAtEpochMillis = endedAt?.toEpochMilli(),
+    activeDurationNanos = activeDuration.toNanos(),
+    pausedDurationNanos = pausedDuration.toNanos(),
+    activeSinceEpochMillis = activeSince?.toEpochMilli(),
+    pausedSinceEpochMillis = pausedSince?.toEpochMilli(),
+    state = state.name,
+    steps = aggregates.steps,
+    distanceMeters = aggregates.distanceMeters.valueOrNull(),
+    distanceAbsenceReason = aggregates.distanceMeters.absenceReasonOrNull(),
+    caloriesKilocalories = aggregates.caloriesKilocalories.valueOrNull(),
+    caloriesAbsenceReason = aggregates.caloriesKilocalories.absenceReasonOrNull(),
+    averageBpm = aggregates.averageBpm.valueOrNull(),
+    averageBpmAbsenceReason = aggregates.averageBpm.absenceReasonOrNull(),
+    minimumBpm = aggregates.minimumBpm.valueOrNull(),
+    minimumBpmAbsenceReason = aggregates.minimumBpm.absenceReasonOrNull(),
+    maximumBpm = aggregates.maximumBpm.valueOrNull(),
+    maximumBpmAbsenceReason = aggregates.maximumBpm.absenceReasonOrNull(),
+    workoutActivityId = workoutActivityId?.value?.toString(),
+    lastTransitionAtEpochMillis = lastTransitionAt.toEpochMilli(),
+    associatedDeviceId = associatedDeviceId?.value?.toString(),
+    revision = revision,
+    runtimeGeneration = runtimeGeneration,
+    stepsAvailable = aggregates.stepsAvailable,
 )
+
+internal fun WorkoutRoute.toEntity() = WorkoutRouteEntity(
+    id = id.value.toString(),
+    sessionId = sessionId.value.toString(),
+    workoutType = workoutType.name,
+    state = state.name,
+    startedAtEpochMillis = startedAt.toEpochMilli(),
+    endedAtEpochMillis = endedAt?.toEpochMilli(),
+    acceptedPointCount = metrics.acceptedPointCount,
+    segmentCount = metrics.segmentCount,
+    distanceMeters = metrics.distanceMeters,
+    averageHorizontalAccuracyMeters = metrics.averageHorizontalAccuracyMeters,
+    revision = revision,
+)
+
+internal fun WorkoutRouteEntity.toDomain(): WorkoutRoute? {
+    return WorkoutRoute.restore(
+        id = uuid(id)?.let(::WorkoutRouteId) ?: return null,
+        sessionId = uuid(sessionId)?.let(::AppWorkoutSessionId) ?: return null,
+        workoutType = enum<WorkoutType>(workoutType) ?: return null,
+        state = enum<WorkoutRouteState>(state) ?: return null,
+        startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+        endedAt = endedAtEpochMillis?.let(Instant::ofEpochMilli),
+        metrics = runCatching {
+            WorkoutRouteMetrics(
+                acceptedPointCount = acceptedPointCount,
+                segmentCount = segmentCount,
+                distanceMeters = distanceMeters,
+                averageHorizontalAccuracyMeters = averageHorizontalAccuracyMeters,
+            )
+        }.getOrNull() ?: return null,
+        revision = revision,
+    ).successOrNull()
+}
+
+internal fun WorkoutRoutePoint.toEntity(
+    segmentStartReason: WorkoutRouteSegmentReason? = null,
+    segmentStartedAt: Instant? = null,
+    segmentDistanceMeters: Double? = null,
+) = WorkoutRoutePointEntity(
+    id = id.value.toString(),
+    routeId = routeId.value.toString(),
+    sequence = sequence,
+    sampledAtEpochMillis = sampledAt.toEpochMilli(),
+    latitudeDegrees = latitudeDegrees,
+    longitudeDegrees = longitudeDegrees,
+    altitudeMeters = altitudeMeters,
+    horizontalAccuracyMeters = horizontalAccuracyMeters,
+    verticalAccuracyMeters = verticalAccuracyMeters,
+    speedMetersPerSecond = speedMetersPerSecond,
+    bearingDegrees = bearingDegrees,
+    segmentIndex = segmentIndex,
+    segmentStartReason = segmentStartReason?.name,
+    segmentStartedAtEpochMillis = segmentStartedAt?.toEpochMilli(),
+    segmentDistanceMeters = segmentDistanceMeters,
+)
+
+internal fun WorkoutRoutePointEntity.toDomain(): WorkoutRoutePoint? {
+    return WorkoutRoutePoint.create(
+        id = uuid(id)?.let(::WorkoutRoutePointId) ?: return null,
+        routeId = uuid(routeId)?.let(::WorkoutRouteId) ?: return null,
+        sequence = sequence,
+        sampledAt = Instant.ofEpochMilli(sampledAtEpochMillis),
+        latitudeDegrees = latitudeDegrees,
+        longitudeDegrees = longitudeDegrees,
+        altitudeMeters = altitudeMeters,
+        horizontalAccuracyMeters = horizontalAccuracyMeters,
+        verticalAccuracyMeters = verticalAccuracyMeters,
+        speedMetersPerSecond = speedMetersPerSecond,
+        bearingDegrees = bearingDegrees,
+        segmentIndex = segmentIndex,
+    ).successOrNull()
+}
 
 internal fun HealthSyncOperation.toEntity() = HealthSyncOperationEntity(
     id = id.value.toString(),
@@ -525,10 +760,19 @@ internal fun HealthSyncOperation.toEntity() = HealthSyncOperationEntity(
     timeZoneId = timeZoneId,
     createdAtEpochMillis = createdAt?.toEpochMilli(),
     updatedAtEpochMillis = updatedAt?.toEpochMilli(),
+    operationSequence = dailyStepsPayload?.sequence ?: 0L,
+    dailyStepsPayloadKind = dailyStepsPayload?.kind?.name,
+    previousTotalSteps = dailyStepsPayload?.previousTotalSteps,
+    currentTotalSteps = dailyStepsPayload?.currentTotalSteps,
+    stepDelta = dailyStepsPayload?.stepDelta,
+    stepStartTimeEpochMillis = dailyStepsPayload?.startTime?.toEpochMilli(),
+    stepEndTimeEpochMillis = dailyStepsPayload?.endTime?.toEpochMilli(),
 )
 
 internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     val aggregate = toHealthSyncAggregate(aggregateType, aggregateId) ?: return null
+    val dailyStepsPayload = toDailyStepsSyncPayload()
+    if (dailyStepsPayload == null && hasAnyDailyStepsPayloadField()) return null
     var operation = HealthSyncOperation.create(
         id = uuid(id)?.let(::HealthSyncOperationId) ?: return null,
         key = HealthSyncOperationKey(aggregate, enum<HealthSyncRecordType>(recordType) ?: return null),
@@ -536,6 +780,7 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
         clientRecordVersion = clientRecordVersion,
         syncedAt = syncedAtEpochMillis?.let(Instant::ofEpochMilli),
         timeZoneId = timeZoneId,
+        dailyStepsPayload = dailyStepsPayload,
         createdAt = createdAtEpochMillis?.let(Instant::ofEpochMilli),
         updatedAt = updatedAtEpochMillis?.let(Instant::ofEpochMilli),
     ).successOrNull() ?: return null
@@ -550,6 +795,30 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     }
     return operation
 }
+
+private fun HealthSyncOperationEntity.toDailyStepsSyncPayload(): DailyStepsSyncPayload? {
+    if (!hasAnyDailyStepsPayloadField()) return null
+    return runCatching {
+        DailyStepsSyncPayload(
+            kind = enum<DailyStepsSyncPayloadKind>(dailyStepsPayloadKind) ?: return null,
+            sequence = operationSequence,
+            previousTotalSteps = previousTotalSteps ?: return null,
+            currentTotalSteps = currentTotalSteps ?: return null,
+            stepDelta = stepDelta ?: return null,
+            startTime = stepStartTimeEpochMillis?.let(Instant::ofEpochMilli) ?: return null,
+            endTime = stepEndTimeEpochMillis?.let(Instant::ofEpochMilli) ?: return null,
+            timeZoneId = timeZoneId ?: return null,
+        )
+    }.getOrNull()
+}
+
+private fun HealthSyncOperationEntity.hasAnyDailyStepsPayloadField(): Boolean =
+    dailyStepsPayloadKind != null ||
+        previousTotalSteps != null ||
+        currentTotalSteps != null ||
+        stepDelta != null ||
+        stepStartTimeEpochMillis != null ||
+        stepEndTimeEpochMillis != null
 
 internal fun HealthSyncSummaryRecord.toDomain() = HealthSyncSummary(
     pendingCount = pendingCount,
@@ -624,14 +893,33 @@ private fun parserVersion(value: String): ParserVersion? = ParserVersion.create(
 private inline fun <reified T : Enum<T>> enum(value: String?): T? = value?.let { runCatching { enumValueOf<T>(it) }.getOrNull() }
 private fun <T> DomainResult<T>.successOrNull(): T? = (this as? DomainResult.Success)?.value
 private fun <T> DomainValue<T>.valueOrNull(): T? = (this as? DomainValue.Present)?.value
+private fun <T> DomainValue<T>.absenceReasonOrNull(): String? = (this as? DomainValue.Absent)?.reason?.name
 private fun Double?.domainValue(): DomainValue<Double> = if (this == null) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(this)
 private fun Int?.domainValue(): DomainValue<Int> = if (this == null) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(this)
+private fun Double?.sessionDomainValue(absenceReason: String?): DomainValue<Double>? = when {
+    this != null && absenceReason == null -> DomainValue.Present(this)
+    this == null && absenceReason != null -> enum<AbsenceReason>(absenceReason)?.let { DomainValue.Absent(it) }
+    else -> null
+}
+private fun Int?.sessionDomainValue(absenceReason: String?): DomainValue<Int>? = when {
+    this != null && absenceReason == null -> DomainValue.Present(this)
+    this == null && absenceReason != null -> enum<AbsenceReason>(absenceReason)?.let { DomainValue.Absent(it) }
+    else -> null
+}
 private fun WorkoutActivityEntity.calibratedMetricsOrNull(): CalibratedWorkoutMetrics? = when {
     calibratedAveragePaceSecondsPerKilometer == null && calibratedAverageSpeedMetersPerSecond == null -> null
     else -> CalibratedWorkoutMetrics(
         averagePaceSecondsPerKilometer = calibratedAveragePaceSecondsPerKilometer.domainValue(),
         averageSpeedMetersPerSecond = calibratedAverageSpeedMetersPerSecond.domainValue(),
     )
+}
+
+private fun WorkoutActivityOrigin.toDataOrigin(): DataOrigin = when (this) {
+    WorkoutActivityOrigin.WATCH_D3_D4 -> DataOrigin.WATCH_D3_D4
+    WorkoutActivityOrigin.PHONE_GPS,
+    WorkoutActivityOrigin.PHONE_TREADMILL,
+    WorkoutActivityOrigin.PHONE_FREE_WORKOUT,
+    -> DataOrigin.APP_WORKOUT_SESSION
 }
 
 private fun TreadmillCalibrationEntity.factorDomainValue(): DomainValue<Double> = when {

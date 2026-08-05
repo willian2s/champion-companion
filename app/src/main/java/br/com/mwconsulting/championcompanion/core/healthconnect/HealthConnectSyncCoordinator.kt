@@ -2,7 +2,6 @@ package br.com.mwconsulting.championcompanion.core.healthconnect
 
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
-import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
@@ -97,7 +96,6 @@ interface HealthConnectSyncCoordinator {
 @Singleton
 class DefaultHealthConnectSyncCoordinator @Inject constructor(
     private val appPreferencesRepository: AppPreferencesRepository,
-    private val dailySummaryRepository: DailySummaryRepository,
     private val heartRateRepository: HeartRateRepository,
     private val workoutActivityRepository: WorkoutActivityRepository,
     private val personalMetricsRepository: PersonalMetricsRepository,
@@ -374,10 +372,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
     }
 
     private suspend fun loadAndMap(operation: HealthSyncOperation): HealthRecordMappingResult = when (val aggregate = operation.key.aggregate) {
-        is HealthSyncAggregate.DailySummary -> when (val summary = dailySummaryRepository.findById(aggregate.summaryId)) {
-            is RepositoryResult.Success -> healthRecordMapper.mapDailySummary(operation, summary.value)
-            else -> HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, "Resumo diário não encontrado para sync.")
-        }
+        is HealthSyncAggregate.DailySummary -> healthRecordMapper.mapDailySummary(operation)
 
         is HealthSyncAggregate.HeartRateMeasurement -> when (val measurement = heartRateRepository.findById(aggregate.measurementId)) {
             is RepositoryResult.Success -> healthRecordMapper.mapHeartRateMeasurement(operation, measurement.value)
