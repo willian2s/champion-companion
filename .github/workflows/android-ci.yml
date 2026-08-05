@@ -32,5 +32,4 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Run Android checks
-        run: ./gradlew lint assembleDebug
-        # A suíte unitária completa ainda possui testes legados que não compilam.
+        run: ./gradlew lint testDebugUnitTest assembleDebug
