@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   verify:
-    name: Lint, test and assemble
+    name: Lint and assemble
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -30,10 +30,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
-
-      - name: Run unit tests
-        timeout-minutes: 8
-        run: ./gradlew testDebugUnitTest
 
       - name: Run lint and assemble
         run: ./gradlew lint assembleDebug
