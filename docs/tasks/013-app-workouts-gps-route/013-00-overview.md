@@ -1,10 +1,10 @@
 # 013 — Exercícios iniciados pelo Champion Companion com GPS e rota
 
-- **Status geral:** closing
-- **Outcome previsto:** `partially_delivered`
+- **Status geral:** closed
+- **Outcome:** `partially_delivered`
 - **Motivo do encerramento:** `product_reorientation`
 - **Spec:** [013-app-workouts-gps-route.md](../../specs/013-app-workouts-gps-route.md)
-- **Progresso:** 8 `completed` / 8 `cancelled` / 1 `in_progress` (17 subtarefas)
+- **Progresso:** 9 `completed` / 8 `cancelled` / 0 `in_progress` (17 subtarefas)
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 - [ ] [013-14-sync-phone-session-route-and-metrics-with-health-connect.md](013-14-sync-phone-session-route-and-metrics-with-health-connect.md)
 - [ ] [013-15-integrate-exercises-calendar-details-states-and-accessibility.md](013-15-integrate-exercises-calendar-details-states-and-accessibility.md)
 - [ ] [013-16-run-manual-physical-gps-watch-health-connect-validation.md](013-16-run-manual-physical-gps-watch-health-connect-validation.md)
-- [ ] [013-17-close-app-workouts-gps-route-phase.md](013-17-close-app-workouts-gps-route-phase.md)
+- [x] [013-17-close-app-workouts-gps-route-phase.md](013-17-close-app-workouts-gps-route-phase.md)
 
 ## Matriz de encerramento
 
@@ -50,20 +50,21 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 | 013-14 | `cancelled` | Não executada; sem `ExerciseRoute` ou sync de rota phone | Reorientação de produto | Health Connect granular de treinos do relógio na Fase 014, se redefinido |
 | 013-15 | `cancelled` | Não executada; sem integração de superfícies phone específica | Reorientação de produto | Redefinição de revisão/calendário do relógio na Fase 014 |
 | 013-16 | `cancelled` | Não executada; sem gate físico integral phone/GPS/Health Connect | Reorientação de produto | Encerrar novos gates físicos phone; futura validação explícita do relógio |
-| 013-17 | `in_progress` | Guard central, bloqueios de entrada/runtime phone e recovery histórico seguro implementados; revisão independente pendente | Aceite final depende somente de revisão independente | Preservar sessões/dados/legado; fechamento final `partially_delivered` somente após revisão |
+| 013-17 | `completed` | Guard central, bloqueios de entrada/runtime phone e recovery histórico seguro implementados e revisados | Reorientação de produto encerrada com preservação histórica | Preservar sessões/dados/legado; Fase 013 fechada como `partially_delivered` |
 
 ## Observações
 
-- A matriz acima é o estado atual autoritativo: `8 completed`, `8 cancelled` e
-  `1 in_progress`. Registros abaixo preservam histórico de execuções anteriores
+- A matriz acima é o estado atual autoritativo: `9 completed`, `8 cancelled` e
+  `0 in_progress`. Registros abaixo preservam histórico de execuções anteriores
   e podem mencionar progressos/status que eram verdadeiros naquele momento.
-- A Fase 013 está `closing`, não concluída. `013-17` permanece `in_progress`;
-  nenhum item foi marcado por ausência de implementação ou evidência.
+- A Fase 013 está `closed`, com resultado `partially_delivered` por
+  `product_reorientation`. `013-17` foi concluída após validação e revisão;
+  itens cancelados permanecem desmarcados.
 - O Bloco B foi implementado nesta execução: entradas, criação/retomada,
   foreground service, GPS, rota e BLE phone estão bloqueados por política
-  central. O aceite final depende somente de revisão independente. O Bloco C
+  central. O aceite final foi confirmado por revisão independente. O Bloco C
   preserva migrations, schemas, sessões, dados e evidências. O Bloco D registrará
-  `partially_delivered` após essa revisão.
+  `partially_delivered`; esse encerramento foi concluído.
 - Gate D foi encerrado como `PASS/N/A`, pois não havia sessão phone histórica
   elegível e o cenário não pode ser fabricado com segurança. Gate E passou com
   importação real do relógio (`inseridos 1`, `parciais 1`) e atividade pendente

@@ -6,7 +6,7 @@
   `product_reorientation`.
 - Treinos iniciados pelo celular, GPS, rota, `ExerciseRoute` e BLE live não são
   backlog ativo. A desativação operacional dos pontos de entrada phone foi
-  implementada em `013-17`; aceite final aguarda revisão independente.
+  implementada em `013-17`; aceite final foi confirmado por revisão independente.
 - Migrations, schemas, sessões, dados e evidências devem ser preservados até
   autorização explícita de remoção; lacunas físicas históricas não viram
   sucesso por cancelamento.

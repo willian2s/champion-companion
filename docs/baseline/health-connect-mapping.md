@@ -10,7 +10,7 @@ canônica deverá usar passos válidos e comprimento pessoal da passada; a
 distância original do relógio permanece somente diagnóstica.
 
 A desativação operacional dos pontos de entrada phone foi implementada em
-`013-17`, com aceite final pendente de revisão independente. As seções históricas
+`013-17`, com aceite final confirmado por revisão independente. As seções históricas
 de rota phone abaixo não são backlog ativo. WorkManager fica fora do objetivo
 funcional da Fase 014 e pode ser usado somente para trabalho finito e adiável.
 Infraestrutura, filas, dados e evidências existentes devem ser preservados.

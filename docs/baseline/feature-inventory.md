@@ -6,7 +6,7 @@ Este inventário permanece referência histórica do MotionLog. A Fase 013 do
 Champion Companion está em `closing`, com resultado previsto
 `partially_delivered` por `product_reorientation`. A direção de treinos phone
 foi descontinuada; a desativação operacional dos pontos de entrada foi
-implementada em `013-17`, com aceite final pendente de revisão independente.
+implementada em `013-17`, com aceite final confirmado por revisão independente.
 Não continuar GPS, rota,
 `ExerciseRoute` ou BLE live em sessão phone. Priorizar importação D3/D4,
 canônica futura usa passos e comprimento pessoal da passada, enquanto distância

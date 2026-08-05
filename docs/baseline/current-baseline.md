@@ -6,7 +6,7 @@
   `partially_delivered` e motivo `product_reorientation`.
 - Treinos iniciados pelo celular foram descontinuados como direção de produto.
   A desativação operacional dos pontos de entrada phone foi implementada em
-  `013-17`; aceite final permanece pendente de revisão independente.
+  `013-17`; aceite final foi confirmado por revisão independente.
 - GPS, rota, `ExerciseRoute` e BLE live não devem ser ampliados em sessão phone.
   Migrations, schemas, sessões, dados e evidências existentes permanecem
   preservados até task explícita de remoção.

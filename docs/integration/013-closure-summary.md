@@ -1,8 +1,8 @@
 # Resumo de encerramento da Fase 013
 
 - **Fase:** `013`
-- **Status:** `closing`
-- **Resultado previsto:** `partially_delivered`
+- **Status:** `closed`
+- **Resultado:** `partially_delivered`
 - **Motivo:** `product_reorientation`
 - **Data do registro:** 2026-08-05
 
@@ -83,8 +83,8 @@ política de distância e evidências sanitizadas.
 - `013-11` registrou divergência de estado após desconexão; reconexão, conflito,
   rollover, recuperação, handoff e screenshots permanecem sem aceite.
 - A desativação operacional está implementada; Gate D foi encerrado como
-  `PASS/N/A` e Gate E passou com importação real. `013-17` aguarda somente
-  revisão independente antes de ser concluída.
+  `PASS/N/A` e Gate E passou com importação real. `013-17` foi concluída após
+  revisão independente.
 
 Incompleto não significa aprovado. Os bloqueios permanecem riscos residuais e
 não devem ser reabertos como backlog ativo da Fase 013.

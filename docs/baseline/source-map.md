@@ -6,7 +6,7 @@ O mapa permanece histórico e conceitual. A Fase 013 está em `closing`, com
 resultado previsto `partially_delivered` por `product_reorientation`. Treinos
 phone, GPS, rota, `ExerciseRoute` e BLE live não devem ser ampliados; a
 desativação operacional dos pontos de entrada phone foi implementada em
-`013-17`, com aceite final pendente de revisão independente.
+`013-17`, com aceite final confirmado por revisão independente.
 
 O destino prioritário passa a ser importação D3/D4 de treinos iniciados pelo
 relógio, derivação de métricas, revisão e sincronização Health Connect. Distância

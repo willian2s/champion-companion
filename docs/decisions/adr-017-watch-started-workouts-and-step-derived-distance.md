@@ -133,4 +133,4 @@ até a execução operacional de `013-17`.
 `013-17` implementou desativação fail-closed dos pontos de entrada e do runtime
 phone, sem remover legado, dados, migrations, schemas ou evidências. Importação,
 revisão e sincronização de treinos iniciados pelo relógio permanecem preservadas.
-O aceite final da subtarefa ainda aguarda revisão independente.
+O aceite final da subtarefa foi confirmado por revisão independente.

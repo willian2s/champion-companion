@@ -1,15 +1,16 @@
 # Fase 13 — Exercícios iniciados pelo Champion Companion com GPS e rota
 
 - **Ticker:** `013`
-- **Status:** closing
-- **Outcome previsto:** `partially_delivered`
+- **Status:** closed
+- **Outcome:** `partially_delivered`
 - **Motivo do encerramento:** `product_reorientation`
 - **Base:** Fases 12 e 15 concluídas; Fase 14 posterior
 
 ## Encerramento documental — estado atual
 
-- **Status atual:** `closing`. A Fase 013 não está concluída; o overview
-  permanece com `8 completed`, `8 cancelled` e `1 in_progress`.
+- **Status atual:** `closed`. A Fase 013 foi encerrada como
+  `partially_delivered`; o overview reflete `9 completed`, `8 cancelled` e
+  `0 in_progress`.
 - **Resultado parcial:** contratos, preparação, migration/schema, readiness,
   captura GPS/rota, métricas e parte da base de sessão/FGS foram entregues ou
   preservados em graus diferentes. O resultado da fase é

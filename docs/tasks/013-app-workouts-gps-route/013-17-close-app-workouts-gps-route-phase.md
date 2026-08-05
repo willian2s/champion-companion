@@ -2,17 +2,16 @@
 
 - **Ticker:** `013`
 - **Número:** `17`
-- **Status:** in_progress
-- **Outcome previsto:** `partially_delivered`
+- **Status:** completed
+- **Outcome:** `partially_delivered`
 - **Motivo do encerramento:** `product_reorientation`
 
 ## Objetivo e resultado esperado
 
 Reconciliar documentação com estado entregue e registrar o encerramento da
-direção de treinos iniciados pelo celular sem declarar a Fase 013 concluída nem
-iniciar a Fase 014. Resultado esperado desta subtarefa: spec, overview, roadmap,
-baselines, ADR, resumo de integração e regras operacionais refletem o resultado
-`partially_delivered`, os cancelamentos e os limites reais.
+direção de treinos iniciados pelo celular sem iniciar a Fase 014. Resultado desta
+subtarefa: spec, overview, roadmap, baselines, ADR, resumo de integração e regras
+operacionais refletem `partially_delivered`, cancelamentos e limites reais.
 
 ## Contexto
 
@@ -87,17 +86,17 @@ não deve ser confundida com limpeza do código phone.
 
 ### A — Encerramento documental
 
-Estado: concluído documentalmente nesta execução. Status `closing`, resultado
+Estado: concluído documentalmente nesta execução. Status `closed`, resultado
 `partially_delivered`, motivo `product_reorientation`, matriz de 17 itens,
 spec, overview, roadmap, baselines, ADR-017 e resumo de integração estão
-alinhados. `013-17` permanece `in_progress` até revisão independente.
+alinhados. `013-17` foi concluída após validação e revisão independente.
 
 ### B — Desativação operacional dos pontos de entrada phone
 
 Estado: implementado nesta execução. Guard central bloqueia entrada, criação,
 retomada, FGS, ownership, GPS, rota e BLE phone; recovery histórico preserva
 dados e permite somente descarte seguro quando suportado. Revisão independente
-final permanece pendente.
+final foi concluída.
 
 ### C — Preservação de sessões e dados existentes
 
@@ -108,10 +107,10 @@ preservados até autorização explícita de remoção. Cancelamento de direçã
 
 ### D — Encerramento final `partially_delivered`
 
-Estado: pendente somente pela revisão independente final. Evidência de B e C
+Estado: concluído após revisão independente final. Evidência de B e C
 está registrada; Gate D foi `PASS/N/A` por ausência de sessão histórica e Gate E
-passou com importação real D3/D4. Até revisão, Fase 013 permanece `closing` e
-esta subtarefa permanece `in_progress`.
+passou com importação real D3/D4. Fase 013 está `closed` como
+`partially_delivered`.
 
 ## Passos de implementação
 
@@ -125,11 +124,11 @@ esta subtarefa permanece `in_progress`.
 7. Não alterar protocolos históricos `013-08`/`013-11`, migrations ou schemas.
 8. Executar validação estática e gates manuais autorizados, sem testes
    automatizados.
-9. Manter `013-17` em `in_progress` e o checklist sem conclusão.
+9. Marcar `013-17` como `completed` somente após validação e revisão.
 
 ## Critérios de aceite
 
-- status/progresso/checklist correspondem a `8/8/1` (`completed/cancelled/in_progress`);
+- status/progresso/checklist correspondem a `9/8/0` (`completed/cancelled/in_progress`);
 - F12 não é reescrita como route-capable;
 - F14 é redefinida para refinamento de treinos do relógio; WorkManager fica
   somente como detalhe técnico finito/adiável;
@@ -170,7 +169,7 @@ Referenciar screenshots da 013-16; não criar evidência nova sem execução.
 ## Definição de pronto
 
 Bloco A reconciliado, Bloco B implementado, Bloco C preservado, overview com 17
-itens e `013-17` ainda `in_progress` até revisão independente.
+itens, `013-17` concluída e Fase 013 fechada como `partially_delivered`.
 
 ## Riscos e cuidados
 
@@ -326,8 +325,8 @@ adb devices — PASS; dispositivo Galaxy S22 disponível
 
 ### Status, decisões e riscos
 
-- `013-17` permanece `in_progress`; item do checklist permanece `[ ]` até revisão
-  independente confirmar os critérios. Fase 013 permanece `closing`.
+- `013-17` está `completed`; item do checklist está `[x]` após revisão
+  independente confirmar os critérios. Fase 013 está `closed`.
 - Classes, modelos e estruturas phone legadas permanecem deliberadamente no
   código para leitura, compatibilidade e preservação histórica.
 - Risco residual: Gate B não reproduziu retorno de back stack real; consumidores
