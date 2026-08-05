@@ -5,21 +5,19 @@
 
 ## Contexto
 
-ADR-017 definiu direção de produto: Champion C001 controla início e fim, a
+A ADR-017 definiu a direção de produto: Champion C001 controla início e fim, a
 distância canônica de `WATCH_D3_D4` deriva de passos válidos e comprimento
-pessoal do passo, e sincronização permanece explícita. Estado atual mistura
-valores brutos, interpretações medidas e métricas calculadas; intervalos têm
-duração fixa; Health Connect recompõe um agregado mutável na hora do envio.
+pessoal do passo, e sincronização permanece explícita. O estado atual mistura
+valores raw, interpretações medidas e métricas calculadas; intervalos têm duração
+fixa e o Health Connect recompõe um agregado mutável no envio.
 
-Esta ADR define mecanismo durável para reprodução, temporalidade e idempotência.
-Não redefine abandono de treinos phone, fórmula de produto, política write-only
-geral nem limites de GPS/rota já registrados na ADR-017 e ADR-012.
+Esta ADR define mecanismo durável para reprodução, temporalidade, compatibilidade
+com legado e idempotência. Não redefine o abandono de treinos phone, a política
+write-only geral nem os limites de GPS/rota já registrados.
 
 ## Decisão
 
-### 1. Separação raw, measured e derived
-
-Dados de treino obedecem fluxo unidirecional:
+### 1. Fluxo raw, measured, derived e projection
 
 ```text
 raw de origem
@@ -31,135 +29,225 @@ derived snapshot
 filhos Health Connect
 ```
 
-- **Raw:** valor recebido, sem semântica não comprovada.
-- **Measured:** fato normalizado com semântica confirmada, incluindo passos
-  decodificados, timestamps, BPM e totais elegíveis.
-- **Derived:** distância canônica, duração efetiva, cadência, velocidade, ritmo,
-  acumulado, splits e motivos tipados de ausência.
+- **Raw:** valor recebido sem semântica não comprovada.
+- **Measured:** fato normalizado com semântica confirmada.
+- **Derived:** duração efetiva, distância canônica, cadência, velocidade, ritmo,
+  acumulado, splits, plausibilidade e motivos tipados de ausência.
+- **Projection:** payload congelado e identidade de cada record remoto.
 
-Revisão do usuário não sobrescreve raw ou measured. Reimportação pode substituir
-revisão measured somente preservando fatos históricos exigidos pela ADR-016 e
-sem mudar snapshot usado por operação em retry.
+Revisão do usuário não sobrescreve raw ou measured. Retry remoto nunca recalcula
+a atividade mutável.
 
 ### 2. `stepLengthMeters`
 
-Contratos novos usam `stepLengthMeters` para distância de um passo individual.
-Valor pessoal precisa ser positivo, finito, persistido com origem e confirmado
-explicitamente. Sugestão não aceita não é perfil. Valor de referência pessoal
-não é constante global nem fallback.
+Contratos novos usam `stepLengthMeters` para a distância de um passo individual.
+O valor precisa ser positivo, finito, persistido com origem e confirmado
+explicitamente. Sugestão não aceita não é perfil. Valor pessoal de referência não
+é constante global nem fallback.
 
 ### 3. Snapshot por atividade
 
-Derivação de cada atividade congela pelo menos:
+Cada derivação congela pelo menos:
 
-- atividade e revisão measured de origem;
 - `stepLengthMetersUsed`;
 - `stepLengthSource`;
 - `derivationMethod = FIXED_PERSONAL_STEP_LENGTH`;
 - `derivationVersion`;
 - `derivedAt` para auditoria;
-- política temporal e resultado/ausência da série.
+- política temporal, elegibilidade e plausibilidade;
+- série derivada ou motivo de ausência.
 
-Mudança posterior de perfil não altera snapshot. `derivedAt` não é versão de
-record remoto. Versão do parser e versão da derivação são conceitos distintos.
+Mudança posterior de perfil não altera snapshot. `derivedAt`, parser version e
+client record version são conceitos distintos.
 
-### 4. Último intervalo parcial
+### 4. Compatibilidade `d4-v1` e `d4-v2`
 
-Com duração total `T`, `N` intervalos e quantum `Q = 60 s`:
+O parser histórico `d4-v1` persistiu o u24 empacotado de `bytes[7..9]` no campo
+legado `steps`. A evolução aditiva pode copiar esse valor para `rawMotionValue`
+apenas quando origem e parser version forem conhecidos. Isso não é decodificação
+nem backfill derivado.
 
-- `T == NQ`: todos os intervalos usam `Q`;
+O parser corrigido usa nova versão, inicialmente `d4-v2`, e produz:
+
+```text
+rawMotionValue = u24 LE bytes[7..9]
+decodedSteps = rawMotionValue ushr 16
+```
+
+Os 16 bits inferiores, distância temporal raw e calorias temporais raw permanecem
+sem semântica funcional comprovada.
+
+### 5. Índices e duração efetiva
+
+A série V1 exige índices únicos e contínuos `0..N-1`. Lacuna, duplicata, primeiro
+índice não zero ou ordem inconsistente torna a série inelegível, preservando os
+fatos.
+
+Com duração total `T`, `N` intervalos elegíveis e quantum `Q = 60 s`:
+
+- `T == NQ`: todos usam `Q`;
 - `(N−1)Q < T < NQ`: primeiros `N−1` usam `Q`; último usa o restante;
-- `T <= (N−1)Q`: série temporal é inelegível, pois último intervalo não teria
-  duração positiva; fatos permanecem preservados;
+- `T <= (N−1)Q`: série inelegível;
 - `T > NQ`: todos usam `Q`; cauda permanece sem intervalo e sem síntese.
 
-Índices ausentes não são preenchidos. Janelas válidas são positivas, ordenadas,
-não sobrepostas e contidas na sessão.
+Janelas válidas são positivas, ordenadas, não sobrepostas e contidas na sessão.
 
-### 5. Distância e série canônicas
+### 6. Plausibilidade separada da política temporal
 
-Somente passos measured e `stepLengthMetersUsed` produzem distância canônica.
-Distância original permanece raw/measured diagnóstica. Não há escala para fechar
-total, distribuição de residual, suavização ou fallback.
+A duração residual definida no item anterior não é redistribuída mesmo quando
+produz cadência ou velocidade implausível. A derivação registra um indicador
+tipado, como `IMPLAUSIBLE_CADENCE`, preserva raw/measured e pode bloquear a
+projeção granular remota. Limiar e política exatos pertencem aos contratos de
+`014-02`, após auditoria.
 
-Total canônico pode existir sem série temporal. Série, splits e projeções
-granulares exigem intervalos temporal e contabilmente elegíveis. Intervalo com
-zero passos mantém distância zero e não produz record positivo.
+### 7. Distância e série canônicas
 
-### 6. Projeções filhas Health Connect
+Somente intervalos measured elegíveis e `stepLengthMetersUsed` produzem distância
+canônica:
 
-Atividade possui manifesto local congelado de projeções:
+```text
+canonicalIntervalDistanceMeters = decodedSteps × stepLengthMetersUsed
+canonicalDistanceMeters = Σ canonicalIntervalDistanceMeters
+```
+
+Não existe uma segunda distância canônica calculada apenas pelo total de passos.
+`totalSteps × stepLengthMetersUsed` pode existir como estimativa agregada
+diagnóstica, nunca como fallback ou fonte funcional.
+
+Se a série temporal for inelegível, `canonicalDistanceMeters` permanece ausente.
+Distância original, calibrada histórica e raw temporal não participam de resumo,
+ritmo, velocidade, splits, UI ou Health Connect para `WATCH_D3_D4`.
+
+### 8. Métricas derivadas
+
+A V1 usa a mesma série congelada:
+
+```text
+cadência = passos ÷ duração em minutos
+velocidade = distância ÷ duração
+ritmo = duração ÷ distância em quilômetros
+```
+
+Zero passos produz distância, cadência e velocidade zero; ritmo ausente. Não há
+suavização, residual, escala para fechar total ou média de médias.
+
+### 9. Splits e frequência cardíaca
+
+Splits usam limites cumulativos de 1 km e interpolação linear quando o limite
+cai dentro de um intervalo.
+
+Janelas são semiabertas `[start, end)`. Cada amostra BPM usa sample-and-hold em
+`[sampledAt_i, sampledAt_i+1)`, limitada pela sessão. BPM do split é média
+ponderada pela duração de sobreposição. Sem cobertura elegível, permanece
+ausente.
+
+### 10. Esteira importada do relógio
+
+Para `WATCH_D3_D4`, confirmar `TREADMILL` não exige calibração histórica quando a
+série canônica é elegível. O workflow pode avançar para `READY_TO_SYNC` usando a
+distância canônica. Calibrações existentes permanecem históricas/diagnósticas e
+não substituem a série canônica. Contratos phone históricos não são reabertos.
+
+### 11. Reprocessamento explícito
+
+Nova importação pode criar derivação inicial. Atividade existente só recebe novo
+snapshot após ação confirmada. Mudança de perfil, migration, abertura do app,
+reimportação ou scheduler não recalcula silenciosamente. Reprocessar preserva
+revisão, `recordedAt`, tipo, título, observações, calibração histórica e raw; não
+ressincroniza automaticamente.
+
+### 12. Projeções filhas Health Connect
 
 ```text
 Workout projection
-├── ExerciseSessionRecord       1
-├── DistanceRecord              0..N
-├── SpeedRecord                 0..1, com amostras
-├── HeartRateRecord             0..1, com amostras reais
-└── TotalCaloriesBurnedRecord   0..1
+├── EXERCISE_SESSION / singleton
+├── DISTANCE / interval-000..N
+├── SPEED / series
+├── HEART_RATE / series
+└── TOTAL_CALORIES_BURNED / singleton
 ```
 
-Filho é conceito local; Health Connect não fornece chave estrangeira. Falha de
-um complemento não desfaz sessão ou outro complemento. Retry usa payload
-congelado, não recalcula atividade mutável.
+Cada filho possui uma `HealthSyncOperation` própria. A identidade natural inclui:
 
-### 7. IDs e versões
+```text
+aggregate + recordType + projectionChildKey
+```
 
-- Records únicos mantêm identidade canônica existente quando compatível.
-- Filho temporal usa atividade, tipo e índice estável da fonte.
-- ID não contém passo pessoal, BPM, distância, timestamp de processamento ou
-  outro valor sensível.
-- ID agregado legado não é reutilizado como primeiro filho.
-- `clientRecordVersion` é monotônico por `clientRecordId`.
-- Retry idêntico reutiliza ID, versão e payload.
-- Mudança de payload usa versão maior, sem regressão frente a versões legadas.
+Cada operação congela payload, ação, ID, versão e estado. Isso evita uma segunda
+fila interna dentro de uma operação agregada e permite retry/falha parcial por
+filho.
 
-### 8. Reconciliação e remoção
+Filho temporal usa atividade, tipo e índice estável da fonte. IDs não contêm
+passo pessoal, BPM, distância ou outro valor de saúde. `clientRecordVersion` é
+monotônico por `clientRecordId`; retry idêntico reutiliza ID, versão e payload.
 
-Projeção nova persiste conjunto esperado, enviado e obsoleto. Remoção usa apenas
-IDs próprios conhecidos e exatos. Agregado legado conhecido deve ser removido
-antes da série para impedir dupla contagem; checkpoint local permite retomar
-janela temporária sem distância. Sem identidade legada conhecida, operação falha
-fechada. Não usar leitura remota nem deleção ampla por tempo.
+`DistanceRecord` existe somente para intervalo positivo. `SpeedRecord` usa uma
+amostra no ponto médio de cada intervalo:
 
-### 9. Reprocessamento explícito
+```text
+sampledAt = intervalStart + effectiveDuration / 2
+```
 
-Derivação inicial pode acompanhar nova importação. Atividade existente só recebe
-novo snapshot após ação explícita. Mudança de perfil, migration, abertura do app,
-reimportação ou scheduler não recalcula silenciosamente. Reprocessar não
-ressincroniza; novo envio exige ação explícita e preserva revisão, `recordedAt`,
-título, observações, calibração e dados de origem.
+`HeartRateRecord` usa amostras reais. Calorias usam somente total elegível.
+
+### 13. Reconciliação e remoção
+
+A projeção local persiste conjunto esperado, enviado e obsoleto. Remoção usa
+somente IDs próprios conhecidos e exatos.
+
+Agregado legado conhecido deve ser removido antes da série granular para impedir
+dupla contagem. Checkpoint local é persistido antes e depois do efeito remoto.
+Sem identidade legada conhecida, falhar fechado; não usar leitura ampla nem
+deleção por janela temporal.
+
+Delete-before-insert cria janela temporária sem distância, mas o fluxo precisa
+retomar com os mesmos IDs, versões e payloads congelados.
+
+### 14. Migrações separadas
+
+A persistência local de perfil, raw/measured e derivação é uma migration aditiva
+independente da evolução da fila/projeção Health Connect. Não misturar as duas
+mudanças em uma task ou migration única.
+
+A migration local pode criar a ponte `d4-v1` raw, mas não deriva métricas, não
+muda workflow e não executa efeito remoto. A migration de projeções é posterior
+e adiciona manifesto, `projectionChildKey`, payload, ação e checkpoints.
 
 ## Consequências
 
-- histórico reproduzível;
-- diagnóstico preservado sem contaminar métrica canônica;
-- splits e Health Connect usam mesma série;
-- retry permanece idempotente mesmo após edição local;
-- evolução Room aditiva e maior volume local;
-- fan-out exige processamento finito e retomável;
-- delete-before-insert cria janela remota sem distância.
+- uma única distância canônica para todos os consumidores;
+- atividades sem série elegível preservam ausência segura;
+- histórico `d4-v1` pode ser reprocessado quando o raw legado for recuperável;
+- último intervalo parcial permanece determinístico, com plausibilidade separada;
+- esteira do relógio deixa de depender de calibração incompatível;
+- retry Health Connect é granular por filho;
+- maior volume local e duas evoluções de schema;
+- delete-before-insert exige retomada explícita.
 
 ## Alternativas rejeitadas
 
-- recalcular dinamicamente no mapper ou writer;
-- reutilizar distância original sem proveniência;
-- sobrescrever intervalos importados com derivados;
-- um `DistanceRecord` agregado;
-- IDs por valor, UUID de linha Room ou posição mutável;
-- reprocessamento/resync automático;
-- leitura Health Connect ou delete temporal amplo.
+- total canônico independente da soma temporal;
+- usar distância original ou calibrada como fallback;
+- preencher lacunas ou distribuir residual;
+- interpretar 16 bits inferiores sem evidência;
+- usar `0,8818 m` como constante global;
+- recalcular dinamicamente no mapper/UI;
+- uma operação com subfila interna de múltiplos records;
+- média simples/global de BPM por split;
+- timestamp indefinido para `SpeedRecord`;
+- reprocessamento ou resync automático;
+- leitura remota ampla ou delete temporal.
 
 ## Relação com decisões anteriores
 
-- **ADR-017:** direção de produto e distância canônica.
-- **ADR-012:** Room local-first, Health Connect write-only, falha granular e
-  sync explícito.
-- **ADR-016:** integridade temporal e `recordedAt` na reimportação.
+- **ADR-017:** direção de produto e distância derivada de passos.
+- **ADR-012:** Room local-first, Health Connect write-only e sync explícito.
+- **ADR-016:** integridade temporal e preservação de `recordedAt`.
 - **ADR-014:** registro histórico, sem autorização nova de rota phone.
 
 ## Limites
 
 Esta ADR não define schema SQL final, fórmula nova de sugestão por altura,
-WorkManager, GPS, rota, mapa, BLE live, calorias por intervalo, suavização,
-remoção de legado da Fase 013 ou implementação já concluída.
+limiar final de plausibilidade, WorkManager, GPS, rota, mapa, BLE live, calorias
+por intervalo, suavização, remoção de legado da Fase 013 ou implementação já
+concluída.
