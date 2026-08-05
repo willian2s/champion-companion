@@ -2,13 +2,28 @@
 
 - **Status geral:** pending
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 0/14 subtarefas concluídas
+- **Progresso:** 0/16 subtarefas concluídas
 
 ## Objetivo
 
-Corrigir intervalos D4, derivar série canônica com comprimento pessoal do passo,
-integrar métricas locais e sincronizar projeções granulares idempotentes de
-treinos iniciados pelo Champion C001.
+Corrigir intervalos D4, preservar legado `d4-v1`, derivar uma única série
+canônica com `stepLengthMeters`, integrar métricas locais e sincronizar projeções
+filhas idempotentes de treinos iniciados pelo Champion C001.
+
+## Decisões de execução
+
+- Distância canônica total é exatamente a soma dos intervalos canônicos.
+- Estimativa por passos totais é somente diagnóstica.
+- Índices precisam ser contínuos, únicos e iniciar em zero.
+- `d4-v1` pode fornecer `rawMotionValue` legado; parser corrigido usa `d4-v2`.
+- Último intervalo recebe o restante positivo; plausibilidade é registrada à
+  parte e não redistribui passos.
+- `TREADMILL` de `WATCH_D3_D4` usa distância canônica e não depende da calibração
+  histórica.
+- BPM por split usa sample-and-hold e sobreposição temporal semiaberta.
+- `SpeedRecord` usa amostra no ponto médio do intervalo.
+- Cada filho Health Connect possui uma operação própria.
+- Migration local e migration de projeções Health Connect são separadas.
 
 ## Checklist
 
@@ -23,9 +38,11 @@ treinos iniciados pelo Champion C001.
 - [ ] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
 - [ ] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
 - [ ] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
-- [ ] [014-12-sync-granular-distance-and-speed-with-health-connect.md](014-12-sync-granular-distance-and-speed-with-health-connect.md)
-- [ ] [014-13-reconcile-legacy-health-connect-distance-projections.md](014-13-reconcile-legacy-health-connect-distance-projections.md)
-- [ ] [014-14-run-physical-validation-and-close-phase.md](014-14-run-physical-validation-and-close-phase.md)
+- [ ] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
+- [ ] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
+- [ ] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
+- [ ] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
+- [ ] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
 
 ## Dependências
 
@@ -52,19 +69,31 @@ treinos iniciados pelo Champion C001.
                    014-13
                      ↓
                    014-14
+                     ↓
+                   014-15
+                     ↓
+                   014-16
 ```
 
-`014-14` também exige conclusão do ramo `014-11`.
+`014-15` também exige conclusão de `014-11`. `014-16` é exclusivamente
+documental e não contém correções funcionais.
+
+## Migrações planejadas
+
+- `014-03`: evolução aditiva local após `v8` para perfil, raw/measured,
+  compatibilidade `d4-v1`, duração e snapshot derivado.
+- `014-12`: evolução aditiva posterior para manifesto, `projectionChildKey`,
+  payload congelado, ações e checkpoints Health Connect.
+
+A versão efetiva de cada migration será registrada após a implementação. Não há
+derivação, mudança de workflow ou efeito remoto durante upgrade.
 
 ## Observações
 
 - Fase 013 permanece `closed`, com `partially_delivered` por
-  `product_reorientation`; nenhuma subtarefa reabre direção phone.
-- ADR-018 define separação raw/measured/derived, snapshots e projeções filhas.
-- Migration prevista: aditiva `v8 → v9`, sem derivação, remoção de legado ou
-  efeito Health Connect durante upgrade.
-- Distância original, distância temporal raw e calorias temporais raw permanecem
-  diagnósticas; não são fallback funcional.
+  `product_reorientation`.
+- ADR-018 define raw/measured/derived, série canônica e projeções filhas.
+- Distância original, calibrada histórica e campos temporais raw não são fallback.
 - Testes automatizados não devem ser criados nem executados sem pedido explícito.
-- Cada subtarefa atualiza este overview no mesmo trabalho e marca somente seu
-  item após conclusão real.
+- Cada subtarefa atualiza este overview e marca somente seu item após conclusão
+  real e revisão.
