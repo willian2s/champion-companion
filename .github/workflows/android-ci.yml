@@ -31,5 +31,9 @@ jobs:
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Run Android checks
-        run: ./gradlew lint testDebugUnitTest assembleDebug
+      - name: Run unit tests
+        timeout-minutes: 20
+        run: ./gradlew testDebugUnitTest
+
+      - name: Run lint and assemble
+        run: ./gradlew lint assembleDebug
