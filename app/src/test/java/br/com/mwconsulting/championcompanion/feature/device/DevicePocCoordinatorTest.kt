@@ -5,7 +5,6 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleResult
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionCapabilityResolver
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionChannelAlias
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
-import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionOperationType
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionScanRequest
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleClient
 import br.com.mwconsulting.championcompanion.core.bluetooth.fakes.FakeChampionBleScanner
@@ -155,7 +154,6 @@ class DevicePocCoordinatorTest {
             },
             parentScope = CoroutineScope(coroutineContext + Job()),
             timeouts = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts(
-                scan = 100.milliseconds,
                 connect = 100.milliseconds,
                 discovery = 100.milliseconds,
             ),
