@@ -17,6 +17,7 @@ import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGa
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationPermit
 import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
+import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationSnapshot
 import br.com.mwconsulting.championcompanion.core.common.BleDispatcher
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
 import java.time.Instant
@@ -92,6 +93,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
     private var pendingTransportSessionId: ChampionSessionId? = null
     private var invalidTransportSessionId: ChampionSessionId? = null
     private var permit: ForegroundBleOperationPermit? = null
+    private var activeForegroundBleOperation: ForegroundBleOperationSnapshot? = null
     private var connectionAttemptSessionId: AppWorkoutSessionId? = null
     private var connectionAttemptToken: ConnectionAttemptToken? = null
     private val connectionAttemptTombstones = mutableListOf<ConnectionAttemptToken>()
@@ -152,6 +154,14 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 }
             }
         }
+        scope.launch {
+            foregroundBleOperationGate.observeActiveOperation().collect { activeOperation ->
+                operationMutex.withLock {
+                    activeForegroundBleOperation = activeOperation
+                    boundSessionId?.let { reconcileBoundStateLocked(it) }
+                }
+            }
+        }
     }
 
     /** Vincula superfície de status à sessão sem adquirir BLE. */
@@ -185,7 +195,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                     return@withLock EnablePreparation.REJECTED
                 }
 
-                if (enabledSessionId == sessionId && permitBelongsToSessionLocked(sessionId)) {
+                if (enabledSessionId == sessionId && participationEnabledLocked(sessionId)) {
                     return@withLock when (mutableState.value.status) {
                         WatchWorkoutParticipationStatus.CONNECTED -> EnablePreparation.ALREADY_CONNECTED
                         WatchWorkoutParticipationStatus.CONNECTING -> EnablePreparation.IN_PROGRESS
@@ -215,16 +225,13 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                         attemptPermit = result.permit
                         permitAcquiredByAttempt = result.permit
                         permit = result.permit
+                        activeForegroundBleOperation = result.permit.toSnapshot()
                         enabledSessionId = sessionId
                     }
 
                     is ForegroundBleOperationAcquireResult.Rejected -> {
-                        mutableState.value = WatchWorkoutParticipationState(
-                            sessionId = sessionId,
-                            status = WatchWorkoutParticipationStatus.CONFLICT,
-                            conflictOwner = result.activeOperation.owner,
-                        )
-                        foregroundBleSessionId = null
+                        activeForegroundBleOperation = result.activeOperation
+                        setConflictLocked(sessionId, result.activeOperation.owner)
                         return@withLock EnablePreparation.REJECTED
                     }
                 }
@@ -353,14 +360,14 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 if (!canBindSessionLocked(sessionId)) {
                     return@withLock ConnectionAttemptStart.REJECTED
                 }
+                associatedDevice = device
+                reconcileBoundStateLocked(sessionId)
                 if (!participationEnabledLocked(sessionId) || permit != expectedPermit) {
                     return@withLock ConnectionAttemptStart.REJECTED
                 }
                 if (connectionAttemptToken != null) {
                     return@withLock ConnectionAttemptStart.REJECTED
                 }
-                associatedDevice = device
-                reconcileBoundStateLocked(sessionId)
                 when (mutableState.value.status) {
                     WatchWorkoutParticipationStatus.CONNECTED -> ConnectionAttemptStart.ALREADY_CONNECTED
                     WatchWorkoutParticipationStatus.CONNECTING -> ConnectionAttemptStart.IN_PROGRESS
@@ -406,6 +413,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             }
 
             val canStartConnection = operationMutex.withLock {
+                reconcileBoundStateLocked(sessionId)
                 canBindSessionLocked(sessionId) &&
                     participationEnabledLocked(sessionId) &&
                     permit == expectedPermit &&
@@ -445,6 +453,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             }
 
             val accepted = operationMutex.withLock {
+                reconcileBoundStateLocked(sessionId)
                 if (!participationEnabledLocked(sessionId) || permit != expectedPermit) {
                     return@withLock false
                 }
@@ -558,10 +567,9 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 } catch (_: Exception) {
                     null
                 }
+                activeForegroundBleOperation = activeOperation
                 val currentPermit = permit
-                val activeOperationMatches = activeOperation?.let {
-                    it.owner == cleanupPermit.owner && it.operationId == cleanupPermit.operationId
-                } == true
+                val activeOperationMatches = activeOperation.matches(cleanupPermit)
                 val localOwnerMatches = enabledSessionId == sessionId && currentPermit == cleanupPermit
                 val ownerReleased = currentPermit == null &&
                     enabledSessionId == null &&
@@ -857,18 +865,15 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             } catch (_: Exception) {
                 null
             }
-            val activeOperationMatches = activeOperation?.let {
-                it.owner == token.expectedPermit.owner &&
-                    it.operationId == token.expectedPermit.operationId
-            } == true
+            activeForegroundBleOperation = activeOperation
+            val activeOperationMatches = activeOperation.matches(token.expectedPermit)
             val localOwnerMatches = permit == token.expectedPermit &&
                 enabledSessionId == token.sessionId
-            val ownerReleased = permit == null && enabledSessionId == null
             val attemptOwnerMatches = token.expectedPermit.owner ==
                 ForegroundBleOperationOwner.APP_WORKOUT_SESSION &&
                 token.operationId == token.sessionId.value.toString() &&
-                (localOwnerMatches || ownerReleased) &&
-                (activeOperation == null || activeOperationMatches)
+                localOwnerMatches &&
+                activeOperationMatches
 
             val readyState = currentState as? ChampionBleState.TransportReady
             val readySession = readyState?.session
@@ -945,22 +950,16 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         captureAttemptSessionIdLocked(connectionManager.state.value)
         val boundId = sessionId ?: return false
         if (boundSessionId != boundId) return false
+        activeForegroundBleOperation = currentActiveOperationLocked()
 
         if (enabledSessionId == null && permitBelongsToSessionLocked(boundId)) {
             enabledSessionId = boundId
         }
-        if (enabledSessionId == boundId && !permitBelongsToSessionLocked(boundId)) {
-            enabledSessionId = null
-            acceptedTransportSessionId = null
-            pendingTransportSessionId = null
-            connectionAttemptSessionId = null
-            foregroundBleSessionId = null
-        }
 
-        val participationEnabled = participationEnabledLocked(boundId)
+        val participationRequested = participationRequestedLocked(boundId)
         val device = associatedDevice
         if (device == null) {
-            if (participationEnabled) {
+            if (participationRequested) {
                 setDisconnectedLocked(boundId)
             } else {
                 setNoAssociatedDeviceLocked(boundId)
@@ -968,7 +967,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             return false
         }
 
-        if (!participationEnabled) {
+        if (!participationRequested) {
             setAssociatedLocked(boundId)
             return false
         }
@@ -1002,6 +1001,7 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             )
 
         if (readyTransportAccepted) {
+            if (!ensureAuthoritativePermitLocked(boundId)) return false
             acceptedTransportSessionId = readyState.session.id
             pendingTransportSessionId = null
             invalidTransportSessionId = null
@@ -1071,12 +1071,97 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         null
     }
 
-    private fun participationEnabledLocked(sessionId: AppWorkoutSessionId): Boolean =
-        enabledSessionId == sessionId && permitBelongsToSessionLocked(sessionId)
+    private fun participationRequestedLocked(sessionId: AppWorkoutSessionId): Boolean {
+        val state = mutableState.value
+        return enabledSessionId == sessionId ||
+            permitBelongsToSessionLocked(sessionId) ||
+            (state.sessionId == sessionId && state.participationEnabled)
+    }
+
+    private fun participationEnabledLocked(sessionId: AppWorkoutSessionId): Boolean {
+        val currentPermit = permit ?: return false
+        return enabledSessionId == sessionId &&
+            permitBelongsToSessionLocked(sessionId) &&
+            activeForegroundBleOperation.matches(currentPermit)
+    }
 
     private fun permitBelongsToSessionLocked(sessionId: AppWorkoutSessionId): Boolean =
         permit?.owner == ForegroundBleOperationOwner.APP_WORKOUT_SESSION &&
             permit?.operationId == sessionId.value.toString()
+
+    private suspend fun ensureAuthoritativePermitLocked(sessionId: AppWorkoutSessionId): Boolean {
+        val localPermit = permit
+        val activeOperation = currentActiveOperationLocked()
+        if (enabledSessionId == sessionId &&
+            localPermit != null &&
+            permitBelongsToSessionLocked(sessionId) &&
+            activeOperation.matches(localPermit)
+        ) {
+            return true
+        }
+
+        if (activeOperation != null) {
+            invalidateLocalOwnerLocked(sessionId)
+            setConflictLocked(sessionId, activeOperation.owner)
+            return false
+        }
+        if (connectionAttemptToken?.sessionId == sessionId) {
+            invalidateLocalOwnerLocked(sessionId)
+            setDisconnectedLocked(sessionId)
+            return false
+        }
+        if (!canBindSessionLocked(sessionId)) {
+            invalidateLocalOwnerLocked(sessionId)
+            return false
+        }
+
+        return when (
+            val result = foregroundBleOperationGate.tryAcquire(
+                ForegroundBleOperationRequest(
+                    owner = ForegroundBleOperationOwner.APP_WORKOUT_SESSION,
+                    operationId = sessionId.value.toString(),
+                    requestedAt = Instant.now(),
+                ),
+            )
+        ) {
+            is ForegroundBleOperationAcquireResult.Acquired -> {
+                permit = result.permit
+                enabledSessionId = sessionId
+                activeForegroundBleOperation = result.permit.toSnapshot()
+                true
+            }
+
+            is ForegroundBleOperationAcquireResult.Rejected -> {
+                activeForegroundBleOperation = result.activeOperation
+                invalidateLocalOwnerLocked(sessionId)
+                setConflictLocked(sessionId, result.activeOperation.owner)
+                false
+            }
+        }
+    }
+
+    private suspend fun currentActiveOperationLocked(): ForegroundBleOperationSnapshot? = try {
+        foregroundBleOperationGate.observeActiveOperation().first()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun invalidateLocalOwnerLocked(sessionId: AppWorkoutSessionId) {
+        if (enabledSessionId == sessionId) enabledSessionId = null
+        permit = permit?.takeUnless {
+            it.owner == ForegroundBleOperationOwner.APP_WORKOUT_SESSION &&
+                it.operationId == sessionId.value.toString()
+        }
+        connectionAttemptToken?.takeIf { it.sessionId == sessionId }?.let {
+            it.transportIdentityInvalid = true
+        }
+        acceptedTransportSessionId = null
+        pendingTransportSessionId = null
+        connectionAttemptSessionId = null
+        foregroundBleSessionId = null
+    }
 
     private suspend fun releasePermitIfCurrent(expectedPermit: ForegroundBleOperationPermit) {
         val activeOperation = try {
@@ -1086,9 +1171,8 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         } catch (_: Exception) {
             null
         }
-        if (activeOperation?.owner == expectedPermit.owner &&
-            activeOperation.operationId == expectedPermit.operationId
-        ) {
+        activeForegroundBleOperation = activeOperation
+        if (activeOperation.matches(expectedPermit)) {
             foregroundBleOperationGate.release(expectedPermit)
         }
     }
@@ -1144,6 +1228,32 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
         pendingTransportSessionId = null
         foregroundBleSessionId = null
     }
+
+    private fun setConflictLocked(
+        sessionId: AppWorkoutSessionId,
+        owner: ForegroundBleOperationOwner,
+    ) {
+        mutableState.value = WatchWorkoutParticipationState(
+            sessionId = sessionId,
+            status = WatchWorkoutParticipationStatus.CONFLICT,
+            conflictOwner = owner,
+        )
+        acceptedTransportSessionId = null
+        pendingTransportSessionId = null
+        foregroundBleSessionId = null
+    }
+
+    private fun ForegroundBleOperationSnapshot?.matches(
+        expectedPermit: ForegroundBleOperationPermit,
+    ): Boolean = this?.owner == expectedPermit.owner &&
+        operationId == expectedPermit.operationId
+
+    private fun ForegroundBleOperationPermit.toSnapshot(): ForegroundBleOperationSnapshot =
+        ForegroundBleOperationSnapshot(
+            owner = owner,
+            operationId = operationId,
+            acquiredAt = acquiredAt,
+        )
 
     private fun isTrackedTransportLocked(sessionId: ChampionSessionId): Boolean =
         acceptedTransportSessionId == sessionId || pendingTransportSessionId == sessionId
