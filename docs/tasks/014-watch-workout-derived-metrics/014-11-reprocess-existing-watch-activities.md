@@ -1,4 +1,4 @@
-# 014-11 — Reprocessar atividades existentes do relógio
+# 014-11 — Reprocessar atividades existentes explicitamente
 
 - **Ticker:** `014`
 - **Número:** `11`
@@ -7,18 +7,11 @@
 ## Objetivo e resultado esperado
 
 Oferecer ação explícita e idempotente para derivar novamente atividades
-`WATCH_D3_D4` existentes com contrato atual. Resultado: legado pode receber novo
-snapshot sem mutação automática, perda de revisão ou sync implícito.
+`WATCH_D3_D4` existentes com o contrato atual, incluindo legado `d4-v1` quando o
+raw for recuperável.
 
-## Contexto
-
-Migration de `014-03` deixa legado sem derivação. Alteração de perfil não pode
-recalcular atividades antigas. Reimportação atual substitui intervalos e preserva
-revisão/calibração conforme ADR-016.
-
-## Requisitos cobertos
-
-- R9 e preservação histórica de R1.
+Resultado: atividades antigas podem receber novo snapshot sem mutação automática,
+perda de revisão ou sincronização implícita.
 
 ## Dependências
 
@@ -29,60 +22,87 @@ revisão/calibração conforme ADR-016.
 - contratos/repository de derivação e reimportação;
 - `RoomRepositories.kt` e DAOs necessários;
 - `ExercisesViewModel.kt` e superfície de detalhe/lista para ação explícita;
-- recursos de texto e screenshot;
-- overview.
-
-Símbolos prováveis: `persistImported`, `reimport`, novo comando
-`reprocessWatchActivity`, estado de confirmação e snapshot ativo.
+- recursos de texto, screenshot e overview.
 
 ## Arquivos proibidos
 
-- parser/protocolo, schema/migration, Health Connect writer;
+- parser/protocolo, schema/migration e Health Connect writer;
 - Gradle e manifesto;
 - atividades phone, GPS, rota e WorkManager.
 
-## Escopo
+## Elegibilidade
 
-- elegibilidade e confirmação;
-- transação de novo snapshot;
-- preservação de revisão, `recordedAt`, título, notas, calibração e workflow;
-- comportamento de `SYNCED`/`SYNC_FAILED` sem resync automático.
+### `d4-v2`
+
+Usar raw/measured persistidos e o contrato de derivação vigente.
+
+### `d4-v1`
+
+Quando a migration de `014-03` preservou o valor legado como `rawMotionValue`:
+
+```text
+decodedSteps = rawMotionValue ushr 16
+```
+
+O reprocessamento cria measured/derived atuais sem alterar o valor legado.
+
+### Falha fechada
+
+- raw necessário ausente;
+- parser version desconhecida;
+- índices inelegíveis;
+- perfil sem `stepLengthMeters` válido;
+- inconsistência temporal não resolvível.
+
+Não exigir BLE quando os fatos locais forem suficientes. Não reconstruir raw
+com heurística não versionada.
+
+## Preservação obrigatória
+
+- `recordedAt`;
+- revisão e tipo confirmado;
+- título e observações;
+- calibração histórica;
+- raw e import identity;
+- workflow compatível;
+- operações Health Connect existentes até ação explícita futura.
+
+Para `TREADMILL` de relógio, aplicar o contrato canônico vigente sem apagar a
+calibração histórica.
 
 ## Fora do escopo
 
-- reparse sem payload disponível;
 - lote silencioso, abertura do app ou scheduler;
+- reparse remoto sem payload local;
 - alterar distância original/raw;
+- sincronizar ou reconciliar Health Connect;
 - testes automatizados.
 
 ## Passos de implementação
 
-1. Listar atividades sem snapshot atual/elegível.
-2. Expor ação com resumo do efeito e confirmação explícita.
-3. Resolver inputs measured já persistidos; não exigir BLE.
-4. Criar snapshot transacional com versão atual.
-5. Preservar campos de usuário e ordem temporal da ADR-016.
-6. Não preparar/enviar operações Health Connect automaticamente.
-7. Para atividade sincronizada, exigir aviso específico e manter sync pendente
-   somente após futura ação explícita.
-8. Registrar screenshot e atualizar overview.
+1. Listar atividades sem snapshot atual ou com versão antiga.
+2. Expor ação com resumo e confirmação explícita.
+3. Resolver raw/measured conforme parser version conhecida.
+4. Aplicar decoder atual a `d4-v1` recuperável.
+5. Criar snapshot transacional com versão atual.
+6. Preservar campos de usuário e ordem temporal da ADR-016.
+7. Não preparar nem enviar operações Health Connect automaticamente.
+8. Para `SYNCED`, exigir aviso específico antes de qualquer projeção futura.
+9. Tornar repetição com mesmos inputs/versão idempotente.
+10. Registrar screenshots e atualizar overview.
 
 ## Critérios de aceite
 
-- Nenhuma atividade muda sem ação confirmada.
-- Mesmos inputs/versão não criam revisão inútil.
+- Nenhuma atividade muda sem confirmação.
+- `d4-v1` recuperável pode ser derivada sem BLE.
+- Parser version desconhecida falha com motivo seguro.
+- Mesmos inputs e versão não criam revisão inútil.
 - Revisão, `recordedAt`, título, notas e calibração permanecem.
-- Atividade sem passo pessoal permanece sem derivação, com motivo claro.
-- Reprocessamento não acessa BLE nem Health Connect.
-- Mudança visual possui screenshot.
+- Atividade sem perfil continua sem derivação.
+- Reprocessamento não acessa Health Connect nem ressincroniza.
+- `TREADMILL` usa a nova série sem perder histórico de calibração.
 
-## Validação manual
-
-- Reprocessar atividade pendente, revisada, sincronizada e sem perfil.
-- Reiniciar app e conferir snapshot/workflow.
-- Editar perfil e confirmar ausência de reprocessamento automático.
-
-## Comandos permitidos
+## Validação
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
@@ -95,25 +115,17 @@ Não criar nem executar testes automatizados.
 
 ## Evidências
 
-- screenshots da confirmação/resultado;
-- matriz estado anterior → estado posterior;
-- registro sanitizado de preservação de campos.
+- screenshots da confirmação e resultado;
+- matriz parser version/estado → resultado;
+- registro sanitizado de preservação de campos;
+- repetição idempotente e reinício do app.
 
 ## Definição de pronto
 
-Reprocessamento explícito, idempotente e local funciona; item `014-11` marcado.
-
-## Riscos e cuidados
-
-- Payload raw pode não existir; usar measured persistido ou falhar com segurança.
-- Não reabrir revisão nem regredir operação `SYNCED` implicitamente.
-- Concorrência com reimportação deve ser serializada/transacional.
+Reprocessamento explícito, idempotente e local funciona para legado recuperável;
+item `014-11` marcado.
 
 ## Rollback
 
-Remover/ocultar ação e parar novos snapshots; preservar snapshots já criados e
-não alterar estados remotos.
-
-## Atualização obrigatória do overview
-
-Atualizar `014-00-overview.md`, marcar `014-11` e registrar estados validados.
+Ocultar a ação e parar novos snapshots. Preservar snapshots já criados e não
+alterar estados remotos.
