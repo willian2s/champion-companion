@@ -123,6 +123,8 @@ class HealthViewModelTest {
                 dailySummaryRepository = dailySummaryRepository,
                 personalMetricsRepository = personalMetricsRepository,
                 appPreferencesRepository = appPreferencesRepository,
+                healthSyncRepository = FakeHealthSyncRepository(),
+                healthConnectSyncCoordinator = NoOpHealthConnectSyncCoordinator,
                 manualHeartRateCoordinator = coordinator,
                 d1HeartRateSyncCoordinator = d1Coordinator,
                 scope = scope,
