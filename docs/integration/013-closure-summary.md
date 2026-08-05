@@ -82,8 +82,9 @@ política de distância e evidências sanitizadas.
   correspondentes.
 - `013-11` registrou divergência de estado após desconexão; reconexão, conflito,
   rollover, recuperação, handoff e screenshots permanecem sem aceite.
-- A desativação operacional está implementada, mas `013-17` aguarda revisão
-  independente e evidência manual dos gates D/E antes de ser concluída.
+- A desativação operacional está implementada; Gate D foi encerrado como
+  `PASS/N/A` e Gate E passou com importação real. `013-17` aguarda somente
+  revisão independente antes de ser concluída.
 
 Incompleto não significa aprovado. Os bloqueios permanecem riscos residuais e
 não devem ser reabertos como backlog ativo da Fase 013.
