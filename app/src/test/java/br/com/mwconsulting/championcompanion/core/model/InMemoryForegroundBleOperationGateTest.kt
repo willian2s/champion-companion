@@ -36,7 +36,7 @@ class InMemoryForegroundBleOperationGateTest {
     }
 
     @Test
-    fun `release clears active owner only for matching permit`() = runBlocking {
+    fun `release clears active owner only for issued permit instance`() = runBlocking {
         val gate = InMemoryForegroundBleOperationGate()
         val acquired = gate.tryAcquire(
             ForegroundBleOperationRequest(
@@ -53,6 +53,8 @@ class InMemoryForegroundBleOperationGateTest {
                 acquiredAt = Instant.parse("2026-01-01T00:00:00Z"),
             ),
         )
+        gate.release(acquired.permit.copy())
+
         assertEquals(
             ForegroundBleOperationOwner.MANUAL_HEART_RATE,
             gate.observeActiveOperation().first()?.owner,
