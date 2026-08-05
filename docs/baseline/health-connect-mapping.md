@@ -2,7 +2,7 @@
 
 ## Direção atual após encerramento da Fase 013
 
-Fase 013 está em `closing`, com resultado previsto `partially_delivered` por
+Fase 013 está `closed`, com resultado `partially_delivered` por
 `product_reorientation`. O fluxo futuro não exige GPS, rota ou `ExerciseRoute`:
 o relógio inicia e encerra o treino, o app importa D3/D4, deriva métricas,
 permite revisão e sincroniza de forma granular com Health Connect. A distância
@@ -21,7 +21,7 @@ Mapear integração Health Connect da baseline MotionLog `feat/015-watch-workout
 
 Salvo indicação contrária, itens são `Confirmado pelo código` em `../motionlog-app`. Regras marcadas `Decisão já definida` vêm de spec/requisitos Fase 0. Prefixos `motionlog:` são referência legada, não contrato para novo app.
 
-## Atualizacao Factual Pos-Fase 12
+## Atualização factual pós-Fase 12 e direção da Fase 014
 
 No estado atual do Champion Companion apos a integracao nativa real:
 
@@ -31,6 +31,14 @@ No estado atual do Champion Companion apos a integracao nativa real:
 - SDK Android do Health Connect, provider e rationale Android ja estao integrados.
 
 Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
+
+Para a Fase 014, atividades `WATCH_D3_D4` usarão somente distância canônica
+derivada de passos válidos e comprimento individual do passo (`stepLengthMeters`).
+O valor original do relógio é
+diagnóstico e não pode ser fallback. O contrato futuro adiciona `SPEED`, permite
+múltiplos `DISTANCE` por intervalo e exige snapshot/projeção congelados conforme
+ADR-018. Fase 014 permanece `pending`; esta seção é planejamento e não afirma
+implementação concluída.
 
 ## Fechamento Factual Da Fase 12
 
@@ -89,6 +97,7 @@ ou inventar distribuição temporal para uma fonte que só possua total.
 | `heart_rate_measurements` D1 | `HeartRate` | uma operacao por ponto persistido valido, sem selecao manual |
 | `workout_activities` | `ExerciseSession` | sessao obrigatoria, so por acao explicita do usuario |
 | `workout_activities` | `Distance` | complementar opcional e independente; Fase 12 usou distância final, Fase 13 usa série temporal da fonte elegível |
+| `workout_activities` + série derivada | `Speed` | Fase 014 planeja amostras derivadas; não enviar velocidade original ou estimativa sem snapshot |
 | `workout_activities` | `TotalCaloriesBurned` | complementar opcional e independente |
 | `workout_activities` + `workout_heart_rate_samples` | `HeartRate` | complementar opcional com amostras reais da sessao |
 | `weight_measurements` | `Weight` | so quando houver dado local elegivel |

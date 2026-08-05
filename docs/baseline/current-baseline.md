@@ -2,8 +2,8 @@
 
 ## Registro atual da Fase 013
 
-- A Fase 013 está em `closing`, com resultado previsto
-  `partially_delivered` e motivo `product_reorientation`.
+- A Fase 013 está `closed`, com resultado `partially_delivered` e motivo
+  `product_reorientation`.
 - Treinos iniciados pelo celular foram descontinuados como direção de produto.
   A desativação operacional dos pontos de entrada phone foi implementada em
   `013-17`; aceite final foi confirmado por revisão independente.
@@ -12,10 +12,11 @@
   preservados até task explícita de remoção.
 - Prioridade futura: importar D3/D4 do Champion C001, derivar métricas,
   permitir revisão e sincronizar com Health Connect. A distância canônica será
-  derivada de passos e comprimento pessoal da passada; a distância original do
+  derivada de passos válidos e `stepLengthMeters`; a distância original do
   relógio permanece somente diagnóstica.
-- A Fase 014 será redefinida para esse refinamento. WorkManager poderá apoiar
-  apenas trabalho finito e adiável, fora do objetivo funcional da fase.
+- A Fase 014 está planejada como refinamento de treinos iniciados pelo relógio.
+  WorkManager poderá apoiar apenas trabalho finito e adiável, fora do objetivo
+  funcional da fase. Ver `docs/specs/014-watch-workout-derived-metrics.md`.
 
 ## Produto e fase
 

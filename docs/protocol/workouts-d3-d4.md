@@ -1,4 +1,4 @@
-# Treinos D3/D4 - MotionLog Para Champion Companion
+# Treinos D3/D4 — MotionLog para Champion Companion
 
 ## Objetivo
 
@@ -17,11 +17,38 @@ Documentar importacao de treinos gravados no Champion C001: indice D3, download 
 
 Salvo indicacao contraria, informacoes deste documento sao `Confirmado pelo codigo`. Validacao fisica da Fase 10 em Galaxy S22 com Champion C001 confirmou fluxo funcional de importacao D3/D4, sem divergencia bloqueadora adicional de protocolo nos cenarios exercitados.
 
-## Regra Obrigatoria Para Champion Companion
+## Regra obrigatória para Champion Companion
 
 Treino importado por D3/D4 nasce `pending_review`. Nao enviar automaticamente ao Health Connect.
 
 Envio manual somente depois de revisao e dados validos. No MotionLog, bloqueios adicionais incluem treino ja sincronizado, sincronizacao em andamento, sessao vinculada ausente e esteira sem calibracao confirmada.
+
+## Classificação para a Fase 014
+
+Fase 013 está `closed`, com resultado `partially_delivered` por
+`product_reorientation`. Fase 014 está `pending`; esta seção descreve contratos
+planejados e não implementação concluída.
+
+Este protocolo separa explicitamente três classes:
+
+- **Confirmado:** comportamento observado no código atual ou validado no fluxo
+  físico registrado, como D3/D4 explícito, pacotes 1–3 obrigatórios, ordenação
+  por índice, BPM válido entre 30 e 220 e duração total derivada de início/fim
+  quando disponível.
+- **Desconhecido:** semântica ainda não comprovada pelo dispositivo, como os 16
+  bits inferiores de `bytes[7..9]`, `sportCountRaw`, `pauseRaw`, unidades e
+  significado semântico dos campos temporais de distância/calorias, além de
+  variações de firmware e relação CRC D3/D4.
+- **Derivado:** valor calculado pelo aplicativo, como `decodedSteps =
+  rawMotionValue ushr 16`, duração efetiva do último intervalo, distância
+  canônica por `stepLengthMeters`, cadência, velocidade, ritmo, acumulado e
+  splits. Valores derivados não devem ser descritos como campos confirmados do
+  relógio.
+
+A Fase 014 não promove hipótese a protocolo confirmado. O valor bruto deve ser
+preservado quando sua semântica permanecer desconhecida. Distância original e
+calorias temporais do relógio continuam diagnósticas até comprovação; não são
+fallback para métricas derivadas.
 
 ## Transporte Compartilhado
 
@@ -156,15 +183,34 @@ MotionLog persiste importacao em `watch_workout_imports` e amostras em `watch_wo
 | D8 | Nao encontrado em comandos, parser ou fluxo MotionLog analisados | Ainda nao confirmado; sem associacao documentavel com treinos. |
 | A8 | Constante `SPORT_CURRENT`: `A8 00`; sem parser ou fluxo funcional | Pode representar esporte atual apenas como rotulo de prototipo/documentacao; nao substitui nem complementa D3/D4 no codigo analisado. |
 
-## Lacunas Para `000-14`
+## Lacunas para a Fase 014
 
 - Expandir fixtures D3/D4 reais versionadas: vazio, multipacote, CRC repetido, bloco completo, timeout, pacote fora de ordem e pacote duplicado.
 - Confirmar layouts preferido e legado D4, unidades de todos campos e significado de `sportCountRaw`, `pauseRaw` e assinatura `data`.
 - Confirmar se CRC D3 corresponde sempre ao CRC pacote 3 D4 e como tratar divergencia.
-- Confirmar semantica, payload e uso de D8; confirmar se A8 complementa D3/D4 em algum firmware.
+- Confirmar semântica, payload e uso de D8; confirmar se A8 complementa D3/D4 em algum firmware.
 - Definir retencao e limites de payload bruto no novo banco, inclusive limpeza apos diagnostico.
 - Validar heuristica de tipo com dados reais; manter como sugestao revisavel ate entao.
 - Confirmar politica final para bloco D4 `partial`: persistir para revisao, exibir diagnostico ou descartar.
+
+## Contratos planejados da Fase 014
+
+Os contratos novos devem usar `stepLengthMeters` (**Comprimento do passo**) para
+um passo individual, nunca uma passada completa de dois passos. Para atividades
+`WATCH_D3_D4`, a distância canônica planejada é:
+
+```text
+passos válidos × stepLengthMeters
+```
+
+O comprimento pessoal será fixado por snapshot da atividade, com origem e versão
+da derivação. Ausência de valor válido mantém distância canônica ausente.
+O relógio permanece owner temporal: intervalos anteriores duram 60 segundos e o
+último recebe somente o restante positivo da duração total. Intervalos ausentes
+não são sintetizados.
+
+Essas regras são **derivadas/planned**, não evidência de que implementação já
+exista. A separação arquitetural completa está em ADR-018.
 
 ## Referencias
 

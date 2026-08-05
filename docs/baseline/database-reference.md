@@ -1,4 +1,4 @@
-# Referencia Conceitual Do Banco MotionLog
+# Referência conceitual do banco MotionLog
 
 ## Escopo E Regra De Transicao
 
@@ -8,15 +8,24 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 
 ## Atualizacao Factual Pos-Fase 12
 
-- Banco real do Champion Companion esta em `ChampionDatabase` schema `v5`.
+- Banco real do Champion Companion está em `ChampionDatabase` schema `v8`.
 - `workout_activities` ja cobre fluxo local ate `SYNCED` e `SYNC_FAILED`, incluindo sync explicito de Health Connect.
 - `health_sync_operations` ja cobre backlog e sincronizacao granular para passos, BPM, sessao de exercicio, distancia, calorias, peso e altura, com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt`.
 - `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
-- Esta task de fechamento nao altera schema Room; apenas registra estado factual apos migration e fila funcional da fase.
+- A Fase 12 não alterou schema nesta atualização; migrations `5→6`, `6→7` e
+  `7→8` permanecem parte do histórico factual.
+- Fase 013 está `closed`, com resultado `partially_delivered` e motivo
+  `product_reorientation`. Fase 014 está `pending`; sua migration aditiva e
+  snapshots de derivação estão somente planejados na spec/ADR-018.
 
 ## Fechamento Factual Da Fase 12
 
-O fechamento de 2026-07-28 confirma que o banco próprio permanece em schema `v5`, sem migração adicional nesta task. A fila `health_sync_operations` continua fonte local de estado, tentativas e falhas; Health Connect permanece destino derivado write-only. Gate C físico foi concluído no Galaxy S22 e não alterou dados legados do MotionLog nem introduziu rota, coordenadas ou backup.
+O fechamento de 2026-07-28 registrou o banco próprio em schema `v5`; o estado
+atual evoluiu para `v8` com migrations posteriores. A fila
+`health_sync_operations` continua fonte local de estado, tentativas e falhas;
+Health Connect permanece destino derivado write-only. Gate C físico foi concluído
+no Galaxy S22 e não alterou dados legados do MotionLog nem introduziu rota,
+coordenadas ou backup.
 
 Classificacao: itens de schema, SQL e fluxo marcados como `Confirmado pelo codigo`. Recomendacoes para banco novo sao `Decisao ja definida` quando derivam de roadmap/spec/ADR; demais sao `Inferido a partir do codigo`.
 
@@ -156,12 +165,12 @@ autorização não inclui servidor, exportação, backup ou device transfer.
 
 Lista e referencia de comportamento, nao autorizacao para copiar tabelas/colunas ou criar Room. `Inferido a partir do codigo`, exceto restricoes de rota.
 
-## Lacunas Para Task 000-14
+## Lacunas Para Fase 014
 
 - Definir retenção, acesso e necessidade real de `raw_hex`, IDs de sessao brutos, logs e erros de Health Connect; codigo atual nao define politica de privacidade/expurgo geral. `Ainda nao confirmado`.
-- Definir entidades e limites de diagnóstico/background do novo app; ADR-014
-  coloca o foreground service mínimo da sessão na Fase 13 e WorkManager em
-  tarefas adiáveis da Fase 14. `Ainda nao confirmado`.
+- Definir entidades e limites de snapshot, série derivada e projeção Health
+  Connect; ADR-018 orienta separação raw/measured/derived. `Planejado para
+  014-02/03`.
 - Confirmar modelo novo para exclusao de entidade e fila Health Connect: exclusao de sessao atual nao mostra exclusao de itens de fila relacionados. `Confirmado pelo codigo` para comportamento atual; decisao nova pendente.
 - Definir unicidade desejada para BPM sem `device_id`; indice SQLite atual aceita multiplos `NULL`. `Inferido a partir do codigo`.
 - Confirmar se samples D3/D4 e BPM por exercicio exigem retenção completa ou agregados atendem paridade futura. `Ainda nao confirmado`.

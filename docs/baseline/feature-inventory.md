@@ -3,14 +3,16 @@
 ## Registro de encerramento da Fase 013
 
 Este inventário permanece referência histórica do MotionLog. A Fase 013 do
-Champion Companion está em `closing`, com resultado previsto
-`partially_delivered` por `product_reorientation`. A direção de treinos phone
+Champion Companion está `closed`, com resultado `partially_delivered` por
+`product_reorientation`. A direção de treinos phone
 foi descontinuada; a desativação operacional dos pontos de entrada foi
 implementada em `013-17`, com aceite final confirmado por revisão independente.
 Não continuar GPS, rota,
-`ExerciseRoute` ou BLE live em sessão phone. Priorizar importação D3/D4,
-canônica futura usa passos e comprimento pessoal da passada, enquanto distância
-original do relógio fica diagnóstica.
+`ExerciseRoute` ou BLE live em sessão phone. Priorizar importação D3/D4;
+distância canônica usa passos válidos e `stepLengthMeters`, enquanto distância
+original do relógio fica diagnóstica. A Fase 014 está `pending` e planeja
+derivação por `stepLengthMeters`, revisão local e sincronização granular com
+Health Connect.
 
 Os registros sobre GPS, rotas, exercícios phone e background abaixo descrevem o
 baseline MotionLog e a execução histórica. Não constituem backlog ativo nem
@@ -57,7 +59,7 @@ Documentar estrutura geral, telas, funcionalidades, estados, permissoes e backup
 | BPM manual e historico | Funcional | `src/app/(tabs)/health/index.tsx`, `heart-history-sync.ts`, `heart-rate-measurement-repository.ts` |
 | Treinos D3/D4 do relogio | Funcional | `watch-workout-sync.ts`, `watch-workout-parser.ts`, `watch-workout-repository.ts` |
 | Revisao de treinos importados | Funcional | `watch-workout-review-card.tsx`, `watch-workout-repository.ts` |
-| Exercicios pelo celular | Funcional | `src/app/(tabs)/exercises/start.tsx`, `active.tsx`, `manual-session-store.ts` |
+| Exercícios pelo celular | Legado preservado, direção encerrada | `src/app/(tabs)/exercises/start.tsx`, `active.tsx`, `manual-session-store.ts` |
 | GPS privado para metricas | Funcional | `src/lib/location/location-foreground.ts`, `gps-metrics-accumulator.ts`, `workout-policy.ts` |
 | Health Connect | Funcional | `src/lib/health-connect/index.ts`, `sync.ts` |
 | Background BLE e sync oportunista | Parcial | `src/lib/background-ble/index.ts`, native module `MotionLogBackgroundBle` esperado |
@@ -328,7 +330,7 @@ Confirmacao recalcula e persiste, em transacao exclusiva:
 
 Valor enviado ao Health Connect apos calibracao e distancia final da sessao em metros, condicionada a permissao e valor valido. Sessao, calorias estimadas e BPM seguem mesmas condicoes de sync manual; rota nao e enviada.
 
-Fator de calibracao separado nao foi encontrado em codigo, schema nem tela analisados. Codigo substitui valores do relogio pelos valores informados e nao persiste formula `distancia_usuario / distancia_estimada`. Este requisito permanece lacuna para `000-14`; nao deve ser assumido no novo app sem decisao posterior.
+Fator de calibracao separado nao foi encontrado em codigo, schema nem tela analisados. Codigo substitui valores do relogio pelos valores informados e nao persiste formula `distancia_usuario / distancia_estimada`. Este requisito permanece lacuna documental da Fase 014; nao deve ser assumido no novo app sem decisao posterior.
 
 ### Exercicios Iniciados Pelo Celular
 
@@ -358,7 +360,8 @@ Tela ativa mostra duracao desde `startedAt`, delta de passos quando contadores i
 - `Confirmado pelo codigo`: nao ha acao de descarte na tela ativa para caminhada, corrida ou treino livre. A sessao so vira registro ao finalizar com sucesso.
 - `Confirmado pelo codigo`: descarte na calibracao de esteira limpa sessao e rascunho em memoria, sem criar atividade persistida.
 
-Estas ausencias sao lacunas para `000-14`; nao representam requisito decidido para Champion Companion.
+Estas ausencias sao lacunas históricas; não representam requisito decidido para
+Champion Companion e não reabrem a Fase 013.
 
 #### GPS, Metricas E Privacidade
 
@@ -473,7 +476,7 @@ Observacao: nenhuma dependencia Expo ou componente React Native foi copiado para
 | 59. Estimativa de distancia | Coberto como distancia importada, usada apenas como sugestao | `watch-workout-parser.ts`, tela de calibracao |
 | 60. Calibracao | Coberto | `applyTreadmillCalibrationToImportedWorkout` |
 | 61. Distancia informada pelo usuario | Coberto | Campo em km; conversao para metros |
-| 62. Fator de calibracao | Nao confirmado | Nenhum fator separado encontrado; lacuna para `000-14` |
+| 62. Fator de calibracao | Nao confirmado | Nenhum fator separado encontrado; lacuna documental da Fase 014 |
 | 63. Recalculo de metricas | Coberto | Distancia, ritmo, velocidade, fim e calorias |
 | 64. Valor enviado ao Health Connect | Coberto | Distancia calibrada da sessao, em metros |
 | 65. Caminhada | Coberto | Secao "Exercicios Iniciados Pelo Celular" |
@@ -504,7 +507,9 @@ Observacao: nenhuma dependencia Expo ou componente React Native foi copiado para
 - Detalhes de parsers BLE, offsets, endianess e CRC ficam fora desta task.
 - Mapeamento completo de Health Connect fica para `000-11`.
 - Banco detalhado e regras por tabela ficam para `000-10`.
-- Fator de calibracao separado para esteira nao existe no codigo analisado. Decidir em `000-14` se novo app deve apenas substituir pela distancia informada, calcular fator persistido ou adotar outra regra; nao inferir uma das opcoes.
+- Fator de calibracao separado para esteira nao existe no codigo analisado. A
+  Fase 014 não promove esse legado para distância canônica de `WATCH_D3_D4`;
+  não inferir uma das opções sem decisão própria.
 - `WRITE_EXERCISE_ROUTE` existe no MotionLog atual; no Champion Companion só
   pode ser usado pela sessão phone explícita de caminhada/corrida autorizada
   pela ADR-014.

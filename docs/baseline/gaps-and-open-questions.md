@@ -2,7 +2,7 @@
 
 ## Reorientação atual após Fase 013
 
-- Fase 013 está em `closing`, com `partially_delivered` previsto por
+- Fase 013 está `closed`, com `partially_delivered` por
   `product_reorientation`.
 - Treinos iniciados pelo celular, GPS, rota, `ExerciseRoute` e BLE live não são
   backlog ativo. A desativação operacional dos pontos de entrada phone foi
@@ -10,11 +10,11 @@
 - Migrations, schemas, sessões, dados e evidências devem ser preservados até
   autorização explícita de remoção; lacunas físicas históricas não viram
   sucesso por cancelamento.
-- Fase 014 será redefinida para treinos iniciados pelo relógio: importação
+- Fase 014 está `pending` e foi planejada para treinos iniciados pelo relógio: importação
   D3/D4, derivação, revisão e Health Connect. WorkManager fica limitado a
   trabalho finito e adiável.
-- A distância canônica futura será derivada de passos e comprimento pessoal da
-  passada. A distância original do relógio será somente diagnóstica.
+- A distância canônica será derivada de passos válidos e `stepLengthMeters`. A
+  distância original do relógio será somente diagnóstica.
 
 ## Objetivo E Leitura
 
@@ -46,8 +46,8 @@ Classificacao:
 | G-10 | Health Connect: Steps, perfil e tempo | Media | Implementacao Health Connect | Sim |
 | G-11 | Banco: identidade, exclusao e retencao | Alta | Modelagem banco proprio | Nao |
 | G-12 | Backup, restauracao e limpeza | Alta | Definicao produto/dados | Nao |
-| G-13 | Privacidade de GPS/rota | Alta | Modelagem, validacao e revisao | Nao |
-| G-14 | Background e notificacoes | Alta | Implementacao background | Sim |
+| G-13 | Privacidade de GPS/rota histórica | Alta | Preservação documental | Não |
+| G-14 | Background e notificações históricas | Alta | Preservação documental | Sim |
 | G-15 | Paridade de telas e estados | Media | Implementacao UI/validacao | Nao inicialmente |
 | G-16 | Arquitetura/nomenclatura Android | Media | Inicio implementacao Android | Nao |
 
@@ -190,8 +190,8 @@ Classificacao:
 ## G-13 — Privacidade De GPS, Rotas E Dados Proibidos — registro histórico
 
 G-13 preserva a política e os riscos da execução histórica da Fase 013. Não é
-backlog ativo de GPS/rota phone; a desativação operacional dos pontos de entrada
-continua pendente em etapa própria.
+backlog ativo de GPS/rota phone; a desativação operacional foi concluída em
+`013-17` e a fase está fechada.
 
 - Impacto: Alta. Violacao direta de requisito autoritativo.
 - Evidencia: ADR-004 e ADR-014 distinguem a proibição geral da autorização
@@ -217,7 +217,7 @@ continua pendente em etapa própria.
   de retry ainda exigem implementação nativa; baseline não é cópia direta.
 - Fase histórica: implementação background/notificações. A direção futura é
   refinamento de treinos do relógio; WorkManager fica limitado a trabalho finito
-  e adiável.
+  e adiável, sem objetivo funcional na Fase 014.
 - Dispositivo fisico: Sim.
 - Validacao sugerida: definir gatilhos iniciados pelo usuario, duracao, cancelamento, notificacao, WorkManager e limites de retry. Testar app fechado, perda BLE, restricao de bateria e recuperacao sem iniciar leitura proibida automaticamente.
 

@@ -14,9 +14,10 @@
   existentes permanecem preservados até decisão explícita de remoção.
 - A direção futura prioriza importação D3/D4, derivação de métricas, revisão e
   sincronização com Health Connect de treinos iniciados pelo relógio.
-- A Fase 014 será redefinida para esse refinamento. WorkManager permanece
+- A Fase 014 está planejada para esse refinamento. WorkManager permanece
   somente como detalhe técnico de trabalho finito e adiável, não como objetivo
-  funcional genérico nem owner de sessão ativa.
+  funcional genérico nem owner de sessão ativa. O status permanece `pending` até
+  implementação e validação explícitas.
 - Critérios finais do roadmap não exigem novos treinos phone, GPS, rota ou
   mapa. O histórico abaixo permanece preservado e não constitui backlog ativo.
 
@@ -2024,13 +2025,19 @@ Health Connect
 
 ---
 
-# Fase 14 — Refinamento de treinos iniciados pelo relógio e tarefas adiáveis
+# Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio
 
-**Status:** redefinida por decisão de produto, sem renumeração. A Fase 014 não é
-uma fase genérica de WorkManager. Seu objetivo funcional é refinar importação,
-derivação, revisão e sincronização de treinos iniciados pelo relógio. O
-foreground service mínimo da sessão phone permanece apenas como infraestrutura
-histórica preservada da Fase 013.
+**Status:** `pending`. **Progresso:** `0/14`. A Fase 014 não é uma fase genérica
+de WorkManager. Seu objetivo funcional é refinar importação, derivação, revisão e
+sincronização de treinos iniciados pelo relógio. O foreground service mínimo da
+sessão phone permanece apenas como infraestrutura histórica preservada da Fase
+013.
+
+Spec e planejamento executável:
+
+- `docs/specs/014-watch-workout-derived-metrics.md`;
+- `docs/tasks/014-watch-workout-derived-metrics/014-00-overview.md`;
+- `docs/decisions/adr-018-canonical-workout-time-series-and-health-projection.md`.
 
 ## Objetivo atual
 
@@ -2041,7 +2048,7 @@ Champion C001 inicia e encerra
         ↓
 Importação D3/D4 explícita
         ↓
-Derivação de métricas por passos e passada pessoal
+Derivação de métricas por passos e `stepLengthMeters`
         ↓
 Revisão local
         ↓
@@ -2050,9 +2057,8 @@ Sincronização Health Connect granular
 
 O relógio é owner temporal do treino. GPS, rota, mapa e `ExerciseRoute` não são
 obrigatórios. A distância original do relógio é diagnóstica; a distância
-canônica futura deriva de passos válidos e comprimento de passada pessoal,
-conforme ADR-017. Essa direção é preparação documental e não afirma
-implementação nova.
+canônica deriva de passos válidos e `stepLengthMeters`, conforme ADR-017 e
+ADR-018. Esta direção é planejamento documental e não afirma implementação nova.
 
 ## WorkManager — detalhe técnico finito e adiável
 
@@ -2082,7 +2088,7 @@ adiável posterior, com retry limitado e consentimento operacional apropriado.
 ## Critérios de aceite da direção redefinida
 
 - importação D3/D4 explícita preserva início e fim definidos pelo relógio;
-- derivação de distância usa passos válidos e comprimento de passada pessoal;
+- derivação de distância usa passos válidos e `stepLengthMeters`;
 - distância original do relógio permanece diagnóstica e não vira fallback
   silencioso;
 - revisão local precede sincronização Health Connect granular;
@@ -2090,6 +2096,28 @@ adiável posterior, com retry limitado e consentimento operacional apropriado.
 - tarefas adiáveis, quando aprovadas, são finitas e não controlam sessão ativa;
 - sem GPS, rota, mapa ou `ExerciseRoute` obrigatórios;
 - nenhum critério exige novos treinos iniciados pelo celular.
+
+## Dependências planejadas
+
+```text
+014-01 → 014-02 → 014-03
+                    ├── 014-04 → 014-05 ─┐
+                    └── 014-06 ──────────┤
+                                         ↓
+                                       014-07 → 014-08
+                                      ┌──────┴──────┐
+                                      ↓             ↓
+                                   014-09        014-11
+                                      ↓
+                                   014-10 → 014-12 → 014-13 → 014-14
+```
+
+Todas as tarefas permanecem `pending` durante o planejamento. Nenhuma task da
+Fase 014 autoriza GPS, rota, mapa, treino phone, BLE live, importação silenciosa,
+TCX, FIT, GPX ou remoção de legado da Fase 013.
+
+O gate `014-14` depende também da conclusão de `014-11`; esse ramo paralelo não
+pode ser encerrado após `014-13` sem reprocessamento explícito validado.
 
 ---
 
@@ -2794,8 +2822,8 @@ Fase 9  — D1 e BPM completo
 Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
 Fase 12 — Health Connect (concluída)
-Fase 13 — Encerramento documental de exercícios phone (`closing`)
-Fase 14 — Refinamento de treinos do relógio e tarefas adiáveis (redefinida)
+Fase 13 — Exercícios phone (`closed`, `partially_delivered`)
+Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio (`pending`)
 Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
@@ -2813,8 +2841,8 @@ Fase 25 — Lançamento
 
 # 13. Priorização
 
-Fase 15 está concluída. Fase 13 está em encerramento documental após a
-descontinuação de novos treinos phone; Fase 14 foi redefinida para refinamento
+Fase 15 está concluída. Fase 13 está fechada como `partially_delivered` após a
+descontinuação de novos treinos phone; Fase 14 está `pending` para refinamento
 de treinos iniciados pelo relógio. WorkManager permanece somente detalhe
 técnico de tarefas finitas e adiáveis. O refinamento visual da Spec 017 é pacote
 independente e não constitui nova fase nem altera essa ordem. Nenhuma fase
