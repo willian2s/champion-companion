@@ -62,4 +62,35 @@ class InMemoryForegroundBleOperationGateTest {
 
         assertNull(gate.observeActiveOperation().first())
     }
+
+    @Test
+    fun `stale permit cannot release a newer lease with same owner and operation id`() = runBlocking {
+        val gate = InMemoryForegroundBleOperationGate()
+        val first = gate.tryAcquire(
+            ForegroundBleOperationRequest(
+                owner = ForegroundBleOperationOwner.APP_WORKOUT_SESSION,
+                operationId = "session-1",
+                requestedAt = Instant.parse("2026-01-01T00:00:00Z"),
+            ),
+        ) as ForegroundBleOperationAcquireResult.Acquired
+        gate.release(first.permit)
+
+        val second = gate.tryAcquire(
+            ForegroundBleOperationRequest(
+                owner = ForegroundBleOperationOwner.APP_WORKOUT_SESSION,
+                operationId = "session-1",
+                requestedAt = Instant.parse("2026-01-01T00:00:01Z"),
+            ),
+        ) as ForegroundBleOperationAcquireResult.Acquired
+
+        gate.release(first.permit)
+
+        assertEquals(
+            second.permit.acquiredAt,
+            gate.observeActiveOperation().first()?.acquiredAt,
+        )
+
+        gate.release(second.permit)
+        assertNull(gate.observeActiveOperation().first())
+    }
 }
