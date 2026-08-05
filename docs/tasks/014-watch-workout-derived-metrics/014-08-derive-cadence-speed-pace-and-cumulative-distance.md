@@ -1,4 +1,4 @@
-# 014-08 — Derivar cadência, velocidade, ritmo e distância acumulada
+# 014-08 — Derivar cadência, velocidade, ritmo e acumulado
 
 - **Ticker:** `014`
 - **Número:** `08`
@@ -6,18 +6,11 @@
 
 ## Objetivo e resultado esperado
 
-Completar série V1 sem suavização usando distância canônica e duração efetiva.
-Resultado: métricas totais/temporais e acumulado consistentes, com zero passos e
-ausências tratados explicitamente.
+Completar a série V1 sem suavização usando exclusivamente a distância canônica e
+a duração efetiva.
 
-## Contexto
-
-`014-07` fornece distância canônica congelada. Consumidores atuais ainda usam
-ritmo/velocidade importados da distância original.
-
-## Requisitos cobertos
-
-- R5 e R6.
+Resultado: métricas totais/temporais e acumulado consistentes, com zero passos,
+ausências e plausibilidade tratados explicitamente.
 
 ## Dependências
 
@@ -30,57 +23,60 @@ ritmo/velocidade importados da distância original.
 - read models estritamente necessários;
 - overview.
 
-Símbolos prováveis: métricas de `DerivedWorkoutInterval`, acumulador determinístico
-e campos canônicos de `WorkoutMetrics`/read model.
-
 ## Arquivos proibidos
 
 - parser D4, perfil, UI final, splits e Health Connect;
 - Gradle, manifesto, migrations e schemas;
-- dados raw para sobrescrita.
+- sobrescrita de dados raw/measured.
 
 ## Escopo
 
-- cadência em passos/minuto;
-- velocidade em m/s;
-- ritmo em s/km;
-- distância acumulada;
-- agregados da atividade pela mesma base canônica.
+```text
+cadência = passos ÷ duração em minutos
+velocidade = distância canônica ÷ duração
+ritmo = duração ÷ distância canônica em quilômetros
+```
+
+- distância acumulada soma deltas canônicos em ordem estável;
+- total da atividade usa a distância canônica, nunca o total agregado estimado;
+- zero passos produz distância, cadência e velocidade zero e ritmo ausente;
+- série inelegível mantém métricas dependentes ausentes;
+- plausibilidade é propagada, não corrigida;
+- nenhuma média de médias.
 
 ## Fora do escopo
 
 - suavização/interpolação de velocidade;
 - zonas, VO2, calorias ou passada variável;
 - splits de quilômetro;
+- timestamp de `SpeedRecord`, já decidido para o ponto médio mas implementado em
+  `014-13`;
 - testes automatizados.
 
 ## Passos de implementação
 
-1. Calcular métricas com `Double` sem arredondar persistência prematuramente.
-2. Aplicar fórmulas V1 por intervalo válido.
-3. Tratar zero passos como distância/cadência/velocidade zero e ritmo ausente.
-4. Acumular somente deltas canônicos em ordem estável.
-5. Calcular totais pela duração e distância canônica total, sem média de médias.
-6. Impedir fallback para campos importados/calibrados em `WATCH_D3_D4`.
-7. Persistir/fornecer read model reproduzível.
-8. Atualizar overview.
+1. Calcular métricas com `Double` sem arredondamento prematuro.
+2. Aplicar fórmulas V1 por intervalo elegível.
+3. Tratar zero passos conforme contrato.
+4. Acumular somente deltas canônicos.
+5. Calcular totais pela duração e soma canônica.
+6. Proibir acesso funcional à estimativa agregada diagnóstica.
+7. Propagar elegibilidade e plausibilidade para consumidores.
+8. Persistir/fornecer read model reproduzível.
+9. Atualizar overview.
 
 ## Critérios de aceite
 
 - Fórmulas e unidades correspondem à spec.
-- Acumulado é monotônico e termina na soma temporal, quando série elegível.
+- Acumulado é monotônico e termina exatamente na distância canônica.
 - Intervalo zero segue contrato completo.
-- Série ausente não produz números `NaN`, infinito ou placeholders.
-- Métricas antigas pela distância original deixam de alimentar consumidores
-  canônicos.
+- Série ausente não produz `NaN`, infinito, zero sintético ou placeholder.
+- Métricas importadas pela distância original deixam de alimentar consumidores
+  de `WATCH_D3_D4`.
+- Estimativa por passos totais nunca aparece como total funcional.
+- Plausibilidade permanece visível no read model.
 
-## Validação manual
-
-- Conferir planilha/cálculo independente para atividade de referência.
-- Verificar intervalo zero e último parcial.
-- Comparar total pela fórmula, não pela média dos intervalos.
-
-## Comandos permitidos
+## Validação
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
@@ -94,25 +90,16 @@ Não criar nem executar testes automatizados.
 ## Evidências
 
 - tabela sanitizada intervalo → duração/passos/distância/cadência/velocidade/ritmo;
-- acumulado final;
+- acumulado final igual à distância canônica;
+- casos zero, ausente e implausível;
 - builds e smoke local.
 
 ## Definição de pronto
 
-Série V1 completa e consistente, sem suavização ou fallback, com item `014-08`
+Série V1 completa e consistente, sem fallback ou suavização, com item `014-08`
 marcado.
-
-## Riscos e cuidados
-
-- Duração parcial altera cadência/velocidade do último intervalo.
-- Arredondamento somente na apresentação.
-- Total canônico e soma temporal podem divergir; manter diagnóstico explícito.
 
 ## Rollback
 
-Retornar métricas novas como ausentes e preservar snapshots; não restaurar
-distância original como fallback canônico.
-
-## Atualização obrigatória do overview
-
-Atualizar `014-00-overview.md`, marcar `014-08` e registrar unidades/precisão.
+Retornar métricas novas como ausentes e preservar snapshots. Não restaurar
+original ou estimativa agregada como fallback canônico.
