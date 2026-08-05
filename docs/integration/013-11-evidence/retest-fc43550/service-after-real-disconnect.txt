@@ -1,0 +1,6 @@
+# Gate não executado.
+# A execução foi encerrada após falha reproduzível na desconexão concorrente
+# pela tela Dispositivo; nenhuma desconexão física real foi provocada.
+
+result=NOT_EXECUTED
+reason=stop_after_first_divergence

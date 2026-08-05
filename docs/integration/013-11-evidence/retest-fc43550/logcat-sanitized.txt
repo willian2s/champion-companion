@@ -1,0 +1,8 @@
+# Trechos reais, ordenados por timestamp.
+# IDs de sessão, PID/TID, MAC, UUID e payload BLE removidos.
+# O Logcat não expõe owner nem currentSession; ausência preservada como fato.
+
+08-05 09:48:57.839 ChampionCompanion ble_transport_state state=transport_ready owner=not_exposed
+08-05 09:50:59.353 ChampionCompanion ble_transport_state state=session_cleanup owner=not_exposed
+08-05 09:51:02.240 ChampionCompanion ble_transport_state state=transport_ready owner=not_exposed
+08-05 09:58:41.991 ChampionCompanion ble_transport_state state=session_cleanup owner=not_exposed

@@ -307,3 +307,114 @@ adb exec-out screencap -p                         PASS (capturas sanitizadas)
 adb shell uiautomator dump                      PASS (inspeção de estados)
 testDebugUnitTest                                 NÃO EXECUTADO
 ```
+
+## Registro do reteste físico focado — fc43550 — 2026-08-05
+
+### Status
+
+- `Status: in_progress`.
+- Overview permanece `[ ]`; progresso permanece `8/17`.
+- Nenhuma correção de produção foi aplicada.
+
+### Preparação
+
+- Branch: `feat/013-phone-workouts`.
+- HEAD: `fc43550384f745f0b5bb42537e12ffbf786da210`.
+- `git status --short`: somente diretório novo de evidências após captura.
+- `git diff --check`: PASS.
+- `./gradlew lint assembleDebug`: PASS.
+- `./gradlew installDebug`: PASS.
+- `testDebugUnitTest`: não executado.
+- Logcat foi limpo e capturado por PID do package debug.
+
+### Fatos comprovados
+
+- Gate A passou: treino livre ativo, associação explícita, `Status: Conectado`,
+  FGS ativo e BPM/passos ausentes.
+- Gate B passou: `Mais → Dispositivo` reconheceu o transporte e mostrou
+  `Conectado`.
+- Bug reproduzido na primeira sequência: `Desconectar` da tela Dispositivo foi
+  aceito durante participação do treino. Esperado era recusa por conflito com
+  `APP_WORKOUT_SESSION`.
+- Após a operação, Dispositivo mostrou `Desconectado`, mas ActiveWorkout voltou a
+  mostrar `Status: Conectado`, sem `Tentar novamente`. FGS permaneceu ativo.
+- Primeira divergência comprovada: `Device screen=DISCONNECTED` versus
+  `ActiveWorkout=CONNECTED`.
+- Sessão anterior foi finalizada e descartada. Nova tentativa terminou em
+  `Solicitação de início emitida`, sem FGS e sem ActiveWorkout.
+- Não houve base operacional para repetir desconexão física, retry ou demais
+  gates. Execução física foi encerrada sem atribuir causa.
+
+### Matriz de estado
+
+```text
+connectionManager.state = não observável
+connectionManager.currentSession() = não observável
+owner ForegroundBleOperationGate = não observável
+WatchWorkoutParticipationCoordinator.state = não observável diretamente
+ExercisesViewModel = não observável; status visual renderizado = CONNECTED
+ActiveWorkout = CONNECTED
+Device screen = DISCONNECTED
+```
+
+Não há evidência para decidir se divergência começa no manager, coordinator,
+owner ou ViewModel.
+
+### Evidências
+
+Evidências sanitizadas ficam em
+`docs/integration/013-11-evidence/retest-fc43550/`:
+
+- `01-active-workout-connected.png`;
+- `02-device-screen-connected.png`;
+- `03-device-disconnect-result.png`;
+- `04-active-after-disconnect-stale.png`;
+- `service-connected.txt`;
+- `service-after-device-disconnect.txt`;
+- `service-after-real-disconnect.txt`;
+- `service-after-reconnect.txt`;
+- `notification-after-real-disconnect.txt`;
+- `logcat-sanitized.txt`;
+- `validation-summary.md`.
+
+Logcat bruto e dumps não sanitizados permaneceram fora do repositório. Nenhum
+MAC, serial ADB, UUID de sessão, localização, payload BLE bruto ou identificador
+completo do relógio foi preservado nas evidências versionáveis.
+
+### Decisões e desvios
+
+- Não foi aplicada nova correção de produção.
+- Não houve alteração em `013-08`, protocolo BLE, banco, GPS, rota, Health
+  Connect, persistência ou testes.
+- Conforme regra de parada após bug, não foram executados desconexão física,
+  retry, reconexão, conflito adicional, rollover ou nova repetição do mesmo
+  cenário.
+- A segunda tentativa não reproduziu o bug de desconexão porque o handoff não
+  criou sessão ativa; foi registrada como bloqueio, não como PASS.
+
+### Riscos residuais
+
+- Desconexão concorrente não bloqueada; estado stale entre telas observado.
+- Causa interna ainda não localizada temporalmente.
+- Desconexão física, retry explícito, ausência de reconexão automática, conflito
+  completo, lifecycle, rollover, recuperação e handoff permanecem sem aceite.
+- BPM/passos live continuam ausentes por falta de origem esportiva comprovada.
+
+### Comandos desta execução
+
+```text
+git branch --show-current                         PASS
+git rev-parse HEAD                                PASS
+git status --short                                PASS (inicialmente limpo)
+git diff --check                                  PASS
+adb devices                                       PASS
+./gradlew lint assembleDebug                     PASS
+./gradlew installDebug                           PASS
+adb logcat -c                                     PASS
+adb logcat --pid="$(adb shell pidof -s br.com.mwconsulting.championcompanion.dev)" -v threadtime  PASS
+adb shell dumpsys activity services ...           PASS (trechos sanitizados)
+adb shell dumpsys notification --noredact         PASS (não versionado)
+adb exec-out screencap -p                         PASS (capturas sanitizadas)
+adb shell uiautomator dump                       PASS
+testDebugUnitTest                                 NÃO EXECUTADO
+```

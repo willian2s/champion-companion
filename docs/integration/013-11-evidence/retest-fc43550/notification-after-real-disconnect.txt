@@ -1,0 +1,5 @@
+# Gate não executado.
+# Não houve desconexão física real nesta execução.
+
+result=NOT_EXECUTED
+reason=stop_after_first_divergence

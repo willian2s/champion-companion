@@ -1,0 +1,12 @@
+# Trecho real sanitizado de dumpsys activity services
+# Captura: sessão livre após associação explícita do relógio
+
+service=WorkoutRecordingService
+present=true
+isForeground=true
+startForegroundCount=1
+foregroundNotification=workout_session_active
+foregroundTypes=0x00000110
+owner=not_exposed_by_dumpsys
+session_id=redacted
+process_id=redacted

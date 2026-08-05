@@ -624,3 +624,17 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   sanitizadas estão em `docs/integration/013-11-evidence/`; nenhum arquivo de
   `013-08`, teste, contrato, banco ou protocolo BLE foi alterado. Item continua
   `[ ]`, status `in_progress`, progresso `8/17`.
+- Reteste físico focado da correção `fc43550384f745f0b5bb42537e12ffbf786da210`
+  confirmou novamente Gate A e reconhecimento `Conectado` na tela Dispositivo.
+  Porém, `Desconectar` foi aceito durante participação do treino, contrariando
+  bloqueio esperado por `APP_WORKOUT_SESSION`; ao retornar, ActiveWorkout mostrou
+  `Status: Conectado` enquanto Dispositivo havia mostrado `Desconectado`, sem
+  `Tentar novamente`. FGS permaneceu ativo e BPM/passos continuaram ausentes.
+  A tentativa de repetição terminou em `Solicitação de início emitida`, sem FGS
+  ou sessão ativa, portanto não reproduziu o mesmo cenário. Primeira divergência
+  interna não foi isolada: manager, currentSession, owner e coordinator não são
+  observáveis por UI/dumpsys/Logcat sanitizado. Evidências sanitizadas estão em
+  `docs/integration/013-11-evidence/retest-fc43550/`. Não houve correção de
+  produção, alteração de `013-08`, protocolo BLE, banco, GPS, rota, Health
+  Connect, persistência ou testes. Item permanece `[ ]`, status `in_progress`,
+  progresso `8/17`.
