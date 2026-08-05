@@ -1,4 +1,4 @@
-# 014-02 — Definir contratos temporais e de métricas derivadas
+# 014-02 — Definir contratos canônicos e temporais
 
 - **Ticker:** `014`
 - **Número:** `02`
@@ -6,87 +6,128 @@
 
 ## Objetivo e resultado esperado
 
-Criar contratos Android-free que separem fatos raw/medidos, snapshot derivado,
-elegibilidade temporal, métricas por intervalo, splits e projeções filhas.
-Resultado: domínio compilável e sem dependência de Room, Compose, BLE Android ou
-Health Connect SDK.
+Criar contratos Android-free que separem raw, measured, snapshot derivado,
+elegibilidade temporal, plausibilidade, métricas, splits e identidade conceitual
+de projeções filhas.
 
-## Contexto
-
-`WorkoutMetrics` e `WorkoutInterval` misturam origem e cálculo. ADR-018 exige
-camadas explícitas e snapshot reproduzível antes de desenhar migration.
-
-## Requisitos cobertos
-
-- R2 a R9;
-- ADR-018, especialmente snapshot, tempo, identidade e ausência tipada.
+Resultado: domínio compilável e decisão fechada para a migration local de
+`014-03`, sem dependência de Room, Compose, BLE Android ou Health Connect SDK.
 
 ## Dependências
 
-- `014-01` concluída.
+- `014-01` concluída e revisada.
 
 ## Arquivos permitidos
 
-- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`;
-- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/DeviceProfileDailySummary.kt`;
-- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`;
-- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
-- novos arquivos de contrato em `core/model`;
-- spec, ADR-018 e overview da Fase 014.
+- `core/model/WatchWorkoutActivity.kt`;
+- `core/model/DeviceProfileDailySummary.kt`;
+- `core/model/HeartRateAndSync.kt`;
+- `core/model/RepositoryContracts.kt`;
+- novos arquivos em `core/model`;
+- spec, ADR-018 e overview.
 
-Símbolos prováveis: `StepLengthSource`, `WorkoutDerivationMethod`,
-`WorkoutDerivationSnapshot`, `MeasuredWorkoutInterval`,
-`DerivedWorkoutInterval`, `TemporalSeriesEligibility`, `WorkoutSplit` e
-`HealthSyncRecordType.SPEED`.
+Símbolos prováveis:
+
+- `StepLengthSource`;
+- `WorkoutDerivationMethod`;
+- `MeasuredWorkoutInterval`;
+- `WorkoutDerivationSnapshot`;
+- `DerivedWorkoutInterval`;
+- `TemporalSeriesEligibility` e motivos tipados;
+- `WorkoutSeriesPlausibility`;
+- `WorkoutSplit`;
+- `HealthProjectionChildKey` conceitual;
+- `HealthSyncRecordType.SPEED` sem habilitar writer.
 
 ## Arquivos proibidos
 
 - `core/bluetooth`, `core/database`, `data`, `feature` e `core/healthconnect`;
 - Gradle, manifesto, migrations, schemas e Fase 013.
 
-## Escopo
+## Decisões obrigatórias
 
-- invariantes e nomes do domínio;
-- quatro casos de duração;
-- fórmulas V1 e zero passos;
-- ausência de distância/série/split;
-- chaves estáveis conceituais para filhos Health Connect.
+### Série e distância
 
-## Fora do escopo
+```text
+canonicalIntervalDistance = decodedSteps × stepLengthMetersUsed
+canonicalDistance = soma exata dos intervalos canônicos
+```
 
-- persistência Room;
-- parser D4;
-- UI e reprocessamento operacional;
-- mapper Health Connect;
-- testes automatizados.
+- Série inelegível implica distância canônica ausente.
+- `totalSteps × stepLengthMetersUsed` é somente estimativa agregada diagnóstica.
+- Original, calibrada histórica e raw temporal não são fallback.
+
+### Índices
+
+Série V1 exige índices únicos e contínuos `0..N-1`. Lacuna, duplicata, primeiro
+índice não zero ou ordem inconsistente recebe motivo explícito de inelegibilidade.
+
+### Duração e plausibilidade
+
+- Modelar os quatro casos `T/N/60 s` da spec.
+- Modelar `LAST_INTERVAL_RESIDUAL` separadamente de plausibilidade.
+- Definir motivos tipados, incluindo cadência/velocidade implausível.
+- Registrar limiar adotado ou manter política inelegível sem limiar até evidência;
+  não esconder a decisão em código posterior.
+
+### BPM por split
+
+- Janelas semiabertas `[start, end)`.
+- Sample-and-hold: amostra `i` cobre `[sampledAt_i, sampledAt_i+1)`, limitada
+  pela sessão.
+- Média ponderada pela duração de sobreposição.
+
+### SpeedRecord
+
+A política estável é ponto médio do intervalo:
+
+```text
+sampledAt = intervalStart + effectiveDuration / 2
+```
+
+### Esteira
+
+Para `WATCH_D3_D4`, `TREADMILL` pode avançar para `READY_TO_SYNC` quando existir
+série canônica elegível, sem exigir calibração histórica. Contratos phone
+permanecem legados.
+
+### Projeções filhas
+
+Definir conceitualmente uma operação por filho:
+
+```text
+aggregate + recordType + projectionChildKey
+```
+
+Não desenhar schema ainda, mas impedir contrato que volte a uma operação com
+subfila interna de vários records.
 
 ## Passos de implementação
 
-1. Definir raw/measured/derived sem reutilizar coluna legada com nova semântica.
-2. Modelar `stepLengthMeters` positivo e origem enumerada.
-3. Modelar snapshot imutável com método, versão e `derivedAt`.
-4. Modelar resultado temporal válido/inelegível com motivo explícito.
+1. Definir raw/measured/derived sem reutilizar nomes legados com nova semântica.
+2. Modelar `stepLengthMeters` positivo, origem e snapshot imutável.
+3. Modelar série canônica única e estimativa diagnóstica separada.
+4. Modelar índices, quatro casos temporais e plausibilidade.
 5. Modelar métricas por intervalo, acumulado e split.
-6. Adicionar `SPEED` ao tipo de sync sem habilitar writer ainda.
-7. Manter adapters temporários necessários para não quebrar consumidores fora da
-   subtarefa.
-8. Atualizar overview após validação.
+6. Formalizar BPM temporal e ponto médio da velocidade.
+7. Formalizar workflow `TREADMILL` para origem relógio.
+8. Adicionar `SPEED` ao enum sem tornar atividade elegível antes de `014-13`.
+9. Modelar chave conceitual de filho Health Connect.
+10. Manter adapters compatíveis para consumidores ainda não migrados.
 
 ## Critérios de aceite
 
-- Contratos representam todos os requisitos sem tipos Android.
-- Distância original não pode ser confundida com canônica pelo nome/API.
-- Snapshot guarda valor e origem usados, sem referência mutável ao perfil.
-- Casos temporais inválidos permanecem representáveis sem exceção silenciosa.
-- `SPEED` não torna atividade elegível antes de `014-12`.
+- Contratos representam todas as decisões sem tipos Android.
+- Não existe API que permita duas distâncias canônicas.
+- Estimativa agregada é nomeada como diagnóstica.
+- Lacunas e duplicatas são representáveis sem exceção silenciosa.
+- Plausibilidade não modifica duração nem passos.
+- BPM temporal e midpoint de velocidade são determinísticos.
+- Workflow de esteira diferencia `WATCH_D3_D4` de phone histórico.
+- `SPEED` não habilita writer prematuramente.
+- A chave conceitual suporta uma operação por filho.
 
-## Validação manual
-
-- Revisar invariantes com exemplos `T=N×60`, parcial, curto e longo.
-- Revisar API contra ADR-018 e consumidores inventariados.
-- Confirmar ausência de dependências Android no domínio.
-
-## Comandos permitidos
+## Validação
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
@@ -98,28 +139,17 @@ Não criar nem executar testes automatizados.
 
 ## Evidências
 
-- Diff dos contratos;
 - tabela requisito → tipo/invariante;
+- matriz de elegibilidade e plausibilidade;
+- exemplos de split/BPM e midpoint;
 - resultado dos builds e revisão de arquitetura.
 
 ## Definição de pronto
 
-Contratos compilam, não ativam comportamento incompleto e item `014-02` está
-marcado no overview.
-
-## Riscos e cuidados
-
-- Mudança ampla em `WorkoutInterval` pode quebrar mappers; usar evolução
-  compatível até migration.
-- Não expor passo pessoal em `toString`, logs ou IDs.
-- Não renomear infraestrutura histórica phone.
+Contratos compilam, schema lógico local está fechado para `014-03` e item
+`014-02` está marcado no overview.
 
 ## Rollback
 
 Remover novos contratos/adapters e restaurar enum sem `SPEED`; sem efeito em
 dados persistidos.
-
-## Atualização obrigatória do overview
-
-Atualizar `014-00-overview.md`, marcar somente `014-02` e registrar decisões de
-contrato que afetem `014-03`.
