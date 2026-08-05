@@ -1,0 +1,8 @@
+capture_scope=debug application process only
+transport=transport_ready observed during explicit participation bootstrap
+outbound_protocol_commands=none observed in captured application log
+metrics=BPM and steps absent; no metric sample attribution observed
+raw_ble_payloads=omitted
+session_identifiers=omitted
+device_identifiers=omitted
+personal_data=omitted

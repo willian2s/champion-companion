@@ -215,3 +215,95 @@ A subtarefa pode ser concluída quando:
 Desabilitar a participação BLE durante treino iniciado pelo celular, liberar o
 owner da sessão por identidade e preservar a sessão phone, GPS, rota e métricas
 já válidas. Nenhuma amostra deve ser apagada como parte do rollback.
+
+## Registro da validação física — 2026-08-05
+
+### Preparação e gate técnico
+
+- Branch confirmada: `feat/013-phone-workouts`.
+- Working tree inicial limpo; `git diff --check` passou.
+- Galaxy S22 disponível via ADB; serial não foi registrado.
+- `./gradlew lint assembleDebug` passou.
+- `./gradlew installDebug` passou e instalou o package debug esperado.
+- `testDebugUnitTest` não foi executado.
+
+### Resultados observados
+
+- Conexão inicial passou: treino livre iniciou, associação do relógio foi
+  explícita, estado conectado foi exibido, o FGS permaneceu ativo e BPM/passos
+  permaneceram ausentes.
+- Desconexão teve resultado divergente: `Mais → Dispositivo` exibiu
+  `Desconectado` e manteve o FGS, mas o retorno a `ActiveWorkout` exibiu
+  `Status: Conectado` e não mostrou `Tentar novamente`. Gate marcado como
+  `FAIL`, sem alegar reconexão.
+- Repetição controlada não alcançou sessão ativa. Após novo countdown, a UI ficou
+  em `Solicitação de início emitida`, sem FGS e sem ActiveWorkout. O sintoma é
+  compatível com bloqueio conhecido do handoff compartilhado de `013-08`, mas a
+  causa não foi isolada nesta execução; `013-08` não foi alterada.
+- Finalização e descarte do primeiro cenário liberaram serviço e notificação nos
+  dumps sanitizados. Nova sessão não pôde ser aceita porque o handoff repetido
+  falhou.
+- Não foram executados gates de conflito de owner, cancelamento durante
+  `CONNECTING`, rollover/perda de lease ou recuperação pós-`am crash`, pois não
+  havia sessão ativa operacional para fazê-los com segurança.
+- A inspeção do Logcat capturado não encontrou registros de comandos BLE de saída
+  da participação. Payloads, IDs de sessão e identificadores do dispositivo não
+  foram preservados.
+
+### Evidências
+
+Evidências sanitizadas estão em
+`docs/integration/013-11-evidence/validation-summary.md`, com dumps reduzidos,
+notificação sanitizada, Logcat sanitizado e capturas conectada, desconectada e
+do estado stale exibido ao retornar a `ActiveWorkout`.
+O Logcat bruto permaneceu fora do repositório.
+
+### Decisão
+
+Subtarefa permanece `in_progress`; overview continua em `8/17` e item
+`013-11` continua `[ ]`. Não houve correção de produção nesta execução.
+
+### Arquivos alterados nesta execução
+
+- `docs/tasks/013-app-workouts-gps-route/013-11-integrate-watch-live-heart-rate-and-steps-with-phone-session.md`;
+- `docs/tasks/013-app-workouts-gps-route/013-00-overview.md`;
+- `docs/integration/013-11-evidence/` com capturas e evidências sanitizadas.
+
+Nenhum arquivo de produção, `013-08`, contrato, banco, protocolo BLE ou teste
+foi alterado.
+
+### Decisões e desvios
+
+- Não houve correção mínima aplicada: a reconexão apresentou estado stale, mas a
+  causa não foi isolada e a repetição ficou bloqueada pelo handoff da sessão.
+- Não foram fabricados estados, fakes, hooks, payloads, dados de métricas ou
+  operações BLE concorrentes.
+- A evidência visual desconectada foi recortada para remover identificador do
+  relógio e horários desnecessários.
+
+### Riscos residuais
+
+- Reconexão explícita ponta a ponta não comprovada; estado stale após
+  desconexão foi observado uma vez.
+- Handoff de `013-08` bloqueia repetição dos gates dependentes.
+- Conflito de owner, cleanup durante handshake, rollover/perda de lease e
+  recuperação continuam sem evidência física.
+- BPM/passos live continuam ausentes até protocolo esportivo seguro comprovado.
+
+### Comandos e resultados
+
+```text
+git branch --show-current                         PASS
+git status --short                                PASS (inicialmente limpo)
+git diff --check                                  PASS
+adb devices                                       PASS
+./gradlew lint assembleDebug                     PASS
+./gradlew installDebug                           PASS
+adb logcat -c                                     PASS
+adb logcat --pid="$(adb shell pidof -s br.com.mwconsulting.championcompanion.dev)" -v threadtime > /tmp/013-11-logcat.txt  PASS
+adb shell dumpsys activity services ...           PASS (dumps coletados)
+adb shell dumpsys notification --noredact         PASS (dump coletado e não versionado)
+adb exec-out screencap -p                         PASS (capturas sanitizadas)
+adb shell uiautomator dump                      PASS (inspeção de estados)
+testDebugUnitTest                                 NÃO EXECUTADO
+```

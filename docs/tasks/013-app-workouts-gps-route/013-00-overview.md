@@ -611,3 +611,16 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
   retry/reconexão, conflito, rollover, handoff `013-08`, screenshots e BPM/
   passos live permanecem pendentes; item segue `[ ]`, status `in_progress`,
   progresso `8/17`.
+- Validação física continuada de `013-11` em 2026-08-05 confirmou conexão
+  inicial explícita, FGS ativo, ausência segura de BPM/passos e cleanup de
+  serviço/notificação após término e descarte. A desconexão exibiu estado correto
+  em `Dispositivo`, mas o retorno a `ActiveWorkout` mostrou `Conectado` sem
+  `Tentar novamente`; gate de reconexão permanece `FAIL`. Repetição ficou
+  bloqueada pelo handoff de `013-08`, que terminou em `Solicitação de início
+  emitida` sem FGS; o sintoma é compatível com bloqueio conhecido do handoff,
+  mas a causa não foi isolada nesta execução. Conflito de owner, cancelamento
+  durante handshake, rollover, recuperação e reconexão ponta a ponta permanecem
+  sem aceite. Evidências
+  sanitizadas estão em `docs/integration/013-11-evidence/`; nenhum arquivo de
+  `013-08`, teste, contrato, banco ou protocolo BLE foi alterado. Item continua
+  `[ ]`, status `in_progress`, progresso `8/17`.

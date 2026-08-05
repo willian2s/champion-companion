@@ -1,0 +1,6 @@
+connected=ongoing workout notification present on channel workout_session_active
+disconnected=ongoing workout notification remained present with foreground service
+after_finish=application workout notification absent
+after_discard=application workout notification absent
+personal_notifications=omitted
+raw_dump=not versioned
