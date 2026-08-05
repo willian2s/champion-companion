@@ -76,27 +76,28 @@ ADR; riscos aceitos; evidências; status/progresso; nenhum WorkManager/teste.
 - preservar dados e evidências e redefinir a direção futura para treinos do
   relógio.
 
-## Fora do escopo
+## Fora do escopo desta execução
 
-Implementação corretiva, desativação operacional em código, Fase 014,
-WorkManager, novos recursos, testes e qualquer gate físico novo.
+Remoção definitiva de legado, Fase 014, WorkManager, novos recursos, cálculo de
+passada, splits, sync granular, migrations, schemas, dados, evidências e testes
+automatizados. A desativação operacional mínima foi autorizada nesta execução;
+não deve ser confundida com limpeza do código phone.
 
 ## Plano de fechamento futuro
 
 ### A — Encerramento documental
 
-Estado: em execução nesta subtarefa. Consolidar status `closing`, resultado
+Estado: concluído documentalmente nesta execução. Status `closing`, resultado
 `partially_delivered`, motivo `product_reorientation`, matriz de 17 itens,
-spec, overview, roadmap, baselines, ADR-017 e resumo de integração. Manter
-`013-17` como `in_progress`; nenhum item do checklist pode ser marcado por este
-registro.
+spec, overview, roadmap, baselines, ADR-017 e resumo de integração estão
+alinhados. `013-17` permanece `in_progress` até revisão independente.
 
 ### B — Desativação operacional dos pontos de entrada phone
 
-Estado: pendente e bloqueado para execução nesta etapa documental. A operação
-deve definir e evidenciar a desativação dos pontos de entrada de treinos phone,
-sem afirmar que o código atual já foi desativado. Não criar correção de produção
-nem nova task neste trabalho.
+Estado: implementado nesta execução. Guard central bloqueia entrada, criação,
+retomada, FGS, ownership, GPS, rota e BLE phone; recovery histórico preserva
+dados e permite somente descarte seguro quando suportado. Revisão independente
+final permanece pendente.
 
 ### C — Preservação de sessões e dados existentes
 
@@ -107,10 +108,10 @@ preservados até autorização explícita de remoção. Cancelamento de direçã
 
 ### D — Encerramento final `partially_delivered`
 
-Estado: futuro, dependente de A, B e C. Registrar a Fase 013 como
-`partially_delivered` somente quando a desativação operacional estiver
-documentada com evidência própria e a preservação estiver verificada. Até lá,
-Fase 013 permanece `closing` e esta subtarefa permanece `in_progress`.
+Estado: pendente somente pela revisão independente final. Evidência de B e C
+está registrada; Gate D foi `PASS/N/A` por ausência de sessão histórica e Gate E
+passou com importação real D3/D4. Até revisão, Fase 013 permanece `closing` e
+esta subtarefa permanece `in_progress`.
 
 ## Passos de implementação
 
@@ -121,8 +122,9 @@ Fase 013 permanece `closing` e esta subtarefa permanece `in_progress`.
    relógio.
 5. Inspecionar ADR-004/012/014/016 e criar ADR-017 sem inventar implementação.
 6. Criar resumo de integração e registrar riscos residuais.
-7. Não alterar protocolos `013-08`/`013-11` nem executar gates físicos.
-8. Registrar somente verificações documentais permitidas nesta execução.
+7. Não alterar protocolos históricos `013-08`/`013-11`, migrations ou schemas.
+8. Executar validação estática e gates manuais autorizados, sem testes
+   automatizados.
 9. Manter `013-17` em `in_progress` e o checklist sem conclusão.
 
 ## Critérios de aceite
@@ -134,22 +136,31 @@ Fase 013 permanece `closing` e esta subtarefa permanece `in_progress`.
 - baseline descreve entrega real, preservando histórico;
 - ADR/migration/riscos/evidências são rastreáveis;
 - critérios finais não exigem novos treinos phone;
-- não se afirma desativação phone já realizada no código;
+- desativação phone está implementada com guard central e evidência própria;
 - nenhum teste automatizado é alegado;
 - nenhum commit/push.
 
 ## Validação manual
 
-Revisão documental de links, nomes, ticker, estados, matriz de encerramento,
-rastreabilidade e `git status`. Não executar Gradle, testes ou gates físicos.
+Revisão de links, nomes, ticker, estados, matriz de encerramento,
+rastreabilidade, build/lint e gates A–E. Gate D é `PASS/N/A` por ausência de
+sessão histórica; Gate E possui importação real D3/D4.
 
 ## Comandos
 
-Nenhum Gradle adicional se evidências válidas de 013-16 existirem. Não executar testes.
+```text
+git diff --check
+./gradlew lint assembleDebug assembleRelease
+./gradlew installDebug
+```
+
+Não executar testes automatizados.
 
 ## Evidências
 
-Diff documental, verificação de links/checklist, matriz de encerramento, ADR-017,
+Diff de código/documentação, build/lint/install, UI Exercícios sem CTA phone,
+intent antigo rejeitado, dumps sanitizados sem FGS/GPS/notificação phone,
+importação real do relógio (`inseridos 1`, `parciais 1`, `inválidos 0`), ADR-017,
 resumo de riscos e `git status` final.
 
 ## Screenshots
@@ -158,14 +169,13 @@ Referenciar screenshots da 013-16; não criar evidência nova sem execução.
 
 ## Definição de pronto
 
-Bloco A reconciliado documentalmente, overview com 17 itens e `013-17` ainda
-`in_progress`; blocos B, C e D continuam claramente pendentes ou em preservação.
+Bloco A reconciliado, Bloco B implementado, Bloco C preservado, overview com 17
+itens e `013-17` ainda `in_progress` até revisão independente.
 
 ## Riscos e cuidados
 
-Não converter risco aceito em sucesso. Não apagar dívida do guard/protocolo,
-histórico, migration, schema, dados ou evidência. Não iniciar F14 nem afirmar
-desativação phone já realizada.
+Não converter Gate D `PASS/N/A` em sessão testada. Preservar dívida histórica,
+migration, schema, dados e evidência. Não iniciar F14 nem remover legado phone.
 
 ## Rollback
 
@@ -320,6 +330,5 @@ adb devices — PASS; dispositivo Galaxy S22 disponível
   independente confirmar os critérios. Fase 013 permanece `closing`.
 - Classes, modelos e estruturas phone legadas permanecem deliberadamente no
   código para leitura, compatibilidade e preservação histórica.
-- Risco residual: gates D e parte de E não possuem evidência física nesta rodada;
-  consumidores históricos do serviço continuam presentes, mas protegidos pelo
-  guard central.
+- Risco residual: Gate B não reproduziu retorno de back stack real; consumidores
+  históricos do serviço continuam presentes, mas protegidos pelo guard central.

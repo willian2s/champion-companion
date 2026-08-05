@@ -769,8 +769,27 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
             if (!disconnectAcceptedTransportAtInactiveState(sessionId)) return@withContext false
             if (!isSessionInState(sessionId, allowedStates)) return@withContext false
 
-            val permitToRelease = operationMutex.withLock {
-                if (enabledSessionId != sessionId && boundSessionId != sessionId) return@withLock null
+            operationMutex.withLock {
+                if (enabledSessionId != sessionId && boundSessionId != sessionId) return@withLock true
+                val permitToRelease = permit
+                try {
+                    permitToRelease?.let { expectedPermit ->
+                        val active = foregroundBleOperationGate.observeActiveOperation().first()
+                        if (active == null ||
+                            active.owner != expectedPermit.owner ||
+                            active.operationId != expectedPermit.operationId ||
+                            active.acquiredAt != expectedPermit.acquiredAt
+                        ) return@withLock false
+                        foregroundBleOperationGate.release(expectedPermit)
+                        val remaining = foregroundBleOperationGate.observeActiveOperation().first()
+                        if (remaining?.owner == expectedPermit.owner &&
+                            remaining.operationId == expectedPermit.operationId &&
+                            remaining.acquiredAt == expectedPermit.acquiredAt
+                        ) return@withLock false
+                    }
+                } catch (_: Exception) {
+                    return@withLock false
+                }
                 terminalObserverJob?.cancel()
                 terminalObserverJob = null
                 foregroundBleSessionId = null
@@ -781,14 +800,9 @@ class WatchWorkoutParticipationCoordinator @Inject constructor(
                 connectionAttemptSessionId = null
                 boundSessionId = boundSessionId?.takeUnless { it == sessionId }
                 mutableState.value = WatchWorkoutParticipationState()
-                permit.also { permit = null }
+                permit = null
+                true
             }
-            try {
-                permitToRelease?.let { foregroundBleOperationGate.release(it) }
-            } catch (_: Exception) {
-                return@withContext false
-            }
-            true
         }
     }
 

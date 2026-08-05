@@ -69,8 +69,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val shutdownGeneration = recoverable?.id?.value?.toString()
-                ?.let(::stopDiscontinuedWorkoutService)
+            if (recoverable == null) return@launch
+            val shutdownGeneration = stopDiscontinuedWorkoutService(recoverable.id.value.toString())
             if (shutdownGeneration == null || !PhoneWorkoutPolicy.awaitShutdown(shutdownGeneration)) {
                 Toast.makeText(
                     this@MainActivity,
@@ -79,11 +79,12 @@ class MainActivity : ComponentActivity() {
                 ).show()
                 return@launch
             }
-            if (recoverable != null && !isFinishing && !isDestroyed) {
+            if (!isFinishing && !isDestroyed) {
                 startActivity(
                     WorkoutSessionActivity.recoveryIntent(
                         context = this@MainActivity,
                         sessionId = recoverable.id.value.toString(),
+                        shutdownGeneration = shutdownGeneration,
                     ),
                 )
             }

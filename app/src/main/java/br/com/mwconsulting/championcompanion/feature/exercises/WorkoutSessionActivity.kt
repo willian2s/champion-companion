@@ -62,15 +62,17 @@ class WorkoutSessionActivity : ComponentActivity() {
             }
         }
         if (PhoneWorkoutPolicy.isDiscontinued()) {
-            val shutdownGeneration = PhoneWorkoutPolicy.requestShutdown()
-            runCatching {
-                startService(
-                    WorkoutRecordingService.shutdownDiscontinuedIntent(
-                        context = this,
-                        sessionId = intent.getStringExtra(EXTRA_SESSION_ID),
-                        shutdownGeneration = shutdownGeneration,
-                    ),
-                )
+            if (intent.getLongExtra(EXTRA_SHUTDOWN_GENERATION, 0L) <= 0L) {
+                val generation = PhoneWorkoutPolicy.requestShutdown()
+                runCatching {
+                    startService(
+                        WorkoutRecordingService.shutdownDiscontinuedIntent(
+                            context = this,
+                            sessionId = intent.getStringExtra(EXTRA_SESSION_ID),
+                            shutdownGeneration = generation,
+                        ),
+                    )
+                }
             }
         }
     }
@@ -123,6 +125,7 @@ class WorkoutSessionActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_MODE = "workout_session_mode"
         private const val EXTRA_SESSION_ID = "workout_session_id"
+        private const val EXTRA_SHUTDOWN_GENERATION = "shutdown_generation"
         private const val MODE_ACTIVE = "active"
         private const val MODE_RECOVERY = "recovery"
         private const val MODE_FINISH_CONFIRMATION = "finish_confirmation"
@@ -133,10 +136,15 @@ class WorkoutSessionActivity : ComponentActivity() {
                 putExtra(EXTRA_SESSION_ID, sessionId)
             }
 
-        fun recoveryIntent(context: Context, sessionId: String): Intent =
+        fun recoveryIntent(
+            context: Context,
+            sessionId: String,
+            shutdownGeneration: Long? = null,
+        ): Intent =
             Intent(context, WorkoutSessionActivity::class.java).apply {
                 putExtra(EXTRA_MODE, MODE_RECOVERY)
                 putExtra(EXTRA_SESSION_ID, sessionId)
+                shutdownGeneration?.let { putExtra(EXTRA_SHUTDOWN_GENERATION, it) }
             }
 
         fun finishConfirmationIntent(context: Context, sessionId: String): Intent =

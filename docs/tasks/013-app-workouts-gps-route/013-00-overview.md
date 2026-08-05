@@ -37,10 +37,10 @@ Entregar caminhada, corrida, treino livre e esteira iniciados pelo celular, com 
 | 013-01 | `completed` | Auditoria factual pós-Fase 15 e limites de sessão, localização, BLE e Health Connect | Entrega documental preservada | Fonte histórica para decisões futuras; sem novo escopo phone |
 | 013-02 | `completed` | Política de privacidade, ADR-014, roadmap e fronteira F13/F14 | Decisão documental histórica preservada | ADR-017 reorienta novos treinos; guard e privacidade permanecem |
 | 013-03 | `completed` | Contratos de atividade, sessão, rota, GPS, correlação e projeção Health Connect | Contratos entregues antes da reorientação | Preservar como infraestrutura; não expandir rota phone |
-| 013-04 | `completed` | Permissões, countdown, destinos Navigation3 e shells passivos | Preparação/configuração entregue | Pontos de entrada aguardam desativação operacional do Bloco B |
+| 013-04 | `completed` | Permissões, countdown, destinos Navigation3 e shells passivos | Preparação/configuração entregue | Legado preservado; entradas phone protegidas por `013-17` |
 | 013-05 | `completed` | Migration v5→v6, schema e invariantes Room com preservação histórica | Gate documental/físico aceito conforme registro | Preservar migrations, schemas, dados e evidências |
 | 013-06 | `completed` | Readiness GPS, GNSS complementar, filtro e acumulador determinísticos | Infraestrutura entregue; gates posteriores não reabertos | Preservar sem nova expansão GPS/rota |
-| 013-07 | `completed` | Seleção, preparação, countdown, permissões contextuais e handoff | Fluxo documental/implementado preservado | Entrada phone permanece pendente de desativação operacional |
+| 013-07 | `completed` | Seleção, preparação, countdown, permissões contextuais e handoff | Fluxo histórico preservado | Entrada phone protegida por `013-17`; não é direção ativa |
 | 013-08 | `cancelled` | Base FGS, sessão, ownership, recuperação e evidências sanitizadas parcialmente entregues | Reorientação; bloqueios físicos não convertidos em sucesso | Preservar infraestrutura e evidências; não corrigir phone |
 | 013-09 | `completed` | Captura GPS, rota, segmentação e métricas com validação manual e waiver explícito | Entrega preservada, sem ampliar direção de produto | Preservar dados/infraestrutura; não criar novos gates phone |
 | 013-10 | `cancelled` | Superfície sem GPS e orientação de esteira parcialmente entregues; handoff ficou bloqueado | Reorientação antes do aceite integral | Preservar política sem GPS; futura redefinição para relógio |

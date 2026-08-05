@@ -40,7 +40,7 @@ object PhoneWorkoutPolicy {
     fun currentShutdownGeneration(): Long = shutdownGeneration.get()
 
     fun confirmShutdown(generation: Long) {
-        if (shutdownGeneration.get() == generation) {
+        if (generation > 0L && shutdownGeneration.get() == generation) {
             shutdownConfirmedGeneration.value = generation
         }
     }
@@ -49,7 +49,12 @@ object PhoneWorkoutPolicy {
         generation: Long = currentShutdownGeneration(),
         timeoutMillis: Long = 2_000L,
     ): Boolean =
+        if (generation <= 0L) {
+            false
+        } else {
         withTimeoutOrNull(timeoutMillis) {
             shutdownConfirmedGeneration.first { it == generation }
+            true
         } ?: false
+        }
 }

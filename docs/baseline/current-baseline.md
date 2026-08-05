@@ -74,8 +74,8 @@ estado, contratos, navegação, BLE ou persistência. Ver
 `docs/specs/017-alinhamento-visual-margens-cabecalhos.md` e o overview
 `docs/tasks/017-alinhamento-visual-margens-cabecalhos/017-00-overview.md`.
 
-Escopo factual atual do código ainda não inclui, além da base de foreground
-service da sessão adicionada na Fase 13:
+Escopo funcional futuro atual não inclui, embora o código preserve infraestrutura
+histórica da Fase 13 protegida por guard operacional:
 
 - leitura do Health Connect;
 - GPS de sessão, localização persistida, rotas ou `ExerciseRoute`;

@@ -368,7 +368,7 @@ class WorkoutRecordingService : Service() {
 
     private fun handleWatchParticipation(id: AppWorkoutSessionId, retry: Boolean) {
         if (PhoneWorkoutPolicy.isDiscontinued()) {
-            shutdownDiscontinuedRuntime(id)
+            shutdownDiscontinuedRuntime(id, shutdownGeneration())
             return
         }
         launchCommand(id) {
@@ -458,7 +458,7 @@ class WorkoutRecordingService : Service() {
         command: suspend () -> Unit,
     ) {
         if (PhoneWorkoutPolicy.isDiscontinued()) {
-            shutdownDiscontinuedRuntime(id)
+            shutdownDiscontinuedRuntime(id, shutdownGeneration())
             return
         }
         scope.launch {
@@ -475,7 +475,7 @@ class WorkoutRecordingService : Service() {
 
     private suspend fun ensureAttached(id: AppWorkoutSessionId): AppWorkoutSession? {
         if (PhoneWorkoutPolicy.isDiscontinued()) {
-            shutdownDiscontinuedRuntime(id)
+            shutdownDiscontinuedRuntime(id, shutdownGeneration())
             return null
         }
         if (sessionId != null && sessionId != id) return null
@@ -1561,9 +1561,7 @@ class WorkoutRecordingService : Service() {
                         sessionId,
                         latestSession?.id,
                     ).distinct()
-                    bleCleanupCompleted = ids.all {
-                        watchWorkoutParticipationCoordinator.releaseAtDiscontinued(it)
-                    }
+                    bleCleanupCompleted = releaseDiscontinuedIds(ids)
                 }
                 shutdownCompleted = bleCleanupCompleted
             } finally {
@@ -1573,6 +1571,10 @@ class WorkoutRecordingService : Service() {
         }
     }
 
+    private fun shutdownGeneration(): Long =
+        PhoneWorkoutPolicy.currentShutdownGeneration().takeIf { it > 0L }
+            ?: PhoneWorkoutPolicy.requestShutdown()
+
     private fun releaseDiscontinuedRuntimeOnDestroy() {
         if (!PhoneWorkoutPolicy.isDiscontinued()) return
         val ids = listOfNotNull(
@@ -1580,17 +1582,30 @@ class WorkoutRecordingService : Service() {
             sessionId,
             latestSession?.id,
         ).distinct()
-        if (ids.isEmpty()) {
-            return
-        }
         val completed = runBlocking(Dispatchers.Default) {
             withTimeoutOrNull(2_000L) {
-                ids.all { watchWorkoutParticipationCoordinator.releaseAtDiscontinued(it) }
+                releaseDiscontinuedIds(ids)
             } ?: false
         }
         if (completed) {
             activeShutdownGeneration?.let(PhoneWorkoutPolicy::confirmShutdown)
         }
+    }
+
+    private suspend fun releaseDiscontinuedIds(ids: List<AppWorkoutSessionId>): Boolean {
+        if (ids.isEmpty()) return false
+        val sessions = ids.map { sessionRepository.observeSession(it).first() }
+        if (sessions.any { session ->
+                session == null || session.state !in setOf(
+                    AppWorkoutSessionState.CREATED,
+                    AppWorkoutSessionState.ACTIVE,
+                    AppWorkoutSessionState.PAUSED,
+                    AppWorkoutSessionState.AWAITING_RECOVERY,
+                    AppWorkoutSessionState.FINISHING,
+                )
+            }
+        ) return false
+        return ids.all { watchWorkoutParticipationCoordinator.releaseAtDiscontinued(it) }
     }
 
 }

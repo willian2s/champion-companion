@@ -3008,8 +3008,7 @@ O projeto estará concluído quando:
 - funcionar como fonte confiável para aplicativos terceiros.
 
 Novos treinos iniciados pelo celular, GPS, rota, `ExerciseRoute` e mapa não são
-critérios finais de conclusão do roadmap. A operação de desativação dos pontos
-de entrada phone deve ser registrada separadamente; este documento não afirma
-que ela já ocorreu no código.
+critérios finais de conclusão do roadmap. A desativação operacional dos pontos
+de entrada phone foi registrada em `013-17`; o legado permanece preservado.
 
 O MotionLog poderá ser desinstalado depois da validação final, sem necessidade de transferência dos dados locais.
