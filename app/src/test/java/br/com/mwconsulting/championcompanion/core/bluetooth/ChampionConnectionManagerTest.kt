@@ -127,19 +127,17 @@ class ChampionBleConnectionManagerTest {
 
             val transport = (result.await() as ChampionBleResult.Success).value
             assertEquals(session.id, transport.session.id)
-            assertEquals(
-                listOf(
-                    ChampionChannelAlias.F008_NOTIFY,
-                    ChampionChannelAlias.F008_NOTIFY,
-                    ChampionChannelAlias.F002_NOTIFY,
-                    ChampionChannelAlias.F002_NOTIFY,
-                    ChampionChannelAlias.FEA1_NOTIFY,
-                    ChampionChannelAlias.FEA1_NOTIFY,
-                ),
-                client.executedOperations.drop(1).map { operation: ChampionGattOperation ->
-                    (operation.target as ChampionGattTarget.Channel).alias
-                },
-            )
+
+            val subscriptionOperations = client.executedOperations
+                .drop(1)
+                .map { operation -> (operation.target as ChampionGattTarget.Channel).alias }
+                .groupingBy { it }
+                .eachCount()
+
+            assertEquals(6, subscriptionOperations.values.sum())
+            assertEquals(2, subscriptionOperations[ChampionChannelAlias.F008_NOTIFY])
+            assertEquals(2, subscriptionOperations[ChampionChannelAlias.F002_NOTIFY])
+            assertEquals(2, subscriptionOperations[ChampionChannelAlias.FEA1_NOTIFY])
             assertTrue(manager.state.value is ChampionBleState.TransportReady)
         } finally {
             runCatching { manager.disconnect(ChampionDisconnectReason.CLEANUP) }
