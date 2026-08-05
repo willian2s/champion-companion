@@ -37,7 +37,11 @@ class InMemoryForegroundBleOperationGate @Inject constructor() : ForegroundBleOp
     override suspend fun release(permit: ForegroundBleOperationPermit) {
         mutex.withLock {
             val current = activeOperation.value ?: return
-            if (current.owner == permit.owner && current.operationId == permit.operationId) {
+            if (
+                current.owner == permit.owner &&
+                current.operationId == permit.operationId &&
+                current.acquiredAt == permit.acquiredAt
+            ) {
                 activeOperation.value = null
             }
         }
