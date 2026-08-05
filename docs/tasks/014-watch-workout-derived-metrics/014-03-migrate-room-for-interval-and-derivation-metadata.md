@@ -1,4 +1,4 @@
-# 014-03 — Migrar Room para intervalos e metadados de derivação
+# 014-03 — Migrar Room para perfil, raw/measured e derivação
 
 - **Ticker:** `014`
 - **Número:** `03`
@@ -6,25 +6,16 @@
 
 ## Objetivo e resultado esperado
 
-Implementar evolução Room aditiva após `v8` para persistir perfil de passo,
-fatos raw/medidos, duração efetiva, snapshots derivados e manifesto de projeções
-Health Connect. Resultado: banco novo e legado abrem sem perda e sem derivação
-ou efeito remoto durante migration.
+Implementar evolução Room aditiva após `v8` para persistir comprimento pessoal
+do passo, fatos raw/measured, duração efetiva, elegibilidade, plausibilidade e
+snapshots derivados locais.
 
-## Contexto
-
-Schema atual `v8` possui `user_profiles`, `workout_activities`,
-`workout_intervals` e `health_sync_operations`, mas não separa metadados exigidos
-pela ADR-018.
-
-## Requisitos cobertos
-
-- R2 a R5, R8 e R9;
-- migration prevista na spec.
+Resultado: banco novo e legado abrem sem perda, sem derivação automática, sem
+mudança de workflow e sem efeito Health Connect durante migration.
 
 ## Dependências
 
-- `014-02` concluída com schema lógico fechado.
+- `014-02` concluída com schema lógico local fechado.
 
 ## Arquivos permitidos
 
@@ -33,60 +24,101 @@ pela ADR-018.
 - `core/database/ChampionMigrations.kt`;
 - `core/database/DatabaseModule.kt`;
 - `data/DatabaseMappers.kt`;
-- `data/RoomRepositories.kt`, somente adapters mínimos de persistência;
-- schema exportado da nova versão;
+- `data/RoomRepositories.kt`, somente adapters mínimos;
+- novo schema exportado;
 - `docs/baseline/database-reference.md` e overview.
-
-Símbolos prováveis: `UserProfileEntity`, `WorkoutIntervalEntity`, novas entidades
-de snapshot/série/projeção, `HealthSyncOperationEntity`, DAOs e `MIGRATION_8_9`.
 
 ## Arquivos proibidos
 
-- parser BLE, UI, Health Connect gateway/mapper;
-- manifesto, Gradle e schemas históricos `1.json` a `8.json`;
-- tabelas/migrations da Fase 013 para remoção ou reconstrução destrutiva.
+- parser BLE, UI e Health Connect gateway/mapper;
+- manifesto e Gradle;
+- schemas históricos `1.json` a `8.json`;
+- manifesto, filhos, ações ou checkpoints Health Connect, tratados em `014-12`;
+- remoção de estruturas da Fase 013.
 
 ## Escopo
 
-- colunas/tabelas novas, FKs, índices e constraints;
-- defaults nulos/ausentes para legado;
-- round-trip de novos contratos;
-- registro da migration e schema novo.
+### Perfil
+
+Persistir:
+
+```text
+stepLengthMeters
+stepLengthSource
+stepLengthUpdatedAt
+```
+
+### Intervalos raw/measured
+
+Persistir de forma aditiva:
+
+```text
+rawMotionValue
+rawDistanceValue
+rawCaloriesValue
+decodedSteps
+effectiveDurationNanos
+temporalEligibilityReason
+plausibilityStatus
+```
+
+Não reutilizar `distanceMeters` legado como canônico.
+
+### Compatibilidade `d4-v1`
+
+Para `WATCH_D3_D4` com parser version conhecida `d4-v1`:
+
+```text
+rawMotionValue = valor legado de workout_intervals.steps
+decodedSteps = null
+```
+
+A ponte preserva raw, não decodifica e não altera o valor legado. Parser version
+desconhecida não recebe backfill presumido.
+
+### Derivação local
+
+Persistir snapshot e série derivada com:
+
+- uma derivação ativa por atividade;
+- `stepLengthMetersUsed`, origem, método, versão e `derivedAt`;
+- distância canônica total como soma da série;
+- métricas/ausências/elegibilidade;
+- intervalos derivados e splits quando previstos pelo contrato.
 
 ## Fora do escopo
 
-- backfill derivado;
+- backfill de `decodedSteps` ou métricas;
 - reprocessamento de atividades;
-- alteração de workflow;
-- escrita ou deleção Health Connect;
+- alteração para `READY_TO_SYNC`;
+- manifesto/fila/projeção Health Connect;
+- escrita ou deleção remota;
 - testes automatizados.
 
 ## Passos de implementação
 
-1. Traduzir contrato de `014-02` em schema aditivo.
-2. Criar migration manual com defaults seguros e sem calcular métricas.
-3. Preservar IDs, `recordedAt`, revisão, calibração, imports, intervalos, sessões,
-   rotas e operações existentes.
-4. Adicionar DAOs e mappers mínimos para leitura/escrita transacional.
-5. Garantir unicidade de snapshot ativo e discriminadores de filhos.
-6. Exportar somente novo schema e registrar migration no módulo.
-7. Atualizar referência de banco e overview.
+1. Traduzir os contratos de `014-02` em schema local aditivo.
+2. Criar migration manual, provavelmente `8 → 9`, com defaults seguros.
+3. Implementar ponte raw de `d4-v1` condicionada por origem e parser version.
+4. Preservar IDs, `recordedAt`, revisão, calibração, imports, sessões, rotas e
+   operações existentes.
+5. Adicionar DAOs e mappers mínimos para round-trip transacional.
+6. Garantir unicidade de derivação ativa e filhos locais da série.
+7. Exportar somente o novo schema e registrar migration.
+8. Atualizar referência de banco e overview.
 
 ## Critérios de aceite
 
-- Banco sobe de `v8` para nova versão sem destructive migration.
-- Linhas legadas permanecem com derivação ausente, não inventada.
+- Banco sobe sem destructive migration.
+- Linhas legadas permanecem sem derivação inventada.
+- `d4-v1` recuperável preserva o u24 em `rawMotionValue` e mantém
+  `decodedSteps = null`.
+- Versões desconhecidas não são reinterpretadas.
 - Schemas históricos não mudam.
 - Migration não toca provider, fila remota ou workflow.
-- Novas FKs/índices suportam retry e retenção de projeções.
+- A migration de projeções Health Connect continua pendente para `014-12`.
 
-## Validação manual
-
-- Inspecionar SQL da migration e diff do schema exportado.
-- Comparar contagens/identidades antes e depois em banco sanitizado disponível.
-- Abrir app com banco existente e verificar telas locais sem reprocessar.
-
-## Comandos permitidos
+## Validação
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
@@ -101,24 +133,16 @@ Não criar nem executar testes automatizados.
 
 - diff de schema novo;
 - matriz tabela/coluna/default/índice;
-- registro sanitizado da abertura de banco legado e builds.
+- matriz parser version → tratamento da coluna legada;
+- abertura sanitizada de banco legado;
+- resultado dos builds.
 
 ## Definição de pronto
 
-Migration aditiva registrada, schema novo exportado, dados históricos preservados
-e item `014-03` marcado.
-
-## Riscos e cuidados
-
-- Hotspot `RoomRepositories.kt`: limitar alterações a persistência nova.
-- Não reutilizar `distanceMeters` legado como canônico.
-- Snapshot/projeção em retry não pode ser apagado por cascade indevida.
+Migration local aditiva registrada, schema novo exportado, raw `d4-v1`
+preservado e item `014-03` marcado.
 
 ## Rollback
 
 Antes de release, reverter migration/schema e entidades novas. Após distribuição,
 rollback exige migration forward; nunca reduzir versão ou apagar dados.
-
-## Atualização obrigatória do overview
-
-Atualizar `014-00-overview.md`, marcar `014-03` e registrar versão/schema efetivos.
