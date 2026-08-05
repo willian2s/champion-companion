@@ -141,10 +141,14 @@ class DeviceConnectionBootstrap @Inject constructor(
 
     private suspend fun cleanupFailedBootstrap(transport: ChampionTransportSession) {
         withContext(NonCancellable) {
-            connectionManager.disconnectExpectedTransport(
-                expectedTransport = transport,
-                reason = ChampionDisconnectReason.CLEANUP,
-            )
+            try {
+                connectionManager.disconnectExpectedTransport(
+                    expectedTransport = transport,
+                    reason = ChampionDisconnectReason.CLEANUP,
+                )
+            } catch (_: Exception) {
+                // Cleanup must not replace the original bootstrap failure or cancellation.
+            }
         }
     }
 
