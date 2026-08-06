@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 7/16 subtarefas concluídas
+- **Progresso:** 8/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -34,7 +34,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
 - [x] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
 - [x] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
-- [ ] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
+- [x] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
 - [ ] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
 - [ ] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
 - [ ] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
@@ -219,3 +219,9 @@ Connect continua pendente.
   `HealthRecordMapper` e `core/healthconnect` permanecem fora do escopo de
   `014-07` e não foram alterados. Integração Health Connect continua bloqueada
   para subtarefas posteriores.
+- `014-08` confirmou que as fórmulas V1, zero passos, ritmo ausente, acumulados,
+  persistência reproduzível e propagação de plausibilidade já estavam entregues
+  nos contratos e mappers de `014-07`; nenhum código adicional foi necessário.
+  Consumidores finais legados permanecem reservados para `014-10`.
+- Progresso da spec e do overview alinhado para `8/16`; nenhuma subtarefa
+  posterior foi iniciada.
