@@ -525,6 +525,18 @@ internal fun WorkoutDerivationSnapshot.toDerivedIntervalEntities(
     interval.toEntity(snapshotId, ids.next().toString()) ?: return null
 } ?: emptyList()
 
+internal fun WorkoutDerivationSnapshot.toSplitEntities(
+    snapshotId: String,
+    splits: List<WorkoutSplit>,
+    ids: Iterator<UUID>,
+): List<WorkoutSplitEntity>? = if (!isEligibleForFunctionalSplits && splits.isNotEmpty()) {
+    null
+} else {
+    splits.map { split ->
+        split.toEntity(ids.next().toString(), snapshotId) ?: return null
+    }
+}
+
 private fun DerivedWorkoutInterval.toEntity(
     snapshotId: String,
     id: String,
@@ -781,22 +793,17 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
     if (mappedIntervals.map { it.index } != canonicalIntervals.map { it.index }) return null
     if (mappedIntervals.zip(canonicalIntervals).any { (mapped, expected) -> mapped != expected }) return null
 
-    // Splits pertencem a 014-09. Quando já existirem, ainda validamos o
-    // round-trip; ausência não invalida série canônica de 014-07.
-    if (splits.isNotEmpty()) {
-        val mappedSplits = splits.map { entity ->
-            entity.toDomain() ?: return null
-        }
-        val completeSplitCount = (snapshot.canonicalDistanceMeters ?: return null)
-            .let { distance ->
-                val count = distance / 1_000.0
-                if (!count.isFinite() || count > Int.MAX_VALUE) return null
-                count.toInt()
-            }
-        if (mappedSplits.size != completeSplitCount) return null
-        val expectedSplits = WorkoutSplitCalculator.calculate(canonicalSeries, heartRateSamples)
+    val mappedSplits = splits.map { entity ->
+        entity.toDomain() ?: return null
+    }
+    if (mappedSplits.isNotEmpty()) {
+        if (!snapshot.isEligibleForFunctionalSplits) return null
+        val expectedSplits = WorkoutSplitCalculator.calculateOrNull(canonicalSeries, heartRateSamples)
+            ?: return null
         if (mappedSplits != expectedSplits) return null
     }
+    // Snapshot legado de 014-07 pode não ter projeção de splits materializada.
+    // Ausência não sintetiza linhas no read path; rederivação explícita faz isso.
     return snapshot
 }
 

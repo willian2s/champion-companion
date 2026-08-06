@@ -111,6 +111,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRecoverySnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegment
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegmentReason
+import br.com.mwconsulting.championcompanion.core.model.WorkoutSeriesPlausibility
+import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
@@ -629,8 +631,17 @@ class RoomRepositories @Inject constructor(
             val incomingIntervals = activity
                 .toIntervals(persistedId, generateIds(activity.intervals.size))
                 .markPersistedSourceOrder(activity)
+            val incomingHeartRateSamples = activity.toHeartRateSamples(
+                persistedId,
+                generateIds(activity.heartRateSamples.size),
+            )
             val existingIntervals = if (plan.isReimport) {
                 database.workoutDetailDao().findIntervalsForActivity(persistedId)
+            } else {
+                emptyList()
+            }
+            val existingHeartRateSamples = if (plan.isReimport) {
+                database.workoutDetailDao().findHeartRateSamplesForActivity(persistedId)
             } else {
                 emptyList()
             }
@@ -649,6 +660,8 @@ class RoomRepositories @Inject constructor(
                     incomingImport = plan.persistedImport,
                     existingIntervals = existingIntervals,
                     incomingIntervals = incomingIntervals,
+                    existingHeartRateSamples = existingHeartRateSamples,
+                    incomingHeartRateSamples = incomingHeartRateSamples,
                 )
             if (plan.isReimport && activeSnapshot != null && !preserveActiveDerivation) {
                 // Reimportação é explícita, mas não é rederivação. Retire snapshot
@@ -660,7 +673,7 @@ class RoomRepositories @Inject constructor(
                 database.workoutDetailDao().insertIntervals(incomingIntervals)
             }
             database.workoutDetailDao().deleteHeartRateSamplesForActivity(persistedId)
-            database.workoutDetailDao().insertHeartRateSamples(activity.toHeartRateSamples(persistedId, generateIds(activity.heartRateSamples.size)))
+            database.workoutDetailDao().insertHeartRateSamples(incomingHeartRateSamples)
 
             if (!plan.isReimport &&
                 plan.persistedImport.parserVersion == WATCH_WORKOUT_D4_V2_PARSER_VERSION &&
@@ -1665,6 +1678,7 @@ class RoomRepositories @Inject constructor(
             ?: return RepositoryResult.UnexpectedState
         val rawIntervals = database.workoutDetailDao().findIntervalsForActivity(activity.id)
         val samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id)
+        val persistedHeartRateSamples = samples.map { it.toDomain() }
         val activeRecord = database.workoutDerivationDao().findActiveForActivity(activity.id)
         if (rawIntervals.hasPersistedUnvalidatedSourceOrder()) {
             // Room ordena por índice. Um marcador persistido antes dessa
@@ -1680,7 +1694,7 @@ class RoomRepositories @Inject constructor(
             activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
             activityDurationNanos = activity.durationNanos,
             rawIntervals = rawIntervals,
-            heartRateSamples = samples.map { it.toDomain() },
+            heartRateSamples = persistedHeartRateSamples,
         )
         if (activeRecord != null && !replaceActive) {
             val persistedSnapshot = existingSnapshot ?: return RepositoryResult.UnexpectedState
@@ -1711,13 +1725,24 @@ class RoomRepositories @Inject constructor(
             derivationVersion = WATCH_WORKOUT_DERIVATION_VERSION,
             derivedAt = derivedAt,
             totalSteps = activity.steps,
+            plausibility = existingSnapshot?.plausibility ?: WorkoutSeriesPlausibility(),
         ).valueOrNull() ?: return RepositoryResult.UnexpectedState
 
+        val splits = if (snapshot.isEligibleForFunctionalSplits) {
+            val canonicalSeries = snapshot.canonicalSeries ?: return RepositoryResult.UnexpectedState
+            WorkoutSplitCalculator.calculateOrNull(canonicalSeries, persistedHeartRateSamples)
+                ?: return RepositoryResult.UnexpectedState
+        } else {
+            emptyList()
+        }
+        val missingSplitProjection = snapshot.isEligibleForFunctionalSplits &&
+            splits.isNotEmpty() && activeRecord?.splits?.isEmpty() == true
         if (existingSnapshot != null &&
             existingSnapshot.stepLengthMetersUsed == snapshot.stepLengthMetersUsed &&
             existingSnapshot.stepLengthSource == snapshot.stepLengthSource &&
             existingSnapshot.derivationMethod == snapshot.derivationMethod &&
-            existingSnapshot.derivationVersion == snapshot.derivationVersion
+            existingSnapshot.derivationVersion == snapshot.derivationVersion &&
+            !missingSplitProjection
         ) {
             promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
             return RepositoryResult.Success(existingSnapshot)
@@ -1742,14 +1767,19 @@ class RoomRepositories @Inject constructor(
         val intervalEntities = snapshot.toDerivedIntervalEntities(snapshotId, generateIds(
             snapshot.canonicalSeries?.intervals?.size ?: 0,
         )) ?: return RepositoryResult.UnexpectedState
+        val splitEntities = snapshot.toSplitEntities(
+            snapshotId = snapshotId,
+            splits = splits,
+            ids = generateIds(splits.size),
+        ) ?: return RepositoryResult.UnexpectedState
         val validatedSnapshot = snapshotEntity.toDomain(
             activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4,
             activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
             activityDurationNanos = activity.durationNanos,
             rawIntervals = resolvedRawIntervals,
             derivedIntervals = intervalEntities,
-            splits = emptyList(),
-            heartRateSamples = samples.map { it.toDomain() },
+            splits = splitEntities,
+            heartRateSamples = persistedHeartRateSamples,
         ) ?: return RepositoryResult.UnexpectedState
 
         // A transição ocorre somente depois do preflight completo. Se o CAS de
@@ -1763,7 +1793,7 @@ class RoomRepositories @Inject constructor(
         database.workoutDerivationDao().insertSnapshotWithChildren(
             snapshot = snapshotEntity,
             intervals = intervalEntities,
-            splits = emptyList(),
+            splits = splitEntities,
         )
         return RepositoryResult.Success(validatedSnapshot)
     }
@@ -1830,6 +1860,8 @@ class RoomRepositories @Inject constructor(
         incomingImport: WatchWorkoutImportEntity,
         existingIntervals: List<WorkoutIntervalEntity>,
         incomingIntervals: List<WorkoutIntervalEntity>,
+        existingHeartRateSamples: List<WorkoutHeartRateSampleEntity>,
+        incomingHeartRateSamples: List<WorkoutHeartRateSampleEntity>,
     ): Boolean {
         if (existingImport == null ||
             existingImport.deviceId != incomingImport.deviceId ||
@@ -1842,9 +1874,10 @@ class RoomRepositories @Inject constructor(
             existingActivity.startedAtEpochMillis != incomingActivity.startedAtEpochMillis ||
             existingActivity.durationNanos != incomingActivity.durationNanos ||
             existingActivity.steps != incomingActivity.steps ||
-            existingIntervals.size != incomingIntervals.size
+            existingIntervals.size != incomingIntervals.size ||
+            existingHeartRateSamples.size != incomingHeartRateSamples.size
         ) return false
-        return existingIntervals.zip(incomingIntervals).all { (existing, incoming) ->
+        if (!existingIntervals.zip(incomingIntervals).all { (existing, incoming) ->
             existing.intervalIndex == incoming.intervalIndex &&
                 existing.durationNanos == incoming.durationNanos &&
                 existing.steps == incoming.steps &&
@@ -1853,6 +1886,10 @@ class RoomRepositories @Inject constructor(
                 existing.rawCaloriesValue == incoming.rawCaloriesValue &&
                 existing.decodedSteps == incoming.decodedSteps &&
                 existing.temporalEligibilityReason == incoming.temporalEligibilityReason
+        }) return false
+        return existingHeartRateSamples.zip(incomingHeartRateSamples).all { (existing, incoming) ->
+            existing.sampledAtEpochMillis == incoming.sampledAtEpochMillis &&
+                existing.bpm == incoming.bpm
         }
     }
 

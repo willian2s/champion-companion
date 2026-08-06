@@ -2,7 +2,8 @@
 
 - **Ticker:** `014`
 - **Número:** `09`
-- **Status:** pending
+- **Status:** completed
+- **Concluída em:** 2026-08-06
 
 ## Objetivo e resultado esperado
 
@@ -109,6 +110,69 @@ Não criar nem executar testes automatizados.
 
 Splits e BPM temporal determinísticos estão disponíveis para UI, com item
 `014-09` marcado.
+
+## Implementação
+
+- `RoomRepositories` calcula splits a partir da série canônica persistida e das
+  amostras BPM reais somente quando a série é elegível e não possui indicadores
+  de implausibilidade, antes do preflight e da inserção transacional do snapshot.
+  A política que bloqueia projeção remota do Health Connect não oculta read
+  models locais válidos.
+- `DatabaseMappers` persiste splits com IDs próprios e exige round-trip exato de
+  janelas, métricas, interpolação e BPM ponderado quando a projeção existe.
+- Snapshots legados de `014-07` sem linhas de split continuam legíveis; o read
+  path não sintetiza projeção. Rederivação explícita é necessária para
+  materializar splits elegíveis.
+- Reimportação compara amostras reais por instante e BPM antes de preservar
+  snapshot ativo. Falha estrutural de fronteira aborta cálculo completo, sem
+  omitir split por `mapNotNull`.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt`;
+- este arquivo e `014-00-overview.md`.
+
+## Decisões e desvios
+
+- Splits locais usam série canônica elegível sem indicadores de
+  implausibilidade. A política `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION` continua
+  bloqueando somente projeções remotas, sem ocultar read models locais válidos.
+- Snapshots de `014-07` sem splits permanecem legíveis; não há síntese no read
+  path. Materialização exige rederivação explícita.
+- `calculateOrNull` substitui omissão parcial por falha fechada. A função
+  compatível `calculate` permanece por estabilidade de contrato, mas caminhos
+  de persistência usam exclusivamente a variante estrita.
+
+## Comandos executados
+
+- `./gradlew app:compileDebugKotlin` — PASS; somente avisos de depreciação já
+  existentes em `RoomRepositories.kt`;
+- `./gradlew app:lintDebug` — PASS;
+- `./gradlew lint assembleDebug assembleRelease` — PASS; mesmos avisos de
+  depreciação preexistentes;
+- `./gradlew installDebug` — PASS; APK final instalado no Galaxy S22
+  `SM-S901E`;
+- `git diff --check` — PASS;
+- testes automatizados — não criados nem executados, conforme escopo.
+
+## Evidências e riscos residuais
+
+- O preflight calcula e compara splits persistidos com
+  `WorkoutSplitCalculator.calculateOrNull`, incluindo limites exatos,
+  interpolação temporal, janelas semiabertas, sample-and-hold e cobertura BPM
+  ausente.
+- Política remota de plausibilidade permanece independente dos splits locais:
+  indicadores de implausibilidade bloqueiam splits funcionais; ausência de
+  limiar global bloqueia somente projeções remotas, conforme `014-02` e ADR-018.
+- Ausência de linhas é aceita para compatibilidade de snapshot legado; linhas
+  presentes precisam reproduzir cálculo canônico e ausência de indicadores.
+- Reimportação com BPM real alterado desativa snapshot ativo, evitando round-trip
+  com amostras divergentes.
+- Round-trip Room físico e validação D4 em dispositivo permanecem para `014-15`.
+- UI, Health Connect, parser e reprocessamento de legado continuam bloqueados
+  para subtarefas posteriores.
 
 ## Rollback
 

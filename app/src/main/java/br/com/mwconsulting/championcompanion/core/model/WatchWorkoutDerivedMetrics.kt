@@ -797,6 +797,14 @@ data class WorkoutDerivationSnapshot private constructor(
     val isEligibleForCanonicalWorkflow: Boolean
         get() = canonicalSeriesEligible
 
+    /**
+     * Splits locais exigem série canônica e ausência de indicadores de
+     * implausibilidade. A política de projeção remota continua independente:
+     * ela pode bloquear Health Connect sem ocultar read models locais válidos.
+     */
+    val isEligibleForFunctionalSplits: Boolean
+        get() = canonicalSeriesEligible && plausibility.indicators.isEmpty()
+
     companion object {
         fun derive(
             intervals: List<MeasuredWorkoutInterval>,
@@ -970,19 +978,31 @@ object WorkoutSplitCalculator {
     fun calculate(
         series: CanonicalWorkoutSeries,
         heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
-    ): List<WorkoutSplit> {
-        val completeSplitCount = floor(series.canonicalDistanceMeters / SPLIT_DISTANCE_METERS).toInt()
+    ): List<WorkoutSplit> = calculateOrNull(series, heartRateSamples).orEmpty()
+
+    /**
+     * Calcula projeção de splits ou sinaliza falha estrutural sem omitir apenas
+     * fronteiras inválidas.
+     *
+     * Lista vazia continua sendo resultado válido para série abaixo de 1 km;
+     * [null] representa incapacidade de materializar todos os splits esperados.
+     */
+    fun calculateOrNull(
+        series: CanonicalWorkoutSeries,
+        heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
+    ): List<WorkoutSplit>? {
+        val completeSplitCount = completeSplitCount(series) ?: return null
         if (completeSplitCount <= 0) return emptyList()
         val sessionWindow = WorkoutIntervalWindow.create(
             series.intervals.first().effectiveWindow.start,
             series.intervals.last().effectiveWindow.end,
-        ).valueOrNull() ?: return emptyList()
-        return (1..completeSplitCount).mapNotNull { number ->
+        ).valueOrNull() ?: return null
+        return (1..completeSplitCount).map { number ->
             val startDistance = (number - 1) * SPLIT_DISTANCE_METERS
             val endDistance = number * SPLIT_DISTANCE_METERS
-            val start = boundaryAtDistance(series, startDistance) ?: return@mapNotNull null
-            val end = boundaryAtDistance(series, endDistance) ?: return@mapNotNull null
-            val window = WorkoutIntervalWindow.create(start, end).valueOrNull() ?: return@mapNotNull null
+            val start = boundaryAtDistance(series, startDistance) ?: return null
+            val end = boundaryAtDistance(series, endDistance) ?: return null
+            val window = WorkoutIntervalWindow.create(start, end).valueOrNull() ?: return null
             val portions = portionsForDistance(series, startDistance, endDistance)
             val duration = window.duration
             val durationSeconds = duration.secondsAsDouble()
@@ -1004,6 +1024,15 @@ object WorkoutSplitCalculator {
                 averageBpm = bpm.first,
                 bpmCoveredDuration = bpm.second,
             )
+        }
+    }
+
+    private fun completeSplitCount(series: CanonicalWorkoutSeries): Int? {
+        val count = floor(series.canonicalDistanceMeters / SPLIT_DISTANCE_METERS)
+        return if (count.isFinite() && count >= 0.0 && count <= Int.MAX_VALUE.toDouble()) {
+            count.toInt()
+        } else {
+            null
         }
     }
 

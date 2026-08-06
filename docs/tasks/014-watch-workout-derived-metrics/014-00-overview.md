@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 8/16 subtarefas concluídas
+- **Progresso:** 9/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -35,7 +35,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
 - [x] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
 - [x] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
-- [ ] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
+- [x] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
 - [ ] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
 - [ ] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
 - [ ] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
@@ -223,5 +223,18 @@ Connect continua pendente.
   persistência reproduzível e propagação de plausibilidade já estavam entregues
   nos contratos e mappers de `014-07`; nenhum código adicional foi necessário.
   Consumidores finais legados permanecem reservados para `014-10`.
-- Progresso da spec e do overview alinhado para `8/16`; nenhuma subtarefa
+- Progresso da spec e do overview alinhado para `9/16`; nenhuma subtarefa
   posterior foi iniciada.
+- `014-09` foi corrigida transversalmente: snapshots legados sem projeção de
+  splits continuam legíveis e só recebem linhas após rederivação explícita;
+  splits novos são persistidos apenas para série elegível sem indicadores de
+  implausibilidade; a política remota sem limiar global continua bloqueando
+  Health Connect, sem ocultar o read model local. Reimportação compara
+  instante/BPM das amostras antes de preservar snapshot. O cálculo estrito falha
+  fechado quando não consegue materializar todas as fronteiras.
+  `app:compileDebugKotlin`, `app:lintDebug` e
+  `./gradlew lint assembleDebug assembleRelease`, `installDebug` e
+  `git diff --check` passaram; APK final foi instalado no Galaxy S22
+  `SM-S901E`. Testes automatizados não foram criados nem executados.
+  Round-trip Room físico, UI, Health Connect e reprocessamento de legado continuam bloqueados para
+  `014-10`/`014-11`/`014-12`/`014-13`/`014-15`.
