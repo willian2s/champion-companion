@@ -195,12 +195,32 @@ minuteIndex = packetIndex - 4
 | Campo | Offset/leitura atual | Tratamento atual | Classificação após 014-01 |
 | --- | --- | --- | --- |
 | BPM | byte 6 | 30..220 gera amostra; demais valores viram ausência | medido quando válido no caso observado |
-| movimento | u24 LE `7..9` | salvo diretamente em `steps` pelo `d4-v1` | raw empacotado; não é contagem direta de passos |
-| distância temporal | u24 LE `10..12` | parser atual converte e persiste como distância | valor raw; unidade e semântica não comprovadas |
-| calorias temporais | u16 LE `13..14` | parser atual converte e persiste como kcal | valor raw; unidade e semântica não comprovadas |
+| movimento | u24 LE `7..9` | `d4-v1` salva o u24 em `steps`; `d4-v2` separa raw e passos deslocados | raw empacotado; somente byte superior é passo confirmado no caso observado |
+| distância temporal | u24 LE `10..12` | `d4-v1` e `d4-v2` transportam somente `rawDistanceValue`; valores legados já persistidos permanecem preservados | valor raw; unidade e semântica não comprovadas |
+| calorias temporais | u16 LE `13..14` | `d4-v1` e `d4-v2` transportam somente `rawCaloriesValue`; valores legados já persistidos permanecem preservados | valor raw; unidade e semântica não comprovadas |
 
-O comportamento atual de conversão de distância/calorias é conhecido, mas não é
-contrato semântico do relógio e não deve alimentar a série canônica da Fase 014.
+Conversões históricas de distância/calorias podem existir em linhas `d4-v1` já
+persistidas, mas não são reproduzidas por nenhum caminho atual do parser nem
+alimentam a série canônica da Fase 014.
+
+## Implementação `d4-v2`
+
+Para cada pacote temporal, o parser lê o movimento uma única vez e transporta os
+fatos separadamente:
+
+```kotlin
+val rawMotionValue = bytes.readUInt24LittleEndian(7)
+val decodedSteps = rawMotionValue ushr 16
+```
+
+`WorkoutInterval.steps` recebe `decodedSteps` somente em `d4-v2`; o total de
+passos do pacote 2 permanece em `WorkoutMetrics.steps` e não é substituído pela
+soma temporal. `rawMotionValue`, `rawDistanceValue`, `rawCaloriesValue` e
+`decodedSteps` seguem para as colunas raw/measured da migration local `v9`.
+
+Distância e calorias temporais de `d4-v1` e `d4-v2` não são convertidas para
+métricas semânticas. Os 16 bits inferiores de `rawMotionValue` permanecem
+desconhecidos e não participam de qualquer derivação.
 
 # Movimento empacotado e passos
 
@@ -237,14 +257,16 @@ nem garante todos os firmwares.
 
 ## `d4-v1`
 
-O runtime de produção atual usa `parserVersion = d4-v1`.
+`d4-v1` identifica importações legadas que persistiram o u24 empacotado no campo
+`steps`. Essas atividades continuam identificáveis e não recebem
+`decodedSteps` por backfill automático.
 
 Cadeia de persistência auditada:
 
 ```text
 bytes[7..9]
   → readUInt24LittleEndian(7)
-  → SampleData.stepsDelta
+  → SampleData.rawMotionValue
   → WorkoutInterval.steps
   → WorkoutIntervalEntity.steps
 ```
@@ -269,7 +291,7 @@ A migration não deve:
 
 ## `d4-v2`
 
-O parser corrigido será versionado inicialmente como `d4-v2` e deverá produzir
+O runtime de novas importações usa `parserVersion = d4-v2` e produz
 separadamente:
 
 ```kotlin
@@ -277,7 +299,8 @@ val rawMotionValue = bytes.readUInt24LittleEndian(7)
 val decodedSteps = rawMotionValue ushr 16
 ```
 
-Versão desconhecida falha fechada para reprocessamento automático.
+Versão desconhecida falha fechada na criação da atividade; não há reclassificação
+silenciosa de dados legados.
 
 # Índices, parcialidade e duração
 
@@ -360,6 +383,10 @@ durationNanos
 steps
 distanceMeters
 caloriesKilocalories
+rawMotionValue
+rawDistanceValue
+rawCaloriesValue
+decodedSteps
 ```
 
 A chave única `(activityId, intervalIndex)` evita duas linhas do mesmo índice,
@@ -368,8 +395,9 @@ mas não exige continuidade.
 `WatchWorkoutImportEntity` preserva a `parserVersion` autoritativa da importação.
 
 Durante reimportação, `RoomRepositories.persistImported` substitui todos os
-intervalos e amostras BPM da atividade. Por isso, a migration de compatibilidade
-deve preservar o raw `d4-v1` antes de uma eventual reimportação corrigida.
+intervalos e amostras BPM da atividade. Por isso, o mapper grava os fatos raw de
+`d4-v2` na mesma transação e a migration de compatibilidade preserva o raw
+`d4-v1` antes de uma eventual reimportação corrigida.
 
 # Consumidores atuais auditados
 

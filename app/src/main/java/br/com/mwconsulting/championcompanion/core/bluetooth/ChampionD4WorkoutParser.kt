@@ -15,6 +15,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutMetrics
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -26,6 +28,11 @@ object ChampionD4WorkoutParser {
     private const val maxObservedRecordCount: Int = 24 * 60
 
     fun parse(request: Request): WatchWorkoutParserResult {
+        val usesDecodedIntervalSteps = when (request.parserVersion.value) {
+            WATCH_WORKOUT_D4_V1_PARSER_VERSION -> false
+            WATCH_WORKOUT_D4_V2_PARSER_VERSION -> true
+            else -> return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        }
         val packetsByIndex = request.block.packets.groupBy { it.packetIndex }
         val packet1 = packetsByIndex[1]?.firstOrNull() ?: return invalid(WatchWorkoutImportErrorCategory.REQUIRED_PACKET_MISSING, request)
         val packet2 = packetsByIndex[2]?.firstOrNull() ?: return invalid(WatchWorkoutImportErrorCategory.REQUIRED_PACKET_MISSING, request)
@@ -60,12 +67,17 @@ object ChampionD4WorkoutParser {
         val parsedSamples = distinctSamplePackets.values.mapNotNull { parseSamplePacket(it.rawBytesCopy(), it.packetIndex) }
             .sortedBy { it.minuteIndex }
         val intervals = parsedSamples.map {
+            val decodedSteps = it.rawMotionValue.takeIf { usesDecodedIntervalSteps }?.ushr(16)
             WorkoutInterval(
                 index = it.minuteIndex,
                 duration = Duration.ofSeconds(60),
-                steps = it.stepsDelta.toLong(),
-                distanceMeters = DomainValue.Present(distanceRawToMeters(it.distanceRawDelta)),
-                caloriesKilocalories = DomainValue.Present(caloriesRawToKilocalories(it.caloriesRawDelta)),
+                steps = decodedSteps ?: it.rawMotionValue,
+                distanceMeters = DomainValue.Absent(AbsenceReason.UNKNOWN),
+                caloriesKilocalories = DomainValue.Absent(AbsenceReason.UNKNOWN),
+                rawMotionValue = it.rawMotionValue,
+                rawDistanceValue = it.rawDistanceValue,
+                rawCaloriesValue = it.rawCaloriesValue,
+                decodedSteps = decodedSteps,
             )
         }
         val heartRateSamples = parsedSamples.mapNotNull { sample ->
@@ -81,8 +93,8 @@ object ChampionD4WorkoutParser {
         val averageBpm = if (validBpms.isEmpty()) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(validBpms.average().toInt())
         val minimumBpm = if (validBpms.isEmpty()) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(validBpms.min())
         val maximumBpm = if (validBpms.isEmpty()) DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE) else DomainValue.Present(validBpms.max())
-        val originalDistanceMeters = distanceRawToMeters(totals.totalDistanceRaw)
-        val caloriesKilocalories = caloriesRawToKilocalories(totals.totalCaloriesRaw)
+        val originalDistanceMeters = distanceRawToMeters(totals.totalDistanceRaw.toLong())
+        val caloriesKilocalories = caloriesRawToKilocalories(totals.totalCaloriesRaw.toLong())
         val duration = Duration.ofSeconds(resolvedDurationSeconds)
         val pace = if (originalDistanceMeters > 0.0 && resolvedDurationSeconds > 0) {
             DomainValue.Present(resolvedDurationSeconds.toDouble() * 1000.0 / originalDistanceMeters)
@@ -186,9 +198,9 @@ object ChampionD4WorkoutParser {
     private data class SampleData(
         val minuteIndex: Int,
         val bpm: Int?,
-        val stepsDelta: Int,
-        val distanceRawDelta: Int,
-        val caloriesRawDelta: Int,
+        val rawMotionValue: Long,
+        val rawDistanceValue: Long,
+        val rawCaloriesValue: Long,
     )
 
     private fun invalid(
@@ -303,12 +315,13 @@ object ChampionD4WorkoutParser {
         if (bytes.size < minimumPacketSize || bytes[0].toUnsignedInt() != ChampionD4WorkoutBlockProtocol.commandCode) return null
         if (packetIndex < 4) return null
         val rawBpm = bytes[6].toUnsignedInt()
+        val rawMotionValue = bytes.readUInt24LittleEndian(7).toLong()
         return SampleData(
             minuteIndex = packetIndex - 4,
             bpm = rawBpm.takeIf { it in validBpmRange },
-            stepsDelta = bytes.readUInt24LittleEndian(7),
-            distanceRawDelta = bytes.readUInt24LittleEndian(10),
-            caloriesRawDelta = bytes.readUInt16LittleEndian(13),
+            rawMotionValue = rawMotionValue,
+            rawDistanceValue = bytes.readUInt24LittleEndian(10).toLong(),
+            rawCaloriesValue = bytes.readUInt16LittleEndian(13).toLong(),
         )
     }
 
@@ -338,9 +351,9 @@ object ChampionD4WorkoutParser {
     private fun resolveOverallLayout(vararg layouts: WatchWorkoutD4Layout): WatchWorkoutD4Layout =
         if (layouts.any { it == WatchWorkoutD4Layout.LEGACY }) WatchWorkoutD4Layout.LEGACY else WatchWorkoutD4Layout.PREFERRED
 
-    private fun distanceRawToMeters(raw: Int): Double = kotlin.math.round(raw / 100.0)
+    private fun distanceRawToMeters(raw: Long): Double = kotlin.math.round(raw / 100.0)
 
-    private fun caloriesRawToKilocalories(raw: Int): Double = kotlin.math.round(raw / 100.0) / 10.0
+    private fun caloriesRawToKilocalories(raw: Long): Double = kotlin.math.round(raw / 100.0) / 10.0
 
     private fun ByteArray.readUInt16LittleEndian(offset: Int): Int =
         this[offset].toUnsignedInt() or (this[offset + 1].toUnsignedInt() shl 8)

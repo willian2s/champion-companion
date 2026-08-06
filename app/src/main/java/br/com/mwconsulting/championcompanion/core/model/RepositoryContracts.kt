@@ -285,12 +285,13 @@ data class WatchWorkoutImportLookup(
     val importId: WatchWorkoutImportId,
     val deviceId: DeviceId,
     val crc: Int,
+    val parserVersion: ParserVersion? = null,
     val parserValidity: ParserValidity,
     val workflowState: ActivityWorkflowState,
     val importedAt: Instant,
 ) {
     val canSkipOnResume: Boolean
-        get() = parserValidity == ParserValidity.VALID
+        get() = parserValidity == ParserValidity.VALID && isSupportedWatchWorkoutD4ParserVersion(parserVersion)
 
     val shouldRetryOnResume: Boolean
         get() = !canSkipOnResume

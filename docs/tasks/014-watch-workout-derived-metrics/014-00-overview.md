@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 3/16 subtarefas concluídas
+- **Progresso:** 4/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -30,7 +30,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-01-audit-d4-interval-layout-and-consumers.md](014-01-audit-d4-interval-layout-and-consumers.md)
 - [x] [014-02-define-temporal-and-derived-metrics-contracts.md](014-02-define-temporal-and-derived-metrics-contracts.md)
 - [x] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
-- [ ] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
+- [x] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
 - [ ] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
 - [ ] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
 - [ ] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
@@ -139,3 +139,15 @@ Connect continua pendente.
   `lint`, builds debug/release e `installDebug` passaram. Projeções Health
   Connect continuam pendentes para `014-12`; nenhuma outra subtarefa foi
   iniciada.
+- `014-04` passou a ler o u24 temporal D4 uma única vez, separar
+  `rawMotionValue`/`decodedSteps`, preservar distância e calorias temporais como
+  raw nos caminhos `d4-v1` e `d4-v2` e usar `d4-v2` em novas importações.
+  `d4-v1` permanece identificável, sem backfill de `decodedSteps`; valores
+  temporais legados já persistidos permanecem preservados; a sequência
+  sanitizada retornou `3.737` passos. Lookup de retomada agora carrega
+  `parserVersion` e só ignora importação `VALID` com versão D4 conhecida.
+   `lint`, builds debug/release, `installDebug` e `git diff --check` passaram. Não
+   houve teste automatizado nem importação física D4; esta última permanece risco
+   residual para `014-15`. Revisão independente após correções foi aprovada sem
+   bloqueadores; auditoria de `014-01` ainda contém nomenclatura histórica e fica
+   registrada para atualização documental futura.

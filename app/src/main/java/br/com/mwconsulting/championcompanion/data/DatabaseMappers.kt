@@ -97,6 +97,8 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
@@ -422,12 +424,26 @@ internal fun WatchWorkoutImport.toEntity() = WatchWorkoutImportEntity(
 )
 
 internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>) = intervals.map {
-    WorkoutIntervalEntity(ids.next().toString(), activityId, it.index, it.duration.toNanos(), it.steps,
-        it.distanceMeters.valueOrNull(), it.caloriesKilocalories.valueOrNull(),
-        rawMotionValue = it.steps.takeIf {
-            activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
-                watchImportContext?.parserVersion?.value == "d4-v1"
+    val parserVersion = watchImportContext?.parserVersion?.value
+    val isWatchD4 = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4
+    val isD4V1 = isWatchD4 && parserVersion == WATCH_WORKOUT_D4_V1_PARSER_VERSION
+    val isD4V2 = isWatchD4 && parserVersion == WATCH_WORKOUT_D4_V2_PARSER_VERSION
+    WorkoutIntervalEntity(
+        id = ids.next().toString(),
+        activityId = activityId,
+        intervalIndex = it.index,
+        durationNanos = it.duration.toNanos(),
+        steps = it.steps,
+        distanceMeters = it.distanceMeters.valueOrNull().takeUnless { isWatchD4 },
+        caloriesKilocalories = it.caloriesKilocalories.valueOrNull().takeUnless { isWatchD4 },
+        rawMotionValue = when {
+            isD4V2 -> it.rawMotionValue
+            isD4V1 -> it.rawMotionValue ?: it.steps
+            else -> null
         },
+        rawDistanceValue = it.rawDistanceValue.takeIf { isD4V1 || isD4V2 },
+        rawCaloriesValue = it.rawCaloriesValue.takeIf { isD4V1 || isD4V2 },
+        decodedSteps = it.decodedSteps.takeIf { isD4V2 },
     )
 }
 
@@ -787,6 +803,10 @@ internal fun WorkoutActivityEntity.toDomain(
 ): WorkoutActivity? {
     val activityId = uuid(id)?.let(::WorkoutActivityId) ?: return null
     val mappedOrigin = enum<WorkoutActivityOrigin>(origin) ?: return null
+    val isWatchD4V1 = mappedOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+        importRecord?.parserVersion == WATCH_WORKOUT_D4_V1_PARSER_VERSION
+    val isWatchD4V2 = mappedOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+        importRecord?.parserVersion == WATCH_WORKOUT_D4_V2_PARSER_VERSION
     val mappedDeviceId = deviceId?.let(::uuid)?.let(::DeviceId)
     val mappedSessionId = appWorkoutSessionId?.let(::uuid)?.let(::AppWorkoutSessionId)
     if (deviceId != null && mappedDeviceId == null) return null
@@ -824,12 +844,24 @@ internal fun WorkoutActivityEntity.toDomain(
             endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
         ),
         intervals = intervals.map {
+            if (isWatchD4V2 && (
+                    it.rawMotionValue == null ||
+                        it.decodedSteps == null ||
+                        it.steps != it.decodedSteps ||
+                        it.decodedSteps != (it.rawMotionValue ushr 16)
+                    )
+            ) return null
+            if (isWatchD4V1 && it.decodedSteps != null) return null
             WorkoutInterval(
                 it.intervalIndex,
                 Duration.ofNanos(it.durationNanos),
                 it.steps,
-                it.distanceMeters.domainValue(),
-                it.caloriesKilocalories.domainValue(),
+                if (isWatchD4V2) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.distanceMeters.domainValue(),
+                if (isWatchD4V2) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.caloriesKilocalories.domainValue(),
+                rawMotionValue = it.rawMotionValue.takeIf { isWatchD4V1 || isWatchD4V2 },
+                rawDistanceValue = it.rawDistanceValue.takeIf { isWatchD4V1 || isWatchD4V2 },
+                rawCaloriesValue = it.rawCaloriesValue.takeIf { isWatchD4V1 || isWatchD4V2 },
+                decodedSteps = it.decodedSteps.takeIf { isWatchD4V2 },
             )
         },
         heartRateSamples = samples.map {
@@ -942,6 +974,7 @@ internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup
     val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
     val mappedImportId = uuid(importId)?.let(::WatchWorkoutImportId) ?: return null
     val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
+    val mappedParserVersion = parserVersion?.let(::parserVersion)
     val mappedParserValidity = enum<ParserValidity>(parserValidity) ?: return null
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
     return WatchWorkoutImportLookup(
@@ -949,6 +982,7 @@ internal fun WatchWorkoutImportLookupRecord.toDomain(): WatchWorkoutImportLookup
         importId = mappedImportId,
         deviceId = mappedDeviceId,
         crc = crc,
+        parserVersion = mappedParserVersion,
         parserValidity = mappedParserValidity,
         workflowState = mappedWorkflowState,
         importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
