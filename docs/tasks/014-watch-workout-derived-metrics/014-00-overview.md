@@ -1,8 +1,8 @@
 # 014 — Refinamento, derivação e sincronização dos treinos do relógio
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 0/16 subtarefas concluídas
+- **Progresso:** 1/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 
 ## Checklist
 
-- [ ] [014-01-audit-d4-interval-layout-and-consumers.md](014-01-audit-d4-interval-layout-and-consumers.md)
+- [x] [014-01-audit-d4-interval-layout-and-consumers.md](014-01-audit-d4-interval-layout-and-consumers.md)
 - [ ] [014-02-define-temporal-and-derived-metrics-contracts.md](014-02-define-temporal-and-derived-metrics-contracts.md)
 - [ ] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
 - [ ] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
@@ -78,6 +78,32 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 `014-15` também exige conclusão de `014-11`. `014-16` é exclusivamente
 documental e não contém correções funcionais.
 
+## Resultado de 014-01
+
+A auditoria documental confirmou:
+
+- o parser de produção atual é `d4-v1`;
+- o u24 de `bytes[7..9]` chega integralmente a
+  `WorkoutIntervalEntity.steps`;
+- a ponte `d4-v1 steps → rawMotionValue` é recuperável sob guardas de origem,
+  versão e faixa u24;
+- a sequência sanitizada decodificada fecha em `3.737` passos;
+- distância e calorias temporais permanecem raw, sem semântica comprovada;
+- lacuna, duplicata e índice inicial incorreto precisam bloquear a série V1;
+- intervalos atuais permanecem fixos em 60 segundos;
+- UI, calendário e Health Connect priorizam distância calibrada/original;
+- `TREADMILL` atual exige calibração independentemente da origem;
+- a fila Health Connect não possui filho de atividade e o mapper produz um único
+  `DistanceRecord` agregado.
+
+Relatório:
+
+```text
+docs/integration/014-01-d4-layout-and-consumer-audit.md
+```
+
+Esses resultados são entrada obrigatória de `014-02`.
+
 ## Migrações planejadas
 
 - `014-03`: evolução aditiva local após `v8` para perfil, raw/measured,
@@ -97,3 +123,4 @@ derivação, mudança de workflow ou efeito remoto durante upgrade.
 - Testes automatizados não devem ser criados nem executados sem pedido explícito.
 - Cada subtarefa atualiza este overview e marca somente seu item após conclusão
   real e revisão.
+- `014-01` não alterou código, schema, migration, Gradle ou testes.
