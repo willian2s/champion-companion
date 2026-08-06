@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 1/16 subtarefas concluídas
+- **Progresso:** 2/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 ## Checklist
 
 - [x] [014-01-audit-d4-interval-layout-and-consumers.md](014-01-audit-d4-interval-layout-and-consumers.md)
-- [ ] [014-02-define-temporal-and-derived-metrics-contracts.md](014-02-define-temporal-and-derived-metrics-contracts.md)
+- [x] [014-02-define-temporal-and-derived-metrics-contracts.md](014-02-define-temporal-and-derived-metrics-contracts.md)
 - [ ] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
 - [ ] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
 - [ ] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
@@ -124,3 +124,8 @@ derivação, mudança de workflow ou efeito remoto durante upgrade.
 - Cada subtarefa atualiza este overview e marca somente seu item após conclusão
   real e revisão.
 - `014-01` não alterou código, schema, migration, Gradle ou testes.
+- `014-02` fechou contratos Android-free de raw/measured/derived, série temporal,
+  plausibilidade, splits e projeções filhas; builds e revisão independente foram
+  aprovados. `SPEED` permanece sem writer por guarda fail-closed. A guarda exigiu
+  alteração mínima em `core/healthconnect`, fora da lista original de arquivos
+  permitidos, para manter compilação após adicionar o enum.

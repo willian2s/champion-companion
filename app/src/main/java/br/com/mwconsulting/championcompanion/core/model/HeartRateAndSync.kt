@@ -182,6 +182,7 @@ enum class HealthSyncRecordType {
     TOTAL_CALORIES_BURNED,
     WEIGHT,
     HEIGHT,
+    SPEED,
 }
 
 enum class HealthSyncAggregateType {
@@ -235,7 +236,21 @@ sealed interface HealthSyncAggregate {
 data class HealthSyncOperationKey(
     val aggregate: HealthSyncAggregate,
     val recordType: HealthSyncRecordType,
+    val projectionChildKey: HealthProjectionChildKey? = null,
 )
+
+{
+    /** Alias aditivo para consumidores que usam nome curto. */
+    val childKey: HealthProjectionChildKey?
+        get() = projectionChildKey
+
+    val hasProjectionChild: Boolean
+        get() = projectionChildKey != null
+
+    /** Nome lógico preserva SPEED mesmo enquanto enum antigo permanece fechado. */
+    val logicalRecordTypeName: String
+        get() = projectionChildKey?.recordTypeName ?: recordType.name
+}
 
 enum class HeartRateHistoryPeriod {
     TODAY,
@@ -628,18 +643,34 @@ data class HealthSyncOperation private constructor(
                 DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
             }
 
-        private fun supports(key: HealthSyncOperationKey): Boolean = when (key.aggregate) {
-            is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
-            is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
-            is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
-                HealthSyncRecordType.EXERCISE_SESSION,
-                HealthSyncRecordType.DISTANCE,
-                HealthSyncRecordType.TOTAL_CALORIES_BURNED,
-                HealthSyncRecordType.HEART_RATE,
-            )
+        private fun supports(key: HealthSyncOperationKey): Boolean {
+            if (key.projectionChildKey?.isSpeedSeries == true) return false
+            val supportedRecordType = when (key.aggregate) {
+                is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
+                is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
+                is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
+                    HealthSyncRecordType.EXERCISE_SESSION,
+                    HealthSyncRecordType.DISTANCE,
+                    HealthSyncRecordType.TOTAL_CALORIES_BURNED,
+                    HealthSyncRecordType.HEART_RATE,
+                )
 
-            is HealthSyncAggregate.WeightMeasurement -> key.recordType == HealthSyncRecordType.WEIGHT
-            is HealthSyncAggregate.UserProfileHeight -> key.recordType == HealthSyncRecordType.HEIGHT
+                is HealthSyncAggregate.WeightMeasurement -> key.recordType == HealthSyncRecordType.WEIGHT
+                is HealthSyncAggregate.UserProfileHeight -> key.recordType == HealthSyncRecordType.HEIGHT
+            }
+            return supportedRecordType && supportsProjectionChild(key)
+        }
+
+        private fun supportsProjectionChild(key: HealthSyncOperationKey): Boolean = when (
+            val child = key.projectionChildKey
+        ) {
+            null -> true
+            HealthProjectionChildKey.ExerciseSession -> key.recordType == HealthSyncRecordType.EXERCISE_SESSION
+            is HealthProjectionChildKey.DistanceInterval -> key.recordType == HealthSyncRecordType.DISTANCE
+            HealthProjectionChildKey.SpeedSeries -> false
+            HealthProjectionChildKey.HeartRateSeries -> key.recordType == HealthSyncRecordType.HEART_RATE
+            HealthProjectionChildKey.TotalCaloriesBurned ->
+                key.recordType == HealthSyncRecordType.TOTAL_CALORIES_BURNED
         }
 
         private fun isValidIdentityMetadata(

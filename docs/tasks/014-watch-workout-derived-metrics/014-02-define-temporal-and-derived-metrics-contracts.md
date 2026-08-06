@@ -2,7 +2,8 @@
 
 - **Ticker:** `014`
 - **Número:** `02`
-- **Status:** pending
+- **Status:** completed
+- **Concluída em:** 2026-08-06
 
 ## Objetivo e resultado esperado
 
@@ -104,16 +105,16 @@ subfila interna de vários records.
 
 ## Passos de implementação
 
-1. Definir raw/measured/derived sem reutilizar nomes legados com nova semântica.
-2. Modelar `stepLengthMeters` positivo, origem e snapshot imutável.
-3. Modelar série canônica única e estimativa diagnóstica separada.
-4. Modelar índices, quatro casos temporais e plausibilidade.
-5. Modelar métricas por intervalo, acumulado e split.
-6. Formalizar BPM temporal e ponto médio da velocidade.
-7. Formalizar workflow `TREADMILL` para origem relógio.
-8. Adicionar `SPEED` ao enum sem tornar atividade elegível antes de `014-13`.
-9. Modelar chave conceitual de filho Health Connect.
-10. Manter adapters compatíveis para consumidores ainda não migrados.
+1. Definir raw/measured/derived sem reutilizar nomes legados com nova semântica. **Concluído.**
+2. Modelar `stepLengthMeters` positivo, origem e snapshot imutável. **Concluído.**
+3. Modelar série canônica única e estimativa diagnóstica separada. **Concluído.**
+4. Modelar índices, quatro casos temporais e plausibilidade. **Concluído.**
+5. Modelar métricas por intervalo, acumulado e split. **Concluído.**
+6. Formalizar BPM temporal e ponto médio da velocidade. **Concluído.**
+7. Formalizar workflow `TREADMILL` para origem relógio. **Concluído.**
+8. Adicionar `SPEED` ao enum sem tornar atividade elegível antes de `014-13`. **Concluído.**
+9. Modelar chave conceitual de filho Health Connect. **Concluído.**
+10. Manter adapters compatíveis para consumidores ainda não migrados. **Concluído.**
 
 ## Critérios de aceite
 
@@ -143,6 +144,70 @@ Não criar nem executar testes automatizados.
 - matriz de elegibilidade e plausibilidade;
 - exemplos de split/BPM e midpoint;
 - resultado dos builds e revisão de arquitetura.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HealthProjectionContracts.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/DeviceProfileDailySummary.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`.
+
+### Requisitos → tipos e invariantes
+
+| Requisito | Contrato/invariante |
+| --- | --- |
+| Raw/measured/derived | `RawWorkoutInterval`, `MeasuredWorkoutInterval`, `DerivedWorkoutInterval` e `WorkoutDerivationSnapshot`; ponte `d4-v1` não preenche `decodedSteps`. |
+| Comprimento individual do passo | `StepLengthProfile` exige valor finito e positivo, registra `StepLengthSource` e `updatedAt`. |
+| Distância única | `CanonicalWorkoutSeries` calcula distância somente pela soma de `decodedSteps × stepLengthMetersUsed`; `DiagnosticAggregateStepEstimate` é explicitamente diagnóstico. |
+| Índices | `TemporalSeriesValidator` representa vazio, primeiro índice diferente de zero, ordem, duplicata e lacuna com motivos tipados. |
+| Duração | `WorkoutDurationResolver` modela `EXACT`, `LAST_INTERVAL_RESIDUAL`, `INSUFFICIENT_TOTAL_DURATION` e `EXCESS_TOTAL_DURATION`; cauda excedente fica em `tailUncovered`. |
+| Plausibilidade | `WorkoutSeriesPlausibility` separa indicadores de cadência/velocidade da duração e bloqueia projeção sem política explicitamente aceita. |
+| Métricas | `WorkoutIntervalMetrics` e `WorkoutCumulativeMetrics` preservam cadência, velocidade, ritmo, passos acumulados e duração coberta; zero passos não inventa ritmo. |
+| Splits e BPM | `WorkoutSplitCalculator` usa interpolação linear, janelas `[start, end)` e média BPM ponderada pela sobreposição sample-and-hold. |
+| Velocidade | `DerivedWorkoutInterval.speedSampledAt` usa ponto médio da janela efetiva. |
+| Esteira | `WatchWorkoutWorkflowPolicy` libera somente `WATCH_D3_D4` com snapshot funcional elegível; contrato legado phone permanece inalterado. |
+| Filhos Health Connect | `HealthProjectionChildKey` e `HealthSyncOperationKey` representam `aggregate + recordType + projectionChildKey`; `SPEED` existe no enum, mas branch do writer falha fechado. |
+
+### Matriz de elegibilidade
+
+| Situação | Série canônica | Projeção funcional/remota |
+| --- | --- | --- |
+| Índices contínuos, duração válida, passos decodificados, política aceita | elegível | elegível |
+| Lacuna, duplicata, primeiro índice não zero ou ordem inconsistente | ausente | inelegível |
+| `T <= (N-1) × 60 s` | ausente, motivo `INSUFFICIENT_TOTAL_DURATION` | inelegível |
+| `T == N × 60 s` | elegível temporalmente | depende de plausibilidade |
+| `(N-1) × 60 s < T < N × 60 s` | último intervalo residual positivo | depende de plausibilidade |
+| `T > N × 60 s` | intervalos cobrem `N × 60 s`; cauda em `tailUncovered` | depende de plausibilidade |
+| `d4-v1` sem `decodedSteps` | ausente, motivo `MISSING_DECODED_STEPS` | inelegível |
+| Indicador `IMPLAUSIBLE_CADENCE` ou `IMPLAUSIBLE_SPEED` | preservada para diagnóstico | bloqueada |
+| `TREADMILL` + origem `WATCH_D3_D4` + snapshot elegível | preservada | pode usar `READY_TO_SYNC` pela política nova |
+| `TREADMILL` phone histórico | contrato legado | exige calibração histórica |
+
+### Exemplos determinísticos
+
+- `T = 1.637 s`, `N = 28`: 27 janelas de 60 s e última janela de 17 s;
+- limite de split em 1.000 m dentro de um intervalo usa fração linear da distância e da duração daquele intervalo;
+- amostra BPM em `t0` cobre `[t0, t1)` e a média do split é `Σ(bpm × sobreposição) / Σ(sobreposição)`;
+- intervalo `[10:00, 10:17)` produz `SpeedRecord` conceitual em `10:08.5`;
+- `totalSteps × stepLengthMetersUsed` permanece `DiagnosticAggregateStepEstimate`, nunca distância canônica.
+
+### Validação e revisão
+
+| Comando | Resultado |
+| --- | --- |
+| `./gradlew app:compileDebugKotlin` | PASS |
+| `./gradlew lint assembleDebug assembleRelease` | PASS; warnings preexistentes de override deprecated em `data/RoomRepositories.kt` |
+| `git diff --check` | PASS |
+| Testes automatizados | Não criados nem executados, conforme task e `AGENTS.md` |
+| Revisão independente | PASS; risco residual P2: snapshot ainda não recebe origem diretamente |
+
+### Decisões e desvios
+
+- O workflow legado de `WorkoutActivity.confirmReview` não foi alterado antes da migration/consumidores canônicos; `WatchWorkoutWorkflowPolicy` fecha a regra nova sem permitir que mapper antigo envie distância não canônica.
+- A política padrão de plausibilidade é inelegível sem limiar auditado. Projeção exige `EXPLICITLY_ACCEPTED` e ausência de indicadores.
+- `HealthSyncRecordType.SPEED` foi adicionado. Uma guarda fail-closed em `core/healthconnect/HealthConnectSyncCoordinator.kt` mantém o `when` exaustivo sem habilitar writer; esse arquivo está fora da lista original de permitidos por necessidade de compilação e fica como desvio explícito para revisão.
 
 ## Definição de pronto
 

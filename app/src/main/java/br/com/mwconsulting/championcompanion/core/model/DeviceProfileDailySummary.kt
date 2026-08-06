@@ -91,15 +91,20 @@ data class UserProfile private constructor(
     val id: UserProfileId,
     val heightCentimeters: Double?,
     val updatedAt: Instant,
+    val stepLengthProfile: StepLengthProfile? = null,
 ) {
+    val stepLengthMeters: Double?
+        get() = stepLengthProfile?.stepLengthMeters
+
     companion object {
         fun create(
             id: UserProfileId,
             updatedAt: Instant,
             heightCentimeters: Double? = null,
+            stepLengthProfile: StepLengthProfile? = null,
         ): DomainResult<UserProfile> =
             if (heightCentimeters == null || (heightCentimeters.isFinite() && heightCentimeters > 0.0)) {
-                DomainResult.Success(UserProfile(id, heightCentimeters, updatedAt))
+                DomainResult.Success(UserProfile(id, heightCentimeters, updatedAt, stepLengthProfile))
             } else {
                 DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }

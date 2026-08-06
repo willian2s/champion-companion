@@ -463,4 +463,5 @@ private fun permissionFor(recordType: HealthSyncRecordType): HealthConnectWriteP
     HealthSyncRecordType.TOTAL_CALORIES_BURNED -> HealthConnectWritePermission.TOTAL_CALORIES_BURNED
     HealthSyncRecordType.WEIGHT -> HealthConnectWritePermission.WEIGHT
     HealthSyncRecordType.HEIGHT -> HealthConnectWritePermission.HEIGHT
+    HealthSyncRecordType.SPEED -> error("SpeedRecord writer is not enabled in this phase.")
 }

@@ -85,6 +85,8 @@ data class PersonalMetricsSnapshot(
     val latestWeightMeasuredAt: Instant? = null,
     val latestWeightOrigin: DataOrigin? = null,
     val manualStrideLengthMeters: Double? = null,
+    /** Perfil novo; [manualStrideLengthMeters] permanece somente como ponte legada. */
+    val stepLengthProfile: StepLengthProfile? = null,
 )
 
 interface DailyStepsSyncCoordinator {
