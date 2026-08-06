@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 4/16 subtarefas concluídas
+- **Progresso:** 5/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -31,7 +31,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-02-define-temporal-and-derived-metrics-contracts.md](014-02-define-temporal-and-derived-metrics-contracts.md)
 - [x] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
 - [x] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
-- [ ] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
+- [x] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
 - [ ] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
 - [ ] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
 - [ ] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
@@ -151,3 +151,14 @@ Connect continua pendente.
    residual para `014-15`. Revisão independente após correções foi aprovada sem
    bloqueadores; auditoria de `014-01` ainda contém nomenclatura histórica e fica
    registrada para atualização documental futura.
+- `014-05` corrigiu o resolvedor temporal para validar índices antes de calcular
+  janelas por `T/N`, mantendo lacunas, duplicatas, primeiro índice não zero e
+  ordem inconsistente inelegíveis sem síntese temporal. O residual de `1.637 s`
+  permanece `27 × 60 s + 17 s`; cauda longa permanece em `tailUncovered`, sem
+  bucket. O parser agora propaga `resolvedEndedAt` para `WorkoutMetrics` sem
+  alterar fatos raw/measured nem D4 v1/v2. Foram atualizados o contrato e a
+  documentação de protocolo; snapshot, persistência, distância, Health Connect,
+  UI, migration e schema continuam pendentes. `lint`, builds debug/release,
+  `installDebug` e `git diff --check` passaram; testes automatizados não foram
+  executados. Riscos residuais: validação física D4 e plausibilidade definida por
+  evidência permanecem para subtarefas posteriores.

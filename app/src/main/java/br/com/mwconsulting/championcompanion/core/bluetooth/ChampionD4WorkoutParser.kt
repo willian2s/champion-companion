@@ -122,6 +122,7 @@ object ChampionD4WorkoutParser {
             averageBpm = averageBpm,
             minimumBpm = minimumBpm,
             maximumBpm = maximumBpm,
+            endedAt = resolvedEndedAt,
         )
 
         val outOfDurationSampleCount = heartRateSamples.count { it.sampledAt.isAfter(resolvedEndedAt) }

@@ -2,7 +2,8 @@
 
 - **Ticker:** `014`
 - **Número:** `05`
-- **Status:** pending
+- **Status:** completed
+- **Concluída em:** 2026-08-06
 
 ## Objetivo e resultado esperado
 
@@ -116,10 +117,72 @@ Não criar nem executar testes automatizados.
 - matriz de plausibilidade;
 - builds e smoke local.
 
+### Implementação
+
+- `TemporalSeriesValidator` continua sendo executado antes de qualquer cálculo
+  `T/N` no `WorkoutDurationResolver`;
+- séries com lacuna, duplicata, primeiro índice diferente de zero ou ordem
+  inconsistente retornam fatos measured sem janelas efetivas sintetizadas;
+- índices elegíveis preservam `EXACT`, `LAST_INTERVAL_RESIDUAL`,
+  `INSUFFICIENT_TOTAL_DURATION` e `EXCESS_TOTAL_DURATION`, incluindo cauda sem
+  bucket;
+- `ChampionD4WorkoutParser` propaga `resolvedEndedAt` para `WorkoutMetrics`,
+  mantendo duração ativa, fatos raw e fatos measured separados.
+
+### Matriz validada por inspeção do contrato
+
+| Entrada | Resultado esperado preservado pelo resolvedor |
+| --- | --- |
+| `0..N-1`, `T = N × 60 s` | todas as janelas com 60 s |
+| `0..27`, `T = 1.637 s` | 27 janelas de 60 s e última de 17 s |
+| `0..N-1`, `T <= (N-1) × 60 s` | inelegível, sem janelas efetivas |
+| `0..N-1`, `T > N × 60 s` | janelas de 60 s e `tailUncovered`, sem bucket adicional |
+| lacuna, duplicata, primeiro índice não zero ou ordem inconsistente | inelegível, sem síntese por posição da lista |
+| indicador/política de plausibilidade existente | não altera duração nem passos |
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionD4WorkoutParser.kt`;
+- `docs/protocol/workouts-d3-d4.md`;
+- `docs/tasks/014-watch-workout-derived-metrics/014-05-resolve-effective-interval-duration.md`;
+- `docs/tasks/014-watch-workout-derived-metrics/014-00-overview.md`.
+
+### Decisões e desvios
+
+- A alteração ficou restrita ao retorno fail-closed antes da política `T/N`; o
+  contrato existente de quatro casos temporais foi preservado.
+- Não foram alterados snapshot, distância canônica, Health Connect, UI,
+  migration, schema, `persistImported` ou decodificação D4 v1/v2.
+- Nenhum limiar de plausibilidade foi inventado; indicadores continuam
+  independentes da resolução temporal.
+
+### Validação executada
+
+| Comando | Resultado |
+| --- | --- |
+| `./gradlew lint assembleDebug assembleRelease` | PASS |
+| `./gradlew installDebug` | PASS; instalado em `SM-S901E - 16` |
+| `git diff --check` | PASS |
+| `git status --short` | PASS; somente arquivos desta subtarefa/documentação |
+| Revisão independente | Aprovada com ressalvas; sem bloqueadores para 014-05 |
+| Testes automatizados | Não executados, conforme solicitação |
+
+### Riscos residuais
+
+- A persistência do snapshot e das durações efetivas continua bloqueada até
+  `014-07`; esta subtarefa somente corrige o contrato do resolvedor e a
+  proveniência de `endedAt`.
+- Duplicatas de pacotes D4 são normalizadas pelo parser antes da derivação; a
+  `ParserValidity.PARTIAL` precisa continuar bloqueando derivação futura.
+- A validação física de D4 e a política de plausibilidade continuam pendentes
+  para subtarefas posteriores.
+
 ## Definição de pronto
 
-Política temporal, índices e plausibilidade persistidos sem síntese, com item
-`014-05` marcado.
+Política temporal, índices e plausibilidade resolvidos no contrato sem síntese e
+prontos para persistência posterior, com item `014-05` marcado. A criação do
+snapshot e a gravação dos campos derivados permanecem fora desta subtarefa.
 
 ## Rollback
 

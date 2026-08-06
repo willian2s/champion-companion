@@ -163,7 +163,7 @@ Essa é uma regra do parser, não uma garantia universal do protocolo do relógi
 | layout preferido | início em `7..13`; fim em `14..19`; anos u16 LE | heurística do código |
 | layout legado | offsets alternativos em `5..19` | fallback do código |
 | duração | diferença positiva entre início/fim; fallback do pacote 3 | interpretação do código |
-| `endedAt` no domínio | parser não passa explicitamente o fim resolvido; o domínio usa `startedAt + duration` | perda atual de proveniência explícita |
+| `endedAt` no domínio | parser propaga o fim resolvido do pacote 1 ou o fallback de duração do pacote 3 | proveniência temporal explícita no domínio |
 
 ## Pacote 2 — totais
 
@@ -309,10 +309,14 @@ silenciosa de dados legados.
 - pacotes `4+` presentes são ordenados por `minuteIndex`;
 - duplicatas usam a primeira ocorrência e tornam o parser parcial;
 - lacunas permanecem como lacunas;
-- todos os intervalos persistidos recebem 60 segundos;
-- a duração total é resolvida separadamente;
-- não existe duração nominal versus efetiva;
-- não existe plausibilidade tipada.
+- os intervalos brutos mantêm 60 segundos nominais;
+- o resolvedor temporal valida índices antes de aplicar a política `T/N/60 s`;
+- lacuna, duplicata, primeiro índice não zero ou ordem inconsistente preservam os
+  fatos sem receber janelas efetivas sintetizadas;
+- séries elegíveis distinguem duração exata, residual, insuficiente e cauda não
+  coberta; plausibilidade permanece política separada e tipada;
+- a materialização do snapshot e da duração efetiva persistida pertence à
+  derivação posterior.
 
 ## Contrato planejado V1
 

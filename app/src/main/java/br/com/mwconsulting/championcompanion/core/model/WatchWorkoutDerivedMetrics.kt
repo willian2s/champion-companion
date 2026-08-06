@@ -395,6 +395,19 @@ object WorkoutDurationResolver {
         val validNominalDuration = nominalIntervalDuration.isPositive()
         if (!validNominalDuration) reasons += TemporalSeriesValidationReason.INVALID
 
+        // Índices inválidos não têm posição temporal confiável. Preserve fatos
+        // measured sem fabricar janelas pela posição da lista.
+        if (!indexValidation.isEligible) {
+            return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons.toSet(),
+            )
+        }
+
         if (intervals.isEmpty()) {
             return WorkoutDurationResolution(
                 durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
