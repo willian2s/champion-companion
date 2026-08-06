@@ -234,8 +234,15 @@ interface WorkoutActivityDao {
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
-            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState " +
+            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
+            "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
+            "derivation.derivationVersion AS canonicalDerivationVersion, " +
+            "derivation.stepLengthSource AS canonicalStepLengthSource, " +
+            "derivation.temporalEligibility AS canonicalTemporalEligibility, " +
+            "derivation.plausibilityIndicators AS canonicalPlausibilityIndicators " +
             "FROM workout_activities activity " +
+            "LEFT JOIN workout_derivation_snapshots derivation ON " +
+            "derivation.activeActivityId = activity.id AND derivation.isActive = 1 " +
             "WHERE activity.startedAtEpochMillis >= :fromEpochMillis " +
             "AND activity.startedAtEpochMillis < :untilEpochMillis " +
             "AND activity.workflowState != 'DISCARDED' " +
@@ -250,8 +257,15 @@ interface WorkoutActivityDao {
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
-            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState " +
+            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
+            "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
+            "derivation.derivationVersion AS canonicalDerivationVersion, " +
+            "derivation.stepLengthSource AS canonicalStepLengthSource, " +
+            "derivation.temporalEligibility AS canonicalTemporalEligibility, " +
+            "derivation.plausibilityIndicators AS canonicalPlausibilityIndicators " +
             "FROM workout_activities activity " +
+            "LEFT JOIN workout_derivation_snapshots derivation ON " +
+            "derivation.activeActivityId = activity.id AND derivation.isActive = 1 " +
             "WHERE activity.workflowState != 'DISCARDED' " +
             "ORDER BY activity.startedAtEpochMillis, activity.id",
     )
@@ -322,6 +336,11 @@ data class CalendarWorkoutSummaryRecord(
     val caloriesKilocalories: Double?,
     val averageBpm: Int?,
     val workflowState: String,
+    val canonicalDistanceMeters: Double? = null,
+    val canonicalDerivationVersion: String? = null,
+    val canonicalStepLengthSource: String? = null,
+    val canonicalTemporalEligibility: String? = null,
+    val canonicalPlausibilityIndicators: String? = null,
 )
 
 data class HealthSyncWorkoutCandidateRecord(
@@ -434,6 +453,12 @@ data class WorkoutDerivationRecord(
 
 @Dao
 interface WorkoutDerivationDao {
+    @Query("SELECT * FROM workout_derivation_snapshots WHERE isActive = 1 ORDER BY activityId")
+    fun observeActiveSnapshots(): Flow<List<WorkoutDerivationSnapshotEntity>>
+
+    @Query("SELECT * FROM workout_derivation_snapshots WHERE activeActivityId = :activityId AND isActive = 1 LIMIT 1")
+    fun observeActiveSnapshotForActivity(activityId: String): Flow<WorkoutDerivationSnapshotEntity?>
+
     @Query("SELECT * FROM workout_derivation_snapshots WHERE id = :id LIMIT 1")
     suspend fun findSnapshotById(id: String): WorkoutDerivationSnapshotEntity?
 

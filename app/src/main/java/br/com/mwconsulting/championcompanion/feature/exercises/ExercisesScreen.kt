@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
@@ -71,9 +72,12 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.PendingReviewBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
+import br.com.mwconsulting.championcompanion.core.model.CanonicalWorkoutSeries
+import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
+import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgress
@@ -82,10 +86,15 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
+import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
+import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutSplit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -104,6 +113,8 @@ private val ExerciseHeartRateGuideBands = listOf(
 
 private val ExerciseHeartRateChartLeftPadding = 12.dp
 private val ExerciseHeartRateChartRightPadding = 40.dp
+private val ExerciseCanonicalChartLeftPadding = 12.dp
+private val ExerciseCanonicalChartRightPadding = 40.dp
 
 private val PendingWorkflowBorderColor = Color(0xFFF9A825)
 private val ReadyWorkflowBorderColor = Color(0xFF1E88E5)
@@ -783,9 +794,18 @@ private fun WorkoutActivityCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = "Duração ${activity.metrics.duration.toDurationLabel()} • Distância ${activity.metrics.distances.toDistanceLabel()}",
+                text = "Duração ${activity.metrics.duration.toDurationLabel()} • ${activity.displayDistanceLabel()}",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (activity.isWatchWorkout && activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE &&
+                activity.canonicalReadStatus != WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
+            ) {
+                Text(
+                    text = activity.canonicalReadStatus.toShortLabel(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 text = activity.workflowState.toLabel(),
                 style = MaterialTheme.typography.bodySmall,
@@ -929,11 +949,14 @@ private fun WorkoutActivityDetailContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        ActivityCanonicalStatusSection(activity)
         ActivityMetricsSection(activity, latestCalibration)
+        ActivityCanonicalChartSection(activity)
         ActivityHeartRateChartSection(activity)
         ActivityIntervalsSection(activity)
+        ActivitySplitsSection(activity)
         if (activity.parserValidity == ParserValidity.PARTIAL) {
-            PartialParserNotice()
+            PartialParserNotice(activity)
         }
         when {
             activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> ReviewFormSection(
@@ -944,6 +967,9 @@ private fun WorkoutActivityDetailContent(
                 onReviewNotesChange = onReviewNotesChange,
                 onSubmitReview = onSubmitReview,
             )
+
+            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout ->
+                WatchWorkoutPendingDerivationSection(activity)
 
             activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION -> CalibrationFormSection(
                 activity = activity,
@@ -1000,6 +1026,190 @@ private fun ActivityHeaderCard(activity: WorkoutActivity) {
     }
 }
 
+private data class CanonicalActivityMetricReadModel(
+    val cumulativeSteps: Long,
+    val totalDistanceMeters: Double,
+    val paceSecondsPerKilometer: Double?,
+    val speedMetersPerSecond: Double,
+)
+
+private fun WorkoutActivity.canonicalMetricReadModel(): CanonicalActivityMetricReadModel? {
+    val series = canonicalSeries ?: return null
+    val lastInterval = series.intervals.lastOrNull() ?: return null
+    return CanonicalActivityMetricReadModel(
+        cumulativeSteps = lastInterval.cumulativeSteps,
+        totalDistanceMeters = lastInterval.cumulativeDistanceMeters,
+        paceSecondsPerKilometer = lastInterval.cumulativeMetrics.paceSecondsPerKilometer,
+        speedMetersPerSecond = lastInterval.cumulativeMetrics.speedMetersPerSecond,
+    )
+}
+
+@Composable
+private fun ActivityCanonicalStatusSection(activity: WorkoutActivity) {
+    if (!activity.isWatchWorkout) return
+    val status = activity.canonicalReadStatus
+    val snapshot = activity.derivationSnapshot
+    val isWarning = status == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ||
+        status == WorkoutCanonicalReadStatus.SERIES_INELIGIBLE
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                stateDescription = status.toShortLabel()
+                contentDescription = activity.canonicalStatusAccessibleDescription()
+            },
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isWarning) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.tertiaryContainer
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(status.toShortLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = activity.canonicalStatusMessage(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isWarning) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                },
+            )
+            snapshot?.let {
+                Text(
+                    text = "Comprimento do passo: ${formatStepLength(it.stepLengthMetersUsed)} (${it.stepLengthSource.toLabel()}) • Derivação ${it.derivationVersion}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (snapshot?.plausibility?.indicators?.isNotEmpty() == true) {
+                Text(
+                    text = "Indicadores: ${snapshot.plausibility.indicators.joinToString { it.toLabel() }}.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityCanonicalChartSection(activity: WorkoutActivity) {
+    if (!activity.isWatchWorkout) return
+    val series = activity.canonicalSeries
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Série canônica", style = MaterialTheme.typography.titleLarge)
+            if (series == null) {
+                Text(
+                    text = "Gráfico indisponível: ${activity.canonicalStatusMessage()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (series.intervals.isEmpty()) {
+                Text(
+                    text = "Gráfico indisponível: série sem intervalos derivados.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = if (activity.canonicalReadStatus == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED) {
+                        "Distância estimada acumulada para diagnóstico; não é uma série confiável."
+                    } else {
+                        "Distância estimada acumulada, sem suavização."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                WorkoutCanonicalDistanceChart(series)
+                Text(
+                    text = canonicalChartAccessibleSummary(series),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutCanonicalDistanceChart(series: CanonicalWorkoutSeries) {
+    val intervals = series.intervals
+    val first = intervals.first().effectiveWindow.start
+    val last = intervals.last().effectiveWindow.end
+    val durationMillis = (last.toEpochMilli() - first.toEpochMilli()).coerceAtLeast(1L)
+    val maxDistance = intervals.last().cumulativeDistanceMeters.coerceAtLeast(1.0)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val chartDescription = intervals.joinToString(separator = "; ") { interval ->
+        "intervalo ${interval.index + 1}, ${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados"
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .semantics {
+                    contentDescription = "Gráfico de distância estimada acumulada do treino. $chartDescription"
+                },
+        ) {
+            val leftPadding = ExerciseCanonicalChartLeftPadding.toPx()
+            val topPadding = 14.dp.toPx()
+            val rightPadding = ExerciseCanonicalChartRightPadding.toPx()
+            val bottomPadding = 22.dp.toPx()
+            val chartWidth = (size.width - leftPadding - rightPadding).coerceAtLeast(1f)
+            val chartHeight = (size.height - topPadding - bottomPadding).coerceAtLeast(1f)
+            val bottom = size.height - bottomPadding
+            val path = Path()
+
+            drawLine(
+                color = onSurfaceVariant,
+                start = Offset(leftPadding, bottom),
+                end = Offset(size.width - rightPadding, bottom),
+                strokeWidth = 1.dp.toPx(),
+            )
+            intervals.forEachIndexed { index, interval ->
+                val elapsed = interval.effectiveWindow.end.toEpochMilli() - first.toEpochMilli()
+                val x = leftPadding + (elapsed.toFloat() / durationMillis.toFloat()) * chartWidth
+                val fraction = (interval.cumulativeDistanceMeters / maxDistance).toFloat().coerceIn(0f, 1f)
+                val y = bottom - fraction * chartHeight
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                drawCircle(color = primaryColor, radius = 3.dp.toPx(), center = Offset(x, y))
+            }
+            drawPath(path = path, color = primaryColor, style = Stroke(width = 3.dp.toPx()))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .absolutePadding(
+                    left = ExerciseCanonicalChartLeftPadding,
+                    right = ExerciseCanonicalChartRightPadding,
+                ),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(first.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
+            Text(last.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
+        }
+    }
+}
+
+private fun canonicalChartAccessibleSummary(series: CanonicalWorkoutSeries): String =
+    "Resumo acessível: ${series.intervals.size} intervalos, término em ${series.intervals.last().cumulativeDistanceMeters.toDistanceLabel()} acumulados."
+
 @Composable
 private fun ActivityMetricsSection(
     activity: WorkoutActivity,
@@ -1037,7 +1247,11 @@ private fun ActivityMetricsSection(
                     modifier = Modifier.padding(ChampionSpacing.large),
                     verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
                 ) {
-                    Text("Calibração ativa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = if (activity.isWatchWorkout) "Calibração histórica (diagnóstico)" else "Calibração ativa",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                     Text("Revisão ${it.revision} • Aplicada em ${it.appliedAt.formatDateTime()}", style = MaterialTheme.typography.bodyMedium)
                     Text("Distância informada: ${it.reportedDistanceMeters.toDistanceLabel()}", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -1194,6 +1408,10 @@ private fun WorkoutHeartRateChart(samples: List<WorkoutHeartRateSample>) {
 
 @Composable
 private fun ActivityIntervalsSection(activity: WorkoutActivity) {
+    if (activity.isWatchWorkout) {
+        WatchCanonicalIntervalsSection(activity)
+        return
+    }
     var isDialogOpen by remember(activity.id) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1250,6 +1468,194 @@ private fun ActivityIntervalsSection(activity: WorkoutActivity) {
 }
 
 @Composable
+private fun WatchCanonicalIntervalsSection(activity: WorkoutActivity) {
+    var isDialogOpen by remember(activity.id) { mutableStateOf(false) }
+    val intervals = activity.canonicalSeries?.intervals.orEmpty()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Intervalos canônicos", style = MaterialTheme.typography.titleLarge)
+            when {
+                activity.canonicalSeries == null -> Text(
+                    text = "Intervalos canônicos indisponíveis: ${activity.canonicalStatusMessage()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                intervals.isEmpty() -> Text(
+                    text = "A série canônica não possui intervalos derivados.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                else -> {
+                    Text(
+                        text = "Intervalos exibem somente passos medidos e métricas da série persistida.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = { isDialogOpen = true }) {
+                        Text("Ver intervalos")
+                    }
+                }
+            }
+        }
+    }
+
+    if (isDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isDialogOpen = false },
+            title = { Text("Intervalos canônicos do treino") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+                ) {
+                    intervals.forEach { interval -> CanonicalIntervalCard(interval) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { isDialogOpen = false }) { Text("Fechar") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun CanonicalIntervalCard(interval: DerivedWorkoutInterval) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Intervalo ${interval.index + 1}: ${interval.canonicalIntervalDistanceMeters.toDistanceLabel()}, " +
+                    "${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados, " +
+                    "ritmo ${interval.paceSecondsPerKilometer.toPaceLabel()} e velocidade ${interval.speedMetersPerSecond.toSpeedLabel()}"
+            },
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Intervalo ${interval.index + 1}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "${interval.effectiveDuration.toCanonicalDurationLabel()} • ${numberLabel(interval.decodedSteps)} passos medidos • ${interval.canonicalIntervalDistanceMeters.toDistanceLabel()}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "Ritmo estimado ${interval.paceSecondsPerKilometer.toPaceLabel()} • Velocidade estimada ${interval.speedMetersPerSecond.toSpeedLabel()}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "Distância acumulada ${interval.cumulativeDistanceMeters.toDistanceLabel()} • Cadência ${formatCadence(interval.cadenceStepsPerMinute)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "BPM por quilômetro é exibido nos splits persistidos abaixo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActivitySplitsSection(activity: WorkoutActivity) {
+    if (!activity.isWatchWorkout) return
+    val snapshot = activity.derivationSnapshot
+    val splits = snapshot?.splits.orEmpty()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Splits e BPM por quilômetro", style = MaterialTheme.typography.titleLarge)
+            when (activity.canonicalReadStatus) {
+                WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH,
+                WorkoutCanonicalReadStatus.NOT_MATERIALIZED,
+                WorkoutCanonicalReadStatus.SERIES_INELIGIBLE,
+                WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED,
+                -> Text(
+                    text = "Splits indisponíveis: ${activity.canonicalStatusMessage()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED -> Text(
+                    text = "A série canônica está disponível, mas os splits ainda não foram materializados. Reprocesse a atividade por ação explícita.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                WorkoutCanonicalReadStatus.AVAILABLE -> {
+                    if (splits.isEmpty()) {
+                        Text(
+                            text = "Distância canônica abaixo de 1 km: nenhum split completo para exibir.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        splits.forEach { split -> WorkoutSplitCard(split) }
+                    }
+                }
+
+                WorkoutCanonicalReadStatus.NOT_APPLICABLE -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutSplitCard(split: WorkoutSplit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = splitAccessibleDescription(split)
+            },
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Split ${split.number}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "${split.distanceMeters.toDistanceLabel()} • ${split.duration.toCanonicalDurationLabel()}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "Ritmo estimado ${split.averagePaceSecondsPerKilometer.toPaceLabel()} • Velocidade estimada ${split.averageSpeedMetersPerSecond.toSpeedLabel()}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "Cadência média ${formatCadence(split.averageCadenceStepsPerMinute)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = split.averageBpm?.let {
+                    "BPM médio ponderado: ${formatBpm(it)} (${split.bpmCoveredDuration.toCanonicalDurationLabel()} de cobertura)"
+                } ?: "BPM indisponível: sem cobertura temporal elegível.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun IntervalCard(interval: WorkoutInterval, bpmSummary: String?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1282,7 +1688,7 @@ private fun IntervalCard(interval: WorkoutInterval, bpmSummary: String?) {
 }
 
 @Composable
-private fun PartialParserNotice() {
+private fun PartialParserNotice(activity: WorkoutActivity) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
@@ -1296,7 +1702,11 @@ private fun PartialParserNotice() {
         ) {
             Text("Importação parcial", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
-                text = "Treino importado com dados parciais, mas elegível para revisão, calibração quando necessária e sincronização futura, alinhado ao comportamento anterior do app.",
+                text = if (activity.isWatchWorkout) {
+                    "Treino do relógio importado com dados parciais. Revise os fatos disponíveis; distância canônica ausente não é substituída por calibração histórica."
+                } else {
+                    "Treino importado com dados parciais, mas elegível para revisão, calibração quando necessária e sincronização futura, alinhado ao comportamento anterior do app."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
@@ -1366,11 +1776,42 @@ private fun ReviewFormSection(
                 Text(it.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             PrimaryActionButton(
-                label = if (formState.isSaving) "Salvando revisão" else reviewActionLabel(formState.selectedType),
+                label = if (formState.isSaving) "Salvando revisão" else reviewActionLabel(activity, formState.selectedType),
                 onClick = onSubmitReview,
                 enabled = formState.selectedType != null,
                 isLoading = formState.isSaving,
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WatchWorkoutPendingDerivationSection(activity: WorkoutActivity) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Ação pendente: ${activity.canonicalStatusMessage()}"
+            },
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Calibração histórica não necessária", style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = when (activity.canonicalReadStatus) {
+                    WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
+                        "Este treino do relógio não pede calibração de esteira. Configure o comprimento do passo no Perfil e reprocese a atividade por ação explícita."
+                    WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
+                        "A série canônica está inelegível. Corrija a origem por reprocessamento explícito; nenhuma distância histórica será usada como substituta."
+                    else -> activity.canonicalStatusMessage()
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
         }
     }
@@ -1470,7 +1911,14 @@ private fun ReadOnlyWorkflowSection(
             activity.title?.let { Text("Título salvo: $it", style = MaterialTheme.typography.bodyMedium) }
             activity.notes?.let { Text("Observações: $it", style = MaterialTheme.typography.bodyMedium) }
             latestCalibration?.let {
-                Text("Calibração ativa: revisão ${it.revision}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = if (activity.isWatchWorkout) {
+                        "Calibração histórica (diagnóstico): revisão ${it.revision}"
+                    } else {
+                        "Calibração ativa: revisão ${it.revision}"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             if (activity.workflowState in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED, ActivityWorkflowState.SYNCING)) {
                 PrimaryActionButton(
@@ -1490,8 +1938,12 @@ private fun ReadOnlyWorkflowSection(
     }
 }
 
-private fun reviewActionLabel(type: WorkoutType?): String =
-    if (type == WorkoutType.TREADMILL) "Salvar revisão e ir para calibração" else "Concluir revisão"
+private fun reviewActionLabel(activity: WorkoutActivity, type: WorkoutType?): String =
+    if (type == WorkoutType.TREADMILL && !activity.isWatchWorkout) {
+        "Salvar revisão e ir para calibração"
+    } else {
+        "Concluir revisão"
+    }
 
 private data class DetailMetricItem(
     val label: String,
@@ -1499,6 +1951,19 @@ private data class DetailMetricItem(
 )
 
 private fun WorkoutActivity.detailMetricItems(): List<DetailMetricItem> {
+    if (isWatchWorkout) {
+        val canonical = canonicalMetricReadModel()
+        return listOf(
+            DetailMetricItem("Distância estimada acumulada", canonical?.totalDistanceMeters.toDistanceLabel()),
+            DetailMetricItem("Passos medidos", canonical?.cumulativeSteps?.let(::numberLabel) ?: "indisponível"),
+            DetailMetricItem("Ritmo estimado", canonical?.paceSecondsPerKilometer.toPaceLabel()),
+            DetailMetricItem("Velocidade estimada", canonical?.speedMetersPerSecond.toSpeedLabel()),
+            DetailMetricItem("Calorias", metrics.caloriesKilocalories.toKcalLabel()),
+            DetailMetricItem("BPM médio", metrics.averageBpm.toBpmLabel()),
+            DetailMetricItem("BPM mínimo", metrics.minimumBpm.toBpmLabel()),
+            DetailMetricItem("BPM máximo", metrics.maximumBpm.toBpmLabel()),
+        )
+    }
     val common = mutableListOf(
         DetailMetricItem("Distância final", metrics.distances.toDistanceLabel()),
         DetailMetricItem("Calorias", metrics.caloriesKilocalories.toKcalLabel()),
@@ -1549,6 +2014,105 @@ private fun intervalBpmSummary(activity: WorkoutActivity, index: Int): String? {
 
 private fun numberLabel(value: Long): String =
     java.text.NumberFormat.getIntegerInstance(Locale.forLanguageTag("pt-BR")).format(value)
+
+private val WorkoutActivity.isWatchWorkout: Boolean
+    get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4
+
+private fun WorkoutActivity.displayDistanceLabel(): String = if (isWatchWorkout) {
+    "Distância estimada ${canonicalMetricReadModel()?.totalDistanceMeters.toDistanceLabel()}"
+} else {
+    "Distância ${metrics.distances.toDistanceLabel()}"
+}
+
+private fun WorkoutActivity.canonicalStatusAccessibleDescription(): String =
+    "${canonicalReadStatus.toShortLabel()}. ${canonicalStatusMessage()}"
+
+private fun WorkoutActivity.canonicalStatusMessage(): String = when (canonicalReadStatus) {
+    WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Métricas canônicas não se aplicam a esta origem."
+    WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
+        "Sem comprimento do passo confirmado. Configure o valor no Perfil e reprocese a atividade por ação explícita."
+    WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
+        "A derivação canônica ainda não foi materializada. Configure o comprimento do passo no Perfil e reprocese a atividade por ação explícita."
+    WorkoutCanonicalReadStatus.SERIES_INELIGIBLE -> {
+        val reasons = derivationSnapshot?.temporalResolution?.reasons.orEmpty()
+        if (reasons.isEmpty()) {
+            "A série canônica é inelegível. Reprocesse a atividade por ação explícita; nenhuma distância legada substitui este estado."
+        } else {
+            "A série canônica é inelegível. Motivo: ${reasons.joinToString { it.toLabel() }}."
+        }
+    }
+    WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ->
+        "A série canônica está visível para diagnóstico, mas contém valores implausíveis e não deve ser tratada como confiável."
+    WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
+        "A série canônica está disponível; splits de 1 km ainda não foram materializados no read model persistido."
+    WorkoutCanonicalReadStatus.AVAILABLE ->
+        "Distância, ritmo, velocidade e acumulado usam a série canônica persistida."
+}
+
+private fun WorkoutCanonicalReadStatus.toShortLabel(): String = when (this) {
+    WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Métricas canônicas não aplicáveis"
+    WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH -> "Sem comprimento do passo"
+    WorkoutCanonicalReadStatus.NOT_MATERIALIZED -> "Derivação não materializada"
+    WorkoutCanonicalReadStatus.SERIES_INELIGIBLE -> "Série canônica inelegível"
+    WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED -> "Série estimada implausível"
+    WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED -> "Splits ainda não materializados"
+    WorkoutCanonicalReadStatus.AVAILABLE -> "Métricas canônicas disponíveis"
+}
+
+private fun StepLengthSource.toLabel(): String = when (this) {
+    StepLengthSource.MANUAL -> "entrada manual"
+    StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> "sugestão aceita pela altura"
+    StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> "calibração de distância"
+}
+
+private fun WorkoutPlausibilityIndicator.toLabel(): String = when (this) {
+    WorkoutPlausibilityIndicator.IMPLAUSIBLE_CADENCE -> "cadência implausível"
+    WorkoutPlausibilityIndicator.IMPLAUSIBLE_SPEED -> "velocidade implausível"
+}
+
+private fun TemporalSeriesValidationReason.toLabel(): String = when (this) {
+    TemporalSeriesValidationReason.UNIQUE,
+    TemporalSeriesValidationReason.DUPLICATE_INDEX,
+    -> "índice duplicado"
+    TemporalSeriesValidationReason.NON_CONTIGUOUS,
+    TemporalSeriesValidationReason.INDEX_GAP,
+    -> "lacuna nos índices"
+    TemporalSeriesValidationReason.FIRST_INDEX_NOT_ZERO -> "primeiro índice diferente de zero"
+    TemporalSeriesValidationReason.OUT_OF_ORDER -> "ordem temporal inconsistente"
+    TemporalSeriesValidationReason.EMPTY -> "intervalos ausentes"
+    TemporalSeriesValidationReason.INVALID -> "dados temporais inválidos"
+    TemporalSeriesValidationReason.INSUFFICIENT_TOTAL_DURATION -> "duração total insuficiente"
+    TemporalSeriesValidationReason.MISSING_DECODED_STEPS -> "passos decodificados ausentes"
+}
+
+private fun formatStepLength(value: Double): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.3f m", value)
+
+private fun formatCadence(value: Double): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.0f passos/min", value)
+
+private fun formatBpm(value: Double): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.1f BPM", value)
+
+private fun splitAccessibleDescription(split: WorkoutSplit): String =
+    "Split ${split.number}: ${split.distanceMeters.toDistanceLabel()}, ${split.duration.toCanonicalDurationLabel()}, " +
+        "ritmo ${split.averagePaceSecondsPerKilometer.toPaceLabel()}, " +
+        "velocidade ${split.averageSpeedMetersPerSecond.toSpeedLabel()}, " +
+        (split.averageBpm?.let { "BPM médio ponderado ${formatBpm(it)}" } ?: "BPM sem cobertura temporal")
+
+private fun Duration.toCanonicalDurationLabel(): String {
+    val totalSeconds = seconds
+    if (totalSeconds < 60L) return "$totalSeconds s"
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return when {
+        hours > 0L && minutes > 0L -> "$hours h ${minutes} min"
+        hours > 0L -> "$hours h"
+        seconds > 0L -> "$minutes min ${seconds} s"
+        else -> "$minutes min"
+    }
+}
 
 private fun DomainValue<Double>.toKcalLabel(): String = when (this) {
     is DomainValue.Present -> String.format(Locale.forLanguageTag("pt-BR"), "%.0f kcal", value)

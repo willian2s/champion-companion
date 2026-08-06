@@ -105,6 +105,7 @@ import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
+import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
@@ -316,6 +317,41 @@ internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSu
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
     if (durationNanos < 0) return null
 
+    val mappedStepLengthSource = if (mappedOrigin == DataOrigin.WATCH_D3_D4) {
+        canonicalStepLengthSource?.let {
+            enum<StepLengthSource>(it) ?: return null
+        }
+    } else {
+        null
+    }
+    val mappedPlausibilityIndicators = if (mappedOrigin == DataOrigin.WATCH_D3_D4) {
+        decodeEnumSet<WorkoutPlausibilityIndicator>(canonicalPlausibilityIndicators) ?: return null
+    } else {
+        emptySet()
+    }
+    val canonicalReadStatus = if (mappedOrigin == DataOrigin.WATCH_D3_D4) {
+        when {
+            canonicalDerivationVersion == null -> WorkoutCanonicalReadStatus.NOT_MATERIALIZED
+            enum<TemporalSeriesEligibility>(canonicalTemporalEligibility) != TemporalSeriesEligibility.ELIGIBLE ||
+                canonicalDistanceMeters == null -> WorkoutCanonicalReadStatus.SERIES_INELIGIBLE
+            mappedPlausibilityIndicators.isNotEmpty() -> WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED
+            else -> WorkoutCanonicalReadStatus.AVAILABLE
+        }
+    } else {
+        WorkoutCanonicalReadStatus.NOT_APPLICABLE
+    }
+    val mappedDistance = if (mappedOrigin == DataOrigin.WATCH_D3_D4) {
+        when (canonicalReadStatus) {
+            WorkoutCanonicalReadStatus.AVAILABLE,
+            WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED,
+            -> canonicalDistanceMeters.domainValue()
+
+            else -> DomainValue.Absent(AbsenceReason.NOT_YET_RESOLVED)
+        }
+    } else {
+        (calibratedDistanceMeters ?: originalDistanceMeters ?: estimatedDistanceMeters).domainValue()
+    }
+
     return CalendarWorkoutSummary(
         activityId = mappedActivityId,
         origin = mappedOrigin,
@@ -324,11 +360,14 @@ internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSu
         confirmedType = mappedConfirmedType,
         startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
         duration = Duration.ofNanos(durationNanos),
-        distanceMeters = (calibratedDistanceMeters ?: originalDistanceMeters ?: estimatedDistanceMeters)
-            .domainValue(),
+        distanceMeters = mappedDistance,
         caloriesKilocalories = caloriesKilocalories.domainValue(),
         averageBpm = averageBpm.domainValue(),
         workflowState = mappedWorkflowState,
+        canonicalReadStatus = canonicalReadStatus,
+        derivationVersion = canonicalDerivationVersion,
+        stepLengthSource = mappedStepLengthSource,
+        plausibilityIndicators = mappedPlausibilityIndicators,
     )
 }
 
@@ -804,7 +843,7 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
     }
     // Snapshot legado de 014-07 pode não ter projeção de splits materializada.
     // Ausência não sintetiza linhas no read path; rederivação explícita faz isso.
-    return snapshot
+    return snapshot.withPersistedSplits(mappedSplits)
 }
 
 internal fun WorkoutActivity.toHeartRateSamples(activityId: String, ids: Iterator<UUID>) = heartRateSamples.map {
@@ -827,6 +866,7 @@ internal fun WorkoutActivityEntity.toDomain(
     intervals: List<WorkoutIntervalEntity>,
     samples: List<WorkoutHeartRateSampleEntity>,
     derivationSnapshot: WorkoutDerivationSnapshot? = null,
+    canonicalReadStatusOverride: WorkoutCanonicalReadStatus? = null,
 ): WorkoutActivity? {
     val activityId = uuid(id)?.let(::WorkoutActivityId) ?: return null
     val mappedOrigin = enum<WorkoutActivityOrigin>(origin) ?: return null
@@ -902,6 +942,7 @@ internal fun WorkoutActivityEntity.toDomain(
         reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli),
         calibrationId = calibrationId?.let(::uuid)?.let(::TreadmillCalibrationId),
         derivationSnapshot = derivationSnapshot,
+        canonicalReadStatusOverride = canonicalReadStatusOverride,
     ).successOrNull()
 }
 

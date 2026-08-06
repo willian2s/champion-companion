@@ -103,6 +103,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteAppendCursor
@@ -710,10 +711,13 @@ class RoomRepositories @Inject constructor(
     override fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = when (filter) {
+    override fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = combine(
+        when (filter) {
         WorkoutActivityFilter.ALL -> database.workoutActivityDao().observeAll()
         else -> database.workoutActivityDao().observeByWorkflowStates(filter.toStoredWorkflowStates())
-    }.transformLatest { activities ->
+        },
+        database.workoutDerivationDao().observeActiveSnapshots(),
+    ) { activities, _ -> activities }.transformLatest { activities ->
         emit(activities.mapNotNull { activity -> loadWorkoutActivity(activity) })
     }.flowOn(ioDispatcher)
 
@@ -728,7 +732,10 @@ class RoomRepositories @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> =
-        database.workoutActivityDao().observeById(activityId.value.toString())
+        combine(
+            database.workoutActivityDao().observeById(activityId.value.toString()),
+            database.workoutDerivationDao().observeActiveSnapshotForActivity(activityId.value.toString()),
+        ) { activity, _ -> activity }
             .transformLatest { activity ->
                 emit(activity?.let { loadWorkoutActivity(it) })
             }
@@ -1647,11 +1654,20 @@ class RoomRepositories @Inject constructor(
             intervals = intervals,
             samples = samples,
         )
+        val canonicalReadStatusOverride = if (
+            activity.origin == WorkoutActivityOrigin.WATCH_D3_D4.name && derivationSnapshot == null &&
+            database.userProfileDao().findCurrent()?.toDomain()?.stepLengthProfile == null
+        ) {
+            WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH
+        } else {
+            null
+        }
         return activity.toDomain(
             importRecord = importRecord,
             intervals = intervals,
             samples = samples,
             derivationSnapshot = derivationSnapshot,
+            canonicalReadStatusOverride = canonicalReadStatusOverride,
         )
     }
 

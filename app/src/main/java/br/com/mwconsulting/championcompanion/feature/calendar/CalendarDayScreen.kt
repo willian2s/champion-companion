@@ -47,7 +47,10 @@ import br.com.mwconsulting.championcompanion.core.model.CalendarSyncState
 import br.com.mwconsulting.championcompanion.core.model.CalendarSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.CalendarWeightMeasurementSummary
 import br.com.mwconsulting.championcompanion.core.model.CalendarWorkoutSummary
+import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
+import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WeightUnit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.navigation.AppDestination
@@ -329,7 +332,11 @@ private fun WorkoutDayCard(
 ) {
     Card(
         onClick = { onOpen(workout.activityId.value.toString()) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = workout.accessibleDescription()
+            },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
@@ -338,7 +345,31 @@ private fun WorkoutDayCard(
         ) {
             Text(workout.title ?: workout.displayType(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text("Tipo: ${workout.displayType()} • Início: ${workout.startedAt.formatCalendarTime(zoneId, locale)}")
-            Text("Duração: ${workout.duration.toCalendarLabel()} • Distância: ${workout.distanceMeters.toDistanceLabel()}")
+            Text(
+                if (workout.isWatchWorkout) {
+                    "Duração: ${workout.duration.toCalendarLabel()} • Distância estimada: ${workout.distanceMeters.toDistanceLabel()}"
+                } else {
+                    "Duração: ${workout.duration.toCalendarLabel()} • Distância: ${workout.distanceMeters.toDistanceLabel()}"
+                },
+            )
+            if (workout.isWatchWorkout) {
+                Text(
+                    text = workout.canonicalStatusMessage(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (workout.canonicalReadStatus == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                if (workout.derivationVersion != null || workout.stepLengthSource != null) {
+                    Text(
+                        text = "Comprimento do passo: ${workout.stepLengthSource?.toCalendarLabel() ?: "indisponível"} • Derivação ${workout.derivationVersion ?: "indisponível"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             Text("Calorias: ${workout.caloriesKilocalories.toNumberLabel()} • BPM médio: ${workout.averageBpm.toBpmLabel()}")
             Text("Workflow: ${workout.workflowState.toCalendarLabel()}")
             Text("Status da fila local", style = MaterialTheme.typography.labelLarge)
@@ -473,6 +504,34 @@ private fun BackButton(onNavigateBack: () -> Unit) {
 }
 
 private fun CalendarWorkoutSummary.displayType(): String = (confirmedType ?: suggestedType).toCalendarLabel()
+
+private val CalendarWorkoutSummary.isWatchWorkout: Boolean
+    get() = origin == DataOrigin.WATCH_D3_D4
+
+private fun CalendarWorkoutSummary.accessibleDescription(): String =
+    "${title ?: displayType()}. ${canonicalStatusMessage()} Distância ${distanceMeters.toDistanceLabel()}."
+
+private fun CalendarWorkoutSummary.canonicalStatusMessage(): String = when (canonicalReadStatus) {
+    WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Distância segue contrato legado da atividade phone."
+    WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
+        "Sem comprimento do passo. Configure Perfil e reprocese a atividade por ação explícita."
+    WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
+        "Derivação canônica não materializada. Configure comprimento do passo e reprocese por ação explícita."
+    WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
+        "Série canônica inelegível. Distância original, calibrada e agregada não são usadas como substitutas."
+    WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ->
+        "Série estimada contém valores implausíveis e não deve ser tratada como confiável."
+    WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
+        "Série canônica disponível; splits ainda não materializados."
+    WorkoutCanonicalReadStatus.AVAILABLE ->
+        "Distância e métricas funcionais vêm da série canônica persistida."
+}
+
+private fun StepLengthSource.toCalendarLabel(): String = when (this) {
+    StepLengthSource.MANUAL -> "entrada manual"
+    StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> "sugestão aceita pela altura"
+    StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> "calibração de distância"
+}
 
 private fun WorkoutType.toCalendarLabel(): String = when (this) {
     WorkoutType.WALKING -> "Caminhada"

@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 9/16 subtarefas concluídas
+- **Progresso:** 10/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -36,7 +36,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
 - [x] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
 - [x] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
-- [ ] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
+- [x] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
 - [ ] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
 - [ ] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
 - [ ] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
@@ -223,7 +223,20 @@ Connect continua pendente.
   persistência reproduzível e propagação de plausibilidade já estavam entregues
   nos contratos e mappers de `014-07`; nenhum código adicional foi necessário.
   Consumidores finais legados permanecem reservados para `014-10`.
-- Progresso da spec e do overview alinhado para `9/16`; nenhuma subtarefa
+- `014-10` alinhou Exercícios, detalhe e Calendário à série canônica persistida.
+  Distância, ritmo, velocidade, acumulado, gráficos, intervalos, splits e BPM
+  por quilômetro não usam distância original, calibrada ou estimativa agregada
+  como fallback para `WATCH_D3_D4`. Proveniência, versão, plausibilidade,
+  ausência e orientação de perfil/reprocessamento são exibidas; `TREADMILL` do
+  relógio não exige calibração histórica. Fluxos observam snapshots ativos para
+  refletir materialização explícita sem recriar a tela. `compileDebugKotlin`,
+  `lintDebug`, `lint assembleDebug assembleRelease`, `installDebug` e
+  `git diff --check` passaram; testes automatizados não foram criados nem
+  executados. Screenshots smoke estão em
+  `docs/tasks/014-watch-workout-derived-metrics/screenshots/`; o dispositivo não
+  possuía atividade canônica para validar visualmente detalhe, splits, BPM,
+  plausibilidade, zero passos e esteira, risco mantido para `014-15`.
+- Progresso da spec e do overview alinhado para `10/16`; nenhuma subtarefa
   posterior foi iniciada.
 - `014-09` foi corrigida transversalmente: snapshots legados sem projeção de
   splits continuam legíveis e só recebem linhas após rederivação explícita;
@@ -236,5 +249,6 @@ Connect continua pendente.
   `./gradlew lint assembleDebug assembleRelease`, `installDebug` e
   `git diff --check` passaram; APK final foi instalado no Galaxy S22
   `SM-S901E`. Testes automatizados não foram criados nem executados.
-  Round-trip Room físico, UI, Health Connect e reprocessamento de legado continuam bloqueados para
-  `014-10`/`014-11`/`014-12`/`014-13`/`014-15`.
+  Round-trip Room físico, validação D4 em detalhe, Health Connect e
+  reprocessamento de legado continuam bloqueados para
+  `014-11`/`014-12`/`014-13`/`014-15`.

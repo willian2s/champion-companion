@@ -230,6 +230,8 @@ data class WorkoutActivity private constructor(
     val calibrationId: TreadmillCalibrationId?,
     /** Série derivada local carregada separadamente dos fatos raw/measured. */
     val derivationSnapshot: WorkoutDerivationSnapshot? = null,
+    /** Override de leitura usado para distinguir perfil ausente de derivação pendente. */
+    private val canonicalReadStatusOverride: WorkoutCanonicalReadStatus? = null,
 ) {
     /** Compatibilidade para consumidores anteriores à generalização. */
     val origin: DataOrigin
@@ -257,6 +259,13 @@ data class WorkoutActivity private constructor(
         get() = derivationSnapshot?.canonicalDistanceMeters
     val canonicalSeries: CanonicalWorkoutSeries?
         get() = derivationSnapshot?.canonicalSeries
+    val canonicalReadStatus: WorkoutCanonicalReadStatus
+        get() = when {
+            activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 -> WorkoutCanonicalReadStatus.NOT_APPLICABLE
+            canonicalReadStatusOverride != null -> canonicalReadStatusOverride
+            derivationSnapshot != null -> derivationSnapshot.canonicalReadStatus
+            else -> WorkoutCanonicalReadStatus.NOT_MATERIALIZED
+        }
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {
         "Mapper legado D3/D4 não aceita atividade phone; use proveniência opcional generalizada"
@@ -381,6 +390,7 @@ data class WorkoutActivity private constructor(
             heartRateSamples = input.heartRateSamples,
             suggestedType = suggestType(input.metrics.steps),
             derivationSnapshot = null,
+            canonicalReadStatusOverride = null,
         ))
     }
 
@@ -534,6 +544,7 @@ data class WorkoutActivity private constructor(
             reviewedAt: Instant?,
             calibrationId: TreadmillCalibrationId?,
             derivationSnapshot: WorkoutDerivationSnapshot? = null,
+            canonicalReadStatusOverride: WorkoutCanonicalReadStatus? = null,
         ): DomainResult<WorkoutActivity> {
             val normalizedTitle = normalizeTitle(title)
             val normalizedNotes = normalizeNotes(notes)
@@ -541,6 +552,7 @@ data class WorkoutActivity private constructor(
                 id, activityOrigin, associatedDeviceId, appWorkoutSessionId, watchImportContext, recordedAt,
                 metrics, intervals, heartRateSamples, suggestedType, normalizedTitle,
                 normalizedNotes, confirmedType, workflowState, reviewedAt, calibrationId, derivationSnapshot,
+                canonicalReadStatusOverride,
             )
             return if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText() ||
                 !candidate.hasValidProvenance() || !isValidCommon(candidate)

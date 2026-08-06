@@ -238,7 +238,8 @@ data class CalendarSyncSummary(
 
 /**
  * Projeção leve da atividade. [startedAt] define dia civil. Passos não são
- * expostos, e [distanceMeters] nunca participa dos totais diários.
+ * expostos, e [distanceMeters] nunca participa dos totais diários. Para
+ * `WATCH_D3_D4`, distância e estado de leitura vêm da série canônica.
  */
 data class CalendarWorkoutSummary(
     val activityId: WorkoutActivityId,
@@ -248,12 +249,16 @@ data class CalendarWorkoutSummary(
     val confirmedType: WorkoutType?,
     val startedAt: Instant,
     val duration: Duration,
-    /** Distância final segue calibrada, original, estimada e ausência. */
+    /** Distância funcional: canônica para relógio, legado somente para phone. */
     val distanceMeters: DomainValue<Double>,
     val caloriesKilocalories: DomainValue<Double>,
     val averageBpm: DomainValue<Int>,
     val workflowState: ActivityWorkflowState,
     val syncSummary: CalendarSyncSummary = CalendarSyncSummary(),
+    val canonicalReadStatus: WorkoutCanonicalReadStatus = WorkoutCanonicalReadStatus.NOT_APPLICABLE,
+    val derivationVersion: String? = null,
+    val stepLengthSource: StepLengthSource? = null,
+    val plausibilityIndicators: Set<WorkoutPlausibilityIndicator> = emptySet(),
 ) {
     init {
         require(!duration.isNegative)

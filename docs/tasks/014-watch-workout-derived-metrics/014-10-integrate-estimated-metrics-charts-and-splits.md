@@ -2,7 +2,8 @@
 
 - **Ticker:** `014`
 - **Número:** `10`
-- **Status:** pending
+- **Status:** completed
+- **Concluída em:** 2026-08-06
 
 ## Objetivo e resultado esperado
 
@@ -102,3 +103,73 @@ item `014-10` marcado.
 
 Ocultar superfícies novas e retornar ausência para métrica canônica. Nunca
 restaurar distância original ou calibrada como fallback funcional.
+
+## Implementação
+
+- Exercícios usa `canonicalSeries` persistida para distância acumulada, passos,
+  ritmo, velocidade, cadência e intervalos; `snapshot.splits` fornece splits e
+  BPM ponderado sem recálculo na UI.
+- Estados `MISSING_STEP_LENGTH`, `NOT_MATERIALIZED`, `SERIES_INELIGIBLE`,
+  `PLAUSIBILITY_BLOCKED`, `SPLITS_NOT_MATERIALIZED` e `AVAILABLE` orientam
+  ausência, ação e confiabilidade.
+- Calendário recebe distância canônica e metadados do snapshot ativo para
+  `WATCH_D3_D4`; atividades phone preservam contrato legado.
+- Fluxos de atividades observam snapshots ativos, atualizando a UI após
+  materialização ou substituição explícita da derivação.
+- `TREADMILL` de relógio exibe orientação de derivação e não oferece calibração
+  histórica como requisito funcional. Calibração existente permanece diagnóstico.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/CalendarHistory.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarDayScreen.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`;
+- `docs/tasks/014-watch-workout-derived-metrics/screenshots/`.
+
+## Decisões e desvios
+
+- Distância principal de `WATCH_D3_D4` usa somente o último acumulado da série
+  canônica, que equivale à soma persistida dos intervalos. Distância original,
+  calibrada e estimativa agregada não são fallback.
+- Metadados escalares do snapshot ativo bastam para o resumo do calendário;
+  splits completos permanecem disponíveis no detalhe, pelo read model
+  persistido da derivação.
+- Textos permanecem nos componentes Compose existentes; não foi criada nova
+  camada de recursos para evitar refatoração visual fora do escopo.
+- O smoke físico não possuía atividade canônica do relógio para abrir detalhe,
+  splits ou estados de plausibilidade. Esses estados foram cobertos por
+  caminhos tipados, revisão independente e validação de compilação/lint; a
+  confirmação visual com dados reais permanece risco para `014-15`.
+
+## Comandos executados
+
+- `./gradlew app:compileDebugKotlin` — PASS;
+- `./gradlew app:lintDebug` — PASS;
+- `./gradlew lint assembleDebug assembleRelease` — PASS;
+- `./gradlew installDebug` — PASS; APK instalado no Galaxy S22 `SM-S901E`;
+- `git diff --check` — PASS;
+- `git status --short` — PASS; somente arquivos da implementação e screenshots;
+- testes automatizados — não criados nem executados, conforme escopo.
+
+## Evidências e riscos residuais
+
+- Matriz de fonte: card/lista Exercícios, detalhe e calendário → distância
+  canônica persistida; detalhe → série temporal persistida; splits/BPM/km →
+  `snapshot.splits`; proveniência → `stepLengthSource` e
+  `derivationVersion` do snapshot ativo.
+- Screenshots smoke: `screenshots/014-10-installed-smoke.png`,
+  `screenshots/014-10-exercises-screen.png` e
+  `screenshots/014-10-calendar-smoke.png`. `014-10-exercises-smoke.png` também
+  registra navegação inicial; não há atividade canônica disponível no aparelho.
+- Revisão independente: aprovada com ressalvas, sem blocker funcional.
+- Risco residual: alteração do perfil pode manter a distinção dinâmica de
+  comprimento do passo até nova emissão/navegação da atividade; não há Flow de
+  perfil nesta subtarefa.
+- Risco residual: screenshots não validam visualmente detalhe canônico real,
+  splits/BPM, série implausível, zero passos ou esteira; validação física fica
+  para `014-15`.

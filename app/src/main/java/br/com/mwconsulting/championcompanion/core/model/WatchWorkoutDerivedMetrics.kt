@@ -18,6 +18,17 @@ enum class StepLengthSource {
     REFERENCE_DISTANCE_CALIBRATION,
 }
 
+/** Estado seguro da leitura canônica para consumidores locais. */
+enum class WorkoutCanonicalReadStatus {
+    NOT_APPLICABLE,
+    MISSING_STEP_LENGTH,
+    NOT_MATERIALIZED,
+    SERIES_INELIGIBLE,
+    PLAUSIBILITY_BLOCKED,
+    SPLITS_NOT_MATERIALIZED,
+    AVAILABLE,
+}
+
 /**
  * Valor pessoal imutável usado como comprimento de um passo individual.
  *
@@ -780,6 +791,8 @@ data class WorkoutDerivationSnapshot private constructor(
     val plausibility: WorkoutSeriesPlausibility,
     val canonicalSeries: CanonicalWorkoutSeries?,
     val diagnosticAggregateStepEstimate: DiagnosticAggregateStepEstimate?,
+    /** Linhas de split carregadas da projeção persistida, sem recálculo no read path. */
+    val splits: List<WorkoutSplit> = emptyList(),
 ) {
     val canonicalDistanceMeters: Double?
         get() = canonicalSeries?.canonicalDistanceMeters
@@ -804,6 +817,18 @@ data class WorkoutDerivationSnapshot private constructor(
      */
     val isEligibleForFunctionalSplits: Boolean
         get() = canonicalSeriesEligible && plausibility.indicators.isEmpty()
+
+    val canonicalReadStatus: WorkoutCanonicalReadStatus
+        get() = when {
+            canonicalSeries == null -> WorkoutCanonicalReadStatus.SERIES_INELIGIBLE
+            plausibility.indicators.isNotEmpty() -> WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED
+            canonicalSeries.canonicalDistanceMeters >= 1_000.0 && splits.isEmpty() ->
+                WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
+            else -> WorkoutCanonicalReadStatus.AVAILABLE
+        }
+
+    /** Anexa somente linhas de split já validadas e carregadas da persistência. */
+    internal fun withPersistedSplits(value: List<WorkoutSplit>): WorkoutDerivationSnapshot = copy(splits = value)
 
     companion object {
         fun derive(
