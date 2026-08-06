@@ -1,8 +1,8 @@
 # 014 — Refinamento, derivação e sincronização dos treinos do relógio
 
 - **Ticker:** `014`
-- **Status:** pending
-- **Progresso:** `0/16`
+- **Status:** in_progress
+- **Progresso:** `1/16`
 - **Base:** `main`, Fase 013 encerrada como `closed` / `partially_delivered`
 - **Decisões relacionadas:** ADR-012, ADR-016, ADR-017 e ADR-018
 
