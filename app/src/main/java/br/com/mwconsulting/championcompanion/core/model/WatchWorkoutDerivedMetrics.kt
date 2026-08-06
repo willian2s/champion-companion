@@ -8,6 +8,9 @@ import kotlin.math.min
 
 private const val U16_MASK = 0xFFFFL
 
+/** Versão inicial do algoritmo de série canônica de treinos do relógio. */
+const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v1"
+
 /** Origem explícita do comprimento de um passo individual. */
 enum class StepLengthSource {
     MANUAL,
@@ -311,6 +314,9 @@ enum class TemporalSeriesValidationReason {
     INSUFFICIENT_TOTAL_DURATION,
     MISSING_DECODED_STEPS,
 }
+
+/** Marcador persistido de que origem temporal foi validada antes da ordenação Room. */
+const val TEMPORAL_ORDER_VALIDATED_MARKER = "ORDER_VALIDATED"
 
 typealias TemporalSeriesInvalidReason = TemporalSeriesValidationReason
 typealias TemporalSeriesEligibilityReason = TemporalSeriesValidationReason
@@ -787,6 +793,10 @@ data class WorkoutDerivationSnapshot private constructor(
     val isEligibleForHealthProjection: Boolean
         get() = isEligibleForFunctionalProjection
 
+    /** Elegibilidade local da série, independente da guarda remota de plausibilidade. */
+    val isEligibleForCanonicalWorkflow: Boolean
+        get() = canonicalSeriesEligible
+
     companion object {
         fun derive(
             intervals: List<MeasuredWorkoutInterval>,
@@ -930,7 +940,7 @@ object WatchWorkoutWorkflowPolicy {
     ): ActivityWorkflowState = if (
         confirmedType == WorkoutType.TREADMILL &&
         !(origin == WorkoutActivityOrigin.WATCH_D3_D4 &&
-            derivationSnapshot?.isEligibleForFunctionalProjection == true)
+            derivationSnapshot?.isEligibleForCanonicalWorkflow == true)
     ) {
         ActivityWorkflowState.PENDING_CALIBRATION
     } else {

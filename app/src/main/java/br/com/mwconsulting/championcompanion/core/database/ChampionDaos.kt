@@ -287,6 +287,16 @@ interface WorkoutActivityDao {
 
     @Query("UPDATE workout_activities SET workflowState = :nextState WHERE workflowState = :expectedState")
     suspend fun transitionAllByState(expectedState: String, nextState: String): Int
+
+    @Query(
+        "UPDATE workout_activities SET workflowState = :nextState " +
+            "WHERE workflowState = :expectedState AND origin != :excludedOrigin",
+    )
+    suspend fun transitionAllByStateExcludingOrigin(
+        expectedState: String,
+        nextState: String,
+        excludedOrigin: String,
+    ): Int
 }
 
 data class WorkoutWorkflowSummaryRecord(
@@ -662,7 +672,22 @@ interface HealthSyncOperationDao {
     @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")
     suspend fun findFailed(): List<HealthSyncOperationEntity>
 
-    @Query("SELECT * FROM health_sync_operations WHERE state IN ('PENDING', 'FAILED') ORDER BY COALESCE(updatedAtEpochMillis, createdAtEpochMillis, lastAttemptAtEpochMillis, 0), id LIMIT :limit")
+    /**
+     * Exclui fila legada de treino do relógio antes de aplicar LIMIT. O gate
+     * precisa permanecer nesta camada para não deixar operações bloqueadas
+     * ocultarem operações elegíveis posteriores; phone continua elegível.
+     */
+    @Query(
+        "SELECT operation.* FROM health_sync_operations operation " +
+            "WHERE operation.state IN ('PENDING', 'FAILED') " +
+            "AND (operation.aggregateType != 'WORKOUT_ACTIVITY' OR NOT EXISTS (" +
+            "SELECT 1 FROM workout_activities activity " +
+            "WHERE activity.id = operation.aggregateId " +
+            "AND activity.origin = 'WATCH_D3_D4'" +
+            ")) " +
+            "ORDER BY COALESCE(operation.updatedAtEpochMillis, operation.createdAtEpochMillis, operation.lastAttemptAtEpochMillis, 0), operation.id " +
+            "LIMIT :limit",
+    )
     suspend fun findProcessable(limit: Int): List<HealthSyncOperationEntity>
 
     @Query("SELECT * FROM health_sync_operations WHERE state = 'SYNCING' ORDER BY COALESCE(updatedAtEpochMillis, createdAtEpochMillis, lastAttemptAtEpochMillis, 0), id")

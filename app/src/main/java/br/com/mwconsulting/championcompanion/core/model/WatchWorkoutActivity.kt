@@ -228,6 +228,8 @@ data class WorkoutActivity private constructor(
     val workflowState: ActivityWorkflowState,
     val reviewedAt: Instant?,
     val calibrationId: TreadmillCalibrationId?,
+    /** Série derivada local carregada separadamente dos fatos raw/measured. */
+    val derivationSnapshot: WorkoutDerivationSnapshot? = null,
 ) {
     /** Compatibilidade para consumidores anteriores à generalização. */
     val origin: DataOrigin
@@ -251,12 +253,19 @@ data class WorkoutActivity private constructor(
     internal val importedAt: Instant get() = legacyImportContext().importedAt
     internal val parserVersion: ParserVersion get() = legacyImportContext().parserVersion
     val diagnosticPayloadId: DiagnosticPayloadId? get() = watchImportContext?.diagnosticPayloadId
+    val canonicalDistanceMeters: Double?
+        get() = derivationSnapshot?.canonicalDistanceMeters
+    val canonicalSeries: CanonicalWorkoutSeries?
+        get() = derivationSnapshot?.canonicalSeries
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {
         "Mapper legado D3/D4 não aceita atividade phone; use proveniência opcional generalizada"
     }
 
-    fun submitReview(input: SubmitWorkoutReviewInput): DomainResult<WorkoutActivity> {
+    fun submitReview(
+        input: SubmitWorkoutReviewInput,
+        derivationSnapshot: WorkoutDerivationSnapshot? = this.derivationSnapshot,
+    ): DomainResult<WorkoutActivity> {
         val normalizedTitle = normalizeTitle(input.title)
         val normalizedNotes = normalizeNotes(input.notes)
         if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText()) {
@@ -266,12 +275,16 @@ data class WorkoutActivity private constructor(
             return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
         }
 
-        return confirmReview(input.confirmedType, input.reviewedAt).mapSuccess { reviewed ->
+        return confirmReview(input.confirmedType, input.reviewedAt, derivationSnapshot).mapSuccess { reviewed ->
             reviewed.copy(title = normalizedTitle, notes = normalizedNotes)
         }
     }
 
-    fun confirmReview(type: WorkoutType, reviewedAt: Instant): DomainResult<WorkoutActivity> {
+    fun confirmReview(
+        type: WorkoutType,
+        reviewedAt: Instant,
+        derivationSnapshot: WorkoutDerivationSnapshot? = this.derivationSnapshot,
+    ): DomainResult<WorkoutActivity> {
         if (workflowState != ActivityWorkflowState.PENDING_REVIEW ||
             reviewedAt.isBefore(recordedAt) || type == WorkoutType.UNKNOWN
         ) {
@@ -280,11 +293,11 @@ data class WorkoutActivity private constructor(
 
         return DomainResult.Success(copy(
             confirmedType = type,
-            workflowState = if (type == WorkoutType.TREADMILL) {
-                ActivityWorkflowState.PENDING_CALIBRATION
-            } else {
-                ActivityWorkflowState.READY_TO_SYNC
-            },
+            workflowState = WatchWorkoutWorkflowPolicy.stateAfterReview(
+                origin = activityOrigin,
+                confirmedType = type,
+                derivationSnapshot = derivationSnapshot,
+            ),
             reviewedAt = reviewedAt,
         ))
     }
@@ -367,6 +380,7 @@ data class WorkoutActivity private constructor(
             intervals = input.intervals,
             heartRateSamples = input.heartRateSamples,
             suggestedType = suggestType(input.metrics.steps),
+            derivationSnapshot = null,
         ))
     }
 
@@ -519,13 +533,14 @@ data class WorkoutActivity private constructor(
             workflowState: ActivityWorkflowState,
             reviewedAt: Instant?,
             calibrationId: TreadmillCalibrationId?,
+            derivationSnapshot: WorkoutDerivationSnapshot? = null,
         ): DomainResult<WorkoutActivity> {
             val normalizedTitle = normalizeTitle(title)
             val normalizedNotes = normalizeNotes(notes)
             val candidate = WorkoutActivity(
                 id, activityOrigin, associatedDeviceId, appWorkoutSessionId, watchImportContext, recordedAt,
                 metrics, intervals, heartRateSamples, suggestedType, normalizedTitle,
-                normalizedNotes, confirmedType, workflowState, reviewedAt, calibrationId,
+                normalizedNotes, confirmedType, workflowState, reviewedAt, calibrationId, derivationSnapshot,
             )
             return if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText() ||
                 !candidate.hasValidProvenance() || !isValidCommon(candidate)

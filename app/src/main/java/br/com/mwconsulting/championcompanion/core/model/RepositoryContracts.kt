@@ -245,6 +245,20 @@ interface WorkoutActivityRepository {
     suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = RepositoryResult.UnexpectedState
     fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> = flowOf(null)
     suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
+    /** Lê somente derivação ativa de atividade originada no relógio. */
+    suspend fun findWatchWorkoutDerivation(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
+    /** Derivação inicial explícita; snapshot ativo existente nunca é substituído. */
+    suspend fun deriveWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant = Instant.now(),
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
+    /** Ação explícita para substituir snapshot quando fatos ou perfil mudarem. */
+    suspend fun rederiveWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant = Instant.now(),
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
     suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState

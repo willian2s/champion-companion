@@ -81,7 +81,12 @@ sem semântica funcional comprovada.
 
 A série V1 exige índices únicos e contínuos `0..N-1`. Lacuna, duplicata, primeiro
 índice não zero ou ordem inconsistente torna a série inelegível, preservando os
-fatos.
+fatos. O marcador persistido `ORDER_VALIDATED` registra somente que a origem foi
+observada em ordem estritamente crescente antes da ordenação do Room; lacunas e
+primeiro índice não zero continuam sendo rejeitados pelo `TemporalSeriesValidator`
+e produzem snapshot inelegível com distância canônica ausente. `OUT_OF_ORDER` fica
+reservado para ordem não crescente ou índice duplicado, e registros legados sem
+marcador falham fechados.
 
 Com duração total `T`, `N` intervalos elegíveis e quantum `Q = 60 s`:
 
@@ -145,8 +150,12 @@ ausente.
 
 Para `WATCH_D3_D4`, confirmar `TREADMILL` não exige calibração histórica quando a
 série canônica é elegível. O workflow pode avançar para `READY_TO_SYNC` usando a
-distância canônica. Calibrações existentes permanecem históricas/diagnósticas e
-não substituem a série canônica. Contratos phone históricos não são reabertos.
+distância canônica. Se atividade já revisada estiver em `PENDING_CALIBRATION`, a
+criação do snapshot elegível e promoção para `READY_TO_SYNC` ocorrem na mesma
+transação; falha da transição desfaz snapshot parcial. `PENDING_REVIEW` continua
+sendo promovida pelo `submitReview`. Calibrações existentes permanecem
+históricas/diagnósticas e não substituem a série canônica. Contratos phone
+históricos não são reabertos.
 
 ### 11. Reprocessamento explícito
 
@@ -155,6 +164,11 @@ snapshot após ação confirmada. Mudança de perfil, migration, abertura do app
 reimportação ou scheduler não recalcula silenciosamente. Reprocessar preserva
 revisão, `recordedAt`, tipo, título, observações, calibração histórica e raw; não
 ressincroniza automaticamente.
+
+A derivação local faz preflight de snapshot, filhos e round-trip com intervalos
+resolvidos antes de qualquer escrita DAO. Perfil ausente ou série inelegível
+produz ausência segura; inconsistência de preflight durante importação atravessa
+`withWriteTransaction` como exceção controlada e desfaz fatos importados parciais.
 
 ### 12. Projeções filhas Health Connect
 
@@ -176,6 +190,11 @@ aggregate + recordType + projectionChildKey
 Cada operação congela payload, ação, ID, versão e estado. Isso evita uma segunda
 fila interna dentro de uma operação agregada e permite retry/falha parcial por
 filho.
+
+Até a projeção granular estar disponível, o writer legado bloqueia
+`WATCH_D3_D4` em todas as transições de atividade (`startSync`, `markSynced` e
+`markSyncFailed`) e na recuperação de `SYNCING`. Operações de atividades phone
+continuam elegíveis.
 
 Filho temporal usa atividade, tipo e índice estável da fonte. IDs não contêm
 passo pessoal, BPM, distância ou outro valor de saúde. `clientRecordVersion` é
@@ -221,6 +240,9 @@ e adiciona manifesto, `projectionChildKey`, payload, ação e checkpoints.
 - último intervalo parcial permanece determinístico, com plausibilidade separada;
 - esteira do relógio deixa de depender de calibração incompatível;
 - retry Health Connect é granular por filho;
+- inconsistência de derivação não confirma importação parcial;
+- writer legado permanece fechado para atividades do relógio até projeção
+  canônica granular;
 - maior volume local e duas evoluções de schema;
 - delete-before-insert exige retomada explícita.
 

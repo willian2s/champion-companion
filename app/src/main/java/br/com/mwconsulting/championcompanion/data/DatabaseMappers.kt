@@ -82,6 +82,7 @@ import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
+import br.com.mwconsulting.championcompanion.core.model.TEMPORAL_ORDER_VALIDATED_MARKER
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesEligibility
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
@@ -474,6 +475,13 @@ internal fun WorkoutIntervalEntity.toMeasuredWorkoutInterval(
     ).successOrNull()
 }
 
+/** Persiste somente duração resolvida; fatos raw/measured permanecem inalterados. */
+internal fun WorkoutIntervalEntity.withEffectiveDuration(
+    effectiveDuration: Duration?,
+): WorkoutIntervalEntity = copy(
+    effectiveDurationNanos = effectiveDuration?.toNanos(),
+)
+
 internal fun WorkoutDerivationSnapshot.toEntity(
     id: String,
     activityId: String,
@@ -710,6 +718,7 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
         derivedIntervals.any { it.snapshotId != id } ||
         splits.any { it.snapshotId != id }
     ) return null
+    if (rawIntervals.any { it.temporalEligibilityReason != TEMPORAL_ORDER_VALIDATED_MARKER }) return null
 
     var nextWindowStart = activityStartedAt
     val measuredIntervals = rawIntervals.map { entity ->
@@ -740,10 +749,11 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
     ).successOrNull() ?: return null
     val temporal = snapshot.temporalResolution
     if (rawIntervals.size != temporal.intervals.size || rawIntervals.zip(temporal.intervals).any { (entity, resolved) ->
-            entity.effectiveDurationNanos == null ||
+            entity.effectiveDurationNanos != null &&
                 entity.effectiveDurationNanos != resolved.effectiveDuration?.toNanos()
         }
     ) return null
+    if (temporal.isEligible && rawIntervals.any { it.effectiveDurationNanos == null }) return null
     if (snapshot.derivationMethod != method || temporal.durationCase != durationCase ||
         temporal.eligibility != eligibility || temporal.reasons != reasons ||
         temporal.tailUncovered.toNanos() != tailUncoveredNanos ||
@@ -771,24 +781,33 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
     if (mappedIntervals.map { it.index } != canonicalIntervals.map { it.index }) return null
     if (mappedIntervals.zip(canonicalIntervals).any { (mapped, expected) -> mapped != expected }) return null
 
-    val mappedSplits = splits.map { entity ->
-        entity.toDomain() ?: return null
-    }
-    val completeSplitCount = (snapshot.canonicalDistanceMeters ?: return null)
-        .let { distance ->
-            val count = distance / 1_000.0
-            if (!count.isFinite() || count > Int.MAX_VALUE) return null
-            count.toInt()
+    // Splits pertencem a 014-09. Quando já existirem, ainda validamos o
+    // round-trip; ausência não invalida série canônica de 014-07.
+    if (splits.isNotEmpty()) {
+        val mappedSplits = splits.map { entity ->
+            entity.toDomain() ?: return null
         }
-    if (mappedSplits.size != completeSplitCount) return null
-    val expectedSplits = WorkoutSplitCalculator.calculate(canonicalSeries, heartRateSamples)
-    if (mappedSplits != expectedSplits) return null
+        val completeSplitCount = (snapshot.canonicalDistanceMeters ?: return null)
+            .let { distance ->
+                val count = distance / 1_000.0
+                if (!count.isFinite() || count > Int.MAX_VALUE) return null
+                count.toInt()
+            }
+        if (mappedSplits.size != completeSplitCount) return null
+        val expectedSplits = WorkoutSplitCalculator.calculate(canonicalSeries, heartRateSamples)
+        if (mappedSplits != expectedSplits) return null
+    }
     return snapshot
 }
 
 internal fun WorkoutActivity.toHeartRateSamples(activityId: String, ids: Iterator<UUID>) = heartRateSamples.map {
     WorkoutHeartRateSampleEntity(ids.next().toString(), activityId, it.sampledAt.toEpochMilli(), it.bpm)
 }
+
+internal fun WorkoutHeartRateSampleEntity.toDomain(): WorkoutHeartRateSample = WorkoutHeartRateSample(
+    sampledAt = Instant.ofEpochMilli(sampledAtEpochMillis),
+    bpm = bpm,
+)
 
 internal fun WorkoutActivityEntity.toPendingReviewDomain(
     importRecord: WatchWorkoutImportEntity,
@@ -800,6 +819,7 @@ internal fun WorkoutActivityEntity.toDomain(
     importRecord: WatchWorkoutImportEntity?,
     intervals: List<WorkoutIntervalEntity>,
     samples: List<WorkoutHeartRateSampleEntity>,
+    derivationSnapshot: WorkoutDerivationSnapshot? = null,
 ): WorkoutActivity? {
     val activityId = uuid(id)?.let(::WorkoutActivityId) ?: return null
     val mappedOrigin = enum<WorkoutActivityOrigin>(origin) ?: return null
@@ -874,6 +894,7 @@ internal fun WorkoutActivityEntity.toDomain(
         workflowState = mappedWorkflowState,
         reviewedAt = reviewedAtEpochMillis?.let(Instant::ofEpochMilli),
         calibrationId = calibrationId?.let(::uuid)?.let(::TreadmillCalibrationId),
+        derivationSnapshot = derivationSnapshot,
     ).successOrNull()
 }
 

@@ -13,6 +13,10 @@ import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
+import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionCheckpoint
@@ -63,6 +67,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementSessionId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
+import br.com.mwconsulting.championcompanion.core.model.MeasuredWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
@@ -77,8 +82,10 @@ import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasu
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
+import br.com.mwconsulting.championcompanion.core.model.TEMPORAL_ORDER_VALIDATED_MARKER
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
+import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
 import br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthInput
 import br.com.mwconsulting.championcompanion.core.model.UserProfileId
 import br.com.mwconsulting.championcompanion.core.model.UserProfile
@@ -86,13 +93,17 @@ import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightUnit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteAppendCursor
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteId
@@ -127,6 +138,9 @@ import kotlinx.coroutines.withContext
 private const val SQLITE_IN_CLAUSE_CHUNK_SIZE = 500
 private const val ROUTE_METRIC_EPSILON = 1e-9
 private const val INCREMENTAL_STEPS_CLIENT_RECORD_VERSION = 1L
+
+private class WatchWorkoutDerivationPreflightException :
+    IllegalStateException("Watch workout derivation preflight failed")
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -580,42 +594,95 @@ class RoomRepositories @Inject constructor(
             .map { it?.toD1ImportMetadata() }
             .flowOn(ioDispatcher)
 
-    override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = write {
-        val activityEntity = activity.toEntity()
-        val importEntity = importRecord.toEntity()
-        val exactImport = database.watchWorkoutImportDao().findByNaturalKey(importEntity.deviceId, importEntity.origin, importEntity.crc)
-        val existingActivity = when {
-            exactImport != null -> database.workoutActivityDao().findById(exactImport.activityId)
-            else -> database.workoutActivityDao().findByStartedAt(
-                deviceId = activityEntity.deviceId ?: return@write RepositoryResult.UnexpectedState,
-                origin = activityEntity.origin,
-                startedAtEpochMillis = activityEntity.startedAtEpochMillis,
-            )
+    override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = try {
+        write {
+            val activityEntity = activity.toEntity()
+            val importEntity = importRecord.toEntity()
+            val exactImport = database.watchWorkoutImportDao().findByNaturalKey(importEntity.deviceId, importEntity.origin, importEntity.crc)
+            val existingActivity = when {
+                exactImport != null -> database.workoutActivityDao().findById(exactImport.activityId)
+                else -> database.workoutActivityDao().findByStartedAt(
+                    deviceId = activityEntity.deviceId ?: return@write RepositoryResult.UnexpectedState,
+                    origin = activityEntity.origin,
+                    startedAtEpochMillis = activityEntity.startedAtEpochMillis,
+                )
+            }
+            val existingImport = when {
+                exactImport != null -> exactImport
+                existingActivity != null -> database.watchWorkoutImportDao().findByActivityId(existingActivity.id)
+                else -> null
+            }
+            val plan = planWatchWorkoutPersistence(
+                incomingActivity = activityEntity,
+                incomingImport = importEntity,
+                existingImport = existingImport,
+                existingActivity = existingActivity,
+            ) ?: return@write if (existingImport != null && existingActivity == null) RepositoryResult.NotFound else RepositoryResult.UnexpectedState
+            if (!plan.isReimport) {
+                database.workoutActivityDao().insert(plan.persistedActivity)
+                database.watchWorkoutImportDao().insert(plan.persistedImport)
+            } else {
+                database.workoutActivityDao().update(plan.persistedActivity)
+                database.watchWorkoutImportDao().update(plan.persistedImport)
+            }
+            val persistedId = plan.persistedActivity.id
+            val incomingIntervals = activity
+                .toIntervals(persistedId, generateIds(activity.intervals.size))
+                .markPersistedSourceOrder(activity)
+            val existingIntervals = if (plan.isReimport) {
+                database.workoutDetailDao().findIntervalsForActivity(persistedId)
+            } else {
+                emptyList()
+            }
+            val activeSnapshot = if (plan.isReimport) {
+                database.workoutDerivationDao().findActiveSnapshotForActivity(persistedId)
+            } else {
+                null
+            }
+            val preserveActiveDerivation = plan.isReimport &&
+                activeSnapshot != null &&
+                existingActivity != null &&
+                sameWatchWorkoutInputs(
+                    existingActivity = existingActivity,
+                    incomingActivity = plan.persistedActivity,
+                    existingImport = existingImport,
+                    incomingImport = plan.persistedImport,
+                    existingIntervals = existingIntervals,
+                    incomingIntervals = incomingIntervals,
+                )
+            if (plan.isReimport && activeSnapshot != null && !preserveActiveDerivation) {
+                // Reimportação é explícita, mas não é rederivação. Retire snapshot
+                // incompatível da leitura ativa e preserve-o como histórico.
+                database.workoutDerivationDao().deactivateActiveSnapshots(persistedId)
+            }
+            if (!preserveActiveDerivation) {
+                database.workoutDetailDao().deleteIntervalsForActivity(persistedId)
+                database.workoutDetailDao().insertIntervals(incomingIntervals)
+            }
+            database.workoutDetailDao().deleteHeartRateSamplesForActivity(persistedId)
+            database.workoutDetailDao().insertHeartRateSamples(activity.toHeartRateSamples(persistedId, generateIds(activity.heartRateSamples.size)))
+
+            if (!plan.isReimport &&
+                plan.persistedImport.parserVersion == WATCH_WORKOUT_D4_V2_PARSER_VERSION &&
+                plan.persistedImport.parserValidity == ParserValidity.VALID.name
+            ) {
+                // Ausência de perfil ou série inelegível permanece segura. Falha
+                // de preflight aborta transação para não ocultar corrupção.
+                when (deriveWatchWorkoutInternal(
+                    activityId = activity.id,
+                    derivedAt = importRecord.importedAt,
+                    replaceActive = false,
+                )) {
+                    is RepositoryResult.Success -> Unit
+                    else -> throw WatchWorkoutDerivationPreflightException()
+                }
+            }
+            RepositoryResult.Success(Unit)
         }
-        val existingImport = when {
-            exactImport != null -> exactImport
-            existingActivity != null -> database.watchWorkoutImportDao().findByActivityId(existingActivity.id)
-            else -> null
-        }
-        val plan = planWatchWorkoutPersistence(
-            incomingActivity = activityEntity,
-            incomingImport = importEntity,
-            existingImport = existingImport,
-            existingActivity = existingActivity,
-        ) ?: return@write if (existingImport != null && existingActivity == null) RepositoryResult.NotFound else RepositoryResult.UnexpectedState
-        if (!plan.isReimport) {
-            database.workoutActivityDao().insert(plan.persistedActivity)
-            database.watchWorkoutImportDao().insert(plan.persistedImport)
-        } else {
-            database.workoutActivityDao().update(plan.persistedActivity)
-            database.watchWorkoutImportDao().update(plan.persistedImport)
-        }
-        val persistedId = plan.persistedActivity.id
-        database.workoutDetailDao().deleteIntervalsForActivity(persistedId)
-        database.workoutDetailDao().deleteHeartRateSamplesForActivity(persistedId)
-        database.workoutDetailDao().insertIntervals(activity.toIntervals(persistedId, generateIds(activity.intervals.size)))
-        database.workoutDetailDao().insertHeartRateSamples(activity.toHeartRateSamples(persistedId, generateIds(activity.heartRateSamples.size)))
-        RepositoryResult.Success(Unit)
+    } catch (_: WatchWorkoutDerivationPreflightException) {
+        // A exceção atravessa withWriteTransaction para desfazer atividade,
+        // importação e intervalos quando preflight detectar corrupção.
+        RepositoryResult.UnexpectedState
     }
 
     override suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = withContext(ioDispatcher) {
@@ -695,12 +762,59 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(Unit)
     }
 
+    override suspend fun findWatchWorkoutDerivation(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = read {
+        val activity = database.workoutActivityDao().findById(activityId.value.toString())
+            ?: return@read RepositoryResult.NotFound
+        if (activity.origin != br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin.WATCH_D3_D4.name) {
+            return@read RepositoryResult.UnexpectedState
+        }
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id)
+        val intervals = database.workoutDetailDao().findIntervalsForActivity(activity.id)
+        val samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id)
+        RepositoryResult.Success(
+            findActiveDerivation(
+                activity = activity,
+                importRecord = importRecord,
+                intervals = intervals,
+                samples = samples,
+            ),
+        )
+    }
+
+    override suspend fun deriveWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant,
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = try {
+        write {
+            deriveWatchWorkoutInternal(activityId, derivedAt, replaceActive = false)
+        }
+    } catch (_: WatchWorkoutDerivationPreflightException) {
+        RepositoryResult.UnexpectedState
+    }
+
+    override suspend fun rederiveWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant,
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = try {
+        write {
+            deriveWatchWorkoutInternal(activityId, derivedAt, replaceActive = true)
+        }
+    } catch (_: WatchWorkoutDerivationPreflightException) {
+        RepositoryResult.UnexpectedState
+    }
+
     override suspend fun submitReview(input: br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = write {
         val entity = database.workoutActivityDao().findById(input.activityId.value.toString()) ?: return@write RepositoryResult.NotFound
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(entity.id)
+        val intervals = database.workoutDetailDao().findIntervalsForActivity(entity.id)
+        val samples = database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id)
         val activity = entity.toDomain(
-            database.watchWorkoutImportDao().findByActivityId(entity.id),
-            database.workoutDetailDao().findIntervalsForActivity(entity.id),
-            database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id),
+            importRecord = importRecord,
+            intervals = intervals,
+            samples = samples,
+            derivationSnapshot = findActiveDerivation(entity, importRecord, intervals, samples),
         ) ?: return@write RepositoryResult.UnexpectedState
         val reviewed = activity.submitReview(input).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
         database.workoutActivityDao().update(reviewed.toEntity())
@@ -739,9 +853,10 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = write {
         RepositoryResult.Success(
-            database.workoutActivityDao().transitionAllByState(
+            database.workoutActivityDao().transitionAllByStateExcludingOrigin(
                 expectedState = "SYNCING",
                 nextState = "SYNC_FAILED",
+                excludedOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
             ),
         )
     }
@@ -1239,6 +1354,7 @@ class RoomRepositories @Inject constructor(
         if (limit <= 0) return@write RepositoryResult.Success(emptyList())
         val repaired = database.healthSyncOperationDao().findProcessable(limit)
             .mapNotNull { entity ->
+                if (isBlockedWatchWorkoutOperation(entity)) return@mapNotNull null
                 if (entity.isDailyStepsOperationEntity()) {
                     return@mapNotNull entity.toDomain()
                 }
@@ -1259,6 +1375,9 @@ class RoomRepositories @Inject constructor(
     override suspend fun findOperationsForAggregate(
         aggregate: HealthSyncAggregate,
     ): RepositoryResult<List<HealthSyncOperation>> = withContext(ioDispatcher) {
+        if (isBlockedWatchWorkoutAggregate(aggregate)) {
+            return@withContext RepositoryResult.Success(emptyList())
+        }
         RepositoryResult.Success(
             database.healthSyncOperationDao()
                 .findByAggregate(aggregate.id.toString(), aggregate.type.name)
@@ -1267,8 +1386,19 @@ class RoomRepositories @Inject constructor(
     }
 
     override fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> {
-        return observeSyncEntitiesForAggregates(aggregates)
-            .map { entities -> entities.mapNotNull { it.toDomain() } }
+        if (aggregates.isEmpty()) return flowOf(emptyList())
+        return combine(
+            observeSyncEntitiesForAggregates(aggregates),
+            database.workoutActivityDao().observeAll(),
+        ) { entities, activities ->
+            val blockedWatchActivityIds = activities.asSequence()
+                .filter { it.origin == WorkoutActivityOrigin.WATCH_D3_D4.name }
+                .map { it.id }
+                .toSet()
+            entities.mapNotNull { entity ->
+                if (entity.isBlockedWatchWorkoutOperation(blockedWatchActivityIds)) null else entity.toDomain()
+            }
+        }
             .flowOn(ioDispatcher)
     }
 
@@ -1286,7 +1416,9 @@ class RoomRepositories @Inject constructor(
                 )
             }
             val validOperations = mappedOperations.mapNotNull { mapping ->
-                mapping.operation?.takeIf { mapping.hasSupportedPair }
+                mapping.operation?.takeIf {
+                    mapping.hasSupportedPair && !it.isBlockedWatchWorkoutOperation(candidateIndex)
+                }
             }
             HealthSyncQueueObservation(
                 operations = validOperations.filter { it.key.aggregate in aggregates },
@@ -1410,6 +1542,7 @@ class RoomRepositories @Inject constructor(
         var resetCount = 0
         syncing.forEach { operation ->
             if (operation.lastAttemptAtEpochMillis != null && operation.lastAttemptAtEpochMillis > at.toEpochMilli()) return@forEach
+            if (isBlockedWatchWorkoutOperation(operation)) return@forEach
             if (!aggregateExists(operation)) return@forEach
             syncDao.update(
                 operation.copy(
@@ -1491,12 +1624,248 @@ class RoomRepositories @Inject constructor(
         persisted
     }
 
-    private suspend fun loadWorkoutActivity(activity: br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity): WorkoutActivity? {
-        return activity.toDomain(
-            importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id),
-            intervals = database.workoutDetailDao().findIntervalsForActivity(activity.id),
-            samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id),
+    private suspend fun loadWorkoutActivity(activity: WorkoutActivityEntity): WorkoutActivity? {
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id)
+        val intervals = database.workoutDetailDao().findIntervalsForActivity(activity.id)
+        val samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id)
+        val derivationSnapshot = findActiveDerivation(
+            activity = activity,
+            importRecord = importRecord,
+            intervals = intervals,
+            samples = samples,
         )
+        return activity.toDomain(
+            importRecord = importRecord,
+            intervals = intervals,
+            samples = samples,
+            derivationSnapshot = derivationSnapshot,
+        )
+    }
+
+    private suspend fun deriveWatchWorkoutInternal(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant,
+        replaceActive: Boolean,
+    ): RepositoryResult<WorkoutDerivationSnapshot?> {
+        val activity = database.workoutActivityDao().findById(activityId.value.toString())
+            ?: return RepositoryResult.NotFound
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) {
+            return RepositoryResult.UnexpectedState
+        }
+        if (replaceActive && activity.workflowState in setOf(
+                ActivityWorkflowState.SYNCING.name,
+                ActivityWorkflowState.SYNCED.name,
+            )
+        ) {
+            // Reprocessamento específico de atividade sincronizada pertence a
+            // 014-11; não crie snapshot novo mantendo operações antigas.
+            return RepositoryResult.UnexpectedState
+        }
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id)
+            ?: return RepositoryResult.UnexpectedState
+        val rawIntervals = database.workoutDetailDao().findIntervalsForActivity(activity.id)
+        val samples = database.workoutDetailDao().findHeartRateSamplesForActivity(activity.id)
+        val activeRecord = database.workoutDerivationDao().findActiveForActivity(activity.id)
+        if (rawIntervals.hasPersistedUnvalidatedSourceOrder()) {
+            // Room ordena por índice. Um marcador persistido antes dessa
+            // ordenação impede que derivação reconstrua série sintética. Linhas
+            // legadas sem marcador também falham fechadas.
+            if (activeRecord != null) {
+                database.workoutDerivationDao().deactivateActiveSnapshots(activity.id)
+            }
+            return RepositoryResult.Success(null)
+        }
+        val existingSnapshot = activeRecord?.toDomain(
+            activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4,
+            activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+            activityDurationNanos = activity.durationNanos,
+            rawIntervals = rawIntervals,
+            heartRateSamples = samples.map { it.toDomain() },
+        )
+        if (activeRecord != null && !replaceActive) {
+            val persistedSnapshot = existingSnapshot ?: return RepositoryResult.UnexpectedState
+            promoteCanonicalTreadmillIfNeeded(activity, persistedSnapshot)
+            return RepositoryResult.Success(persistedSnapshot)
+        }
+
+        val profile = database.userProfileDao().findCurrent()?.toDomain()?.stepLengthProfile
+        if (profile == null) {
+            // Perfil ausente nunca transforma distância diagnóstica em fallback.
+            if (existingSnapshot != null) {
+                promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
+                return RepositoryResult.Success(existingSnapshot)
+            }
+            return RepositoryResult.Success(null)
+        }
+        val measuredIntervals = measuredIntervalsForDerivation(
+            activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+            rawIntervals = rawIntervals,
+        ) ?: return RepositoryResult.UnexpectedState
+        val totalDuration = runCatching { java.time.Duration.ofNanos(activity.durationNanos) }.getOrNull()
+            ?: return RepositoryResult.UnexpectedState
+        val snapshot = WorkoutDerivationSnapshot.derive(
+            intervals = measuredIntervals,
+            totalDuration = totalDuration,
+            sessionStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+            stepLength = profile,
+            derivationVersion = WATCH_WORKOUT_DERIVATION_VERSION,
+            derivedAt = derivedAt,
+            totalSteps = activity.steps,
+        ).valueOrNull() ?: return RepositoryResult.UnexpectedState
+
+        if (existingSnapshot != null &&
+            existingSnapshot.stepLengthMetersUsed == snapshot.stepLengthMetersUsed &&
+            existingSnapshot.stepLengthSource == snapshot.stepLengthSource &&
+            existingSnapshot.derivationMethod == snapshot.derivationMethod &&
+            existingSnapshot.derivationVersion == snapshot.derivationVersion
+        ) {
+            promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
+            return RepositoryResult.Success(existingSnapshot)
+        }
+
+        val resolvedRawIntervals = try {
+            if (rawIntervals.size != snapshot.temporalResolution.intervals.size) {
+                return RepositoryResult.UnexpectedState
+            }
+            rawIntervals.zip(snapshot.temporalResolution.intervals).map { (entity, resolved) ->
+                entity.withEffectiveDuration(resolved.effectiveDuration)
+            }
+        } catch (_: ArithmeticException) {
+            return RepositoryResult.UnexpectedState
+        }
+        val snapshotId = ids.next().toString()
+        val snapshotEntity = snapshot.toEntity(
+            id = snapshotId,
+            activityId = activity.id,
+            isActive = true,
+        ) ?: return RepositoryResult.UnexpectedState
+        val intervalEntities = snapshot.toDerivedIntervalEntities(snapshotId, generateIds(
+            snapshot.canonicalSeries?.intervals?.size ?: 0,
+        )) ?: return RepositoryResult.UnexpectedState
+        val validatedSnapshot = snapshotEntity.toDomain(
+            activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4,
+            activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+            activityDurationNanos = activity.durationNanos,
+            rawIntervals = resolvedRawIntervals,
+            derivedIntervals = intervalEntities,
+            splits = emptyList(),
+            heartRateSamples = samples.map { it.toDomain() },
+        ) ?: return RepositoryResult.UnexpectedState
+
+        // A transição ocorre somente depois do preflight completo. Se o CAS de
+        // workflow falhar, a exceção atravessa a transação e nenhum snapshot ou
+        // intervalo resolvido permanece persistido.
+        promoteCanonicalTreadmillIfNeeded(activity, validatedSnapshot)
+        if (resolvedRawIntervals != rawIntervals) {
+            database.workoutDetailDao().deleteIntervalsForActivity(activity.id)
+            database.workoutDetailDao().insertIntervals(resolvedRawIntervals)
+        }
+        database.workoutDerivationDao().insertSnapshotWithChildren(
+            snapshot = snapshotEntity,
+            intervals = intervalEntities,
+            splits = emptyList(),
+        )
+        return RepositoryResult.Success(validatedSnapshot)
+    }
+
+    private suspend fun promoteCanonicalTreadmillIfNeeded(
+        activity: WorkoutActivityEntity,
+        snapshot: WorkoutDerivationSnapshot,
+    ) {
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
+            activity.confirmedType != WorkoutType.TREADMILL.name ||
+            activity.workflowState != ActivityWorkflowState.PENDING_CALIBRATION.name ||
+            !snapshot.isEligibleForCanonicalWorkflow
+        ) return
+
+        val transitioned = database.workoutActivityDao().transitionState(
+            id = activity.id,
+            expectedStates = listOf(ActivityWorkflowState.PENDING_CALIBRATION.name),
+            nextState = ActivityWorkflowState.READY_TO_SYNC.name,
+        )
+        if (transitioned != 1) {
+            throw WatchWorkoutDerivationPreflightException()
+        }
+    }
+
+    private suspend fun findActiveDerivation(
+        activity: WorkoutActivityEntity,
+        importRecord: WatchWorkoutImportEntity?,
+        intervals: List<WorkoutIntervalEntity>,
+        samples: List<WorkoutHeartRateSampleEntity>,
+    ): WorkoutDerivationSnapshot? {
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
+            importRecord == null ||
+            intervals.hasPersistedUnvalidatedSourceOrder()
+        ) return null
+        return database.workoutDerivationDao().findActiveForActivity(activity.id)?.toDomain(
+            activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4,
+            activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+            activityDurationNanos = activity.durationNanos,
+            rawIntervals = intervals,
+            heartRateSamples = samples.map { it.toDomain() },
+        )
+    }
+
+    private fun measuredIntervalsForDerivation(
+        activityStartedAt: Instant,
+        rawIntervals: List<WorkoutIntervalEntity>,
+    ): List<MeasuredWorkoutInterval>? {
+        var nextWindowStart = activityStartedAt
+        return rawIntervals.map { entity ->
+            val measured = entity.toMeasuredWorkoutInterval(effectiveWindowStart = nextWindowStart)
+                ?: return null
+            entity.effectiveDurationNanos?.let { nanos ->
+                nextWindowStart = runCatching { nextWindowStart.plusNanos(nanos) }.getOrNull()
+                    ?: return null
+            }
+            measured
+        }
+    }
+
+    private fun sameWatchWorkoutInputs(
+        existingActivity: WorkoutActivityEntity,
+        incomingActivity: WorkoutActivityEntity,
+        existingImport: WatchWorkoutImportEntity?,
+        incomingImport: WatchWorkoutImportEntity,
+        existingIntervals: List<WorkoutIntervalEntity>,
+        incomingIntervals: List<WorkoutIntervalEntity>,
+    ): Boolean {
+        if (existingImport == null ||
+            existingImport.deviceId != incomingImport.deviceId ||
+            existingImport.origin != incomingImport.origin ||
+            existingImport.crc != incomingImport.crc ||
+            existingImport.parserVersion != incomingImport.parserVersion ||
+            existingImport.parserValidity != incomingImport.parserValidity ||
+            existingActivity.origin != incomingActivity.origin ||
+            existingActivity.deviceId != incomingActivity.deviceId ||
+            existingActivity.startedAtEpochMillis != incomingActivity.startedAtEpochMillis ||
+            existingActivity.durationNanos != incomingActivity.durationNanos ||
+            existingActivity.steps != incomingActivity.steps ||
+            existingIntervals.size != incomingIntervals.size
+        ) return false
+        return existingIntervals.zip(incomingIntervals).all { (existing, incoming) ->
+            existing.intervalIndex == incoming.intervalIndex &&
+                existing.durationNanos == incoming.durationNanos &&
+                existing.steps == incoming.steps &&
+                existing.rawMotionValue == incoming.rawMotionValue &&
+                existing.rawDistanceValue == incoming.rawDistanceValue &&
+                existing.rawCaloriesValue == incoming.rawCaloriesValue &&
+                existing.decodedSteps == incoming.decodedSteps &&
+                existing.temporalEligibilityReason == incoming.temporalEligibilityReason
+        }
+    }
+
+    private suspend fun isBlockedWatchWorkoutAggregate(aggregate: HealthSyncAggregate): Boolean {
+        val workout = aggregate as? HealthSyncAggregate.WorkoutActivity ?: return false
+        return database.workoutActivityDao().findById(workout.activityId.value.toString())?.origin ==
+            WorkoutActivityOrigin.WATCH_D3_D4.name
+    }
+
+    private suspend fun isBlockedWatchWorkoutOperation(entity: HealthSyncOperationEntity): Boolean {
+        if (entity.aggregateType != HealthSyncAggregateType.WORKOUT_ACTIVITY.name) return false
+        return database.workoutActivityDao().findById(entity.aggregateId)?.origin ==
+            WorkoutActivityOrigin.WATCH_D3_D4.name
     }
 
     private suspend fun mutateSession(
@@ -1801,6 +2170,11 @@ class RoomRepositories @Inject constructor(
         transition: (WorkoutActivity) -> br.com.mwconsulting.championcompanion.core.model.DomainResult<WorkoutActivity>,
     ): RepositoryResult<WorkoutActivity> {
         val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return RepositoryResult.NotFound
+        if (entity.origin == WorkoutActivityOrigin.WATCH_D3_D4.name) {
+            // Writer legado não consome série canônica do relógio; bloqueie
+            // início, sucesso e falha no mesmo ponto de entrada.
+            return RepositoryResult.UnexpectedState
+        }
         val activity = loadWorkoutActivity(entity) ?: return RepositoryResult.UnexpectedState
         val updated = transition(activity).valueOrNull() ?: return RepositoryResult.UnexpectedState
         database.workoutActivityDao().update(updated.toEntity())
@@ -2025,6 +2399,11 @@ class RoomRepositories @Inject constructor(
     private suspend fun ensureOperationInternal(
         key: HealthSyncOperationKey,
     ): RepositoryResult<HealthSyncOperation> {
+        if (isBlockedWatchWorkoutAggregate(key.aggregate)) {
+            // Operações legadas de WATCH_D3_D4 não podem chegar ao mapper que
+            // ainda usa distância original, calibrada ou estimada.
+            return RepositoryResult.UnexpectedState
+        }
         if (key.aggregate is HealthSyncAggregate.DailySummary && key.recordType == HealthSyncRecordType.STEPS) {
             return ensureDailyStepsOperationInternal(key)
         }
@@ -2047,6 +2426,7 @@ class RoomRepositories @Inject constructor(
     }
 
     private suspend fun ensureReconciledOperation(key: HealthSyncOperationKey): ReconciledOperation? {
+        if (isBlockedWatchWorkoutAggregate(key.aggregate)) return null
         val metadata = resolveSyncMetadata(key) ?: return null
         val existing = database.healthSyncOperationDao().findByNaturalKey(
             aggregateId = key.aggregate.id.toString(),
@@ -2147,6 +2527,7 @@ class RoomRepositories @Inject constructor(
     ): RepositoryResult<Unit> = write {
         val syncDao = database.healthSyncOperationDao()
         val current = syncDao.findById(id.value.toString()) ?: return@write RepositoryResult.NotFound
+        if (isBlockedWatchWorkoutOperation(current)) return@write RepositoryResult.UnexpectedState
         if (!aggregateExists(current)) return@write RepositoryResult.NotFound
         val next = transform(current) ?: return@write RepositoryResult.UnexpectedState
         if (syncDao.update(next) == 1) RepositoryResult.Success(Unit) else RepositoryResult.UnexpectedState
@@ -2366,6 +2747,37 @@ private data class HealthSyncWorkoutSessionWindow(
     val start: Instant,
     val end: Instant,
 )
+
+private fun List<WorkoutIntervalEntity>.markPersistedSourceOrder(
+    activity: WorkoutActivity,
+): List<WorkoutIntervalEntity> {
+    if (activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 || isEmpty()) return this
+    val indices = activity.intervals.map { it.index }
+    val marker = if (indices.zipWithNext().all { (previous, next) -> next > previous }) {
+        TEMPORAL_ORDER_VALIDATED_MARKER
+    } else {
+        TemporalSeriesValidationReason.OUT_OF_ORDER.name
+    }
+    // Coluna existente desde v9. O marcador sobrevive à ordenação do DAO e só
+    // controla elegibilidade; fatos raw/measured não são alterados.
+    return map { it.copy(temporalEligibilityReason = marker) }
+}
+
+private fun List<WorkoutIntervalEntity>.hasPersistedUnvalidatedSourceOrder(): Boolean =
+    any { it.temporalEligibilityReason != TEMPORAL_ORDER_VALIDATED_MARKER }
+
+private fun HealthSyncOperationEntity.isBlockedWatchWorkoutOperation(
+    blockedWatchActivityIds: Set<String>,
+): Boolean = aggregateType == HealthSyncAggregateType.WORKOUT_ACTIVITY.name &&
+    aggregateId in blockedWatchActivityIds
+
+private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
+    candidates: HealthSyncSemanticCandidateIndex,
+): Boolean {
+    val aggregate = key.aggregate as? HealthSyncAggregate.WorkoutActivity ?: return false
+    return candidates.workoutActivities[aggregate.activityId.value]?.activityOrigin ==
+        WorkoutActivityOrigin.WATCH_D3_D4
+}
 
 private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = when (aggregateType) {
     HealthSyncAggregateType.DAILY_SUMMARY.name -> recordType == HealthSyncRecordType.STEPS.name

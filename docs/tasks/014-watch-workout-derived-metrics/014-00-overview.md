@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 6/16 subtarefas concluídas
+- **Progresso:** 7/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -33,7 +33,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
 - [x] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
 - [x] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
-- [ ] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
+- [x] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
 - [ ] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
 - [ ] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
 - [ ] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
@@ -172,3 +172,50 @@ Connect continua pendente.
    foi capturada fora do repositório. Revisão independente aprovou sem
    bloqueadores. Aceite físico da sugestão permanece risco residual porque o
    dispositivo não possuía altura persistida.
+- `014-07` adicionou snapshot V1 e derivação transacional da série canônica para
+  `WATCH_D3_D4`, com distância por soma de `decodedSteps × stepLengthMetersUsed`,
+  ausência segura para série inelegível e estimativa agregada somente
+  diagnóstica. Importações novas `d4-v2` válidas podem criar snapshot inicial;
+  edição de perfil não altera snapshot antigo e rederivação é explícita. A regra
+  de `TREADMILL` do relógio usa elegibilidade canônica sem exigir calibração
+  histórica; phone permanece legado. Lint, builds debug/release, instalação e
+  `git diff --check` passaram. Não houve testes automatizados, importação D4
+  física ou round-trip Room em dispositivo; esses riscos permanecem para fases
+  posteriores. O writer legado de `WATCH_D3_D4` permanece bloqueado até as
+  projeções granulares de `014-12`/`014-13`, sem fallback de distância.
+- Progresso da spec `014-watch-workout-derived-metrics.md` alinhado para `7/16`.
+- Revisão independente de `014-07`: `RoomRepositories` agora bloqueia
+  operações legadas de `WATCH_D3_D4` antes de entregar ou garantir itens da
+  fila (`findProcessable`, `ensureOperation`, leituras por agregado e transições
+  de estado). Linhas antigas permanecem locais; nenhum mapper legado recebe
+  atividade do relógio e nenhum arquivo de `core/healthconnect` foi alterado.
+- A ordem da lista de intervalos é validada antes da persistência. Quando a
+  origem está fora de ordem, marcador na coluna já existente de elegibilidade
+  impede rederivação após o `ORDER BY intervalIndex`; snapshot ativo é ocultado
+  ou desativado e distância canônica permanece ausente. Não houve migration,
+  schema, parser, protocolo ou alteração de consumidores phone.
+- Progresso permanece `7/16`; nenhuma subtarefa posterior foi iniciada.
+- Validação final de `014-07` após gates de fila e ordem: lint, builds
+  debug/release, instalação e `git diff --check` passaram.
+- Bloqueadores finais de `014-07` corrigidos: derivação faz preflight completo
+  de snapshot, filhos e round-trip antes de qualquer write; `persistImported`
+  mantém ausência segura ou provoca rollback controlado em inconsistência.
+- `transitionWorkoutSync` bloqueia todas as transições do writer legado para
+  `WATCH_D3_D4`, e `resetInterruptedSyncing` exclui essa origem por query DAO;
+  gates HealthSync e ordem temporal foram preservados.
+- Risco físico permanece: round-trip Room e importação D4 em dispositivo ainda
+  aguardam `014-15`; projeções granulares e desbloqueio do writer continuam
+  bloqueados para `014-11`/`014-12`/`014-13`.
+- Ajuste final de `014-07`: snapshot canônico elegível de atividade do relógio
+  já revisada como `TREADMILL` em `PENDING_CALIBRATION` promove o workflow para
+  `READY_TO_SYNC` na mesma transação; falha do CAS desfaz a derivação. Atividade
+  em `PENDING_REVIEW` continua sendo promovida somente por `submitReview`.
+- Ajuste final de ordem: `ORDER_VALIDATED` registra ordem estritamente crescente
+  mesmo com lacuna ou primeiro índice não zero; o `TemporalSeriesValidator`
+  mantém snapshot inelegível e distância canônica ausente nesses casos.
+  `OUT_OF_ORDER` fica reservado para ordem não crescente/duplicada, e legado sem
+  marcador continua fail-closed.
+- Risco residual explícito: `ExercisesScreen`, Calendário e consumidores finais,
+  `HealthRecordMapper` e `core/healthconnect` permanecem fora do escopo de
+  `014-07` e não foram alterados. Integração Health Connect continua bloqueada
+  para subtarefas posteriores.
