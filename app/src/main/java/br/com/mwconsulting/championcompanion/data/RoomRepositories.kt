@@ -75,9 +75,11 @@ import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
+import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
+import br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthInput
 import br.com.mwconsulting.championcompanion.core.model.UserProfileId
 import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
@@ -111,6 +113,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
@@ -827,6 +830,41 @@ class RoomRepositories @Inject constructor(
             )
             .map { entities -> entities.mapNotNull { it.toCalendarSummary() } }
             .flowOn(ioDispatcher)
+
+    override suspend fun updateStepLength(input: UpdateStepLengthInput): RepositoryResult<UserProfile> = try {
+        write {
+            val profileEntity = database.userProfileDao().findCurrent()
+            val currentProfile = profileEntity?.toDomain()
+                ?: if (profileEntity == null) null else return@write RepositoryResult.UnexpectedState
+            val profileUpdatedAt = currentProfile?.updatedAt?.let { existingUpdatedAt ->
+                if (input.updatedAt.isAfter(existingUpdatedAt)) input.updatedAt else existingUpdatedAt
+            } ?: input.updatedAt
+            val stepLengthProfile = StepLengthProfile.create(
+                stepLengthMeters = input.stepLengthMeters,
+                source = input.source,
+                updatedAt = input.updatedAt,
+            ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+            val updatedProfile = UserProfile.create(
+                id = currentProfile?.id ?: UserProfileId(ids.next()),
+                heightCentimeters = currentProfile?.heightCentimeters,
+                updatedAt = profileUpdatedAt,
+                stepLengthProfile = stepLengthProfile,
+            ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+            val updatedEntity = updatedProfile.toEntity()
+            if (currentProfile == null) {
+                database.userProfileDao().insert(updatedEntity)
+            } else if (database.userProfileDao().update(updatedEntity) != 1) {
+                return@write RepositoryResult.Conflict
+            }
+            val persistedProfile = database.userProfileDao().findById(updatedEntity.id)?.toDomain()
+                ?: return@write RepositoryResult.UnexpectedState
+            RepositoryResult.Success(persistedProfile)
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
+    }
 
     override fun observeRecoverable(): Flow<List<AppWorkoutSession>> = database.appWorkoutSessionDao().observeRecoverable()
         .map { it.mapNotNull { entity -> entity.toDomain() } }

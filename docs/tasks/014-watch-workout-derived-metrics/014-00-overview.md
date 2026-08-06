@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 5/16 subtarefas concluídas
+- **Progresso:** 6/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
 - [x] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
 - [x] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
-- [ ] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
+- [x] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
 - [ ] [014-07-derive-canonical-distance-from-steps.md](014-07-derive-canonical-distance-from-steps.md)
 - [ ] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
 - [ ] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
@@ -160,5 +160,15 @@ Connect continua pendente.
   documentação de protocolo; snapshot, persistência, distância, Health Connect,
   UI, migration e schema continuam pendentes. `lint`, builds debug/release,
   `installDebug` e `git diff --check` passaram; testes automatizados não foram
-  executados. Riscos residuais: validação física D4 e plausibilidade definida por
-  evidência permanecem para subtarefas posteriores.
+ executados. Riscos residuais: validação física D4 e plausibilidade definida por
+ evidência permanecem para subtarefas posteriores.
+ - `014-06` adicionou edição de `stepLengthMeters` no Perfil, com persistência
+   transacional de valor, origem e atualização. A sugestão adotada é
+   `alturaCentímetros / 100 × 0,415`, permanece proposta sem persistência
+   automática e exige confirmação explícita para registrar
+   `HEIGHT_SUGGESTION_ACCEPTED`; entrada manual registra `MANUAL`. Perfil sem
+   altura não recebe default. Build, lint, instalação e reinício no Galaxy S22
+   confirmaram persistência manual e ausência de efeito retroativo; screenshot
+   foi capturada fora do repositório. Revisão independente aprovou sem
+   bloqueadores. Aceite físico da sugestão permanece risco residual porque o
+   dispositivo não possuía altura persistida.

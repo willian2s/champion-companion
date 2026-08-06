@@ -45,6 +45,16 @@ data class StepLengthProfile private constructor(
     }
 }
 
+/** Sugestão inicial de comprimento individual derivada somente da altura válida. */
+object StepLengthSuggestionPolicy {
+    private const val HEIGHT_TO_STEP_LENGTH_FACTOR = 0.415
+
+    fun fromHeight(heightCentimeters: Double?): Double? = heightCentimeters
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { (it / 100.0) * HEIGHT_TO_STEP_LENGTH_FACTOR }
+        ?.takeIf { it.isFinite() && it > 0.0 }
+}
+
 /** Adapters de nomenclatura para consumidores que ainda usam perfil pessoal. */
 typealias PersonalStepLength = StepLengthProfile
 typealias StepLengthSnapshot = StepLengthProfile

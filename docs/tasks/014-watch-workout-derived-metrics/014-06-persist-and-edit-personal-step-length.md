@@ -2,7 +2,8 @@
 
 - **Ticker:** `014`
 - **Número:** `06`
-- **Status:** pending
+- **Status:** completed
+- **Concluída em:** 2026-08-06
 
 ## Objetivo e resultado esperado
 
@@ -95,11 +96,62 @@ git status --short
 
 Não criar nem executar testes automatizados.
 
-## Evidências
+## Arquivos alterados
 
-- screenshots da mudança visual;
-- roteiro manual com origens e persistência;
-- builds e reinício do app.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileFeatureContract.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileViewModel.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileScreen.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`;
+- `app/src/main/res/values/strings.xml`;
+- `docs/specs/014-watch-workout-derived-metrics.md` (progresso alinhado);
+- este arquivo e o overview.
+
+Não houve alteração de migration, schema, Gradle, parser D4, derivação de
+atividades ou Health Connect.
+
+## Decisões e desvios
+
+- A sugestão adotada é `alturaCentímetros / 100 × 0,415`, derivada somente de
+  altura válida e exibida como proposta não persistida.
+- A confirmação usa diálogo explícito com ações `Confirmar` e `Cancelar`; a
+  origem persistida é `HEIGHT_SUGGESTION_ACCEPTED` somente após confirmação.
+- Entrada manual aceita valor positivo e finito, com separador decimal do locale,
+  e persiste origem `MANUAL`.
+- Perfil ausente recebe bootstrap transacional sem altura e sem default de
+  comprimento; edição preserva atividades e snapshots existentes.
+- O timestamp do comprimento registra o instante recebido da edição; o timestamp
+  geral do perfil não retrocede.
+
+## Comandos executados
+
+- `./gradlew lint assembleDebug assembleRelease` — PASS;
+- `./gradlew installDebug` — PASS no Galaxy S22 `SM-S901E`;
+- `git diff --check` — PASS;
+- `git status --short` — PASS, somente arquivos desta subtarefa alterados.
+
+## Resultados e evidências
+
+- Tela Perfil instalada e aberta no dispositivo físico.
+- Valor manual `0.7312345678` foi salvo; UI exibiu `0,7312345678 m` e origem
+  `Entrada manual`.
+- Após encerramento e reinício do app, valor, origem e atualização permaneceram
+  visíveis; screenshot capturada em `/tmp/champion-profile-step-length.png`.
+- Sem altura persistida no perfil do dispositivo, UI exibiu sugestão indisponível
+  sem criar valor padrão.
+- Revisão independente final: aprovada sem bloqueadores.
+- Testes automatizados não foram criados nem executados, conforme escopo da task
+  e `AGENTS.md`.
+
+## Riscos residuais
+
+- Aceite da sugestão não foi exercitado fisicamente porque dispositivo de
+  validação não possuía altura persistida; fluxo de confirmação, origem e
+  persistência foram revisados no código e cobertos por build/lint.
+- A fórmula de altura permanece política de proposta desta task e não altera a
+  estimativa diária legada.
 
 ## Definição de pronto
 
