@@ -8,15 +8,59 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 
 ## Atualizacao Factual Pos-Fase 12
 
-- Banco real do Champion Companion está em `ChampionDatabase` schema `v8`.
+- Banco real do Champion Companion está em `ChampionDatabase` schema `v9`.
 - `workout_activities` ja cobre fluxo local ate `SYNCED` e `SYNC_FAILED`, incluindo sync explicito de Health Connect.
 - `health_sync_operations` ja cobre backlog e sincronizacao granular para passos, BPM, sessao de exercicio, distancia, calorias, peso e altura, com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt`.
 - `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
-- A Fase 12 não alterou schema nesta atualização; migrations `5→6`, `6→7` e
-  `7→8` permanecem parte do histórico factual.
+- A Fase 12 não alterou schema nesta atualização; migrations `5→6`, `6→7`,
+  `7→8` e `8→9` permanecem parte do histórico factual.
 - Fase 013 está `closed`, com resultado `partially_delivered` e motivo
-  `product_reorientation`. Fase 014 está `pending`; sua migration aditiva e
-  snapshots de derivação estão somente planejados na spec/ADR-018.
+  `product_reorientation`. Fase 014 está `in_progress`; a migration local
+  aditiva `8→9` foi implementada em `014-03`. Projeções Health Connect continuam
+  fora desta migration e permanecem planejadas para `014-12`.
+
+## Atualização factual da Fase 014 — schema v9
+
+`MIGRATION_8_9` é manual e aditiva. Não recria nem remove tabelas legadas, não
+altera IDs, `recordedAt`, revisão, calibração, imports, sessões, rotas ou fila de
+sincronização. A migration não cria snapshots, intervalos derivados, splits,
+operações remotas ou qualquer efeito no Health Connect.
+
+### Colunas adicionadas
+
+| Tabela | Colunas | Nullable/default |
+| --- | --- | --- |
+| `user_profiles` | `stepLengthMeters REAL`; `stepLengthSource TEXT`; `stepLengthUpdatedAtEpochMillis INTEGER` | todas nullable; sem default |
+| `workout_intervals` | `rawMotionValue INTEGER`; `rawDistanceValue INTEGER`; `rawCaloriesValue INTEGER`; `decodedSteps INTEGER`; `effectiveDurationNanos INTEGER`; `temporalEligibilityReason TEXT`; `plausibilityStatus TEXT` | todas nullable; sem default |
+
+`distanceMeters` legado permanece intacto e não recebe nova semântica canônica.
+`stepLengthSource` e os estados de intervalo são enums serializados por nome em
+`TEXT`.
+
+### Tabelas de derivação
+
+| Tabela | Conteúdo e defaults | Índices/FK |
+| --- | --- | --- |
+| `workout_derivation_snapshots` | perfil congelado, método/versão, resolução temporal, elegibilidade, motivos, política/indicadores de plausibilidade, distância canônica e agregado diagnóstico; `isActive INTEGER NOT NULL DEFAULT 0`; `activeActivityId TEXT` nullable | índice único `activeActivityId` (nulos podem repetir); índices `activityId` e `activityId,derivedAtEpochMillis`; FK `activityId → workout_activities.id ON DELETE CASCADE` |
+| `workout_derived_intervals` | índice, início efetivo, duração em nanos, passos, distância canônica, métricas instantâneas e acumuladas, amostra de velocidade | índice único `snapshotId,intervalIndex`; FK `snapshotId → workout_derivation_snapshots.id ON DELETE CASCADE` |
+| `workout_splits` | número, limite/distância, janela, duração, cadência, velocidade, ritmo e BPM ponderado | índice único `snapshotId,splitNumber`; FK `snapshotId → workout_derivation_snapshots.id ON DELETE CASCADE` |
+
+Filhos não repetem `activityId`: a atividade é determinada pelo snapshot pai e a
+FK em cascata impede filho órfão de outra atividade. Timestamps derivados
+mantêm `*EpochMillis` para ordenação e também `*EpochSecond` + `*Nano` para
+round-trip exato de `Instant`; durações efetivas permanecem em nanos.
+
+`activeActivityId` recebe `activityId` somente quando `isActive = true`; seu
+índice UNIQUE garante no banco novo e após migration no máximo uma derivação
+ativa por atividade. Snapshots inativos mantêm esse campo nulo.
+
+### Ponte de compatibilidade D4
+
+Durante `8→9`, somente linhas com atividade/importação `WATCH_D3_D4` e
+`parserVersion = d4-v1` copiam `workout_intervals.steps` para
+`rawMotionValue`, dentro da faixa u24. `decodedSteps` permanece nulo; não há
+backfill de duração, métricas, snapshot ou split. Versões desconhecidas não são
+reinterpretadas. `d4-v1` permanece identificável para reprocessamento explícito.
 
 ## Fechamento Factual Da Fase 12
 

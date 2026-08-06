@@ -5,6 +5,8 @@ import androidx.room3.Embedded
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
+import androidx.room3.Relation
+import androidx.room3.Transaction
 import androidx.room3.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -409,6 +411,74 @@ interface WorkoutDetailDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>)
+}
+
+data class WorkoutDerivationRecord(
+    @Embedded val snapshot: WorkoutDerivationSnapshotEntity,
+    @Relation(parentColumns = ["id"], entityColumns = ["snapshotId"])
+    val intervals: List<DerivedWorkoutIntervalEntity>,
+    @Relation(parentColumns = ["id"], entityColumns = ["snapshotId"])
+    val splits: List<WorkoutSplitEntity>,
+)
+
+@Dao
+interface WorkoutDerivationDao {
+    @Query("SELECT * FROM workout_derivation_snapshots WHERE id = :id LIMIT 1")
+    suspend fun findSnapshotById(id: String): WorkoutDerivationSnapshotEntity?
+
+    @Query("SELECT * FROM workout_derivation_snapshots WHERE activeActivityId = :activityId AND isActive = 1 LIMIT 1")
+    suspend fun findActiveSnapshotForActivity(activityId: String): WorkoutDerivationSnapshotEntity?
+
+    @Transaction
+    suspend fun findActiveForActivity(activityId: String): WorkoutDerivationRecord? {
+        val snapshot = findActiveSnapshotForActivity(activityId) ?: return null
+        return WorkoutDerivationRecord(
+            snapshot = snapshot,
+            intervals = findDerivedIntervals(snapshot.id),
+            splits = findSplits(snapshot.id),
+        )
+    }
+
+    @Query("SELECT * FROM workout_derivation_snapshots WHERE activityId = :activityId ORDER BY derivedAtEpochMillis DESC, id DESC")
+    suspend fun findSnapshotsForActivity(activityId: String): List<WorkoutDerivationSnapshotEntity>
+
+    @Query("SELECT * FROM workout_derived_intervals WHERE snapshotId = :snapshotId ORDER BY intervalIndex")
+    suspend fun findDerivedIntervals(snapshotId: String): List<DerivedWorkoutIntervalEntity>
+
+    @Query("SELECT * FROM workout_splits WHERE snapshotId = :snapshotId ORDER BY splitNumber")
+    suspend fun findSplits(snapshotId: String): List<WorkoutSplitEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertSnapshot(snapshot: WorkoutDerivationSnapshotEntity)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertDerivedIntervals(intervals: List<DerivedWorkoutIntervalEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertSplits(splits: List<WorkoutSplitEntity>)
+
+    @Transaction
+    suspend fun insertSnapshotWithChildren(
+        snapshot: WorkoutDerivationSnapshotEntity,
+        intervals: List<DerivedWorkoutIntervalEntity>,
+        splits: List<WorkoutSplitEntity>,
+    ) {
+        if (snapshot.isActive) {
+            deactivateActiveSnapshots(snapshot.activityId)
+        }
+        insertSnapshot(snapshot)
+        if (intervals.isNotEmpty()) insertDerivedIntervals(intervals)
+        if (splits.isNotEmpty()) insertSplits(splits)
+    }
+
+    @Query("UPDATE workout_derivation_snapshots SET isActive = 0, activeActivityId = NULL WHERE activityId = :activityId AND isActive = 1")
+    suspend fun deactivateActiveSnapshots(activityId: String): Int
+
+    @Update
+    suspend fun updateSnapshot(snapshot: WorkoutDerivationSnapshotEntity): Int
+
+    @Query("DELETE FROM workout_derivation_snapshots WHERE id = :id")
+    suspend fun deleteSnapshotById(id: String): Int
 }
 
 data class WorkoutHeartRateHistoryRecord(

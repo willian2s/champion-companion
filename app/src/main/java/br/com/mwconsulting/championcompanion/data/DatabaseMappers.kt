@@ -9,6 +9,7 @@ import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceImportMetadataEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
+import br.com.mwconsulting.championcompanion.core.database.DerivedWorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
@@ -21,10 +22,13 @@ import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportLoo
 import br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationRecord
+import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationSnapshotEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutSplitEntity
 import br.com.mwconsulting.championcompanion.core.model.AbsenceReason
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
@@ -36,6 +40,7 @@ import br.com.mwconsulting.championcompanion.core.model.CalendarWeightMeasuremen
 import br.com.mwconsulting.championcompanion.core.model.CalendarWorkoutSummary
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
+import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryId
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryKey
@@ -70,10 +75,15 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.MetricProvenance
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
+import br.com.mwconsulting.championcompanion.core.model.MeasuredWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutCorrelationCandidate
 import br.com.mwconsulting.championcompanion.core.model.SafeDiagnosticError
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
+import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
+import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
+import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesEligibility
+import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationId
@@ -92,10 +102,17 @@ import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDurationCase
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDurationResolution
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDurationResolver
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutMetrics
+import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutSeriesPlausibility
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteMetrics
@@ -103,6 +120,10 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteSegmentReason
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteState
+import br.com.mwconsulting.championcompanion.core.model.WorkoutSplit
+import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
+import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import java.time.Duration
@@ -308,11 +329,30 @@ internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSu
     )
 }
 
+internal fun UserProfile.toEntity() = br.com.mwconsulting.championcompanion.core.database.UserProfileEntity(
+    id = id.value.toString(),
+    heightCentimeters = heightCentimeters,
+    stepLengthMeters = stepLengthProfile?.stepLengthMeters,
+    stepLengthSource = stepLengthProfile?.source?.name,
+    stepLengthUpdatedAtEpochMillis = stepLengthProfile?.updatedAt?.toEpochMilli(),
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
 internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEntity.toDomain(): UserProfile? {
+    val stepLengthProfile = when {
+        stepLengthMeters == null && stepLengthSource == null && stepLengthUpdatedAtEpochMillis == null -> null
+        stepLengthMeters == null || stepLengthSource == null || stepLengthUpdatedAtEpochMillis == null -> return null
+        else -> StepLengthProfile.create(
+            stepLengthMeters = stepLengthMeters,
+            source = enum<StepLengthSource>(stepLengthSource) ?: return null,
+            updatedAt = Instant.ofEpochMilli(stepLengthUpdatedAtEpochMillis),
+        ).successOrNull() ?: return null
+    }
     return UserProfile.create(
         id = uuid(id)?.let(::UserProfileId) ?: return null,
         updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
         heightCentimeters = heightCentimeters,
+        stepLengthProfile = stepLengthProfile,
     ).successOrNull()
 }
 
@@ -383,7 +423,351 @@ internal fun WatchWorkoutImport.toEntity() = WatchWorkoutImportEntity(
 
 internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>) = intervals.map {
     WorkoutIntervalEntity(ids.next().toString(), activityId, it.index, it.duration.toNanos(), it.steps,
-        it.distanceMeters.valueOrNull(), it.caloriesKilocalories.valueOrNull())
+        it.distanceMeters.valueOrNull(), it.caloriesKilocalories.valueOrNull(),
+        rawMotionValue = it.steps.takeIf {
+            activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+                watchImportContext?.parserVersion?.value == "d4-v1"
+        },
+    )
+}
+
+/** Mapeia somente fatos raw/measured já persistidos; não interpreta coluna legada. */
+internal fun WorkoutIntervalEntity.toMeasuredWorkoutInterval(
+    effectiveWindowStart: Instant? = null,
+): MeasuredWorkoutInterval? {
+    val rawMotion = rawMotionValue ?: return null
+    val effectiveDuration = effectiveDurationNanos?.let { nanos ->
+        if (nanos <= 0L) return null
+        runCatching { Duration.ofNanos(nanos) }.getOrNull() ?: return null
+    }
+    val effectiveWindow = when {
+        effectiveDuration == null -> null
+        effectiveWindowStart == null -> return null
+        else -> runCatching {
+            WorkoutIntervalWindow.create(effectiveWindowStart, effectiveWindowStart.plus(effectiveDuration))
+        }.getOrNull()?.successOrNull() ?: return null
+    }
+    return MeasuredWorkoutInterval.create(
+        index = intervalIndex,
+        rawMotionValue = rawMotion,
+        decodedSteps = decodedSteps,
+        rawTemporalDistance = rawDistanceValue,
+        rawTemporalCalories = rawCaloriesValue,
+        effectiveDuration = effectiveDuration,
+        effectiveWindow = effectiveWindow,
+    ).successOrNull()
+}
+
+internal fun WorkoutDerivationSnapshot.toEntity(
+    id: String,
+    activityId: String,
+    isActive: Boolean = true,
+): WorkoutDerivationSnapshotEntity? {
+    val derivedAtParts = derivedAt.toPersistedInstantPartsOrNull() ?: return null
+    return runCatching {
+        WorkoutDerivationSnapshotEntity(
+            id = id,
+            activityId = activityId,
+            stepLengthMetersUsed = stepLengthMetersUsed,
+            stepLengthSource = stepLengthSource.name,
+            derivationMethod = derivationMethod.name,
+            derivationVersion = derivationVersion,
+            derivedAtEpochMillis = derivedAtParts.epochMillis,
+            durationCase = temporalResolution.durationCase.name,
+            totalDurationNanos = temporalResolution.totalDuration.toNanos(),
+            nominalIntervalDurationNanos = temporalResolution.nominalIntervalDuration.toNanos(),
+            tailUncoveredNanos = temporalResolution.tailUncovered.toNanos(),
+            temporalEligibility = temporalResolution.eligibility.name,
+            temporalEligibilityReasons = temporalResolution.reasons.encodeEnumNames(),
+            plausibilityPolicy = plausibility.policy.name,
+            plausibilityIndicators = plausibility.indicators.encodeEnumNames(),
+            canonicalDistanceMeters = canonicalSeries?.canonicalDistanceMeters,
+            canonicalCoveredDurationNanos = canonicalSeries?.coveredDuration?.toNanos(),
+            diagnosticAggregateTotalSteps = diagnosticAggregateStepEstimate?.totalSteps,
+            diagnosticAggregateStepLengthMeters = diagnosticAggregateStepEstimate?.stepLengthMetersUsed,
+            diagnosticAggregateDistanceMeters = diagnosticAggregateStepEstimate?.estimatedDistanceMeters,
+            derivedAtEpochSecond = derivedAtParts.epochSecond,
+            derivedAtNano = derivedAtParts.nano,
+            activeActivityId = activityId.takeIf { isActive },
+            isActive = isActive,
+        )
+    }.getOrNull()
+}
+
+internal fun WorkoutDerivationSnapshot.toDerivedIntervalEntities(
+    snapshotId: String,
+    ids: Iterator<UUID>,
+): List<DerivedWorkoutIntervalEntity>? = canonicalSeries?.intervals?.map { interval ->
+    interval.toEntity(snapshotId, ids.next().toString()) ?: return null
+} ?: emptyList()
+
+private fun DerivedWorkoutInterval.toEntity(
+    snapshotId: String,
+    id: String,
+): DerivedWorkoutIntervalEntity? {
+    val startParts = effectiveWindow.start.toPersistedInstantPartsOrNull() ?: return null
+    val speedSampledAtParts = speedSampledAt.toPersistedInstantPartsOrNull() ?: return null
+    return runCatching {
+        DerivedWorkoutIntervalEntity(
+            id = id,
+            snapshotId = snapshotId,
+            intervalIndex = index,
+            effectiveStartEpochMillis = startParts.epochMillis,
+            effectiveStartEpochSecond = startParts.epochSecond,
+            effectiveStartNano = startParts.nano,
+            effectiveDurationNanos = effectiveDuration.toNanos(),
+            decodedSteps = decodedSteps,
+            canonicalIntervalDistanceMeters = canonicalIntervalDistanceMeters,
+            cadenceStepsPerMinute = metrics.cadenceStepsPerMinute,
+            speedMetersPerSecond = metrics.speedMetersPerSecond,
+            paceSecondsPerKilometer = metrics.paceSecondsPerKilometer,
+            cumulativeSteps = cumulativeSteps,
+            cumulativeDistanceMeters = cumulativeDistanceMeters,
+            cumulativeDurationNanos = cumulativeDuration.toNanos(),
+            cumulativeCadenceStepsPerMinute = cumulativeMetrics.cadenceStepsPerMinute,
+            cumulativeSpeedMetersPerSecond = cumulativeMetrics.speedMetersPerSecond,
+            cumulativePaceSecondsPerKilometer = cumulativeMetrics.paceSecondsPerKilometer,
+            speedSampledAtEpochMillis = speedSampledAtParts.epochMillis,
+            speedSampledAtEpochSecond = speedSampledAtParts.epochSecond,
+            speedSampledAtNano = speedSampledAtParts.nano,
+        )
+    }.getOrNull()
+}
+
+internal fun WorkoutSplit.toEntity(
+    id: String,
+    snapshotId: String,
+): WorkoutSplitEntity? {
+    val startParts = window.start.toPersistedInstantPartsOrNull() ?: return null
+    val endParts = window.end.toPersistedInstantPartsOrNull() ?: return null
+    return runCatching {
+        WorkoutSplitEntity(
+            id = id,
+            snapshotId = snapshotId,
+            splitNumber = number,
+            targetDistanceMeters = targetDistanceMeters,
+            windowStartEpochMillis = startParts.epochMillis,
+            windowStartEpochSecond = startParts.epochSecond,
+            windowStartNano = startParts.nano,
+            windowEndEpochMillis = endParts.epochMillis,
+            windowEndEpochSecond = endParts.epochSecond,
+            windowEndNano = endParts.nano,
+            distanceMeters = distanceMeters,
+            durationNanos = duration.toNanos(),
+            averageCadenceStepsPerMinute = averageCadenceStepsPerMinute,
+            averageSpeedMetersPerSecond = averageSpeedMetersPerSecond,
+            averagePaceSecondsPerKilometer = averagePaceSecondsPerKilometer,
+            averageBpm = averageBpm,
+            bpmCoveredDurationNanos = bpmCoveredDuration.toNanos(),
+        )
+    }.getOrNull()
+}
+
+internal fun DerivedWorkoutIntervalEntity.toDomain(
+    rawInterval: WorkoutIntervalEntity,
+    stepLengthMeters: Double,
+): DerivedWorkoutInterval? {
+    if (rawInterval.intervalIndex != intervalIndex || rawInterval.rawMotionValue == null ||
+        rawInterval.decodedSteps != decodedSteps
+    ) return null
+    val duration = runCatching { Duration.ofNanos(effectiveDurationNanos) }.getOrNull()
+        ?.takeUnless { it.isNegative || it.isZero } ?: return null
+    val start = exactPersistedInstant(
+        epochMillis = effectiveStartEpochMillis,
+        epochSecond = effectiveStartEpochSecond,
+        nano = effectiveStartNano,
+    ) ?: return null
+    val end = runCatching { start.plus(duration) }.getOrNull() ?: return null
+    val window = WorkoutIntervalWindow.create(start, end).successOrNull() ?: return null
+    val measured = MeasuredWorkoutInterval.create(
+        index = intervalIndex,
+        rawMotionValue = rawInterval.rawMotionValue,
+        decodedSteps = decodedSteps,
+        rawTemporalDistance = rawInterval.rawDistanceValue,
+        rawTemporalCalories = rawInterval.rawCaloriesValue,
+        effectiveDuration = duration,
+        effectiveWindow = window,
+    ).successOrNull() ?: return null
+    val cumulativeDuration = runCatching { Duration.ofNanos(cumulativeDurationNanos) }.getOrNull()
+        ?.takeUnless { it.isNegative || it.isZero } ?: return null
+    val mapped = DerivedWorkoutInterval.create(
+        measured = measured,
+        stepLengthMeters = stepLengthMeters,
+        cumulativeSteps = cumulativeSteps,
+        cumulativeDistanceMeters = cumulativeDistanceMeters,
+        cumulativeDuration = cumulativeDuration,
+    ).successOrNull() ?: return null
+    return mapped.takeIf {
+        it.canonicalIntervalDistanceMeters == canonicalIntervalDistanceMeters &&
+            it.metrics.cadenceStepsPerMinute == cadenceStepsPerMinute &&
+            it.metrics.speedMetersPerSecond == speedMetersPerSecond &&
+            it.metrics.paceSecondsPerKilometer == paceSecondsPerKilometer &&
+            it.cumulativeSteps == cumulativeSteps &&
+            it.cumulativeDistanceMeters == cumulativeDistanceMeters &&
+            it.cumulativeMetrics.cadenceStepsPerMinute == cumulativeCadenceStepsPerMinute &&
+            it.cumulativeMetrics.speedMetersPerSecond == cumulativeSpeedMetersPerSecond &&
+            it.cumulativeMetrics.paceSecondsPerKilometer == cumulativePaceSecondsPerKilometer &&
+            exactPersistedInstant(
+                epochMillis = speedSampledAtEpochMillis,
+                epochSecond = speedSampledAtEpochSecond,
+                nano = speedSampledAtNano,
+            ) == it.speedSampledAt
+    }
+}
+
+internal fun WorkoutSplitEntity.toDomain(): WorkoutSplit? {
+    if (splitNumber <= 0 || !targetDistanceMeters.isFinite() || targetDistanceMeters <= 0.0 ||
+        !distanceMeters.isFinite() || distanceMeters <= 0.0 ||
+        !averageCadenceStepsPerMinute.isFinite() || averageCadenceStepsPerMinute < 0.0 ||
+        !averageSpeedMetersPerSecond.isFinite() || averageSpeedMetersPerSecond < 0.0 ||
+        averagePaceSecondsPerKilometer?.let { !it.isFinite() || it <= 0.0 } == true ||
+        averageBpm?.let { !it.isFinite() || it <= 0.0 } == true ||
+        bpmCoveredDurationNanos < 0L
+    ) return null
+    val duration = runCatching { Duration.ofNanos(durationNanos) }.getOrNull()
+        ?.takeUnless { it.isNegative || it.isZero } ?: return null
+    val bpmCoveredDuration = runCatching { Duration.ofNanos(bpmCoveredDurationNanos) }.getOrNull()
+        ?.takeUnless { it.isNegative } ?: return null
+    if (bpmCoveredDuration > duration ||
+        (bpmCoveredDuration.isZero && averageBpm != null) ||
+        (!bpmCoveredDuration.isZero && averageBpm == null)
+    ) return null
+    val window = WorkoutIntervalWindow.create(
+        exactPersistedInstant(windowStartEpochMillis, windowStartEpochSecond, windowStartNano) ?: return null,
+        exactPersistedInstant(windowEndEpochMillis, windowEndEpochSecond, windowEndNano) ?: return null,
+    ).successOrNull() ?: return null
+    if (window.duration != duration) return null
+    return WorkoutSplit(
+        number = splitNumber,
+        targetDistanceMeters = targetDistanceMeters,
+        window = window,
+        distanceMeters = distanceMeters,
+        duration = duration,
+        averageCadenceStepsPerMinute = averageCadenceStepsPerMinute,
+        averageSpeedMetersPerSecond = averageSpeedMetersPerSecond,
+        averagePaceSecondsPerKilometer = averagePaceSecondsPerKilometer,
+        averageBpm = averageBpm,
+        bpmCoveredDuration = bpmCoveredDuration,
+    )
+}
+
+internal fun WorkoutDerivationRecord.toDomain(
+    activityOrigin: WorkoutActivityOrigin,
+    activityStartedAt: Instant,
+    activityDurationNanos: Long,
+    rawIntervals: List<WorkoutIntervalEntity>,
+    heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
+): WorkoutDerivationSnapshot? = snapshot.toDomain(
+    activityOrigin = activityOrigin,
+    activityStartedAt = activityStartedAt,
+    activityDurationNanos = activityDurationNanos,
+    rawIntervals = rawIntervals,
+    derivedIntervals = intervals,
+    splits = splits,
+    heartRateSamples = heartRateSamples,
+)
+
+internal fun WorkoutDerivationSnapshotEntity.toDomain(
+    activityOrigin: WorkoutActivityOrigin,
+    activityStartedAt: Instant,
+    activityDurationNanos: Long,
+    rawIntervals: List<WorkoutIntervalEntity>,
+    derivedIntervals: List<DerivedWorkoutIntervalEntity>,
+    splits: List<WorkoutSplitEntity>,
+    heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
+): WorkoutDerivationSnapshot? {
+    if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+        activityDurationNanos != totalDurationNanos
+    ) return null
+    if ((isActive && activeActivityId != activityId) || (!isActive && activeActivityId != null)) return null
+    val source = enum<StepLengthSource>(stepLengthSource) ?: return null
+    val method = enum<WorkoutDerivationMethod>(derivationMethod) ?: return null
+    val durationCase = enum<WorkoutDurationCase>(durationCase) ?: return null
+    val eligibility = enum<TemporalSeriesEligibility>(temporalEligibility) ?: return null
+    val policy = enum<WorkoutPlausibilityPolicy>(plausibilityPolicy) ?: return null
+    val reasons = decodeEnumSet<TemporalSeriesValidationReason>(temporalEligibilityReasons) ?: return null
+    val indicators = decodeEnumSet<WorkoutPlausibilityIndicator>(plausibilityIndicators) ?: return null
+    if (nominalIntervalDurationNanos != WorkoutDurationResolver.DEFAULT_INTERVAL_DURATION.toNanos()) return null
+    val persistedDerivedAt = exactPersistedInstant(derivedAtEpochMillis, derivedAtEpochSecond, derivedAtNano)
+        ?: return null
+    if (rawIntervals.any { it.activityId != activityId } ||
+        derivedIntervals.any { it.snapshotId != id } ||
+        splits.any { it.snapshotId != id }
+    ) return null
+
+    var nextWindowStart = activityStartedAt
+    val measuredIntervals = rawIntervals.map { entity ->
+        val measured = entity.toMeasuredWorkoutInterval(effectiveWindowStart = nextWindowStart)
+            ?: return null
+        entity.effectiveDurationNanos?.let { nanos ->
+            nextWindowStart = runCatching { nextWindowStart.plusNanos(nanos) }.getOrNull() ?: return null
+        }
+        measured
+    }
+    val totalSteps = when {
+        diagnosticAggregateTotalSteps == null && diagnosticAggregateStepLengthMeters == null &&
+            diagnosticAggregateDistanceMeters == null -> null
+        diagnosticAggregateTotalSteps == null || diagnosticAggregateStepLengthMeters == null ||
+            diagnosticAggregateDistanceMeters == null -> return null
+        else -> diagnosticAggregateTotalSteps
+    }
+    val snapshot = WorkoutDerivationSnapshot.derive(
+        intervals = measuredIntervals,
+        totalDuration = runCatching { Duration.ofNanos(totalDurationNanos) }.getOrNull() ?: return null,
+        sessionStartedAt = activityStartedAt,
+        stepLengthMeters = stepLengthMetersUsed,
+        stepLengthSource = source,
+        derivationVersion = derivationVersion,
+        derivedAt = persistedDerivedAt,
+        totalSteps = totalSteps,
+        plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
+    ).successOrNull() ?: return null
+    val temporal = snapshot.temporalResolution
+    if (rawIntervals.size != temporal.intervals.size || rawIntervals.zip(temporal.intervals).any { (entity, resolved) ->
+            entity.effectiveDurationNanos == null ||
+                entity.effectiveDurationNanos != resolved.effectiveDuration?.toNanos()
+        }
+    ) return null
+    if (snapshot.derivationMethod != method || temporal.durationCase != durationCase ||
+        temporal.eligibility != eligibility || temporal.reasons != reasons ||
+        temporal.tailUncovered.toNanos() != tailUncoveredNanos ||
+        snapshot.canonicalDistanceMeters != canonicalDistanceMeters ||
+        snapshot.canonicalSeries?.coveredDuration?.toNanos() != canonicalCoveredDurationNanos
+    ) return null
+    val diagnostic = snapshot.diagnosticAggregateStepEstimate
+    if (diagnostic?.totalSteps != diagnosticAggregateTotalSteps ||
+        diagnostic?.stepLengthMetersUsed != diagnosticAggregateStepLengthMeters ||
+        diagnostic?.estimatedDistanceMeters != diagnosticAggregateDistanceMeters
+    ) return null
+
+    val canonicalSeries = snapshot.canonicalSeries
+    if (canonicalSeries == null) {
+        if (derivedIntervals.isNotEmpty() || splits.isNotEmpty()) return null
+        return snapshot
+    }
+    val canonicalIntervals = canonicalSeries.intervals
+    if (derivedIntervals.size != canonicalIntervals.size) return null
+    val rawByIndex = rawIntervals.associateBy { it.intervalIndex }
+    val mappedIntervals = derivedIntervals.map { entity ->
+        entity.toDomain(rawByIndex[entity.intervalIndex] ?: return null, stepLengthMetersUsed)
+            ?: return null
+    }
+    if (mappedIntervals.map { it.index } != canonicalIntervals.map { it.index }) return null
+    if (mappedIntervals.zip(canonicalIntervals).any { (mapped, expected) -> mapped != expected }) return null
+
+    val mappedSplits = splits.map { entity ->
+        entity.toDomain() ?: return null
+    }
+    val completeSplitCount = (snapshot.canonicalDistanceMeters ?: return null)
+        .let { distance ->
+            val count = distance / 1_000.0
+            if (!count.isFinite() || count > Int.MAX_VALUE) return null
+            count.toInt()
+        }
+    if (mappedSplits.size != completeSplitCount) return null
+    val expectedSplits = WorkoutSplitCalculator.calculate(canonicalSeries, heartRateSamples)
+    if (mappedSplits != expectedSplits) return null
+    return snapshot
 }
 
 internal fun WorkoutActivity.toHeartRateSamples(activityId: String, ids: Iterator<UUID>) = heartRateSamples.map {
@@ -912,6 +1296,39 @@ private fun WorkoutActivityEntity.calibratedMetricsOrNull(): CalibratedWorkoutMe
         averagePaceSecondsPerKilometer = calibratedAveragePaceSecondsPerKilometer.domainValue(),
         averageSpeedMetersPerSecond = calibratedAverageSpeedMetersPerSecond.domainValue(),
     )
+}
+
+private fun <T : Enum<T>> Set<T>.encodeEnumNames(): String? = map { it.name }
+    .sorted()
+    .takeIf { it.isNotEmpty() }
+    ?.joinToString("|")
+
+private inline fun <reified T : Enum<T>> decodeEnumSet(value: String?): Set<T>? {
+    if (value.isNullOrEmpty()) return emptySet()
+    val names = value.split('|')
+    if (names.any(String::isEmpty) || names != names.distinct() || names != names.sorted()) return null
+    return names.map { enum<T>(it) ?: return null }.toSet()
+}
+
+private data class PersistedInstantParts(
+    val epochMillis: Long,
+    val epochSecond: Long,
+    val nano: Int,
+)
+
+private fun Instant.toPersistedInstantPartsOrNull(): PersistedInstantParts? = runCatching {
+    PersistedInstantParts(
+        epochMillis = toEpochMilli(),
+        epochSecond = epochSecond,
+        nano = nano,
+    )
+}.getOrNull()
+
+private fun exactPersistedInstant(epochMillis: Long, epochSecond: Long, nano: Int): Instant? {
+    if (nano !in 0 until 1_000_000_000) return null
+    return runCatching { Instant.ofEpochSecond(epochSecond, nano.toLong()) }
+        .getOrNull()
+        ?.takeIf { it.toEpochMilli() == epochMillis }
 }
 
 private fun WorkoutActivityOrigin.toDataOrigin(): DataOrigin = when (this) {

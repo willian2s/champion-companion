@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 2/16 subtarefas concluídas
+- **Progresso:** 3/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -29,7 +29,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 
 - [x] [014-01-audit-d4-interval-layout-and-consumers.md](014-01-audit-d4-interval-layout-and-consumers.md)
 - [x] [014-02-define-temporal-and-derived-metrics-contracts.md](014-02-define-temporal-and-derived-metrics-contracts.md)
-- [ ] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
+- [x] [014-03-migrate-room-for-interval-and-derivation-metadata.md](014-03-migrate-room-for-interval-and-derivation-metadata.md)
 - [ ] [014-04-correct-d4-interval-step-decoding.md](014-04-correct-d4-interval-step-decoding.md)
 - [ ] [014-05-resolve-effective-interval-duration.md](014-05-resolve-effective-interval-duration.md)
 - [ ] [014-06-persist-and-edit-personal-step-length.md](014-06-persist-and-edit-personal-step-length.md)
@@ -104,15 +104,16 @@ docs/integration/014-01-d4-layout-and-consumer-audit.md
 
 Esses resultados são entrada obrigatória de `014-02`.
 
-## Migrações planejadas
+## Migrações
 
-- `014-03`: evolução aditiva local após `v8` para perfil, raw/measured,
+- `014-03`: evolução aditiva local `v8→v9` concluída para perfil, raw/measured,
   compatibilidade `d4-v1`, duração e snapshot derivado.
 - `014-12`: evolução aditiva posterior para manifesto, `projectionChildKey`,
   payload congelado, ações e checkpoints Health Connect.
 
-A versão efetiva de cada migration será registrada após a implementação. Não há
-derivação, mudança de workflow ou efeito remoto durante upgrade.
+A migration local efetiva é `MIGRATION_8_9`; não há derivação, mudança de
+workflow ou efeito remoto durante upgrade. A migration de projeções Health
+Connect continua pendente.
 
 ## Observações
 
@@ -129,3 +130,12 @@ derivação, mudança de workflow ou efeito remoto durante upgrade.
   aprovados. `SPEED` permanece sem writer por guarda fail-closed. A guarda exigiu
   alteração mínima em `core/healthconnect`, fora da lista original de arquivos
   permitidos, para manter compilação após adicionar o enum.
+- `014-03` concluiu migration manual `8→9`, schema Room v9, ponte raw controlada
+  `d4-v1`, perfil de comprimento do passo e persistência local de snapshot,
+  intervalos derivados e splits. Instalação limpa usa índice UNIQUE de
+  `activeActivityId`; filhos apontam somente para `snapshotId`; timestamps
+  derivados preservam nanos. Importações `d4-v1` também preservam raw após
+  upgrade; `persistImported` não cria nem recalcula snapshot.
+  `lint`, builds debug/release e `installDebug` passaram. Projeções Health
+  Connect continuam pendentes para `014-12`; nenhuma outra subtarefa foi
+  iniciada.

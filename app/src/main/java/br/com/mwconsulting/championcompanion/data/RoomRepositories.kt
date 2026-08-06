@@ -145,6 +145,10 @@ class RoomRepositories @Inject constructor(
                 emit(PersonalMetricsSnapshot())
                 return@transformLatest
             }
+            val profileDomain = profile.toDomain() ?: run {
+                emit(PersonalMetricsSnapshot())
+                return@transformLatest
+            }
             database.userProfileDao().observeLatestWeight(profile.id)
                 .map { weight ->
                     PersonalMetricsSnapshot(
@@ -153,6 +157,7 @@ class RoomRepositories @Inject constructor(
                         latestWeightMeasuredAt = weight?.measuredAtEpochMillis?.let(Instant::ofEpochMilli),
                         latestWeightOrigin = weight?.origin?.let { enumValueOfOrNull<DataOrigin>(it) },
                         manualStrideLengthMeters = null,
+                        stepLengthProfile = profileDomain.stepLengthProfile,
                     )
                 }
                 .collect { emit(it) }

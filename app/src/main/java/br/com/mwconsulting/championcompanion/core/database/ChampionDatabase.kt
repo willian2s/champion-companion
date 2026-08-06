@@ -81,6 +81,9 @@ data class DeviceAssociationEntity(
 data class UserProfileEntity(
     @PrimaryKey val id: String,
     val heightCentimeters: Double?,
+    val stepLengthMeters: Double? = null,
+    val stepLengthSource: String? = null,
+    val stepLengthUpdatedAtEpochMillis: Long? = null,
     val updatedAtEpochMillis: Long,
 )
 
@@ -272,6 +275,126 @@ data class WorkoutIntervalEntity(
     val steps: Long,
     val distanceMeters: Double?,
     val caloriesKilocalories: Double?,
+    val rawMotionValue: Long? = null,
+    val rawDistanceValue: Long? = null,
+    val rawCaloriesValue: Long? = null,
+    val decodedSteps: Long? = null,
+    val effectiveDurationNanos: Long? = null,
+    val temporalEligibilityReason: String? = null,
+    val plausibilityStatus: String? = null,
+)
+
+@Entity(
+    tableName = "workout_derivation_snapshots",
+    foreignKeys = [ForeignKey(
+        entity = WorkoutActivityEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["activityId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [
+        Index(value = ["activityId"]),
+        Index(value = ["activityId", "derivedAtEpochMillis"]),
+        Index(value = ["activeActivityId"], unique = true),
+    ],
+)
+data class WorkoutDerivationSnapshotEntity(
+    @PrimaryKey val id: String,
+    val activityId: String,
+    val stepLengthMetersUsed: Double,
+    val stepLengthSource: String,
+    val derivationMethod: String,
+    val derivationVersion: String,
+    val derivedAtEpochMillis: Long,
+    val durationCase: String,
+    val totalDurationNanos: Long,
+    val nominalIntervalDurationNanos: Long,
+    val tailUncoveredNanos: Long,
+    val temporalEligibility: String,
+    val temporalEligibilityReasons: String?,
+    val plausibilityPolicy: String,
+    val plausibilityIndicators: String?,
+    val canonicalDistanceMeters: Double?,
+    val canonicalCoveredDurationNanos: Long?,
+    val diagnosticAggregateTotalSteps: Long?,
+    val diagnosticAggregateStepLengthMeters: Double?,
+    val diagnosticAggregateDistanceMeters: Double?,
+    val derivedAtEpochSecond: Long,
+    val derivedAtNano: Int,
+    val activeActivityId: String? = null,
+    @ColumnInfo(defaultValue = "0") val isActive: Boolean = false,
+)
+
+@Entity(
+    tableName = "workout_derived_intervals",
+    foreignKeys = [
+        ForeignKey(
+            entity = WorkoutDerivationSnapshotEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["snapshotId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["snapshotId", "intervalIndex"], unique = true),
+    ],
+)
+data class DerivedWorkoutIntervalEntity(
+    @PrimaryKey val id: String,
+    val snapshotId: String,
+    val intervalIndex: Int,
+    val effectiveStartEpochMillis: Long,
+    val effectiveStartEpochSecond: Long,
+    val effectiveStartNano: Int,
+    val effectiveDurationNanos: Long,
+    val decodedSteps: Long,
+    val canonicalIntervalDistanceMeters: Double,
+    val cadenceStepsPerMinute: Double,
+    val speedMetersPerSecond: Double,
+    val paceSecondsPerKilometer: Double?,
+    val cumulativeSteps: Long,
+    val cumulativeDistanceMeters: Double,
+    val cumulativeDurationNanos: Long,
+    val cumulativeCadenceStepsPerMinute: Double,
+    val cumulativeSpeedMetersPerSecond: Double,
+    val cumulativePaceSecondsPerKilometer: Double?,
+    val speedSampledAtEpochMillis: Long,
+    val speedSampledAtEpochSecond: Long,
+    val speedSampledAtNano: Int,
+)
+
+@Entity(
+    tableName = "workout_splits",
+    foreignKeys = [
+        ForeignKey(
+            entity = WorkoutDerivationSnapshotEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["snapshotId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["snapshotId", "splitNumber"], unique = true),
+    ],
+)
+data class WorkoutSplitEntity(
+    @PrimaryKey val id: String,
+    val snapshotId: String,
+    val splitNumber: Int,
+    val targetDistanceMeters: Double,
+    val windowStartEpochMillis: Long,
+    val windowStartEpochSecond: Long,
+    val windowStartNano: Int,
+    val windowEndEpochMillis: Long,
+    val windowEndEpochSecond: Long,
+    val windowEndNano: Int,
+    val distanceMeters: Double,
+    val durationNanos: Long,
+    val averageCadenceStepsPerMinute: Double,
+    val averageSpeedMetersPerSecond: Double,
+    val averagePaceSecondsPerKilometer: Double?,
+    val averageBpm: Double?,
+    val bpmCoveredDurationNanos: Long,
 )
 
 @Entity(
@@ -537,6 +660,9 @@ class ChampionDatabaseConverters {
         WorkoutActivityEntity::class,
         WatchWorkoutImportEntity::class,
         WorkoutIntervalEntity::class,
+        WorkoutDerivationSnapshotEntity::class,
+        DerivedWorkoutIntervalEntity::class,
+        WorkoutSplitEntity::class,
         WorkoutHeartRateSampleEntity::class,
         TreadmillCalibrationEntity::class,
         AppWorkoutSessionEntity::class,
@@ -546,7 +672,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 8,
+    version = 9,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -567,6 +693,7 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun workoutActivityDao(): WorkoutActivityDao
     abstract fun watchWorkoutImportDao(): WatchWorkoutImportDao
     abstract fun workoutDetailDao(): WorkoutDetailDao
+    abstract fun workoutDerivationDao(): WorkoutDerivationDao
     abstract fun treadmillCalibrationDao(): TreadmillCalibrationDao
     abstract fun appWorkoutSessionDao(): AppWorkoutSessionDao
     abstract fun workoutRouteDao(): WorkoutRouteDao
