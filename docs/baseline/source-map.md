@@ -41,7 +41,7 @@ Mapa entre código MotionLog baseline `feat/015-watch-workouts-d3-d4` no commit 
 | Importação treinos D3/D4 | `watch-workout-sync.ts`; `watch-workout-parser.ts`; `watch-workout-import-adapter.ts`; `watch-workout-repository.ts` | Índice CRC, download, remontagem, parser, deduplicação e persistência | `core/bluetooth`; `core/database`; `feature/exercises` | `workouts-d3-d4.md`; `database-reference.md` | Confirmado pelo código | Fixtures físicas, completude de bloco e variações firmware pendentes. |
 | Revisão treino relógio | `watch-workout-review-card.tsx`; `pending-review-banner.tsx`; `watch-workout-repository.ts`; rotas `exercises/[id].tsx` | Exibe pendência, edita tipo/distância, revisa, descarta e abre calibração | `feature/exercises`; `feature/activitydetail`; `core/database` | `workouts-d3-d4.md`; `feature-inventory.md` | Confirmado pelo código | Modelo final de edição e descarte Android pendente. |
 | Health Connect e fila | `src/app/(tabs)/health/integration.tsx`; `src/lib/health-connect/`; `health-connect-sync-repository.ts` | Disponibilidade, permissões, records, fila, sync manual e retry | `core/healthconnect`; `core/database`; `feature/heart`; `feature/profile` | `health-connect-mapping.md`; `database-reference.md` | Confirmado pelo código | IDs Champion, versão, backoff e recuperação parcial pendentes. |
-| Sync manual D3/D4 Health Connect | `health-connect/watch-workout-sync.ts`; `watch-workout-sync-rules.ts`; `exercise-sync-records.ts` | Bloqueia envio sem revisão/válido/calibração; envia sessão e complementos | `core/healthconnect`; `feature/activitydetail`; `feature/exercises` | `workouts-d3-d4.md`; `health-connect-mapping.md`; ADR-018 | Baseline confirmada; granularidade futura planejada na Fase 014 |
+| Sync manual D3/D4 Health Connect | `health-connect/watch-workout-sync.ts`; `watch-workout-sync-rules.ts`; `exercise-sync-records.ts` | Bloqueia envio sem revisão/válido/calibração; envia sessão e complementos | `core/healthconnect`; `feature/activitydetail`; `feature/exercises` | `workouts-d3-d4.md`; `health-connect-mapping.md`; ADR-018 | Baseline confirmada; granularidade futura planejada na Fase 014 | |
 | Background BLE e estado operacional | `src/lib/background-ble/index.ts`; `background-monitoring-repository.ts`; `android/app/src/main/java/com/motionlog/app/MotionLogBackgroundBleService.kt`; `MotionLogBackgroundBleModule.kt`; `MotionLogBackgroundBleStateStore.kt` | Serviço nativo MotionLog, estado, logs, eventos e sync oportunista | `core/bluetooth`; `core/database`; `core/notifications`; `feature/diagnostics` | `ble-transport.md`; `history-d1.md`; `database-reference.md` | Confirmado pelo código | Roadmap altera estratégia: sem BLE permanente, D1 ao abrir ou retry infinito. Scheduler futuro pendente. |
 | Diagnósticos D8/A8 | `champion-commands.ts`; `champion-client.ts`; docs protocolo MotionLog | Mantém comandos sem fluxo/parsers confirmados | `core/bluetooth`; `feature/diagnostics` | `diagnostics-d8-a8.md`; `ble-command-mapping.md` | Parcial: constantes confirmadas; utilidade não confirmada | Exige fixture e validação física antes de virar fluxo produto. |
 | Persistência e migrations legadas | `src/lib/repositories/database/{connection,bootstrap,migrations}.ts`; repositórios e modelos | SQLite, schema, transações, deduplicação e dados operacionais | `core/database` | `database-reference.md`; `feature-inventory.md` | Confirmado pelo código | Banco novo inicia vazio; entidades, exclusões e retenção finais pendentes. |
@@ -58,6 +58,59 @@ Mapa entre código MotionLog baseline `feat/015-watch-workouts-d3-d4` no commit 
   autorizada somente na sessão explícita F13 de caminhada/corrida, sem logs,
   exportação ou servidor. Não expandir essa autorização.
 - `feature/diagnostics` abriga apenas ações diagnósticas confirmadas futuramente; D8/A8 não são fluxo principal atual.
+
+## Auditoria factual Champion Companion — 014-01
+
+O relatório completo está em
+`docs/integration/014-01-d4-layout-and-consumer-audit.md`.
+
+### Cadeia atual D4
+
+```text
+ChampionD4WorkoutBlockProtocol
+  → ChampionD4WorkoutParser
+  → WatchWorkoutParserInput
+  → WorkoutActivity / WorkoutInterval
+  → RoomRepositories.persistImported
+  → WorkoutActivityEntity / WorkoutIntervalEntity
+  → ExercisesScreen / calendário / HealthRecordMapper
+```
+
+### Símbolos e responsabilidade encontrados
+
+| Área | Símbolos atuais | Fato relevante para a Fase 014 |
+| --- | --- | --- |
+| Transporte | `ChampionD4WorkoutBlockProtocol.BlockCollector` | Registra pacotes ausentes e duplicados; preserva pacotes e ordena por índice. |
+| Parser | `ChampionD4WorkoutParser.parseSamplePacket` | Lê o u24 `bytes[7..9]` inteiro como passos no parser `d4-v1`. |
+| Versionamento | `ChampionWatchWorkoutImportCoordinator.parserVersion` | Valor de produção atual: `d4-v1`. |
+| Domínio | `WorkoutInterval`, `WorkoutMetrics`, `WorkoutActivity` | Mistura fatos de origem, interpretações e métricas; não possui raw separado nem snapshot derivado. |
+| Persistência | `WorkoutIntervalEntity`, `WatchWorkoutImportEntity` | `steps` legado conserva integralmente o u24 e a importação conserva `parserVersion`. |
+| Reimportação | `RoomRepositories.persistImported` | Substitui intervalos e BPM da atividade dentro da persistência da reimportação. |
+| UI | `WorkoutDistanceMetrics.toDistanceLabel`, `detailMetricItems` | Prioriza calibrada/original/estimada e exibe ritmo/velocidade importados. |
+| Calendário | `CalendarWorkoutSummaryRecord.toCalendarSummary` | Prioriza calibrada/original/estimada. |
+| Workflow | `WorkoutActivity.confirmReview` | Todo `TREADMILL`, inclusive `WATCH_D3_D4`, entra em `PENDING_CALIBRATION`. |
+| Health Connect | `HealthRecordMapper.mapWorkoutDistance` | Produz um único `DistanceRecord` agregado usando calibrada/original/estimada. |
+| Fila | `HealthSyncOperationKey`, `HealthConnectSyncCoordinator` | Uma chave por agregado/tipo e um record inserido por operação; não há filho de atividade. |
+
+### Ponte de compatibilidade confirmada
+
+Para `WATCH_D3_D4` com `parserVersion == d4-v1`, o valor existente em
+`WorkoutIntervalEntity.steps` pode ser copiado para `rawMotionValue` pela
+migration aditiva. A migration não deve deslocar bits, derivar passos ou alterar
+workflow. Versões desconhecidas falham fechadas.
+
+### Bloqueadores da série V1
+
+- índice inicial diferente de zero;
+- lacuna;
+- duplicata;
+- ordem inconsistente;
+- duração incompatível;
+- ausência de comprimento do passo confirmado;
+- plausibilidade reprovada pela política que será fechada em `014-02`.
+
+Distância e calorias temporais atuais continuam classificadas como raw porque a
+unidade e a semântica no dispositivo não foram comprovadas.
 
 ## Lacunas históricas e planejamento Fase 014
 
@@ -77,8 +130,11 @@ Mapa entre código MotionLog baseline `feat/015-watch-workouts-d3-d4` no commit 
 - `docs/baseline/database-reference.md`
 - `docs/baseline/health-connect-mapping.md`
 - `docs/protocol/*.md`
+- `docs/integration/014-01-d4-layout-and-consumer-audit.md`
 - Caminhos MotionLog citados na tabela.
 
 ## Limites
 
-Nenhum código Android foi implementado. Nenhuma classe Kotlin foi nomeada. `motionlog-app` foi somente lido.
+A seção histórica do MotionLog não afirma implementação Android futura. A seção
+014-01 apenas documenta código Champion Companion existente; nenhum código,
+schema, migration ou teste foi alterado ou executado durante a auditoria.
