@@ -1803,18 +1803,22 @@ class RoomRepositories @Inject constructor(
         ) { allEntities, candidateIndex ->
             val mappedOperations = allEntities.map { entity ->
                 MappedHealthSyncOperation(
+                    aggregate = entity.toAggregateOrNull(),
                     operation = entity.toDomain(),
                     hasSupportedPair = entity.hasSupportedHealthSyncPair(),
                 )
             }
-            val validOperations = mappedOperations.mapNotNull { mapping ->
+            val scopedOperations = mappedOperations.filter { mapping ->
+                mapping.aggregate?.let(aggregates::contains) == true
+            }
+            val validOperations = scopedOperations.mapNotNull { mapping ->
                 mapping.operation?.takeIf {
                     mapping.hasSupportedPair && !it.isBlockedWatchWorkoutOperation(candidateIndex)
                 }
             }
             HealthSyncQueueObservation(
-                operations = validOperations.filter { it.key.aggregate in aggregates },
-                hasInvalidOperation = mappedOperations.any { !it.isValid },
+                operations = validOperations,
+                hasInvalidOperation = scopedOperations.any { !it.isValid },
                 hasUnresolvedAggregate = validOperations.any { operation ->
                     !isSemanticallyResolved(operation, candidateIndex)
                 },
@@ -3384,6 +3388,7 @@ class RoomRepositories @Inject constructor(
 }
 
 private data class MappedHealthSyncOperation(
+    val aggregate: HealthSyncAggregate?,
     val operation: HealthSyncOperation?,
     val hasSupportedPair: Boolean,
 ) {
