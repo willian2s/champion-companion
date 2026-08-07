@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Número:** `15`
-- **Status:** blocked
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -129,16 +129,18 @@ históricas.
 
 ## Registro de execução
 
-### Arquivos alterados
+### Arquivos alterados nesta consolidação documental
 
 - `docs/integration/014-15-physical-validation.md`;
-- `docs/integration/014-15-physical-validation-evidence/import-summary.png`;
-- `docs/integration/014-15-physical-validation-evidence/health-connect-summary.png`;
-- `docs/integration/014-15-physical-validation-evidence/reprocess-confirmation.png`;
-- `docs/integration/014-15-physical-validation-evidence/reprocess-blocked.png`;
 - `docs/integration/014-15-health-connect-provider-follow-up.md`;
 - este arquivo;
 - `014-00-overview.md`.
+
+As evidências visuais previamente registradas permanecem em
+`docs/integration/014-15-physical-validation-evidence/`, incluindo
+`import-summary.png`, `health-connect-summary.png`,
+`reprocess-confirmation.png`, `reprocess-blocked.png` e os registros da
+revalidação após `014-17`.
 
 Nenhum arquivo de produção, Gradle, manifesto, migration ou schema foi alterado.
 
@@ -148,16 +150,24 @@ Nenhum arquivo de produção, Gradle, manifesto, migration ou schema foi alterad
   `debug` instalado localmente.
 - Dados exibidos na evidência foram reduzidos a contagens, estados e métricas
   necessárias; BPM e identificadores foram omitidos da documentação textual.
-- A subtarefa permanece `blocked`, pois a sessão não ofereceu fixture controlada
-  para lacuna/duplicata/duração residual/plausibilidade nem atividade legada não
-  sincronizada recuperável.
+- A tentativa inicial permaneceu bloqueada porque a sessão não ofereceu fixture
+  controlada para lacuna/duplicata/duração residual/plausibilidade nem atividade
+  legada não sincronizada recuperável. Esse registro é histórico; não representa
+  bloqueio ativo após a revalidação.
 - Reprocessamento de atividade já sincronizada foi confirmado até a mensagem de
   bloqueio, sem criar operação Health Connect ou alterar snapshot.
-- Acesso posterior ao Health Connect real não encontrou os records esperados de
-  distância e velocidade; velocidade estava sem permissão. O sucesso exibido pelo
-  aplicativo comprova somente estado local da fila. Gate F é `FAIL` bloqueador e
-  follow-up foi aberto em
-  `docs/integration/014-15-health-connect-provider-follow-up.md`.
+- Acesso inicial posterior ao Health Connect real não encontrou os records
+  esperados de distância e velocidade; velocidade estava sem permissão. O
+  sucesso exibido pelo aplicativo comprovava somente estado local da fila. Esse
+  fato abriu o follow-up funcional em
+  `docs/integration/014-15-health-connect-provider-follow-up.md` e permanece
+  registrado como histórico da causa do escalonamento.
+- Após `014-17`, ambas as permissões foram concedidas no package debug correto e
+  o provider exibiu `DistanceRecord` e `SpeedRecord`. Revogações isoladas de
+  `WRITE_SPEED` e `WRITE_DISTANCE` produziram falhas parciais nomeadas; após
+  reautorização, os retries foram idempotentes e não houve duplicação observada.
+- Gate F foi aprovado somente para esses cenários exercitados. A observação
+  manual do provider não foi transformada em leitura pelo aplicativo.
 
 ### Comandos executados e interação física
 
@@ -184,9 +194,10 @@ Não foram criados nem executados testes automatizados.
   inválidos e 1 pulado; uma atividade ficou aguardando revisão.
 - Revisão local mostrou derivação canônica, série, métricas, intervalos, BPM e
   splits.
-- Sync explícito Health Connect foi marcado como sucesso local; resumo posterior
-  mostrou 13 atividades sincronizadas e 0 com erro, mas o provider real não
-  exibiu distância/velocidade e velocidade estava sem permissão.
+- Na tentativa inicial, sync explícito Health Connect foi marcado como sucesso
+  local; resumo posterior mostrou 13 atividades sincronizadas e 0 com erro, mas
+  o provider real não exibiu distância/velocidade e velocidade estava sem
+  permissão. Esse resultado é histórico e foi superado pela revalidação final.
 - Reprocessamento legado exibiu confirmação específica e terminou fechado,
   preservando operação e snapshot quando suporte futuro era necessário.
 - Após reinício do aplicativo, dados locais permaneceram disponíveis.
@@ -196,18 +207,36 @@ Não foram criados nem executados testes automatizados.
 
 Evidência detalhada: `docs/integration/014-15-physical-validation.md`.
 
+### Resultado consolidado dos gates
+
+- Gate A: `PASS` para importação explícita e cadeia física exercitada; a soma de
+  `3.737` passos e campos raw permanecem sustentados pela evidência estática das
+  subtarefas anteriores, sem leitura ampla pelo app.
+- Gates B, C, D, E e G: `N/A`, pelas justificativas factuais já registradas na
+  evidência: ausência de fixtures controladas para índices/duração/plausibilidade,
+  sugestão por altura, cenário `TREADMILL`, legado não sincronizado e repetição
+  integral da regressão, respectivamente.
+- Gate F: `PASS` para os cenários exercitados: permissões concedidas com
+  `DistanceRecord`/`SpeedRecord` visíveis no provider; revogação isolada de cada
+  permissão com falha parcial nomeada; retry após reautorização sem duplicação
+  observada.
+- Status final da subtarefa: `completed`. `014-16` continua pendente e não foi
+  alterada.
+
 ### Riscos residuais
 
-- Falta fixture física para testar falha fechada de índices, duração `1.637 s`,
-  plausibilidade e retry/falha parcial do Health Connect.
+- Falta fixture física para testar falha fechada de índices, duração `1.637 s` e
+  plausibilidade.
 - Sugestão de comprimento baseada em altura não foi aceita fisicamente.
-- Reprocessamento de legado sincronizado continua bloqueado por suporte futuro de
-  projeção; não foi aplicada correção funcional dentro desta task.
-- Gate F está bloqueado por divergência entre sucesso local e ausência de
-  `DistanceRecord`/`SpeedRecord` observável no Health Connect; velocidade requer
-  permissão ausente. Correção pertence a follow-up funcional.
+- Reprocessamento de legado sincronizado não foi concluído fisicamente por exigir
+  suporte futuro de projeção; não foi aplicada correção funcional dentro desta
+  task.
+- O provider foi observado manualmente; o app continua write-only e não declara
+  confirmação remota por leitura.
+- A matriz física cobre os cenários exercitados de autorização, falha parcial e
+  retry, não todos os fixtures sintéticos dos Gates B, C, D, E e G.
 
-### Revalidação parcial após 014-17
+### Revalidação final após 014-17
 
 - Nova limpeza de dados, configuração manual de `0,8818 m`, importação explícita
   de 3 treinos e revisão com aceite explícito foram concluídas no Galaxy S22.
@@ -216,10 +245,10 @@ Evidência detalhada: `docs/integration/014-15-physical-validation.md`.
   velocidade para `Champion Companion Dev`.
 - `WRITE_SPEED` foi revogada isoladamente; Settings exibiu `Velocidade —
   Pendente`. A permissão foi restaurada pelo fluxo explícito `Conectar`.
-- Gate F deixa de ter o bloqueio inicial de ausência de records para esse caso,
-  mas permanece inconclusivo para falha parcial e retry. A segunda corrida tinha
-  duração zero e não materializou derivação após reprocessamento explícito.
-- `014-15` permanece `blocked`; não marcar checklist nem encerrar fase.
+- O bloqueio inicial de ausência de records foi resolvido para o cenário com
+  ambas as permissões concedidas. A segunda corrida da tentativa inicial tinha
+  duração zero e não materializou derivação após reprocessamento explícito; esse
+  limite permanece histórico, sem impedir a matriz física posterior.
 
 ### Falha parcial e retry com treino novo
 
@@ -237,6 +266,5 @@ Evidência detalhada: `docs/integration/014-15-physical-validation.md`.
   parcial nomeada para três operações de distância; reautorização e retry
   terminaram `Sincronizada`, com `3,570 km` acumulados no provider e sem
   duplicação observada.
-- Gate F passa para este cenário de falha parcial/retry. A task permanece
-  `blocked` até consolidar evidências sanitizadas e revisar os dois treinos
-  antigos ainda pendentes.
+- Gate F passa para os cenários de falha parcial e retry. Os dois treinos antigos
+  continuam pendentes de revisão e não integram a matriz física concluída.

@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Número:** `16`
-- **Status:** pending
+- **Status:** in_progress
 
 ## Objetivo e resultado esperado
 
@@ -100,3 +100,41 @@ registrado corretamente.
 
 Reverter somente afirmações documentais incorretas. Não alterar código, banco ou
 records remotos.
+
+## Registro inicial de execução
+
+### Escopo executado
+
+Foi reconciliado o progresso factual da spec após a conclusão de `014-15`:
+`16/17`. O status da fase permanece `in_progress` porque esta subtarefa ainda não
+concluiu a revisão documental final nem marcou seu item no overview.
+
+### Arquivos alterados
+
+- `docs/specs/014-watch-workout-derived-metrics.md`;
+- este arquivo;
+- `014-00-overview.md`.
+
+Nenhum arquivo de produção, Gradle, manifesto, migration ou schema foi alterado.
+
+### Decisões e desvios
+
+- A spec mantém status `in_progress`; `014-16` não foi marcada como concluída.
+- O progresso da spec foi alinhado ao overview em `16/17`.
+- A ordem documental registra `014-15` concluída e `014-16` pendente.
+- Reconciliação de ADR, roadmap, baseline, protocolo e encerramento da fase fica
+  para continuação desta subtarefa.
+
+### Comandos executados e resultados
+
+- `git diff --check` — passou, sem saída;
+- `git status --short` — alterações restritas aos documentos da Fase 014.
+
+Não foram executados testes automatizados nem Gradle; mudança é documental.
+
+### Riscos residuais
+
+- A spec, ADRs, roadmap, baseline e protocolo ainda precisam de revisão factual
+  final antes do fechamento da fase.
+- A cobertura física de midpoint, reconciliação delete-before-insert e identidade
+  congelada permanece limitada conforme evidência de `014-15`.

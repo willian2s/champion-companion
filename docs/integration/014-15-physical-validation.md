@@ -31,7 +31,7 @@
 | C — Perfil e derivação | `N/A` | Comprimento manual já persistido foi usado e derivação canônica apareceu no detalhe. Sugestão por altura não foi exercitada: dispositivo não tinha altura persistida. |
 | D — Métricas, UI e esteira | `N/A` | Detalhe mostrou distância canônica, série acumulada com 29 intervalos, métricas derivadas, gráfico, intervalos, BPM temporal e splits. `TREADMILL` não foi exercitado nesta sessão. |
 | E — Reprocessamento | `N/A` | Ação explícita e confirmação específica apareceram para legado sincronizado. Resultado confirmou que nenhum snapshot/operação foi alterado e exigiu suporte futuro de projeção; não havia fixture legado não sincronizado e recuperável para concluir reprocessamento. |
-| F — Health Connect | `FAIL` bloqueador | A sincronização explícita foi marcada como sucesso local, mas o Health Connect real não exibiu distância nem velocidade; velocidade apareceu como não permitida. A UI não confirmou records remotos. Fan-out, midpoint, retry idempotente e matriz de falha parcial também não foram observados. |
+| F — Health Connect | `PASS` nos cenários exercitados | Ambas as permissões foram concedidas no package debug correto e o provider exibiu `DistanceRecord` e `SpeedRecord`. Revogações isoladas de `WRITE_SPEED` e `WRITE_DISTANCE` produziram falhas parciais nomeadas; retry após reautorização terminou `Sincronizada`, sem duplicação observada. O app permaneceu write-only. |
 | G — Regressão | `N/A` | Importação, revisão, métricas, BPM, dispositivo associado e sync explícito permaneceram funcionais. Calendário e matriz completa de regressão não foram repetidos nesta sessão; nenhum fluxo phone, GPS, rota, mapa ou BLE live foi acionado. |
 
 ## Observações
@@ -41,23 +41,26 @@
 - Após reinício do aplicativo, dados locais permaneceram disponíveis.
 - A atividade phone pronta para sincronização foi preservada sem acionamento,
   confirmando que a validação não reabriu fluxo phone.
-- O Health Connect real não exibiu distância/velocidade após o sucesso local; a
-  permissão de velocidade estava ausente. Follow-up funcional:
-  `docs/integration/014-15-health-connect-provider-follow-up.md`.
-- `014-15` permanece bloqueada: Gate F tem `FAIL` bloqueador; gates B, E e partes
-  de A/C/D/G também precisam de fixture ou evidência independente adicional.
+- A tentativa inicial não exibiu distância/velocidade após o sucesso local; a
+  permissão de velocidade estava ausente. Esse fato histórico motivou o
+  follow-up funcional em `docs/integration/014-15-health-connect-provider-follow-up.md`.
+- A revalidação posterior resolveu o bloqueio de autorização para os cenários
+  exercitados. Gates B, C, D, E e G permanecem `N/A` pelas limitações físicas
+  registradas, sem inventar fixtures.
+- `014-15` está concluída. A observação manual do provider não representa leitura
+  ampla pelo aplicativo.
 
-## Revalidação parcial após 014-17
+## Revalidação após 014-17
 
 - Uma atividade elegível, após aceite explícito, foi sincronizada pelo package
   debug correto com ambas as permissões concedidas.
-- Health Connect exibiu manualmente distância granular `3,463 km` e velocidade
-  `7,245 km/h` para `Champion Companion Dev`.
+- Health Connect exibiu manualmente um `DistanceRecord` granular de `3,463 km` e
+  um `SpeedRecord` de `7,245 km/h` para `Champion Companion Dev`.
 - A revogação isolada de `WRITE_SPEED` foi refletida como `Velocidade — Pendente`
   em Settings; reautorização foi concluída pelo fluxo `Conectar`.
 - Resultado: autorização e escrita de distância/velocidade passam para este
-  cenário. Retry, falha parcial e ausência de duplicação continuam sem evidência
-  física; `014-15` permanece `blocked`.
+  cenário. A matriz posterior confirmou retry, falha parcial e ausência de
+  duplicação observada.
 
 ### Resultado do retry com treinos novos
 
@@ -68,9 +71,8 @@
 - Health Connect mostrou distância acumulada `3,517 km` e uma única entrada de
   velocidade nova `0,202 km/h` para `12:33–12:49`; ausência de duplicação
   observada manualmente.
-- Resultado: Gate F passa para este cenário. A task permanece `blocked` até
-  consolidação documental final; dois treinos antigos continuam pendentes de
-  revisão.
+- Resultado: Gate F passa para este cenário. Os dois treinos antigos continuam
+  pendentes de revisão e não integram a matriz física concluída.
 
 ### Revogação isolada de distância
 

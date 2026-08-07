@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 15/17 subtarefas concluídas
+- **Progresso:** 16/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -41,7 +41,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
 - [x] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
 - [x] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
-- [ ] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
+- [x] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
 - [x] [014-17-harden-health-connect-provider-authorization-and-child-outcomes.md](014-17-harden-health-connect-provider-authorization-and-child-outcomes.md)
 - [ ] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
 
@@ -124,7 +124,7 @@ durante upgrade. O writer granular e a reconciliação permanecem fora de qualqu
 efeito durante upgrade; ambos foram concluídos nas subtarefas `014-13` e
 `014-14`.
 
-## Observações
+## Observações factuais
 
 - Fase 013 permanece `closed`, com `partially_delivered` por
   `product_reorientation`.
@@ -299,55 +299,54 @@ efeito durante upgrade; ambos foram concluídos nas subtarefas `014-13` e
   `git diff --check` passaram; testes automatizados não foram criados nem
    executados. Provider real, midpoint e falha parcial permanecem para `014-15`;
    reconciliação do agregado legado foi concluída em `014-14`.
- - Revisão independente final de `014-13` aprovada sem blockers ou majors. A spec
-   principal foi normalizada; este overview permanece a fonte operacional
-   atualizada em `15/17`.
+- Revisão independente final de `014-13` aprovada sem blockers ou majors. A spec
+  principal foi normalizada; este registro refletia o estado operacional de
+  `15/17` antes da conclusão de `014-15`.
 - `014-14` concluiu reconciliação global: tombstone, checkpoints antes/depois,
   delete-before-insert, retries com identidade congelada, deleção exata de
   filhos obsoletos, bloqueio fail-closed de identidades desconhecidas e reparo
   de workflows concluídos. Lint, builds debug/release, instalação e
-  `git diff --check` passaram; provider real e matriz física de falhas permanecem
-  para `014-15`.
-- `014-15` iniciou validação física no Galaxy S22 `SM-S901E` com importação
-  explícita, revisão, métricas canônicas, splits, BPM e sincronização Health
-   Connect real. Build, lint, instalação e `git diff --check` passaram. A
-   subtarefa permanece `blocked`: faltam fixtures físicas para índices/duração/
-  plausibilidade, sugestão por altura, esteira, retry/falha parcial e
-  reprocessamento de legado não sincronizado. Evidência sanitizada em
+  `git diff --check` passaram; naquele ponto, provider real e matriz física de
+  falhas ainda aguardavam `014-15`.
+- Tentativa inicial de `014-15` registrou importação, revisão, métricas canônicas,
+  splits, BPM e sincronização local no Galaxy S22 `SM-S901E`; build, lint,
+  instalação e `git diff --check` passaram. Historicamente, a tentativa marcou
+  Gate F como `FAIL` porque o provider não exibia os records e `WRITE_SPEED`
+  estava ausente. A evidência sanitizada permanece em
   `docs/integration/014-15-physical-validation.md`.
-- Atualização do Gate F de `014-15`: após acesso ao Health Connect real, distância
-  e velocidade não apareceram; velocidade estava sem permissão. O sucesso do
-  aplicativo comprova somente estado local da fila. Gate F é `FAIL` bloqueador e
-  o follow-up funcional está em
-  `docs/integration/014-15-health-connect-provider-follow-up.md`. Item `014-15`
-  permanece desmarcado e progresso permanece `15/17`.
-- `014-17` foi criada como follow-up funcional pendente para autorização real,
-  resultado por filho, feedback write-only e revalidação física de distância,
-  velocidade, retry e falha parcial. `014-15` permanece desmarcada e bloqueada;
-  `014-17` deve anteceder `014-16` quando o Gate F exigir correção.
-- `014-17` implementou aceite explícito da política
-  `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION` somente para séries sem indicadores:
-  revisão pode registrar o aceite, atividades `READY_TO_SYNC`/`SYNC_FAILED` não
-  sincronizadas oferecem ação equivalente, e o snapshot existente é atualizado
-  sem migration/schema. Indicadores `IMPLAUSIBLE_*` continuam bloqueando Gate F;
-  coordinator, IDs, versões, payloads, distância canônica e midpoint foram
-  preservados. O item foi concluído, o progresso permanece `15/17` e `014-15`
-  continua desmarcada por seus bloqueadores restantes.
- - Primeira revalidação física após `014-17`: uma atividade elegível foi
-   importada, aceita, sincronizada e observada no provider real com distância
-   granular `3,463 km` e velocidade `7,245 km/h`; `WRITE_SPEED` foi revogada
-   isoladamente, apareceu como pendente em Settings e foi restaurada. A matriz
-   complementar posterior fechou falha parcial, retry e ausência de duplicação;
-   `014-15` permanece `[ ]` e `014-17` foi concluída.
-- Nova validação física: dois treinos foram importados; o de 15 minutos foi
-  classificado como `Corrida` e o de 20 minutos como `Treino livre`. Revogação
-  isolada de `WRITE_SPEED` produziu falha parcial somente em velocidade. Após
-  reautorização, retry terminou `Sincronizada`; provider exibiu distância
+- `014-17` resolveu o bloqueio funcional de aceite explícito e resultado por
+  filho, sem adicionar leitura ampla do Health Connect. A revalidação física
+  posterior confirmou, no package debug correto e com ambas as permissões
+  concedidas, `DistanceRecord` e `SpeedRecord` no provider.
+- A mesma revalidação confirmou falha parcial nomeada e retry idempotente após
+  revogação isolada de `WRITE_SPEED`, sem duplicação observada, e o mesmo
+  comportamento após revogação isolada de `WRITE_DISTANCE`, também sem
+  duplicação observada. Gate F passa para esses cenários exercitados.
+- `014-15` foi concluída com Gate A `PASS`; Gates B, C, D, E e G permanecem
+  `N/A` pelas limitações físicas documentadas; Gate F é `PASS` somente para os
+  cenários exercitados. A validação não afirma leitura ampla pelo aplicativo.
+- Progresso da spec e do overview atualizado para `16/17`. `014-16` permanece
+  `[ ]` e `pending`, aguardando seu fechamento documental próprio.
+- Registro histórico: `014-17` foi criada como follow-up funcional para
+  autorização real, resultado por filho, feedback write-only e revalidação de
+  distância, velocidade, retry e falha parcial. Sua implementação concluiu o
+  aceite explícito da política `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION` para
+  séries sem indicadores, preservando coordinator, IDs, versões, payloads,
+  distância canônica e midpoint.
+- Registro histórico da primeira revalidação após `014-17`: uma atividade
+  elegível foi importada, aceita, sincronizada e observada no provider real com
+  distância granular `3,463 km` e velocidade `7,245 km/h`; `WRITE_SPEED` foi
+  revogada isoladamente, apareceu como pendente em Settings e foi restaurada.
+- Registro histórico da matriz complementar: dois treinos foram importados; o de
+  15 minutos foi classificado como `Corrida` e o de 20 minutos como `Treino
+  livre`. Revogação isolada de `WRITE_SPEED` produziu falha parcial somente em
+  velocidade; após reautorização, retry terminou `Sincronizada`, com distância
   acumulada `3,517 km` e uma única velocidade nova `0,202 km/h`, sem duplicação
-  observada. `014-17` foi revisada independentemente e concluída; `014-15`
-  permanece `[ ]` por bloqueadores restantes e o progresso permanece `15/17`.
-- Validação complementar também cobriu revogação isolada de `WRITE_DISTANCE`:
-  treino livre de 20 minutos exibiu falha parcial em três filhos, e retry após
-  reautorização terminou `Sincronizada`. Provider exibiu `3,570 km` acumulados,
-  com acréscimo novo de `0,053 km` e sem duplicação observada. `014-17` foi
-  revisada independentemente e concluída; progresso permanece `15/17`.
+  observada.
+- Registro histórico da revogação isolada de `WRITE_DISTANCE`: o treino livre
+  exibiu falha parcial em três filhos; retry após reautorização terminou
+  `Sincronizada`, com `3,570 km` acumulados, acréscimo de `0,053 km` e sem
+  duplicação observada.
+- `014-16` foi iniciada explicitamente para reconciliar a spec e o conjunto
+  documental final. A spec foi alinhada para `16/17`; o item `014-16` permanece
+  `[ ]` até revisão documental independente e fechamento factual da fase.

@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Status:** in_progress
-- **Progresso:** `14/17`
+- **Progresso:** `16/17`
 - **Base:** `main`, Fase 013 encerrada como `closed` / `partially_delivered`
 - **Decisões relacionadas:** ADR-012, ADR-016, ADR-017 e ADR-018
 
@@ -389,8 +389,9 @@ migrações na mesma task.
 ```
 
 A ordem mínima após a validação inicial é `014-15` → `014-17` → revalidação do
-Gate F em `014-15` → `014-16`. Enquanto `014-15` permanecer bloqueada, `014-16`
-não pode ser iniciada.
+Gate F em `014-15` → `014-16`. `014-15` foi concluída sem bloqueador ativo para
+os cenários físicos exercitados; `014-16` permanece pendente para o fechamento
+documental da fase.
 
 ## Fora do escopo
 
