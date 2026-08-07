@@ -266,6 +266,13 @@ data class WorkoutActivity private constructor(
             derivationSnapshot != null -> derivationSnapshot.canonicalReadStatus
             else -> WorkoutCanonicalReadStatus.NOT_MATERIALIZED
         }
+    /** Indicação read-only de atividade que ainda precisa da versão atual. */
+    val requiresWatchWorkoutReprocessing: Boolean
+        get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 && (
+            derivationSnapshot == null ||
+                derivationSnapshot.derivationVersion != WATCH_WORKOUT_DERIVATION_VERSION ||
+                canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
+            )
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {
         "Mapper legado D3/D4 não aceita atividade phone; use proveniência opcional generalizada"

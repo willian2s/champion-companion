@@ -206,6 +206,7 @@ fun ExercisesScreen(
                     onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
                     onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
                     onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
+                    onReprocessActivity = { viewModel.onIntent(ExercisesIntent.ReprocessSelectedActivity) },
                     onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
                     onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
                 )
@@ -806,6 +807,13 @@ private fun WorkoutActivityCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (activity.isWatchWorkout && activity.requiresWatchWorkoutReprocessing) {
+                Text(
+                    "Reprocessamento explícito necessário",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 text = activity.workflowState.toLabel(),
                 style = MaterialTheme.typography.bodySmall,
@@ -828,10 +836,12 @@ private fun ExerciseDetailShell(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    onReprocessActivity: () -> Unit,
     onSyncActivity: () -> Unit,
     onDiscardActivity: () -> Unit,
 ) {
     var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
+    var showReprocessConfirmation by remember(activityId) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
@@ -879,6 +889,7 @@ private fun ExerciseDetailShell(
                             reviewFormState = state.reviewFormState,
                             calibrationFormState = state.calibrationFormState,
                             operationError = state.operationError,
+                            isReprocessing = state.isReprocessing,
                             canDiscardSelectedActivity = state.canDiscardSelectedActivity,
                             onDismissError = onDismissError,
                             onReviewTypeChange = onReviewTypeChange,
@@ -887,6 +898,7 @@ private fun ExerciseDetailShell(
                             onSubmitReview = onSubmitReview,
                             onCalibrationDistanceChange = onCalibrationDistanceChange,
                             onSubmitCalibration = onSubmitCalibration,
+                            onRequestReprocess = { showReprocessConfirmation = true },
                             onSyncActivity = onSyncActivity,
                             onRequestDiscard = { showDiscardConfirmation = true },
                         )
@@ -916,6 +928,56 @@ private fun ExerciseDetailShell(
             },
         )
     }
+
+    if (showReprocessConfirmation) {
+        state.selectedActivity?.let { activity ->
+            val isSynced = activity.workflowState == ActivityWorkflowState.SYNCED
+            AlertDialog(
+                onDismissRequest = { showReprocessConfirmation = false },
+                title = {
+                    Text(if (isSynced) "Reprocessar treino sincronizado?" else "Reprocessar métricas do treino?")
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+                        Text(
+                            when {
+                                activity.canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
+                                    "A série canônica está disponível, mas os splits ainda não foram materializados."
+                                activity.requiresWatchWorkoutReprocessing ->
+                                    "A atividade não possui snapshot da versão atual ou possui versão anterior."
+                                else ->
+                                    "A derivação local será reavaliada com os fatos persistidos."
+                            },
+                        )
+                        Text(
+                            "A ação usa raw/measured locais, preserva recordedAt, revisão, tipo, título, observações, calibração e identidade da importação. Nenhuma mudança ocorre sem confirmação.",
+                        )
+                        Text(
+                            if (isSynced) {
+                                "A atividade já está sincronizada. Esta confirmação não cria nem prepara operação do Health Connect; o reprocessamento continuará bloqueado até suporte futuro de projeção."
+                            } else {
+                                "Nenhuma operação do Health Connect será criada ou enviada automaticamente."
+                            },
+                            color = if (isSynced) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showReprocessConfirmation = false
+                        onReprocessActivity()
+                    }) {
+                        Text(if (isSynced) "Confirmar aviso" else "Confirmar reprocessamento")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReprocessConfirmation = false }) {
+                        Text("Cancelar")
+                    }
+                },
+            )
+        } ?: run { showReprocessConfirmation = false }
+    }
 }
 
 @Composable
@@ -925,6 +987,7 @@ private fun WorkoutActivityDetailContent(
     reviewFormState: ExerciseReviewFormState,
     calibrationFormState: ExerciseCalibrationFormState,
     operationError: ExerciseOperationError?,
+    isReprocessing: Boolean,
     canDiscardSelectedActivity: Boolean,
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
@@ -933,6 +996,7 @@ private fun WorkoutActivityDetailContent(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    onRequestReprocess: () -> Unit,
     onSyncActivity: () -> Unit,
     onRequestDiscard: () -> Unit,
 ) {
@@ -950,6 +1014,13 @@ private fun WorkoutActivityDetailContent(
             )
         }
         ActivityCanonicalStatusSection(activity)
+        if (activity.isWatchWorkout && activity.requiresWatchWorkoutReprocessing) {
+            WatchWorkoutReprocessSection(
+                activity = activity,
+                isReprocessing = isReprocessing,
+                onRequestReprocess = onRequestReprocess,
+            )
+        }
         ActivityMetricsSection(activity, latestCalibration)
         ActivityCanonicalChartSection(activity)
         ActivityHeartRateChartSection(activity)
@@ -1782,6 +1853,68 @@ private fun ReviewFormSection(
                 isLoading = formState.isSaving,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+@Composable
+private fun WatchWorkoutReprocessSection(
+    activity: WorkoutActivity,
+    isReprocessing: Boolean,
+    onRequestReprocess: () -> Unit,
+) {
+    val isSynced = activity.workflowState == ActivityWorkflowState.SYNCED
+    val isSyncing = activity.workflowState == ActivityWorkflowState.SYNCING
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSynced) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.tertiaryContainer
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Reprocessamento explícito", style = MaterialTheme.typography.titleLarge)
+            Text(
+                when {
+                    activity.canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
+                        "A série canônica está disponível, mas os splits ainda não foram materializados. A derivação usa fatos raw/measured persistidos e a versão vigente."
+                    else ->
+                        "Snapshot atual ausente ou versão anterior${activity.derivationSnapshot?.derivationVersion?.let { " ($it)" } ?: ""}. A derivação usa fatos raw/measured persistidos e a versão vigente."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isSynced) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Text(
+                if (isSynced) {
+                    "Atividade sincronizada: confirmação exibirá aviso específico e não preparará operação do Health Connect."
+                } else {
+                    "Revisão, tipo, título, observações, calibração e identidade da importação serão preservados."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isSynced) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            if (isSyncing) {
+                Text(
+                    "Sincronização em andamento. Aguarde antes de reprocessar.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            } else {
+                PrimaryActionButton(
+                    label = if (isReprocessing) "Reprocessando derivação" else "Reprocessar derivação local",
+                    onClick = onRequestReprocess,
+                    enabled = !isReprocessing,
+                    isLoading = isReprocessing,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

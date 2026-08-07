@@ -2,7 +2,8 @@
 
 - **Ticker:** `014`
 - **Número:** `11`
-- **Status:** pending
+- **Status:** completed
+- **Concluída em:** 2026-08-06
 
 ## Objetivo e resultado esperado
 
@@ -124,6 +125,85 @@ Não criar nem executar testes automatizados.
 
 Reprocessamento explícito, idempotente e local funciona para legado recuperável;
 item `014-11` marcado.
+
+## Implementação e evidências
+
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`;
+  - este arquivo e `014-00-overview.md`.
+- **Decisões e desvios:**
+  - Falhas fechadas usam motivos tipados e mensagens sanitizadas, sem expor raw ou
+    detalhes de persistência na interface.
+  - `d4-v1` aplica `rawMotionValue ushr 16` somente no preflight/derivação em
+    memória; `resolvedRawIntervals` preserva `decodedSteps = null` e o valor raw
+    legado no banco.
+  - `SYNCED` recebe confirmação com aviso específico, mas permanece bloqueada até
+    a projeção futura; nenhuma operação Health Connect é criada.
+  - Snapshot ausente, versão antiga e `SPLITS_NOT_MATERIALIZED` exibem ação
+    explícita. Legado sem marcador seguro de ordem continua fail-closed conforme
+    ADR-018.
+  - Não foram adicionados recursos novos: superfície de Exercícios mantém textos
+    locais existentes e não houve alteração de parser, mapper, schema ou writer.
+- **Comandos executados:**
+  - `./gradlew app:compileDebugKotlin`;
+  - `./gradlew lint assembleDebug assembleRelease`;
+  - `./gradlew installDebug`;
+  - `git diff --check`;
+  - `git status --short`.
+- **Resultados e evidências:**
+  - Uma compilação intermediária falhou durante a integração inicial do contrato
+    transacional; a correção foi aplicada antes da validação final.
+  - `app:compileDebugKotlin`, lint, builds debug/release, instalação debug e
+    verificação de whitespace passaram.
+  - Instalação concluída no Galaxy S22 `SM-S901E`.
+  - Revisão independente encontrou e corrigiu a ausência de ação para
+    `SPLITS_NOT_MATERIALIZED`; revisão final confirmou atomicidade, preservação,
+    idempotência, bloqueio seguro de `SYNCED` e ausência de Health Connect.
+  - Não foram criados nem executados testes automatizados. Screenshot funcional
+    do diálogo/resultado não foi capturada porque dispositivo não possuía
+    atividade elegível para abrir esse fluxo.
+- **Riscos residuais:**
+  - Validação física de reprocessamento `d4-v1`, preservação após reinício e
+    screenshots funcionais permanecem para `014-15`.
+  - Atividades legadas sem marcador persistido de ordem continuam bloqueadas sem
+    inferência pelo `ORDER BY`.
+  - Projeções e ressincronização Health Connect permanecem fora desta subtarefa.
+
+- `WorkoutActivity.requiresWatchWorkoutReprocessing` também considera
+  `SPLITS_NOT_MATERIALIZED` quando snapshot usa versão vigente.
+- Exercícios exibe ação e confirmação explícitas para materializar splits
+  ausentes; nenhuma ação ocorre sem confirmação.
+- `d4-v1` mantém `decodedSteps` nulo em `workout_intervals`: a persistência usa
+  `resolvedRawIntervals`; intervalos preparados servem somente ao preflight.
+- `./gradlew compileDebugKotlin` — PASS.
+- Testes automatizados não foram criados nem executados, conforme escopo.
+- Mapper, parser, schema e Health Connect não foram alterados nesta correção.
+
+## Diagnóstico da falha agregada de lint
+
+- **Causa determinada:** não há causa real no diff de `014-11`. A falha
+  reportada ocorreu durante a execução agregada, na análise de lint de fontes
+  de teste, com artefato gerado Hilt ausente e erro FIR/lint; não há alteração
+  em Gradle ou testes que explique regressão. O padrão é compatível com estado
+  transitório de geração/cache do grafo de lint.
+- **Validação focada:** `./gradlew lint` isolado concluiu com `BUILD SUCCESSFUL`
+  em 16 s. Após regeneração forçada parcial (`./gradlew lint --rerun-tasks`,
+  interrompido pelo limite de 120 s sem erro de lint reportado), nova execução
+  isolada concluiu com `BUILD SUCCESSFUL` em 1 min 42 s; `lintAnalyzeDebugUnitTest`
+  e `lintAnalyzeDebugAndroidTest` ficaram `UP-TO-DATE`, e `lintAnalyzeDebug`
+  concluiu normalmente.
+- **Evidência de artefato:** `app/build/generated/hilt/component_trees/release/`
+  existe após a validação; não houve nova `FileNotFoundException` nem erro FIR.
+  O mesmo padrão de artefato Hilt ausente e recuperação por lint focado já está
+  registrado em `docs/integration/013-08-foreground-service-recovery-review.md`.
+  `git diff --check` passou.
+- **Decisão:** nenhuma correção de código, Gradle ou testes foi aplicada. Não
+  foram criados nem executados testes automatizados.
 
 ## Rollback
 

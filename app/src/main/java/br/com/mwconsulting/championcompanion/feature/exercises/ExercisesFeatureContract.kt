@@ -31,6 +31,7 @@ data class ExercisesUiState(
     val reviewFormState: ExerciseReviewFormState = ExerciseReviewFormState(),
     val calibrationFormState: ExerciseCalibrationFormState = ExerciseCalibrationFormState(),
     val operationError: ExerciseOperationError? = null,
+    val isReprocessing: Boolean = false,
     val pendingActivities: List<WorkoutActivity> = emptyList(),
     val hasUnsavedDetailChanges: Boolean = false,
     val canDiscardSelectedActivity: Boolean = false,
@@ -149,6 +150,14 @@ enum class ExerciseOperationErrorCategory {
     INVALID_TITLE,
     INVALID_NOTES,
     INVALID_DISTANCE,
+    REPROCESS_RAW_MISSING,
+    REPROCESS_PARSER_UNKNOWN,
+    REPROCESS_INDEX_INELIGIBLE,
+    REPROCESS_PROFILE_MISSING,
+    REPROCESS_TEMPORAL_INVALID,
+    REPROCESS_SYNCED_BLOCKED,
+    REPROCESS_SYNCING,
+    REPROCESS_UNAVAILABLE,
     STORAGE,
     INTERNAL,
 }
@@ -164,6 +173,7 @@ sealed interface ExercisesIntent {
     data object SubmitReview : ExercisesIntent
     data class EditCalibrationDistance(val distance: String) : ExercisesIntent
     data object SubmitCalibration : ExercisesIntent
+    data object ReprocessSelectedActivity : ExercisesIntent
     data object SyncSelectedActivity : ExercisesIntent
     data object DiscardSelectedActivity : ExercisesIntent
     data object ConfirmExitDetail : ExercisesIntent

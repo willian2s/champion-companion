@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 10/16 subtarefas concluídas
+- **Progresso:** 11/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -37,7 +37,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-08-derive-cadence-speed-pace-and-cumulative-distance.md](014-08-derive-cadence-speed-pace-and-cumulative-distance.md)
 - [x] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
 - [x] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
-- [ ] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
+- [x] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
 - [ ] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
 - [ ] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
 - [ ] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
@@ -252,3 +252,17 @@ Connect continua pendente.
   Round-trip Room físico, validação D4 em detalhe, Health Connect e
   reprocessamento de legado continuam bloqueados para
   `014-11`/`014-12`/`014-13`/`014-15`.
+- `014-11` recebeu correção após revisão independente: atividades `WATCH_D3_D4`
+  com snapshot na versão vigente e status `SPLITS_NOT_MATERIALIZED` agora
+  exibem ação explícita de reprocessamento. `d4-v1` continua persistindo
+  `decodedSteps` nulo em `workout_intervals`; a persistência usa
+  `resolvedRawIntervals`, enquanto intervalos preparados servem somente ao
+  preflight. `compileDebugKotlin`, `lint assembleDebug assembleRelease`,
+  `installDebug` e `git diff --check` passaram; mapper, parser, schema, Health
+  Connect e testes não foram alterados. Screenshot funcional não foi capturada
+  porque o dispositivo não possuía atividade elegível. Projeções Health Connect
+  e validação física continuam bloqueadas para `014-12`/`014-13`/`014-15`.
+- Diagnóstico posterior da falha agregada de lint de `014-11` não encontrou
+  regressão no diff: `./gradlew lint` isolado passou duas vezes, incluindo após
+  regeneração parcial de tarefas, sem nova `FileNotFoundException` Hilt ou erro
+  FIR. Nenhum código, Gradle ou teste foi alterado; `git diff --check` passou.

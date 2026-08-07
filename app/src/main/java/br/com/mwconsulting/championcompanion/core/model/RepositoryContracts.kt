@@ -27,6 +27,34 @@ sealed interface RepositoryResult<out T> {
     data object StorageUnavailable : RepositoryResult<Nothing>
 }
 
+/** Motivos seguros para bloquear reprocessamento local de treino do relógio. */
+enum class WatchWorkoutReprocessFailureReason {
+    ACTIVITY_NOT_FOUND,
+    NOT_WATCH_WORKOUT,
+    IMPORT_METADATA_MISSING,
+    UNKNOWN_PARSER_VERSION,
+    RAW_INTERVALS_MISSING,
+    RAW_INTERVAL_INVALID,
+    MEASURED_STEPS_MISSING,
+    INDEX_INELIGIBLE,
+    STEP_LENGTH_PROFILE_INVALID,
+    TEMPORAL_INCONSISTENCY,
+    SYNC_IN_PROGRESS,
+    SYNCED_REQUIRES_FUTURE_PROJECTION,
+    DERIVATION_INCONSISTENT,
+    STORAGE_UNAVAILABLE,
+}
+
+sealed interface WatchWorkoutReprocessResult {
+    data class Success(
+        val snapshot: WorkoutDerivationSnapshot,
+    ) : WatchWorkoutReprocessResult
+
+    data class Blocked(
+        val reason: WatchWorkoutReprocessFailureReason,
+    ) : WatchWorkoutReprocessResult
+}
+
 interface DeviceRepository {
     fun observeAssociatedDevice(): Flow<Device?>
     suspend fun associateDevice(device: Device): RepositoryResult<Device>
@@ -259,6 +287,23 @@ interface WorkoutActivityRepository {
         activityId: WorkoutActivityId,
         derivedAt: Instant = Instant.now(),
     ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
+    /** Reprocessamento explícito com motivo seguro quando a derivação falha fechada. */
+    suspend fun reprocessWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant = Instant.now(),
+    ): WatchWorkoutReprocessResult = when (val result = rederiveWatchWorkout(activityId, derivedAt)) {
+        is RepositoryResult.Success -> result.value?.let(WatchWorkoutReprocessResult::Success)
+            ?: WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
+        RepositoryResult.NotFound -> WatchWorkoutReprocessResult.Blocked(
+            WatchWorkoutReprocessFailureReason.ACTIVITY_NOT_FOUND,
+        )
+        RepositoryResult.StorageUnavailable -> WatchWorkoutReprocessResult.Blocked(
+            WatchWorkoutReprocessFailureReason.STORAGE_UNAVAILABLE,
+        )
+        RepositoryResult.Conflict,
+        RepositoryResult.UnexpectedState,
+        -> WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
+    }
     suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState

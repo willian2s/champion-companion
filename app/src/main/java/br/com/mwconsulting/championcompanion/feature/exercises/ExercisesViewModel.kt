@@ -42,6 +42,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessFailureReason
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -185,6 +187,7 @@ class ExercisesViewModel internal constructor(
     private val reviewFormState = MutableStateFlow(ExerciseReviewFormState())
     private val calibrationFormState = MutableStateFlow(ExerciseCalibrationFormState())
     private val operationError = MutableStateFlow<ExerciseOperationError?>(null)
+    private val isReprocessing = MutableStateFlow(false)
     private val workoutCountdownPreference = MutableStateFlow(
         br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
     )
@@ -341,6 +344,7 @@ class ExercisesViewModel internal constructor(
                 reviewFormState,
                 calibrationFormState,
                 operationError,
+                isReprocessing,
                 dailyStepsGoal,
                 associatedDevice,
                 workoutPreparation,
@@ -355,9 +359,10 @@ class ExercisesViewModel internal constructor(
                 val reviewForm = values[7] as ExerciseReviewFormState
                 val calibrationForm = values[8] as ExerciseCalibrationFormState
                 val error = values[9] as ExerciseOperationError?
-                val goal = values[10] as Int
-                val device = values[11] as Device?
-                val preparation = values[12] as WorkoutPreparationUiState
+                val reprocessing = values[10] as Boolean
+                val goal = values[11] as Int
+                val device = values[12] as Device?
+                val preparation = values[13] as WorkoutPreparationUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -369,6 +374,7 @@ class ExercisesViewModel internal constructor(
                     reviewFormState = reviewForm,
                     calibrationFormState = calibrationForm,
                     operationError = error,
+                    isReprocessing = reprocessing,
                     pendingActivities = activities.filter { it.workflowState == ActivityWorkflowState.PENDING_REVIEW },
                     hasUnsavedDetailChanges = reviewForm.hasUnsavedChanges ||
                         (
@@ -437,6 +443,7 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.SubmitReview -> submitReview()
             is ExercisesIntent.EditCalibrationDistance -> updateCalibrationDistance(intent.distance)
             ExercisesIntent.SubmitCalibration -> submitCalibration()
+            ExercisesIntent.ReprocessSelectedActivity -> reprocessSelectedActivity()
             ExercisesIntent.SyncSelectedActivity -> syncSelectedActivity()
             ExercisesIntent.DiscardSelectedActivity -> discardSelectedActivity()
             ExercisesIntent.ConfirmExitDetail -> closeSelectedActivity()
@@ -1475,6 +1482,7 @@ class ExercisesViewModel internal constructor(
         reviewFormState.value = ExerciseReviewFormState()
         calibrationFormState.value = ExerciseCalibrationFormState()
         operationError.value = null
+        isReprocessing.value = false
     }
 
     private fun submitReview() {
@@ -1556,6 +1564,102 @@ class ExercisesViewModel internal constructor(
                 -> calibrationError(ExerciseOperationErrorCategory.INVALID_STATE, "A atividade não está em um estado válido para calibração.")
             }
         }
+    }
+
+    private fun reprocessSelectedActivity() {
+        val activity = selectedActivity.value ?: return
+        if (activity.activityOrigin != br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin.WATCH_D3_D4) {
+            operationError.value = reprocessError(WatchWorkoutReprocessFailureReason.NOT_WATCH_WORKOUT)
+            return
+        }
+        if (activity.workflowState == ActivityWorkflowState.SYNCING) {
+            operationError.value = reprocessError(WatchWorkoutReprocessFailureReason.SYNC_IN_PROGRESS)
+            return
+        }
+        if (isReprocessing.value) return
+
+        val activityId = activity.id
+        isReprocessing.value = true
+        operationError.value = null
+        scope.launch {
+            when (val result = workoutActivityRepository.reprocessWatchWorkout(activityId, Instant.now())) {
+                is WatchWorkoutReprocessResult.Success -> {
+                    isReprocessing.value = false
+                    operationError.value = null
+                }
+
+                is WatchWorkoutReprocessResult.Blocked -> {
+                    isReprocessing.value = false
+                    operationError.value = reprocessError(result.reason)
+                }
+            }
+        }
+    }
+
+    private fun reprocessError(reason: WatchWorkoutReprocessFailureReason): ExerciseOperationError {
+        val category = when (reason) {
+            WatchWorkoutReprocessFailureReason.RAW_INTERVALS_MISSING,
+            WatchWorkoutReprocessFailureReason.RAW_INTERVAL_INVALID,
+            -> ExerciseOperationErrorCategory.REPROCESS_RAW_MISSING
+
+            WatchWorkoutReprocessFailureReason.UNKNOWN_PARSER_VERSION ->
+                ExerciseOperationErrorCategory.REPROCESS_PARSER_UNKNOWN
+
+            WatchWorkoutReprocessFailureReason.INDEX_INELIGIBLE ->
+                ExerciseOperationErrorCategory.REPROCESS_INDEX_INELIGIBLE
+
+            WatchWorkoutReprocessFailureReason.STEP_LENGTH_PROFILE_INVALID ->
+                ExerciseOperationErrorCategory.REPROCESS_PROFILE_MISSING
+
+            WatchWorkoutReprocessFailureReason.TEMPORAL_INCONSISTENCY ->
+                ExerciseOperationErrorCategory.REPROCESS_TEMPORAL_INVALID
+
+            WatchWorkoutReprocessFailureReason.SYNCED_REQUIRES_FUTURE_PROJECTION ->
+                ExerciseOperationErrorCategory.REPROCESS_SYNCED_BLOCKED
+
+            WatchWorkoutReprocessFailureReason.SYNC_IN_PROGRESS ->
+                ExerciseOperationErrorCategory.REPROCESS_SYNCING
+
+            WatchWorkoutReprocessFailureReason.ACTIVITY_NOT_FOUND -> ExerciseOperationErrorCategory.NOT_FOUND
+            WatchWorkoutReprocessFailureReason.NOT_WATCH_WORKOUT,
+            WatchWorkoutReprocessFailureReason.IMPORT_METADATA_MISSING,
+            WatchWorkoutReprocessFailureReason.MEASURED_STEPS_MISSING,
+            WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT,
+            -> ExerciseOperationErrorCategory.REPROCESS_UNAVAILABLE
+
+            WatchWorkoutReprocessFailureReason.STORAGE_UNAVAILABLE -> ExerciseOperationErrorCategory.STORAGE
+        }
+        val message = when (reason) {
+            WatchWorkoutReprocessFailureReason.ACTIVITY_NOT_FOUND ->
+                "Atividade não encontrada para reprocessamento."
+            WatchWorkoutReprocessFailureReason.NOT_WATCH_WORKOUT ->
+                "Reprocessamento disponível somente para atividades importadas do relógio."
+            WatchWorkoutReprocessFailureReason.IMPORT_METADATA_MISSING ->
+                "Metadados locais da importação não estão disponíveis. Nenhuma alteração foi feita."
+            WatchWorkoutReprocessFailureReason.UNKNOWN_PARSER_VERSION ->
+                "Versão do parser não reconhecida. A atividade foi mantida sem nova derivação."
+            WatchWorkoutReprocessFailureReason.RAW_INTERVALS_MISSING ->
+                "Fatos raw necessários não estão disponíveis localmente. Importe o treino novamente pelo relógio."
+            WatchWorkoutReprocessFailureReason.RAW_INTERVAL_INVALID ->
+                "Fatos raw locais não puderam ser validados. Nenhuma distância legada foi usada como substituta."
+            WatchWorkoutReprocessFailureReason.MEASURED_STEPS_MISSING ->
+                "Passos medidos não estão disponíveis para a versão persistida do parser. Nenhuma alteração foi feita."
+            WatchWorkoutReprocessFailureReason.INDEX_INELIGIBLE ->
+                "Índices dos intervalos não formam uma sequência contínua elegível. Nenhuma alteração foi feita."
+            WatchWorkoutReprocessFailureReason.STEP_LENGTH_PROFILE_INVALID ->
+                "Comprimento pessoal do passo ausente ou inválido. Configure-o no Perfil antes de reprocessar."
+            WatchWorkoutReprocessFailureReason.TEMPORAL_INCONSISTENCY ->
+                "A duração temporal não pôde ser resolvida com segurança. Nenhuma alteração foi feita."
+            WatchWorkoutReprocessFailureReason.SYNC_IN_PROGRESS ->
+                "A atividade está em sincronização. Aguarde antes de reprocessar."
+            WatchWorkoutReprocessFailureReason.SYNCED_REQUIRES_FUTURE_PROJECTION ->
+                "A atividade já está sincronizada. Nenhum snapshot ou operação do Health Connect foi alterado; nova projeção depende de suporte futuro."
+            WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT ->
+                "A derivação não pôde ser validada integralmente. Nenhuma alteração foi feita."
+            WatchWorkoutReprocessFailureReason.STORAGE_UNAVAILABLE ->
+                "Não foi possível concluir o reprocessamento local. Nenhuma alteração foi confirmada."
+        }
+        return ExerciseOperationError(category = category, message = message)
     }
 
     private fun discardSelectedActivity() {
