@@ -7,9 +7,10 @@
 
 A ADR-017 definiu a direção de produto: Champion C001 controla início e fim, a
 distância canônica de `WATCH_D3_D4` deriva de passos válidos e comprimento
-pessoal do passo, e sincronização permanece explícita. O estado atual mistura
-valores raw, interpretações medidas e métricas calculadas; intervalos têm duração
-fixa e o Health Connect recompõe um agregado mutável no envio.
+pessoal do passo, e sincronização permanece explícita. A implementação histórica
+partiu de valores raw misturados a interpretações medidas e métricas calculadas;
+intervalos tinham duração fixa e o Health Connect recompunha um agregado mutável
+no envio.
 
 Esta ADR define mecanismo durável para reprodução, temporalidade, compatibilidade
 com legado e idempotência. Não redefine o abandono de treinos phone, a política
@@ -202,10 +203,11 @@ Nenhum filho é preparado antes do aceite explícito quando a série está sem
 indicadores e sob `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION`. Atividade `SYNCED` não
 aceita alteração silenciosa de política nem reprocessamento.
 
-Até a projeção granular estar disponível, o writer legado bloqueia
-`WATCH_D3_D4` em todas as transições de atividade (`startSync`, `markSynced` e
-`markSyncFailed`) e na recuperação de `SYNCING`. Operações de atividades phone
-continuam elegíveis.
+Durante a implementação, até a projeção granular estar disponível, o writer
+legado bloqueou `WATCH_D3_D4` em todas as transições de atividade (`startSync`,
+`markSynced` e `markSyncFailed`) e na recuperação de `SYNCING`. Após a entrega da
+projeção granular e da reconciliação, operações elegíveis do relógio usam filhos
+canônicos; operações de atividades phone continuam seguindo seu contrato legado.
 
 Filho temporal usa atividade, tipo e índice estável da fonte. IDs não contêm
 passo pessoal, BPM, distância ou outro valor de saúde. `clientRecordVersion` é
@@ -256,6 +258,22 @@ e adiciona manifesto, `projectionChildKey`, payload, ação e checkpoints.
   canônica granular;
 - maior volume local e duas evoluções de schema;
 - delete-before-insert exige retomada explícita.
+
+## Estado efetivo e limites de validação
+
+A decisão foi implementada na Fase 014 com parser `d4-v2`, Room v9 por
+`MIGRATION_8_9`, projeções em schema v10 por `MIGRATION_9_10`, snapshots com
+`stepLengthMeters` individual congelado, política temporal `T/N/60 s` e filhos
+Health Connect com IDs, versões, payloads, retry e reconciliação determinísticos.
+O provider continua sendo destino write-only: a evidência de records e permissões
+é observação manual no dispositivo, não leitura executada pelo aplicativo.
+
+A validação física final não cobre todos os contratos. Gate F foi aprovado apenas
+para os cenários exercitados de autorização, falha parcial e retry após
+`014-17`; os demais gates físicos foram registrados como `N/A` quando não havia
+fixture ou repetição suficiente. Midpoint, delete-before-insert, identidade
+congelada em toda a matriz e variações de firmware permanecem limites de
+evidência, não mudanças na decisão.
 
 ## Alternativas rejeitadas
 

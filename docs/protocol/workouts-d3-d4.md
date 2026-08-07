@@ -54,9 +54,33 @@ dispositivo”.
 
 - Fase 013: `closed`, resultado `partially_delivered`, motivo
   `product_reorientation`.
-- Fase 014: `in_progress` após conclusão documental de `014-01`.
+- Fase 014: `completed`, com progresso `17/17` após conclusão de `014-16`.
 - Treinos phone, GPS, rota, mapa, `ExerciseRoute` e BLE live não fazem parte da
   direção da Fase 014.
+
+## Estado factual final da Fase 014
+
+- Novas importações usam `parserVersion = d4-v2`; `d4-v1` permanece identificável
+  como legado. `MIGRATION_8_9` preserva o u24 legado como raw e não cria
+  `decodedSteps` automaticamente.
+- O parser novo preserva `rawMotionValue`, deriva `decodedSteps` com deslocamento
+  de 16 bits e mantém os 16 bits inferiores, distância temporal e calorias
+  temporais como desconhecidos/raw. A sequência sanitizada de referência soma
+  `3.737` passos; isso é evidência do caso observado, não garantia para todos os
+  firmwares.
+- A série entregue aplica índices contínuos e únicos, duração `T/N/60 s`,
+  residual positivo e plausibilidade separada. `T = 1.637 s` produz `27 × 60 s +
+  17 s`; não há redistribuição nem síntese de cauda.
+- A distância canônica usa a soma dos intervalos `decodedSteps ×
+  stepLengthMetersUsed`. O snapshot congela valor individual, origem, método e
+  versão da derivação. Distâncias original e calibrada histórica permanecem
+  diagnósticas.
+- O fluxo `TREADMILL` de `WATCH_D3_D4` usa série canônica elegível sem calibração
+  histórica. Projeções filhas Health Connect usam IDs, versões, payloads,
+  resultados e retry próprios; a integração continua write-only.
+- A validação física passou apenas nos cenários exercitados. Gates B, C, D, E e G
+  permanecem `N/A`; midpoint, delete-before-insert, round-trip completo e
+  variações de firmware continuam desconhecidos como evidência física.
 
 ## Regra obrigatória de produto
 
@@ -403,7 +427,7 @@ intervalos e amostras BPM da atividade. Por isso, o mapper grava os fatos raw de
 `d4-v2` na mesma transação e a migration de compatibilidade preserva o raw
 `d4-v1` antes de uma eventual reimportação corrigida.
 
-# Consumidores atuais auditados
+# Snapshot histórico dos consumidores na auditoria inicial (`014-01`)
 
 | Consumidor | Comportamento atual |
 | --- | --- |
@@ -414,12 +438,23 @@ intervalos e amostras BPM da atividade. Por isso, o mapper grava os fatos raw de
 | Health Connect | um `DistanceRecord` agregado pela prioridade calibrada → original → estimada |
 | fila Health Connect | uma operação de atividade por `recordType`; sem filho temporal |
 
-Nenhum consumidor atual usa uma distância principal igual à soma dos intervalos
-canônicos.
+Na auditoria inicial, nenhum consumidor usava uma distância principal igual à
+soma dos intervalos canônicos. Esse snapshot não descreve o comportamento
+entregue após `014-07` e `014-10`.
 
-# Health Connect planejado
+## Consumidores entregues na Fase 014
 
-A projeção futura de `WATCH_D3_D4` deverá conter:
+| Consumidor | Comportamento efetivo |
+| --- | --- |
+| parser/derivação | preserva raw e usa série canônica derivada por intervalo |
+| lista, detalhe e calendário | usam distância, métricas e acumulado canônicos; ausência permanece ausente |
+| workflow `WATCH_D3_D4` | `TREADMILL` elegível pode avançar sem calibração histórica |
+| Health Connect | usa projeções filhas granulares, sem distância original ou calibrada como fallback |
+| fila Health Connect | mantém uma operação independente por filho, com retry e reconciliação |
+
+# Health Connect entregue na Fase 014
+
+A projeção efetiva de `WATCH_D3_D4` contém:
 
 ```text
 EXERCISE_SESSION / singleton
@@ -429,8 +464,8 @@ HEART_RATE / series
 TOTAL_CALORIES_BURNED / singleton
 ```
 
-Cada filho terá operação própria, identidade estável, payload congelado e retry
-independente. `SpeedRecord` usará amostra no ponto médio do intervalo.
+Cada filho possui operação própria, identidade estável, payload congelado e retry
+independente. `SpeedRecord` usa amostra no ponto médio do intervalo.
 
 Agregado legado e filhos de distância não podem coexistir após reconciliação.
 

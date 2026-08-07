@@ -32,14 +32,28 @@ No estado atual do Champion Companion apos a integracao nativa real:
 
 Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
 
-Para a Fase 014, atividades `WATCH_D3_D4` usarão somente distância canônica
-derivada de passos válidos e comprimento individual do passo (`stepLengthMeters`).
-O valor original do relógio é
-diagnóstico e não pode ser fallback. O contrato futuro adiciona `SPEED`, permite
-múltiplos `DISTANCE` por intervalo e exige snapshot/projeção congelados conforme
-ADR-018. A migration local de projeções filhas foi concluída em `014-12`, e o
-writer granular de `014-13` prepara e processa cada filho em foreground, sem
-leitura remota ampla.
+Na Fase 014, atividades `WATCH_D3_D4` usam somente distância canônica derivada
+de passos válidos e comprimento individual do passo (`stepLengthMeters`). O valor
+original do relógio é diagnóstico e não pode ser fallback. A entrega adicionou
+`SPEED`, múltiplos `DISTANCE` por intervalo e snapshot/projeção congelados conforme
+ADR-018. A migration local de projeções filhas é `MIGRATION_9_10` (schema 10), e
+o writer granular prepara e processa cada filho em foreground, sem leitura remota
+ampla.
+
+## Estado factual final da Fase 014
+
+- Cada filho Health Connect possui operação, `projectionChildKey`, ID, versão,
+  payload e resultado próprios. Retry idêntico reutiliza identidade e payload;
+  reconciliação usa IDs exatos e fluxo retomável de delete-before-insert.
+- Distância usa somente intervalos canônicos positivos; velocidade usa midpoint;
+  BPM usa amostras reais; calorias usam o total elegível. Distância original,
+  calibrada histórica e estimativa agregada não são fallback de `WATCH_D3_D4`.
+- A integração permanece local-first, foreground, explícita e write-only.
+  `SYNCED` representa aceitação do caminho local de escrita, não confirmação por
+  leitura do provider.
+- A evidência física confirmou provider, autorização, falha parcial e retry nos
+  cenários exercitados após `014-17`. Gates sem fixture física permanecem `N/A`;
+  observação manual do provider não é readback do aplicativo.
 
 ## Fechamento Factual Da Fase 12
 
@@ -89,7 +103,7 @@ O record agregado legado não pode coexistir com a série corrigida. A fila deve
 preservar IDs e versões para retry/reconciliação, sem apagar records de terceiros
 ou inventar distribuição temporal para uma fonte que só possua total.
 
-## Mapeamento Planejado Champion Companion
+## Mapeamento Champion Companion — contrato histórico e estado efetivo
 
 | Origem local Champion Companion | Record planejado | Politica Champion Companion Fase 12 |
 | --- | --- | --- |
@@ -130,9 +144,10 @@ Preparação é local e transacional. `action`, payload serializado, origem da
 derivação, estado esperado/enviado/obsoleto e checkpoint são persistidos antes
 de qualquer writer. Retry lê payload congelado; mudança de payload incrementa
 versão monotônica por filho. `MIGRATION_9_10` apenas aplica defaults seguros a
-operações legadas; não insere nem remove records no provider. Agregado legado
-conhecido de distância bloqueia filhos `DISTANCE` e `SPEED` de `WATCH_D3_D4` até
-`014-14`.
+operações legadas; não insere nem remove records no provider. Durante a execução,
+agregado legado conhecido de distância bloqueou filhos `DISTANCE` e `SPEED` de
+`WATCH_D3_D4` até `014-14`; após a reconciliação, somente o conjunto granular
+efetivo é preparado.
 
 ## Diferencas Deliberadas Em Relacao Ao MotionLog
 
@@ -194,7 +209,11 @@ MotionLog usa `insertRecords`; não há update explícito por ID de record remot
 - Todos registros D1 com BPM válido devem ser enviados. Sem seleção manual ponto a ponto. `Decisão já definida`.
 - Falha parcial fica pendente por entidade/record para retry seguro. Não marcar lote inteiro como sincronizado. `Decisão já definida`.
 - Importações D3/D4 nascem `pending_review`. Envio manual somente após revisão, validação `valid` e sessão vinculada. `Decisão já definida`; bloqueios atuais confirmados pelo código.
-- Esteira envia distância calibrada. Importação sem calibração confirmada não envia. `Decisão já definida`; bloqueio atual confirmado pelo código.
+- Regra histórica da Fase 12: esteira enviava distância calibrada e importação sem
+  calibração confirmada não enviava. Para `WATCH_D3_D4` na Fase 014, a série
+  canônica elegível remove essa dependência; calibração histórica permanece
+  diagnóstica e não é enviada como distância canônica. `Confirmado pelo código`;
+  confirmação física de TREADMILL permanece não exercitada.
 - Não armazenar nem enviar latitude, longitude, coordenadas, polylines, rotas ou
   `ExerciseRoute` em Fase 12 e D3/D4. A exceção de rota persistida para sessão
   phone explícita de caminhada/corrida está definida na ADR-014; treino livre e

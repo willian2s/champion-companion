@@ -1,8 +1,8 @@
 # 014 — Refinamento, derivação e sincronização dos treinos do relógio
 
 - **Ticker:** `014`
-- **Status:** in_progress
-- **Progresso:** `16/17`
+- **Status:** completed
+- **Progresso:** `17/17`
 - **Base:** `main`, Fase 013 encerrada como `closed` / `partially_delivered`
 - **Decisões relacionadas:** ADR-012, ADR-016, ADR-017 e ADR-018
 
@@ -27,7 +27,45 @@ revisão local
 sincronização Health Connect granular
 ```
 
-O parser atual interpreta os 24 bits em `bytes[7..9]` como um único contador de
+## Estado de entrega e limites finais
+
+O planejamento histórico desta spec previa corrigir o parser, materializar uma
+série canônica, integrar consumidores locais, reprocessar atividades e projetar
+filhos granulares no Health Connect. Esse histórico permanece preservado nas
+seções normativas, na ordem das tasks e nas auditorias anteriores; não representa
+necessariamente o estado inicial do código.
+
+O comportamento entregue na Fase 014 é:
+
+- parser `d4-v2`, com `rawMotionValue` preservado e `decodedSteps` derivado por
+  `rawMotionValue ushr 16`; `d4-v1` continua identificável e fail-closed;
+- migration local efetiva `MIGRATION_8_9`, com banco Room v9, e migration aditiva
+  de projeções `MIGRATION_9_10`, com schema v10; nenhuma migration executa
+  derivação ou efeito remoto;
+- `stepLengthMeters` individual congelado no snapshot, com origem, método e
+  versão da derivação por atividade;
+- política temporal `T/N/60 s`, incluindo residual de 17 s no exemplo
+  `T = 1.637 s`, e plausibilidade separada, sem limiar global inventado;
+- distância canônica somente pela soma de `decodedSteps × stepLengthMetersUsed`;
+  distância original, calibrada histórica e estimativa agregada permanecem
+  diagnósticas e não são fallback;
+- projeções Health Connect filhas separadas, com IDs, versões e payloads
+  congelados, retry granular e reconciliação delete-before-insert por identidade
+  exata. O fluxo permanece local-first, foreground, explícito e write-only.
+
+O `TREADMILL` de `WATCH_D3_D4` usa a série canônica elegível sem exigir
+calibração histórica; contratos phone históricos e a Fase 013 não foram
+reabertos. A confirmação física foi parcial: Gate A passou; Gates B, C, D, E e G
+ficaram `N/A` por limitações documentadas; Gate F passou somente nos cenários
+exercitados após `014-17`, incluindo autorização, falha parcial e retry. A
+observação manual do provider não é readback do aplicativo. Permanecem riscos
+residuais para fixtures físicos não exercitados, cobertura ampla de firmwares,
+midpoint, delete-before-insert e matriz completa de falhas; nenhum deles autoriza
+declarar evidência ausente.
+
+## Contexto histórico de entrada
+
+O parser inicial interpretava os 24 bits em `bytes[7..9]` como um único contador de
 passos, fixa todos os intervalos em 60 segundos e calcula ritmo/velocidade usando
 a distância original do relógio. Evidência física posterior confirmou que o
 valor é empacotado: passos estão no byte superior; os 16 bits inferiores seguem
@@ -354,7 +392,7 @@ Evolução aditiva `v8 → v9`, fechada em `014-02` e executada em `014-03`:
 Não deriva métricas, não acessa Health Connect, não altera workflow e não remove
 estrutura histórica.
 
-### Migration de projeções Health Connect
+### Migration de projeções Health Connect — planejada e efetiva
 
 Evolução aditiva posterior, planejada em `014-12`:
 
@@ -363,8 +401,9 @@ Evolução aditiva posterior, planejada em `014-12`:
 - ação `INSERT`/`DELETE`, checkpoint, estado e versão;
 - unicidade por atividade, tipo e filho.
 
-A versão exata será definida após a migration local efetiva. Não misturar as duas
-migrações na mesma task.
+A versão exata efetiva é `MIGRATION_9_10`, com schema Room v10. A migration local
+`MIGRATION_8_9` e a migration de projeções permaneceram separadas; nenhuma delas
+mistura derivação, mudança de workflow ou efeito remoto durante upgrade.
 
 ## Tasks
 
@@ -388,10 +427,10 @@ migrações na mesma task.
 014-16  Encerrar documentalmente a fase
 ```
 
-A ordem mínima após a validação inicial é `014-15` → `014-17` → revalidação do
-Gate F em `014-15` → `014-16`. `014-15` foi concluída sem bloqueador ativo para
-os cenários físicos exercitados; `014-16` permanece pendente para o fechamento
-documental da fase.
+A ordem mínima executada foi `014-15` → `014-17` → revalidação do Gate F em
+`014-15` → `014-16`. `014-15` foi concluída sem bloqueador ativo para os cenários
+físicos exercitados; `014-16` concluiu o fechamento documental sem converter
+`N/A`, observação manual ou cobertura parcial em evidência universal.
 
 ## Fora do escopo
 

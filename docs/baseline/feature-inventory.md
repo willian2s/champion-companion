@@ -10,9 +10,10 @@ implementada em `013-17`, com aceite final confirmado por revisão independente.
 Não continuar GPS, rota,
 `ExerciseRoute` ou BLE live em sessão phone. Priorizar importação D3/D4;
 distância canônica usa passos válidos e `stepLengthMeters`, enquanto distância
-original do relógio fica diagnóstica. A Fase 014 está `pending` e planeja
-derivação por `stepLengthMeters`, revisão local e sincronização granular com
-Health Connect.
+original do relógio fica diagnóstica. A Fase 014 está `completed`, com progresso
+`17/17`, após entregar derivação por `stepLengthMeters`, revisão local e
+sincronização granular com Health Connect. Seus limites físicos e riscos
+residuais estão registrados nas evidências da fase.
 
 Os registros sobre GPS, rotas, exercícios phone e background abaixo descrevem o
 baseline MotionLog e a execução histórica. Não constituem backlog ativo nem

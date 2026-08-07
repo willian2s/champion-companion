@@ -10,11 +10,27 @@
 - Migrations, schemas, sessões, dados e evidências devem ser preservados até
   autorização explícita de remoção; lacunas físicas históricas não viram
   sucesso por cancelamento.
-- Fase 014 está `pending` e foi planejada para treinos iniciados pelo relógio: importação
-  D3/D4, derivação, revisão e Health Connect. WorkManager fica limitado a
-  trabalho finito e adiável.
+- Fase 014 está `completed`, com progresso `17/17`. A entrega cobre treinos
+  iniciados pelo relógio: importação D3/D4, derivação, revisão e Health Connect.
+  WorkManager permanece limitado a trabalho finito e adiável.
 - A distância canônica será derivada de passos válidos e `stepLengthMeters`. A
   distância original do relógio será somente diagnóstica.
+
+## Estado factual final da Fase 014
+
+- Parser novo usa `d4-v2`; `d4-v1` permanece legado identificável, sem
+  `decodedSteps` criado automaticamente pela migration.
+- `MIGRATION_8_9` levou o banco ao Room v9 e `MIGRATION_9_10` levou o banco ao
+  schema v10. Ambas são aditivas e não executam efeitos remotos.
+- A projeção Health Connect usa operações filhas com payload, ID e versão
+  congelados, retry foreground explícito e reconciliação por ID exato. A
+  integração permanece write-only.
+- A validação física cobriu somente cenários exercitados: Gate A passou, Gates B,
+  C, D, E e G ficaram `N/A`, e Gate F passou para autorização, falha parcial e
+  retry observados após `014-17`.
+- Permanecem riscos de fixtures físicos não exercitados, midpoint,
+  delete-before-insert, round-trip completo e variações de firmware. Esses riscos
+  não reabrem a fase nem autorizam evidência ausente.
 
 ## Objetivo E Leitura
 

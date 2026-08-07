@@ -1,8 +1,8 @@
 # 014 — Refinamento, derivação e sincronização dos treinos do relógio
 
-- **Status geral:** in_progress
+- **Status geral:** completed
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 16/17 subtarefas concluídas
+- **Progresso:** 17/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -43,7 +43,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
 - [x] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
 - [x] [014-17-harden-health-connect-provider-authorization-and-child-outcomes.md](014-17-harden-health-connect-provider-authorization-and-child-outcomes.md)
-- [ ] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
+- [x] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
 
 ## Dependências
 
@@ -325,8 +325,9 @@ efeito durante upgrade; ambos foram concluídos nas subtarefas `014-13` e
 - `014-15` foi concluída com Gate A `PASS`; Gates B, C, D, E e G permanecem
   `N/A` pelas limitações físicas documentadas; Gate F é `PASS` somente para os
   cenários exercitados. A validação não afirma leitura ampla pelo aplicativo.
-- Progresso da spec e do overview atualizado para `16/17`. `014-16` permanece
-  `[ ]` e `pending`, aguardando seu fechamento documental próprio.
+- Registro histórico: progresso da spec e do overview foi atualizado para
+  `16/17` após `014-17`; `014-16` permanecia desmarcada enquanto aguardava seu
+  fechamento documental próprio.
 - Registro histórico: `014-17` foi criada como follow-up funcional para
   autorização real, resultado por filho, feedback write-only e revalidação de
   distância, velocidade, retry e falha parcial. Sua implementação concluiu o
@@ -347,6 +348,21 @@ efeito durante upgrade; ambos foram concluídos nas subtarefas `014-13` e
   exibiu falha parcial em três filhos; retry após reautorização terminou
   `Sincronizada`, com `3,570 km` acumulados, acréscimo de `0,053 km` e sem
   duplicação observada.
-- `014-16` foi iniciada explicitamente para reconciliar a spec e o conjunto
-  documental final. A spec foi alinhada para `16/17`; o item `014-16` permanece
-  `[ ]` até revisão documental independente e fechamento factual da fase.
+- Registro histórico anterior ao fechamento: `014-16` foi iniciada explicitamente
+  para reconciliar a spec e o conjunto documental final. A spec foi alinhada para
+  `16/17` enquanto a revisão documental independente permanecia pendente.
+
+## Encerramento factual
+
+- Fase 014: `completed`.
+- Progresso: `17/17`.
+- `014-15` está `completed`: Gates B, C, D, E e G permanecem `N/A` por limites
+  físicos documentados; Gate F é PASS somente para autorização, falha parcial e
+  retry exercitados após `014-17`.
+- Parser efetivo: `d4-v2`. Banco: Room v9 após `MIGRATION_8_9`; projeções filhas:
+  schema v10 após `MIGRATION_9_10`.
+- Health Connect permanece local-first, foreground, explícito e write-only. A
+  observação manual do provider não é readback do aplicativo.
+- Riscos residuais de fixtures físicas, midpoint, delete-before-insert,
+  round-trip completo e variações de firmware permanecem explícitos. Nenhum
+  fluxo phone, GPS, rota, mapa ou BLE live foi reaberto.

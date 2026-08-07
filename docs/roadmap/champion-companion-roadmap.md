@@ -14,8 +14,10 @@
   existentes permanecem preservados até decisão explícita de remoção.
 - A direção futura prioriza importação D3/D4, derivação de métricas, revisão e
   sincronização com Health Connect de treinos iniciados pelo relógio.
-- A Fase 014 está `in_progress`, com `014-01` a `014-14` concluídas e progresso
-  `14/16`. A próxima task elegível é `014-15`, validação física.
+- A Fase 014 está `completed`, com `014-01` a `014-17` concluídas e progresso
+  `17/17`. `014-17` encerrou o follow-up funcional e `014-16` concluiu o
+  fechamento documental. A fase preserva os limites físicos registrados nas
+  evidências e não reabre a Fase 013.
   WorkManager permanece somente como detalhe técnico de trabalho finito e
   adiável, não como objetivo funcional genérico nem owner de sessão ativa.
 - Critérios finais do roadmap não exigem novos treinos phone, GPS, rota ou
@@ -2026,7 +2028,7 @@ Health Connect
 
 # Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio
 
-**Status:** `in_progress`. **Progresso:** `14/16`.
+**Status:** `completed`. **Progresso:** `17/17`.
 
 A Fase 014 não é uma fase genérica de WorkManager. Seu objetivo funcional é
 refinar importação, derivação, revisão e sincronização de treinos iniciados pelo
@@ -2066,7 +2068,17 @@ canônica deriva exclusivamente da série de passos válidos e
   writer granular das projeções Health Connect.
 - `014-14`: `completed` — reconciliação do agregado legado, tombstones,
   checkpoints, retries e remoção exata de filhos obsoletos.
-- `014-15..16`: `pending` — validação física e encerramento documental.
+- `014-15`: `completed` — validação física; Gates A e F passaram somente nos
+  cenários exercitados, e Gates B, C, D, E e G ficaram `N/A` com justificativa.
+- `014-17`: `completed` — follow-up funcional de autorização, resultado por filho,
+  falha parcial e retry, sem leitura ampla do Health Connect.
+- `014-16`: `completed` — fechamento documental factual da fase.
+
+Gate F não representa cobertura física universal: a observação manual do provider
+permanece limitada aos cenários exercitados e o aplicativo continua write-only.
+Fixtures físicos não executados, midpoint, delete-before-insert e cobertura de
+firmwares permanecem riscos residuais documentados. Parser `d4-v2`,
+`MIGRATION_8_9`/Room v9 e `MIGRATION_9_10`/schema v10 são as versões efetivas.
 
 Relatório de `014-01`:
 
@@ -2857,7 +2869,7 @@ Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
 Fase 12 — Health Connect (concluída)
 Fase 13 — Exercícios phone (`closed`, `partially_delivered`)
-Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio (`in_progress`, `14/16`)
+Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio (`completed`, `17/17`)
 Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
@@ -2876,8 +2888,10 @@ Fase 25 — Lançamento
 # 13. Priorização
 
 Fase 15 está concluída. Fase 13 está fechada como `partially_delivered` após a
-descontinuação de novos treinos phone. Fase 14 está `in_progress`, com `014-01` até
-`014-14` concluídas e `014-15` como próxima task. WorkManager permanece somente detalhe
+descontinuação de novos treinos phone. Fase 14 está `completed`, com `014-01` até
+`014-17` concluídas. O fechamento documental foi concluído após a revalidação
+física limitada de `014-15`; Gates físicos sem fixtures permanecem `N/A` e Gate F
+vale somente para os cenários exercitados. WorkManager permanece somente detalhe
 técnico de tarefas finitas e adiáveis. O refinamento visual da Spec 017 é pacote
 independente e não constitui nova fase nem altera essa ordem.
 

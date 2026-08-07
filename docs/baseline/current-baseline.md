@@ -14,9 +14,10 @@
   permitir revisão e sincronizar com Health Connect. A distância canônica será
   derivada de passos válidos e `stepLengthMeters`; a distância original do
   relógio permanece somente diagnóstica.
-- A Fase 014 está planejada como refinamento de treinos iniciados pelo relógio.
-  WorkManager poderá apoiar apenas trabalho finito e adiável, fora do objetivo
-  funcional da fase. Ver `docs/specs/014-watch-workout-derived-metrics.md`.
+- A Fase 014 foi concluída como refinamento de treinos iniciados pelo relógio,
+  com progresso `17/17`. WorkManager permanece fora do objetivo funcional e só
+  pode apoiar trabalho finito e adiável. Ver
+  `docs/specs/014-watch-workout-derived-metrics.md`.
 
 ## Produto e fase
 
@@ -88,7 +89,28 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v8`; a migration 7→8 corrige ordem temporal legada de atividades reimportadas já revisadas, sem reparar operações de sync. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v10`; as migrations efetivas da Fase 014 são `MIGRATION_8_9` (Room v9, métricas locais) e `MIGRATION_9_10` (schema 10, projeções filhas), ambas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+
+## Registro factual final da Fase 014
+
+- O parser efetivo de novas importações é `d4-v2`; `d4-v1` permanece legado
+  identificável e reprocessável somente por ação explícita.
+- A derivação congela `stepLengthMeters` como distância de um passo individual,
+  origem, método e versão por atividade. Distância canônica usa somente a soma
+  dos intervalos elegíveis; valores originais, calibrados históricos e agregados
+  permanecem diagnósticos.
+- Projeções filhas Health Connect usam operações, IDs, versões e payloads
+  congelados por filho, com retry foreground explícito e reconciliação por ID
+  exato/delete-before-insert. Room permanece fonte local; Health Connect é
+  destino write-only.
+- A validação física confirmou somente os cenários exercitados: Gate A passou,
+  Gates B, C, D, E e G ficaram `N/A`, e Gate F passou para autorização, falha
+  parcial e retry observados após `014-17`. Provider foi observado manualmente;
+  o app não executa readback.
+- Permanecem riscos de cobertura física de fixtures, midpoint,
+  delete-before-insert, identidade congelada em matriz completa e variações de
+  firmware. Fase 013 continua `closed` / `partially_delivered` /
+  `product_reorientation`.
 
 Spec 018 corrigiu falso `UNRESOLVED_AGGREGATE` no Calendário após reimportação
 D3/D4: `recordedAt` original é preservado e caminhos de reimportação falham

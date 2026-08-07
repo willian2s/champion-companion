@@ -15,9 +15,9 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 - A Fase 12 não alterou schema nesta atualização; migrations `5→6`, `6→7`,
   `7→8`, `8→9` e `9→10` permanecem parte do histórico factual.
 - Fase 013 está `closed`, com resultado `partially_delivered` e motivo
-  `product_reorientation`. Fase 014 está `in_progress`; a migration local
-  aditiva `8→9` foi implementada em `014-03`; `9→10` foi implementada em
-  `014-12` para projeções filhas Health Connect.
+  `product_reorientation`. Fase 014 está `completed`, com progresso `17/17`; a
+  migration local aditiva `8→9` foi implementada em `014-03`; `9→10` foi
+  implementada em `014-12` para projeções filhas Health Connect.
 
 ## Atualização factual da Fase 014 — schema v9
 
@@ -80,6 +80,24 @@ preservam `operationSequence` e permanecem distinguíveis. A preparação local
 exige payload congelado, origem, ID determinístico e versão monotônica; retry
 idêntico reutiliza esses valores. O índice único impede mais de uma operação
 por filho na mesma projeção.
+
+### Estado efetivo após o fechamento da Fase 014
+
+- Parser novo usa `d4-v2`; `d4-v1` continua preservado como legado e não recebe
+  `decodedSteps` por migration automática.
+- Snapshots e intervalos derivados congelam `stepLengthMeters` individual,
+  origem, método, versão, duração efetiva, elegibilidade e plausibilidade. A
+  distância canônica é a soma dos intervalos; `distanceMeters` legado não é
+  fallback.
+- `MIGRATION_8_9` corresponde ao Room v9 e `MIGRATION_9_10` ao schema v10.
+  Nenhuma migration deriva métricas, muda workflow ou acessa Health Connect.
+- A fila de projeções usa uma operação por filho, payload congelado, IDs e
+  versões monotônicos, retry foreground e reconciliação por identidade exata.
+  Health Connect permanece destino write-only; a validação manual do provider não
+  é readback do aplicativo.
+- A matriz física confirmou apenas os cenários exercitados após `014-17`.
+  Gates B, C, D, E e G ficaram `N/A`; midpoint, delete-before-insert, round-trip
+  físico completo e variações de firmware permanecem riscos de evidência.
 
 ## Fechamento Factual Da Fase 12
 
@@ -228,16 +246,17 @@ autorização não inclui servidor, exportação, backup ou device transfer.
 
 Lista e referencia de comportamento, nao autorizacao para copiar tabelas/colunas ou criar Room. `Inferido a partir do codigo`, exceto restricoes de rota.
 
-## Lacunas Para Fase 014
+## Riscos residuais após Fase 014
 
-- Definir retenção, acesso e necessidade real de `raw_hex`, IDs de sessao brutos, logs e erros de Health Connect; codigo atual nao define politica de privacidade/expurgo geral. `Ainda nao confirmado`.
-- Definir entidades e limites de snapshot, série derivada e projeção Health
-  Connect; ADR-018 orienta separação raw/measured/derived. `Planejado para
-  014-02/03`.
-- Confirmar modelo novo para exclusao de entidade e fila Health Connect: exclusao de sessao atual nao mostra exclusao de itens de fila relacionados. `Confirmado pelo codigo` para comportamento atual; decisao nova pendente.
-- Definir unicidade desejada para BPM sem `device_id`; indice SQLite atual aceita multiplos `NULL`. `Inferido a partir do codigo`.
-- Confirmar se samples D3/D4 e BPM por exercicio exigem retenção completa ou agregados atendem paridade futura. `Ainda nao confirmado`.
-- Confirmar semantica de `synced_at` de `daily_summaries` versus cursor especifico de Steps; ambos coexistem no schema atual. `Ainda nao confirmado`.
+- Retenção, acesso e expurgo geral de payloads diagnósticos e erros de Health
+  Connect continuam fora desta fase.
+- Abertura física de banco legado, cascatas e round-trip completo em dispositivo
+  não foram executados; migration manual, schema, mappers fail-closed e builds
+  permanecem evidência estática.
+- A matriz física não cobriu todos os cenários de midpoint,
+  delete-before-insert, identidade congelada ou variações de firmware.
+- A Fase 014 não autoriza leitura ampla do Health Connect, fallback de distância,
+  GPS, rota, treino phone ou remoção de legado da Fase 013.
 
 ## Validacao Da Task
 
