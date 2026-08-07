@@ -55,6 +55,28 @@ sealed interface WatchWorkoutReprocessResult {
     ) : WatchWorkoutReprocessResult
 }
 
+enum class WatchWorkoutPlausibilityAcceptanceFailureReason {
+    ACTIVITY_NOT_FOUND,
+    NOT_WATCH_WORKOUT,
+    DERIVATION_NOT_MATERIALIZED,
+    SERIES_INELIGIBLE,
+    INDICATORS_PRESENT,
+    SYNC_IN_PROGRESS,
+    SYNCED_BLOCKED,
+    INVALID_WORKFLOW_STATE,
+    STORAGE_UNAVAILABLE,
+}
+
+sealed interface WatchWorkoutPlausibilityAcceptanceResult {
+    data class Accepted(
+        val activity: WorkoutActivity,
+    ) : WatchWorkoutPlausibilityAcceptanceResult
+
+    data class Blocked(
+        val reason: WatchWorkoutPlausibilityAcceptanceFailureReason,
+    ) : WatchWorkoutPlausibilityAcceptanceResult
+}
+
 interface DeviceRepository {
     fun observeAssociatedDevice(): Flow<Device?>
     suspend fun associateDevice(device: Device): RepositoryResult<Device>
@@ -305,6 +327,12 @@ interface WorkoutActivityRepository {
         -> WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
     }
     suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
+    /** Persiste aceite no snapshot ativo; não recalcula nem prepara fila remota. */
+    suspend fun acceptWatchWorkoutPlausibility(
+        activityId: WorkoutActivityId,
+    ): WatchWorkoutPlausibilityAcceptanceResult = WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+        WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE,
+    )
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun markSynced(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
@@ -345,6 +373,8 @@ data class SubmitWorkoutReviewInput(
     val title: String?,
     val notes: String?,
     val reviewedAt: Instant,
+    /** Aceite explícito da série sem indicadores antes da projeção remota. */
+    val acceptPlausibility: Boolean = false,
 )
 
 data class WatchWorkoutImportLookup(

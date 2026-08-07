@@ -105,6 +105,13 @@ tipado, como `IMPLAUSIBLE_CADENCE`, preserva raw/measured e pode bloquear a
 projeção granular remota. Limiar e política exatos pertencem aos contratos de
 `014-02`, após auditoria.
 
+Quando não há indicador tipado, a política inicial
+`NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION` continua bloqueando a projeção: ausência
+de limiar não vira limiar implícito. O usuário pode confirmar explicitamente a
+série sem indicadores; essa ação atualiza somente `plausibilityPolicy` do
+snapshot ativo para `EXPLICITLY_ACCEPTED`, sem recalcular fatos, série ou
+payloads. Indicadores `IMPLAUSIBLE_*` impedem aceite genérico.
+
 ### 7. Distância e série canônicas
 
 Somente intervalos measured elegíveis e `stepLengthMetersUsed` produzem distância
@@ -190,6 +197,10 @@ aggregate + recordType + projectionChildKey
 Cada operação congela payload, ação, ID, versão e estado. Isso evita uma segunda
 fila interna dentro de uma operação agregada e permite retry/falha parcial por
 filho.
+
+Nenhum filho é preparado antes do aceite explícito quando a série está sem
+indicadores e sob `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION`. Atividade `SYNCED` não
+aceita alteração silenciosa de política nem reprocessamento.
 
 Até a projeção granular estar disponível, o writer legado bloqueia
 `WATCH_D3_D4` em todas as transições de atividade (`startSync`, `markSynced` e

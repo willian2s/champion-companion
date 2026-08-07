@@ -560,6 +560,12 @@ data class WorkoutSeriesPlausibility(
     val indicators: Set<WorkoutPlausibilityIndicator> = emptySet(),
     val policy: WorkoutPlausibilityPolicy = WorkoutPlausibilityPolicy.NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION,
 ) {
+    val requiresExplicitAcceptance: Boolean
+        get() = indicators.isEmpty() && policy == WorkoutPlausibilityPolicy.NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION
+
+    val hasBlockingIndicators: Boolean
+        get() = indicators.isNotEmpty()
+
     val projectionEligible: Boolean
         get() = policy == WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED && indicators.isEmpty()
 
@@ -568,6 +574,18 @@ data class WorkoutSeriesPlausibility(
 
     val blocksGranularProjection: Boolean
         get() = !projectionEligible
+
+    /**
+     * Registra aceite humano somente quando não há indicador tipado. A ausência
+     * de limiar global não é convertida em limiar nem ignora R6.
+     */
+    fun acceptExplicitly(): DomainResult<WorkoutSeriesPlausibility> = when {
+        indicators.isNotEmpty() -> DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        policy == WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED -> DomainResult.Success(this)
+        policy == WorkoutPlausibilityPolicy.NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION ->
+            DomainResult.Success(copy(policy = WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED))
+        else -> DomainResult.Failure(DomainValidationError.INVALID_STATE)
+    }
 
     companion object {
         fun flagged(vararg indicators: WorkoutPlausibilityIndicator): WorkoutSeriesPlausibility =
@@ -805,6 +823,21 @@ data class WorkoutDerivationSnapshot private constructor(
 
     val isEligibleForHealthProjection: Boolean
         get() = isEligibleForFunctionalProjection
+
+    /** Série válida, sem indicadores, mas ainda bloqueada até aceite explícito. */
+    val requiresExplicitPlausibilityAcceptance: Boolean
+        get() = canonicalSeriesEligible && plausibility.requiresExplicitAcceptance
+
+    val hasPlausibilityIndicators: Boolean
+        get() = plausibility.hasBlockingIndicators
+
+    fun acceptExplicitPlausibility(): DomainResult<WorkoutDerivationSnapshot> {
+        if (!canonicalSeriesEligible) return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        return when (val accepted = plausibility.acceptExplicitly()) {
+            is DomainResult.Success -> DomainResult.Success(copy(plausibility = accepted.value))
+            is DomainResult.Failure -> accepted
+        }
+    }
 
     /** Elegibilidade local da série, independente da guarda remota de plausibilidade. */
     val isEligibleForCanonicalWorkflow: Boolean

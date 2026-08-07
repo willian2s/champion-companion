@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Status:** in_progress
-- **Progresso:** `11/16`
+- **Progresso:** `14/17`
 - **Base:** `main`, Fase 013 encerrada como `closed` / `partially_delivered`
 - **Decisões relacionadas:** ADR-012, ADR-016, ADR-017 e ADR-018
 
@@ -140,6 +140,10 @@ Exemplo confirmado: `T = 1.637 s`, 27 intervalos completos e último de 17 s.
    política definida em `014-02`.
 5. Não inventar limiar global sem auditoria; a task de contratos registra o
    intervalo adotado e sua justificativa.
+6. Sem indicadores tipados, `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION` exige
+   confirmação explícita do usuário antes de preparar qualquer filho Health
+   Connect; o aceite persiste `EXPLICITLY_ACCEPTED` no snapshot existente.
+7. Indicadores `IMPLAUSIBLE_*` impedem aceite genérico e mantêm Gate F bloqueado.
 
 ### R7 — Snapshot e distância canônica
 
@@ -277,6 +281,28 @@ sampledAt = intervalStart + effectiveDuration / 2
    retomável e idempotente.
 7. Health Connect permanece write-only, foreground e explícito.
 
+### R15 — Follow-up de autorização e resultado por filho
+
+1. O estado concedido de `WRITE_DISTANCE` e `WRITE_SPEED` deve ser confirmado no
+   provider real para o mesmo package do aplicativo validado.
+2. A aceitação de `SpeedRecord` pela versão instalada do provider deve ser
+   distinguida de permissão ausente e de falha de escrita.
+3. Cada filho esperado deve possuir resultado local explícito; filho ausente,
+   não processado ou falho não pode desaparecer da decisão de conclusão da
+   atividade.
+4. Settings e Exercícios devem diferenciar permissão pendente, falha de
+   distância, falha de velocidade, provider indisponível e escrita aceita sem
+   confirmação por leitura.
+5. Retry após autorização deve preservar identidade, versão e payload congelados,
+   sem duplicação.
+6. A validação física do follow-up usa somente observação manual do provider;
+   não autoriza `readRecords`, `ChangeLogs` ou leitura ampla no aplicativo.
+7. A revisão `PENDING_REVIEW` pode registrar o aceite explícito junto com a
+   conclusão; atividade revisada não sincronizada oferece ação equivalente.
+8. Ação de aceite não cria snapshot, não rederiva fatos e não altera distância
+   canônica, midpoint, IDs, versões ou payloads congelados.
+9. Atividade `SYNCED` rejeita aceite e permanece sem reprocessamento silencioso.
+
 ## Critérios de aceite
 
 1. Perfil aceita valor manual e sugestão por altura somente após confirmação.
@@ -297,6 +323,21 @@ sampledAt = intervalStart + effectiveDuration / 2
 15. Agregado legado e filhos granulares não coexistem após reconciliação.
 16. Retry não duplica records nem recalcula payload mutável.
 17. Nenhuma task reabre GPS, rota, mapa, treino phone ou BLE live.
+18. A autorização real de distância e velocidade é registrada por package e
+    provider antes do Gate F ser considerado concluído.
+19. Falha de permissão ou provider em filho de distância/velocidade permanece
+    visível localmente e impede `SYNCED` indevido da atividade.
+20. A ausência de confirmação por leitura remota é explicitamente apresentada
+    como limite write-only, sem declarar record remoto apenas por fila local.
+21. Retry após reautorização mantém IDs, versões e payloads congelados e não cria
+    duplicação.
+22. Provider incompatível com `SpeedRecord` mantém Gate F bloqueado, sem fallback
+    para distância original, calibrada ou agregada.
+23. Série sem indicadores permanece sem filhos DISTANCE/SPEED até aceite
+    explícito; após aceite, filhos elegíveis aparecem e `WRITE_SPEED` fica
+    observável como permissão pendente quando ausente.
+24. Aceite com indicador `IMPLAUSIBLE_*` é rejeitado sem alterar snapshot ou
+    fila.
 
 ## Migrações previstas
 
@@ -343,8 +384,13 @@ migrações na mesma task.
 014-13  Enviar distância granular e SpeedRecord
 014-14  Reconciliar agregado e filhos legados
 014-15  Executar validação física completa
+014-17  Endurecer autorização e resultado por filho do Health Connect
 014-16  Encerrar documentalmente a fase
 ```
+
+A ordem mínima após a validação inicial é `014-15` → `014-17` → revalidação do
+Gate F em `014-15` → `014-16`. Enquanto `014-15` permanecer bloqueada, `014-16`
+não pode ser iniciada.
 
 ## Fora do escopo
 

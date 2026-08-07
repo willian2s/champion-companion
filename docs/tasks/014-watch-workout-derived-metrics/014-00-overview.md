@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 14/16 subtarefas concluídas
+- **Progresso:** 14/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -42,6 +42,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
 - [x] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
 - [ ] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
+- [ ] [014-17-harden-health-connect-provider-authorization-and-child-outcomes.md](014-17-harden-health-connect-provider-authorization-and-child-outcomes.md)
 - [ ] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
 
 ## Dependências
@@ -68,15 +69,21 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
                      ↓
                    014-13
                      ↓
-                   014-14
-                     ↓
-                   014-15
-                     ↓
-                   014-16
+014-14
+   ↓
+014-15
+   ↓
+014-17
+   ↓
+revalidação do Gate F em 014-15
+   ↓
+014-16
 ```
 
-`014-15` também exige conclusão de `014-11`. `014-16` é exclusivamente
-documental e não contém correções funcionais.
+`014-15` também exige conclusão de `014-11`. Quando o Gate F falha, `014-17`
+deve ser concluída antes da revalidação de `014-15`. `014-16` depende de
+`014-15` sem bloqueadores e é exclusivamente documental; não contém correções
+funcionais.
 
 ## Resultado de 014-01
 
@@ -292,12 +299,43 @@ efeito durante upgrade; ambos foram concluídos nas subtarefas `014-13` e
   `git diff --check` passaram; testes automatizados não foram criados nem
    executados. Provider real, midpoint e falha parcial permanecem para `014-15`;
    reconciliação do agregado legado foi concluída em `014-14`.
-- Revisão independente final de `014-13` aprovada sem blockers ou majors. A spec
-  principal ainda exibe progresso histórico `11/16`; este overview permanece a
-  fonte operacional atualizada em `14/16`.
+ - Revisão independente final de `014-13` aprovada sem blockers ou majors. A spec
+   principal foi normalizada para `14/17`; este overview permanece a fonte
+   operacional atualizada em `14/17`.
 - `014-14` concluiu reconciliação global: tombstone, checkpoints antes/depois,
   delete-before-insert, retries com identidade congelada, deleção exata de
   filhos obsoletos, bloqueio fail-closed de identidades desconhecidas e reparo
   de workflows concluídos. Lint, builds debug/release, instalação e
   `git diff --check` passaram; provider real e matriz física de falhas permanecem
   para `014-15`.
+- `014-15` iniciou validação física no Galaxy S22 `SM-S901E` com importação
+  explícita, revisão, métricas canônicas, splits, BPM e sincronização Health
+   Connect real. Build, lint, instalação e `git diff --check` passaram. A
+   subtarefa permanece `blocked`: faltam fixtures físicas para índices/duração/
+  plausibilidade, sugestão por altura, esteira, retry/falha parcial e
+  reprocessamento de legado não sincronizado. Evidência sanitizada em
+  `docs/integration/014-15-physical-validation.md`.
+- Atualização do Gate F de `014-15`: após acesso ao Health Connect real, distância
+  e velocidade não apareceram; velocidade estava sem permissão. O sucesso do
+  aplicativo comprova somente estado local da fila. Gate F é `FAIL` bloqueador e
+  o follow-up funcional está em
+  `docs/integration/014-15-health-connect-provider-follow-up.md`. Item `014-15`
+  permanece desmarcado e progresso permanece `14/17`.
+- `014-17` foi criada como follow-up funcional pendente para autorização real,
+  resultado por filho, feedback write-only e revalidação física de distância,
+  velocidade, retry e falha parcial. `014-15` permanece desmarcada e bloqueada;
+  `014-17` deve anteceder `014-16` quando o Gate F exigir correção.
+- `014-17` implementou aceite explícito da política
+  `NO_GLOBAL_THRESHOLD_BLOCKS_PROJECTION` somente para séries sem indicadores:
+  revisão pode registrar o aceite, atividades `READY_TO_SYNC`/`SYNC_FAILED` não
+  sincronizadas oferecem ação equivalente, e o snapshot existente é atualizado
+  sem migration/schema. Indicadores `IMPLAUSIBLE_*` continuam bloqueando Gate F;
+  coordinator, IDs, versões, payloads, distância canônica e midpoint foram
+  preservados. O item permanece `[ ]`, o progresso permanece `14/17` e a
+  revalidação física de `014-15` continua bloqueada.
+- Revalidação física complementar após `014-17`: uma atividade elegível foi
+  importada, aceita, sincronizada e observada no provider real com distância
+  granular `3,463 km` e velocidade `7,245 km/h`; `WRITE_SPEED` foi revogada
+  isoladamente, apareceu como pendente em Settings e foi restaurada. Retry,
+  falha parcial e ausência de duplicação continuam sem fixture elegível; `014-15`
+  permanece `[ ]`, `014-17` permanece `[ ]` e o progresso permanece `14/17`.

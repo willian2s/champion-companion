@@ -24,9 +24,11 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
+import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -46,6 +48,8 @@ data class HealthConnectSyncReport(
     val processedCount: Int = 0,
     val syncedCount: Int = 0,
     val failedCount: Int = 0,
+    /** Escritas aceitas pelo provider, sem confirmação remota por leitura. */
+    val writeAcceptedWithoutReadbackCount: Int = 0,
     val requiredPermissions: Set<HealthConnectWritePermission> = emptySet(),
 )
 
@@ -54,6 +58,8 @@ data class HealthConnectSyncFailure(
     val recordType: HealthSyncRecordType,
     val error: SafeSyncError,
     val reason: String,
+    val failureKind: HealthConnectFailureKind = error.toHealthConnectFailureKind(),
+    val projectionChildKey: HealthProjectionChildKey? = null,
 )
 
 sealed interface HealthConnectSyncOutcome {
@@ -75,6 +81,15 @@ sealed interface HealthConnectSyncOutcome {
     data class PermissionRequired(
         override val report: HealthConnectSyncReport,
         val missingPermissions: Set<HealthConnectWritePermission>,
+    ) : HealthConnectSyncOutcome
+
+    data class PlausibilityAcceptanceRequired(
+        override val report: HealthConnectSyncReport,
+    ) : HealthConnectSyncOutcome
+
+    data class PlausibilityBlocked(
+        override val report: HealthConnectSyncReport,
+        val indicators: Set<WorkoutPlausibilityIndicator>,
     ) : HealthConnectSyncOutcome
 
     data class ProviderUnavailable(
@@ -178,7 +193,12 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             return HealthConnectSyncOutcome.Disabled(baseline.report.finish())
         }
 
-        return when (val availability = healthConnectGateway.getAvailability()) {
+        val availability = runCatching { healthConnectGateway.getAvailability() }.getOrNull()
+            ?: return HealthConnectSyncOutcome.ProviderUnavailable(
+                report = baseline.report.finish(),
+                updateRequired = false,
+            )
+        return when (availability) {
             HealthConnectAvailability.Unavailable -> HealthConnectSyncOutcome.ProviderUnavailable(
                 report = baseline.report.finish(),
                 updateRequired = false,
@@ -202,7 +222,22 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         explicitActivityId: WorkoutActivityId?,
         processableOperations: suspend () -> RepositoryResult<HealthSyncProcessableQueue>,
     ): HealthConnectSyncOutcome {
-        val grantedPermissions = healthConnectGateway.getGrantedPermissions()
+        val grantedPermissions = when (val permissionResult = healthConnectGateway.getGrantedPermissions()) {
+            is HealthConnectPermissionResult.Granted -> permissionResult.permissions
+            is HealthConnectPermissionResult.Failed -> {
+                return when (permissionResult.failure.kind) {
+                    HealthConnectFailureKind.PROVIDER_UPDATE_REQUIRED -> HealthConnectSyncOutcome.ProviderUnavailable(
+                        report = baseline.report.finish(),
+                        updateRequired = true,
+                    )
+
+                    else -> HealthConnectSyncOutcome.ProviderUnavailable(
+                        report = baseline.report.finish(),
+                        updateRequired = false,
+                    )
+                }
+            }
+        }
         val blockedAggregates = linkedSetOf<HealthSyncAggregate>()
         val preparedOperations = when {
             explicitActivityId != null -> when (val prepared = prepareActivityOperations(explicitActivityId, grantedPermissions)) {
@@ -214,6 +249,19 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                             requiredPermissions = prepared.missingPermissions,
                         ),
                         missingPermissions = prepared.missingPermissions,
+                    )
+                }
+
+                is PreparedActivityOperations.PlausibilityAcceptanceRequired -> {
+                    return HealthConnectSyncOutcome.PlausibilityAcceptanceRequired(
+                        report = baseline.report.finish(),
+                    )
+                }
+
+                is PreparedActivityOperations.PlausibilityBlocked -> {
+                    return HealthConnectSyncOutcome.PlausibilityBlocked(
+                        report = baseline.report.finish(),
+                        indicators = prepared.indicators,
                     )
                 }
 
@@ -270,6 +318,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         val missingPermissions = linkedSetOf<HealthConnectWritePermission>()
         val touchedActivities = linkedSetOf<WorkoutActivityId>()
         var syncedCount = 0
+        var writeAcceptedWithoutReadbackCount = 0
         val legacyDistanceGateByActivity = mutableMapOf<WorkoutActivityId, HealthLegacyDistanceProjectionStatus>()
 
         for (operation in operations) {
@@ -330,7 +379,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 continue
             }
 
-            val remoteOutcome = runCatching {
+            val remoteOutcome = try {
                 if (operation.action == HealthSyncOperationAction.DELETE) {
                     healthConnectGateway.delete(
                         recordType = operation.key.recordType,
@@ -339,39 +388,55 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 } else {
                     healthConnectGateway.insert(listOf(mappedRecord!!.record))
                 }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                HealthConnectWriteResult.Failed(
+                    HealthConnectGatewayFailure(
+                        kind = HealthConnectFailureKind.INTERNAL,
+                        reason = "Não foi possível concluir a escrita local no provider Health Connect.",
+                    ),
+                )
             }
-            if (remoteOutcome.isSuccess) {
-                when (healthSyncRepository.markSynced(operation.id, Instant.now())) {
-                    is RepositoryResult.Success -> {
-                        syncedCount += 1
-                        if (operation.isLegacyWorkoutDistanceDelete()) {
-                            val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
-                            if (aggregate != null) {
-                                legacyDistanceGateByActivity[aggregate.activityId] =
-                                    HealthLegacyDistanceProjectionStatus.RECONCILED
+            when (remoteOutcome) {
+                HealthConnectWriteResult.Accepted -> {
+                    writeAcceptedWithoutReadbackCount += 1
+                    when (healthSyncRepository.markSynced(operation.id, Instant.now())) {
+                        is RepositoryResult.Success -> {
+                            syncedCount += 1
+                            if (operation.isLegacyWorkoutDistanceDelete()) {
+                                val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
+                                if (aggregate != null) {
+                                    legacyDistanceGateByActivity[aggregate.activityId] =
+                                        HealthLegacyDistanceProjectionStatus.RECONCILED
+                                }
                             }
                         }
-                    }
 
-                    else -> {
-                        // Remote effect already succeeded. FAILED local preserves
-                        // retry with same identity and remains delete-idempotent.
-                        healthSyncRepository.markFailed(operation.id, SafeSyncError.INTERNAL, Instant.now())
-                        failures += operation.failure(
-                            SafeSyncError.INTERNAL,
-                            "Record enviado, mas estado local não pôde ser marcado como `SYNCED`.",
-                        )
+                        else -> {
+                            // Remote effect already succeeded. FAILED local preserves
+                            // retry with same identity and remains delete-idempotent.
+                            healthSyncRepository.markFailed(operation.id, SafeSyncError.INTERNAL, Instant.now())
+                            failures += operation.failure(
+                                SafeSyncError.INTERNAL,
+                                "Record enviado, mas estado local não pôde ser marcado como `SYNCED`.",
+                            )
+                        }
                     }
                 }
-            } else {
-                val safeError = remoteOutcome.exceptionOrNull().toSafeSyncError()
-                healthSyncRepository.markFailed(operation.id, safeError, Instant.now())
-                failures += operation.failure(
-                    safeError,
-                    remoteOutcome.exceptionOrNull()?.message ?: "Falha ao aplicar efeito no provider.",
-                )
-                if (safeError == SafeSyncError.PERMISSION_REQUIRED) {
-                    missingPermissions += permission
+
+                is HealthConnectWriteResult.Failed -> {
+                    val failure = remoteOutcome.failure
+                    val safeError = failure.kind.toSafeSyncError()
+                    healthSyncRepository.markFailed(operation.id, safeError, Instant.now())
+                    failures += operation.failure(
+                        safeError,
+                        failure.reason,
+                        failureKind = failure.kind,
+                    )
+                    if (failure.kind == HealthConnectFailureKind.PERMISSION_REQUIRED) {
+                        missingPermissions += permission
+                    }
                 }
             }
         }
@@ -389,6 +454,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             processedCount = operations.size,
             syncedCount = syncedCount,
             failedCount = failures.size,
+            writeAcceptedWithoutReadbackCount = writeAcceptedWithoutReadbackCount,
             requiredPermissions = missingPermissions,
         )
         if (failures.isEmpty()) {
@@ -505,6 +571,8 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                     }
                 }
                 is PreparedActivityOperations.PermissionRequired,
+                PreparedActivityOperations.PlausibilityAcceptanceRequired,
+                is PreparedActivityOperations.PlausibilityBlocked,
                 is PreparedActivityOperations.Failed,
                 -> blockedAggregates += aggregate
             }
@@ -527,6 +595,13 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 error = SafeSyncError.INTERNAL,
                 reason = "Não foi possível carregar operações existentes da atividade.",
             )
+        }
+        val snapshot = activity.derivationSnapshot
+        if (snapshot?.requiresExplicitPlausibilityAcceptance == true) {
+            return PreparedActivityOperations.PlausibilityAcceptanceRequired
+        }
+        if (snapshot?.hasPlausibilityIndicators == true) {
+            return PreparedActivityOperations.PlausibilityBlocked(snapshot.plausibility.indicators)
         }
         val eligibleChildren = healthRecordMapper.findEligibleWorkoutProjectionChildren(activity)
         if (eligibleChildren.isEmpty()) {
@@ -684,6 +759,16 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 else -> false
             }
         }
+        val representedChildren = operations
+            .filter { operation -> operation.action == HealthSyncOperationAction.INSERT }
+            .mapNotNull { operation -> operation.key.projectionChildKey }
+            .toSet()
+        if (!nextManifest.children.all(representedChildren::contains)) {
+            return PreparedActivityOperations.Failed(
+                error = SafeSyncError.INVALID_LOCAL_DATA,
+                reason = "Manifesto local não contém todos os filhos esperados da atividade.",
+            )
+        }
         if (startActivity && processable.isNotEmpty()) {
             when (workoutActivityRepository.startSync(activity.id)) {
                 is RepositoryResult.Success -> Unit
@@ -749,6 +834,14 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         val activity = when (val result = workoutActivityRepository.findById(activityId)) {
             is RepositoryResult.Success -> result.value
             else -> return
+        }
+        if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+            activity.derivationSnapshot?.isEligibleForHealthProjection != true
+        ) {
+            if (activity.workflowState != ActivityWorkflowState.SYNCED) {
+                workoutActivityRepository.markSyncFailed(activityId)
+            }
+            return
         }
         val expectedProjectionChildren = if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
             healthRecordMapper.findEligibleWorkoutProjectionChildren(activity).toSet()
@@ -832,6 +925,11 @@ private suspend fun filterProcessableOperations(
             filtered += operation
             continue
         }
+        if (operation.action == HealthSyncOperationAction.INSERT &&
+            activity.derivationSnapshot?.isEligibleForHealthProjection != true
+        ) {
+            continue
+        }
         val expectedChildren = expectedChildrenByActivity.getOrPut(aggregate.activityId) {
             healthRecordMapper.findEligibleWorkoutProjectionChildren(activity).toSet()
         }
@@ -869,6 +967,12 @@ private sealed interface PreparedActivityOperations {
         val missingPermissions: Set<HealthConnectWritePermission>,
     ) : PreparedActivityOperations
 
+    data object PlausibilityAcceptanceRequired : PreparedActivityOperations
+
+    data class PlausibilityBlocked(
+        val indicators: Set<WorkoutPlausibilityIndicator>,
+    ) : PreparedActivityOperations
+
     data class Failed(
         val error: SafeSyncError,
         val reason: String,
@@ -881,19 +985,38 @@ private data class PreparedSync(
 
 private fun HealthConnectSyncReport.finish(at: Instant = Instant.now()): HealthConnectSyncReport = copy(finishedAt = at)
 
-private fun Throwable?.toSafeSyncError(): SafeSyncError = when (this) {
-    is SecurityException -> SafeSyncError.PERMISSION_REQUIRED
-    is IllegalArgumentException -> SafeSyncError.INVALID_LOCAL_DATA
-    is IllegalStateException -> SafeSyncError.RETRY_LATER
-    null -> SafeSyncError.INTERNAL
-    else -> SafeSyncError.WRITE_REJECTED
+private fun HealthConnectFailureKind.toSafeSyncError(): SafeSyncError = when (this) {
+    HealthConnectFailureKind.PERMISSION_REQUIRED -> SafeSyncError.PERMISSION_REQUIRED
+    HealthConnectFailureKind.PROVIDER_UNAVAILABLE -> SafeSyncError.PROVIDER_UNAVAILABLE
+    HealthConnectFailureKind.PROVIDER_UPDATE_REQUIRED -> SafeSyncError.PROVIDER_UPDATE_REQUIRED
+    HealthConnectFailureKind.WRITE_REJECTED -> SafeSyncError.WRITE_REJECTED
+    HealthConnectFailureKind.INVALID_LOCAL_DATA -> SafeSyncError.INVALID_LOCAL_DATA
+    HealthConnectFailureKind.INTERNAL -> SafeSyncError.INTERNAL
 }
 
-private fun HealthSyncOperation.failure(error: SafeSyncError, reason: String) = HealthConnectSyncFailure(
+private fun SafeSyncError.toHealthConnectFailureKind(): HealthConnectFailureKind = when (this) {
+    SafeSyncError.PERMISSION_REQUIRED -> HealthConnectFailureKind.PERMISSION_REQUIRED
+    SafeSyncError.PROVIDER_UNAVAILABLE -> HealthConnectFailureKind.PROVIDER_UNAVAILABLE
+    SafeSyncError.PROVIDER_UPDATE_REQUIRED -> HealthConnectFailureKind.PROVIDER_UPDATE_REQUIRED
+    SafeSyncError.WRITE_REJECTED -> HealthConnectFailureKind.WRITE_REJECTED
+    SafeSyncError.INVALID_LOCAL_DATA -> HealthConnectFailureKind.INVALID_LOCAL_DATA
+    SafeSyncError.RETRY_LATER,
+    SafeSyncError.INTERRUPTED,
+    SafeSyncError.INTERNAL,
+    -> HealthConnectFailureKind.INTERNAL
+}
+
+private fun HealthSyncOperation.failure(
+    error: SafeSyncError,
+    reason: String,
+    failureKind: HealthConnectFailureKind = error.toHealthConnectFailureKind(),
+) = HealthConnectSyncFailure(
     operationId = id,
     recordType = key.recordType,
     error = error,
     reason = reason,
+    failureKind = failureKind,
+    projectionChildKey = key.projectionChildKey,
 )
 
 private data class LegacyRemoteEffectBlock(

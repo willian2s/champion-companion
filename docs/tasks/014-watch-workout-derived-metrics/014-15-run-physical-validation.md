@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Número:** `15`
-- **Status:** pending
+- **Status:** blocked
 
 ## Objetivo e resultado esperado
 
@@ -126,3 +126,97 @@ task; o fechamento documental pertence a `014-16`.
 
 Reverter somente afirmações documentais incorretas. Evidências válidas permanecem
 históricas.
+
+## Registro de execução
+
+### Arquivos alterados
+
+- `docs/integration/014-15-physical-validation.md`;
+- `docs/integration/014-15-physical-validation-evidence/import-summary.png`;
+- `docs/integration/014-15-physical-validation-evidence/health-connect-summary.png`;
+- `docs/integration/014-15-physical-validation-evidence/reprocess-confirmation.png`;
+- `docs/integration/014-15-physical-validation-evidence/reprocess-blocked.png`;
+- `docs/integration/014-15-health-connect-provider-follow-up.md`;
+- este arquivo;
+- `014-00-overview.md`.
+
+Nenhum arquivo de produção, Gradle, manifesto, migration ou schema foi alterado.
+
+### Decisões e desvios
+
+- O gate foi executado no Galaxy S22 conectado ao Champion C001, usando APK
+  `debug` instalado localmente.
+- Dados exibidos na evidência foram reduzidos a contagens, estados e métricas
+  necessárias; BPM e identificadores foram omitidos da documentação textual.
+- A subtarefa permanece `blocked`, pois a sessão não ofereceu fixture controlada
+  para lacuna/duplicata/duração residual/plausibilidade nem atividade legada não
+  sincronizada recuperável.
+- Reprocessamento de atividade já sincronizada foi confirmado até a mensagem de
+  bloqueio, sem criar operação Health Connect ou alterar snapshot.
+- Acesso posterior ao Health Connect real não encontrou os records esperados de
+  distância e velocidade; velocidade estava sem permissão. O sucesso exibido pelo
+  aplicativo comprova somente estado local da fila. Gate F é `FAIL` bloqueador e
+  follow-up foi aberto em
+  `docs/integration/014-15-health-connect-provider-follow-up.md`.
+
+### Comandos executados e interação física
+
+```text
+adb devices
+./gradlew installDebug
+adb shell monkey -p br.com.mwconsulting.championcompanion.dev 1
+adb exec-out screencap -p > <evidência sanitizada>
+adb shell am force-stop br.com.mwconsulting.championcompanion.dev
+./gradlew lint assembleDebug assembleRelease
+git diff --check
+git status --short
+```
+
+Toques e swipes foram interação manual no dispositivo; não constituem teste
+automatizado.
+
+Não foram criados nem executados testes automatizados.
+
+### Resultados e evidências
+
+- APK `1.0-dev` instalado com sucesso no Galaxy S22 `SM-S901E`.
+- Importação explícita terminou com 3/3 blocos, 2 inseridos, 1 parcial, 0
+  inválidos e 1 pulado; uma atividade ficou aguardando revisão.
+- Revisão local mostrou derivação canônica, série, métricas, intervalos, BPM e
+  splits.
+- Sync explícito Health Connect foi marcado como sucesso local; resumo posterior
+  mostrou 13 atividades sincronizadas e 0 com erro, mas o provider real não
+  exibiu distância/velocidade e velocidade estava sem permissão.
+- Reprocessamento legado exibiu confirmação específica e terminou fechado,
+  preservando operação e snapshot quando suporte futuro era necessário.
+- Após reinício do aplicativo, dados locais permaneceram disponíveis.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: `BUILD SUCCESSFUL`.
+- `git diff --check`: sem saída, sucesso.
+
+Evidência detalhada: `docs/integration/014-15-physical-validation.md`.
+
+### Riscos residuais
+
+- Falta fixture física para testar falha fechada de índices, duração `1.637 s`,
+  plausibilidade e retry/falha parcial do Health Connect.
+- Sugestão de comprimento baseada em altura não foi aceita fisicamente.
+- Reprocessamento de legado sincronizado continua bloqueado por suporte futuro de
+  projeção; não foi aplicada correção funcional dentro desta task.
+- Gate F está bloqueado por divergência entre sucesso local e ausência de
+  `DistanceRecord`/`SpeedRecord` observável no Health Connect; velocidade requer
+  permissão ausente. Correção pertence a follow-up funcional.
+
+### Revalidação parcial após 014-17
+
+- Nova limpeza de dados, configuração manual de `0,8818 m`, importação explícita
+  de 3 treinos e revisão com aceite explícito foram concluídas no Galaxy S22.
+- Uma atividade elegível sincronizou com ambas as permissões concedidas. O
+  provider real exibiu `3,463 km` em distância granular e `7,245 km/h` em
+  velocidade para `Champion Companion Dev`.
+- `WRITE_SPEED` foi revogada isoladamente; Settings exibiu `Velocidade —
+  Pendente`. A permissão foi restaurada pelo fluxo explícito `Conectar`.
+- Gate F deixa de ter o bloqueio inicial de ausência de records para esse caso,
+  mas permanece inconclusivo para falha parcial e retry. A segunda corrida tinha
+  duração zero e não materializou derivação após reprocessamento explícito.
+- `014-15` permanece `blocked`; não marcar checklist nem encerrar fase.

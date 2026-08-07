@@ -27,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -70,6 +71,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.PendingReviewBanner
+import br.com.mwconsulting.championcompanion.core.designsystem.PermissionBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.CanonicalWorkoutSeries
@@ -203,10 +205,14 @@ fun ExercisesScreen(
                     onReviewTypeChange = { viewModel.onIntent(ExercisesIntent.EditReviewType(it)) },
                     onReviewTitleChange = { viewModel.onIntent(ExercisesIntent.EditReviewTitle(it)) },
                     onReviewNotesChange = { viewModel.onIntent(ExercisesIntent.EditReviewNotes(it)) },
+                    onReviewPlausibilityAcceptanceChange = {
+                        viewModel.onIntent(ExercisesIntent.EditReviewPlausibilityAcceptance(it))
+                    },
                     onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
                     onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
                     onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
                     onReprocessActivity = { viewModel.onIntent(ExercisesIntent.ReprocessSelectedActivity) },
+                    onAcceptPlausibility = { viewModel.onIntent(ExercisesIntent.AcceptSelectedPlausibility) },
                     onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
                     onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
                 )
@@ -736,7 +742,7 @@ private fun ExerciseSyncFeedbackCard(
                     syncingCount > 0 -> "Há treino(s) sincronizando com o Health Connect. Os dados locais continuam disponíveis normalmente."
                     workflowSummary.syncFailedCount > 0 -> "Alguns treinos ficaram com erro ou falha parcial no Health Connect. Os detalhes mostram retry seguro por atividade."
                     workflowSummary.readyToSyncCount > 0 -> "Existem treinos prontos para sincronização explícita com o Health Connect."
-                    workflowSummary.syncedCount > 0 -> "Treinos já sincronizados continuam visíveis localmente sem depender do provider."
+                    workflowSummary.syncedCount > 0 -> "Escritas locais aceitas permanecem visíveis; o provider não é lido para confirmar records."
                     else -> "Sem feedback secundário de sincronização no momento."
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -833,10 +839,12 @@ private fun ExerciseDetailShell(
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
+    onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
     onReprocessActivity: () -> Unit,
+    onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
     onDiscardActivity: () -> Unit,
 ) {
@@ -895,10 +903,13 @@ private fun ExerciseDetailShell(
                             onReviewTypeChange = onReviewTypeChange,
                             onReviewTitleChange = onReviewTitleChange,
                             onReviewNotesChange = onReviewNotesChange,
+                            onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
                             onSubmitReview = onSubmitReview,
                             onCalibrationDistanceChange = onCalibrationDistanceChange,
                             onSubmitCalibration = onSubmitCalibration,
                             onRequestReprocess = { showReprocessConfirmation = true },
+                            isAcceptingPlausibility = state.isAcceptingPlausibility,
+                            onAcceptPlausibility = onAcceptPlausibility,
                             onSyncActivity = onSyncActivity,
                             onRequestDiscard = { showDiscardConfirmation = true },
                         )
@@ -993,10 +1004,13 @@ private fun WorkoutActivityDetailContent(
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
+    onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
     onRequestReprocess: () -> Unit,
+    isAcceptingPlausibility: Boolean,
+    onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
     onRequestDiscard: () -> Unit,
 ) {
@@ -1005,13 +1019,23 @@ private fun WorkoutActivityDetailContent(
     ) {
         ActivityHeaderCard(activity)
         if (operationError != null) {
-            ErrorState(
-                title = "Ação indisponível",
-                message = operationError.message,
-                actionLabel = "Fechar",
-                onAction = onDismissError,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (operationError.category == ExerciseOperationErrorCategory.WRITE_ACCEPTED_NO_READBACK) {
+                PermissionBanner(
+                    title = "Escrita local aceita",
+                    message = operationError.message,
+                    actionLabel = "Fechar",
+                    onAction = onDismissError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                ErrorState(
+                    title = operationError.category.toFeedbackTitle(),
+                    message = operationError.message,
+                    actionLabel = "Fechar",
+                    onAction = onDismissError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         ActivityCanonicalStatusSection(activity)
         if (activity.isWatchWorkout && activity.requiresWatchWorkoutReprocessing) {
@@ -1036,6 +1060,7 @@ private fun WorkoutActivityDetailContent(
                 onReviewTypeChange = onReviewTypeChange,
                 onReviewTitleChange = onReviewTitleChange,
                 onReviewNotesChange = onReviewNotesChange,
+                onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
                 onSubmitReview = onSubmitReview,
             )
 
@@ -1056,7 +1081,13 @@ private fun WorkoutActivityDetailContent(
                 ActivityWorkflowState.SYNCED,
                 ActivityWorkflowState.SYNC_FAILED,
                 ActivityWorkflowState.DISCARDED,
-            ) -> ReadOnlyWorkflowSection(activity, latestCalibration, onSyncActivity)
+            ) -> ReadOnlyWorkflowSection(
+                activity = activity,
+                latestCalibration = latestCalibration,
+                isAcceptingPlausibility = isAcceptingPlausibility,
+                onAcceptPlausibility = onAcceptPlausibility,
+                onSyncActivity = onSyncActivity,
+            )
         }
         if (canDiscardSelectedActivity) {
             TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
@@ -1792,6 +1823,7 @@ private fun ReviewFormSection(
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
+    onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
     onSubmitReview: () -> Unit,
 ) {
     Card(
@@ -1843,6 +1875,29 @@ private fun ReviewFormSection(
                 minLines = 3,
                 enabled = !formState.isSaving,
             )
+            when {
+                activity.derivationSnapshot?.hasPlausibilityIndicators == true -> Text(
+                    text = "Indicadores IMPLAUSIBLE_* impedem aceite genérico. A série continua bloqueada para projeção Health Connect.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+
+                activity.derivationSnapshot?.requiresExplicitPlausibilityAcceptance == true -> Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = formState.acceptPlausibility,
+                        onCheckedChange = onReviewPlausibilityAcceptanceChange,
+                        enabled = !formState.isSaving,
+                    )
+                    Text(
+                        text = "Confirmo explicitamente série sem indicadores para preparar projeção Health Connect. O app não inventa limiar global.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             formState.error?.let {
                 Text(it.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
@@ -2015,6 +2070,8 @@ private fun CalibrationFormSection(
 private fun ReadOnlyWorkflowSection(
     activity: WorkoutActivity,
     latestCalibration: TreadmillCalibrationSnapshot?,
+    isAcceptingPlausibility: Boolean,
+    onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
 ) {
     Card(
@@ -2033,7 +2090,7 @@ private fun ReadOnlyWorkflowSection(
                 text = when (activity.workflowState) {
                     ActivityWorkflowState.READY_TO_SYNC -> "Treino pronto para sincronizar com o Health Connect por ação explícita."
                     ActivityWorkflowState.SYNCING -> "Sincronização em andamento no Health Connect."
-                    ActivityWorkflowState.SYNCED -> "Treino sincronizado com sucesso no Health Connect."
+                    ActivityWorkflowState.SYNCED -> "Escritas locais aceitas; o Health Connect não foi lido para confirmar records."
                     ActivityWorkflowState.SYNC_FAILED -> "A sincronização anterior falhou ou ficou parcial. Você pode tentar novamente sem duplicar records já enviados."
                     ActivityWorkflowState.DISCARDED -> "Treino descartado localmente. Dados permanecem visíveis apenas para auditoria local."
                     else -> "Sem ações editáveis neste estado."
@@ -2051,6 +2108,25 @@ private fun ReadOnlyWorkflowSection(
                         "Calibração ativa: revisão ${it.revision}"
                     },
                     style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+                activity.workflowState in setOf(
+                    ActivityWorkflowState.READY_TO_SYNC,
+                    ActivityWorkflowState.SYNC_FAILED,
+                ) && activity.derivationSnapshot?.requiresExplicitPlausibilityAcceptance == true
+            ) {
+                Text(
+                    "A série não possui indicadores IMPLAUSIBLE_*. Confirme explicitamente plausibilidade antes de preparar DISTANCE/SPEED. Nenhum limiar global é inventado.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PrimaryActionButton(
+                    label = if (isAcceptingPlausibility) "Salvando aceite" else "Confirmar plausibilidade",
+                    onClick = onAcceptPlausibility,
+                    enabled = !isAcceptingPlausibility,
+                    isLoading = isAcceptingPlausibility,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (activity.workflowState in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED, ActivityWorkflowState.SYNCING)) {
@@ -2180,6 +2256,18 @@ private fun WorkoutActivity.canonicalStatusMessage(): String = when (canonicalRe
         "A série canônica está disponível; splits de 1 km ainda não foram materializados no read model persistido."
     WorkoutCanonicalReadStatus.AVAILABLE ->
         "Distância, ritmo, velocidade e acumulado usam a série canônica persistida."
+}
+
+private fun ExerciseOperationErrorCategory.toFeedbackTitle(): String = when (this) {
+    ExerciseOperationErrorCategory.PERMISSION_REQUIRED -> "Permissão pendente"
+    ExerciseOperationErrorCategory.PROVIDER_UNAVAILABLE -> "Provider indisponível"
+    ExerciseOperationErrorCategory.PARTIAL_BLOCKED -> "Falha parcial por capacidade"
+    ExerciseOperationErrorCategory.SYNC_DISABLED -> "Sincronização desativada"
+    ExerciseOperationErrorCategory.SYNC_FAILED -> "Falha de sincronização"
+    ExerciseOperationErrorCategory.WRITE_ACCEPTED_NO_READBACK -> "Escrita local aceita"
+    ExerciseOperationErrorCategory.PLAUSIBILITY_ACCEPTANCE_REQUIRED -> "Aceite explícito necessário"
+    ExerciseOperationErrorCategory.PLAUSIBILITY_INDICATORS_BLOCKED -> "Plausibilidade bloqueada"
+    else -> "Ação indisponível"
 }
 
 private fun WorkoutCanonicalReadStatus.toShortLabel(): String = when (this) {

@@ -103,6 +103,8 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessFailureReason
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessResult
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceFailureReason
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceResult
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION
@@ -865,8 +867,99 @@ class RoomRepositories @Inject constructor(
             derivationSnapshot = findActiveDerivation(entity, importRecord, intervals, samples),
         ) ?: return@write RepositoryResult.UnexpectedState
         val reviewed = activity.submitReview(input).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+        if (input.acceptPlausibility) {
+            val acceptedSnapshot = reviewed.derivationSnapshot ?: return@write RepositoryResult.UnexpectedState
+            if (!updateActiveDerivationSnapshot(entity.id, acceptedSnapshot)) {
+                return@write RepositoryResult.UnexpectedState
+            }
+        }
         database.workoutActivityDao().update(reviewed.toEntity())
         RepositoryResult.Success(reviewed)
+    }
+
+    override suspend fun acceptWatchWorkoutPlausibility(
+        activityId: WorkoutActivityId,
+    ): WatchWorkoutPlausibilityAcceptanceResult = try {
+        writeTransaction {
+            val entity = database.workoutActivityDao().findById(activityId.value.toString())
+                ?: return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.ACTIVITY_NOT_FOUND,
+                )
+            when (entity.workflowState) {
+                ActivityWorkflowState.SYNCED.name -> return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.SYNCED_BLOCKED,
+                )
+
+                ActivityWorkflowState.SYNCING.name -> return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.SYNC_IN_PROGRESS,
+                )
+            }
+            if (entity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) {
+                return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.NOT_WATCH_WORKOUT,
+                )
+            }
+            if (entity.workflowState !in setOf(
+                    ActivityWorkflowState.PENDING_REVIEW.name,
+                    ActivityWorkflowState.READY_TO_SYNC.name,
+                    ActivityWorkflowState.SYNC_FAILED.name,
+                )
+            ) {
+                return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE,
+                )
+            }
+            val importRecord = database.watchWorkoutImportDao().findByActivityId(entity.id)
+                ?: return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.DERIVATION_NOT_MATERIALIZED,
+                )
+            val intervals = database.workoutDetailDao().findIntervalsForActivity(entity.id)
+            val samples = database.workoutDetailDao().findHeartRateSamplesForActivity(entity.id)
+            val snapshot = findActiveDerivation(
+                activity = entity,
+                importRecord = importRecord,
+                intervals = intervals,
+                samples = samples,
+            ) ?: return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                WatchWorkoutPlausibilityAcceptanceFailureReason.DERIVATION_NOT_MATERIALIZED,
+            )
+            if (!snapshot.canonicalSeriesEligible) {
+                return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.SERIES_INELIGIBLE,
+                )
+            }
+            if (snapshot.hasPlausibilityIndicators) {
+                return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.INDICATORS_PRESENT,
+                )
+            }
+            val activity = entity.toDomain(
+                importRecord = importRecord,
+                intervals = intervals,
+                samples = samples,
+                derivationSnapshot = snapshot,
+            ) ?: return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE,
+            )
+            val accepted = activity.acceptPlausibility().valueOrNull()
+                ?: return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE,
+                )
+            if (!updateActiveDerivationSnapshot(entity.id, accepted.derivationSnapshot ?: return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.DERIVATION_NOT_MATERIALIZED,
+                ))) {
+                return@writeTransaction WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+                    WatchWorkoutPlausibilityAcceptanceFailureReason.STORAGE_UNAVAILABLE,
+                )
+            }
+            WatchWorkoutPlausibilityAcceptanceResult.Accepted(accepted)
+        }
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+            WatchWorkoutPlausibilityAcceptanceFailureReason.STORAGE_UNAVAILABLE,
+        )
     }
 
     override suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity> = write {
@@ -1961,6 +2054,20 @@ class RoomRepositories @Inject constructor(
             derivationSnapshot = derivationSnapshot,
             canonicalReadStatusOverride = canonicalReadStatusOverride,
         )
+    }
+
+    /** Atualiza somente política no snapshot ativo; filhos e fatos permanecem intactos. */
+    private suspend fun updateActiveDerivationSnapshot(
+        activityId: String,
+        snapshot: WorkoutDerivationSnapshot,
+    ): Boolean {
+        val activeRecord = database.workoutDerivationDao().findActiveForActivity(activityId) ?: return false
+        val entity = snapshot.toEntity(
+            id = activeRecord.snapshot.id,
+            activityId = activityId,
+            isActive = true,
+        ) ?: return false
+        return database.workoutDerivationDao().updateSnapshot(entity) == 1
     }
 
     private suspend fun reprocessWatchWorkoutInternal(

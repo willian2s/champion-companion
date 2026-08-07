@@ -291,8 +291,36 @@ data class WorkoutActivity private constructor(
             return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
         }
 
-        return confirmReview(input.confirmedType, input.reviewedAt, derivationSnapshot).mapSuccess { reviewed ->
+        val snapshotForReview = if (input.acceptPlausibility) {
+            when (val accepted = derivationSnapshot?.acceptExplicitPlausibility()) {
+                is DomainResult.Success -> accepted.value
+                is DomainResult.Failure -> return DomainResult.Failure(accepted.error)
+                null -> return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+            }
+        } else {
+            derivationSnapshot
+        }
+
+        return confirmReview(input.confirmedType, input.reviewedAt, snapshotForReview).mapSuccess { reviewed ->
             reviewed.copy(title = normalizedTitle, notes = normalizedNotes)
+        }
+    }
+
+    /** Aceite explícito para atividade revisada, sem recalcular a série. */
+    fun acceptPlausibility(): DomainResult<WorkoutActivity> {
+        if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+            workflowState !in setOf(
+                ActivityWorkflowState.PENDING_REVIEW,
+                ActivityWorkflowState.READY_TO_SYNC,
+                ActivityWorkflowState.SYNC_FAILED,
+            )
+        ) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+        return when (val accepted = derivationSnapshot?.acceptExplicitPlausibility()) {
+            is DomainResult.Success -> DomainResult.Success(copy(derivationSnapshot = accepted.value))
+            is DomainResult.Failure -> accepted
+            null -> DomainResult.Failure(DomainValidationError.INVALID_STATE)
         }
     }
 
@@ -315,6 +343,7 @@ data class WorkoutActivity private constructor(
                 derivationSnapshot = derivationSnapshot,
             ),
             reviewedAt = reviewedAt,
+            derivationSnapshot = derivationSnapshot,
         ))
     }
 

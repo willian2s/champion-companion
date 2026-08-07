@@ -11,8 +11,10 @@ import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectFailureKind
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncOutcome
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectWritePermission
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationEvent
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSource
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSourceFactory
@@ -44,6 +46,9 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepositor
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessFailureReason
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessResult
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceFailureReason
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceResult
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -188,6 +193,7 @@ class ExercisesViewModel internal constructor(
     private val calibrationFormState = MutableStateFlow(ExerciseCalibrationFormState())
     private val operationError = MutableStateFlow<ExerciseOperationError?>(null)
     private val isReprocessing = MutableStateFlow(false)
+    private val isAcceptingPlausibility = MutableStateFlow(false)
     private val workoutCountdownPreference = MutableStateFlow(
         br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
     )
@@ -345,6 +351,7 @@ class ExercisesViewModel internal constructor(
                 calibrationFormState,
                 operationError,
                 isReprocessing,
+                isAcceptingPlausibility,
                 dailyStepsGoal,
                 associatedDevice,
                 workoutPreparation,
@@ -360,9 +367,10 @@ class ExercisesViewModel internal constructor(
                 val calibrationForm = values[8] as ExerciseCalibrationFormState
                 val error = values[9] as ExerciseOperationError?
                 val reprocessing = values[10] as Boolean
-                val goal = values[11] as Int
-                val device = values[12] as Device?
-                val preparation = values[13] as WorkoutPreparationUiState
+                val acceptingPlausibility = values[11] as Boolean
+                val goal = values[12] as Int
+                val device = values[13] as Device?
+                val preparation = values[14] as WorkoutPreparationUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -375,6 +383,7 @@ class ExercisesViewModel internal constructor(
                     calibrationFormState = calibrationForm,
                     operationError = error,
                     isReprocessing = reprocessing,
+                    isAcceptingPlausibility = acceptingPlausibility,
                     pendingActivities = activities.filter { it.workflowState == ActivityWorkflowState.PENDING_REVIEW },
                     hasUnsavedDetailChanges = reviewForm.hasUnsavedChanges ||
                         (
@@ -440,10 +449,14 @@ class ExercisesViewModel internal constructor(
             is ExercisesIntent.EditReviewType -> updateReviewForm { copy(selectedType = intent.type, hasUnsavedChanges = true, error = null) }
             is ExercisesIntent.EditReviewTitle -> updateReviewForm { copy(titleInput = intent.title, hasUnsavedChanges = true, error = null) }
             is ExercisesIntent.EditReviewNotes -> updateReviewForm { copy(notesInput = intent.notes, hasUnsavedChanges = true, error = null) }
+            is ExercisesIntent.EditReviewPlausibilityAcceptance -> updateReviewForm {
+                copy(acceptPlausibility = intent.accepted, hasUnsavedChanges = true, error = null)
+            }
             ExercisesIntent.SubmitReview -> submitReview()
             is ExercisesIntent.EditCalibrationDistance -> updateCalibrationDistance(intent.distance)
             ExercisesIntent.SubmitCalibration -> submitCalibration()
             ExercisesIntent.ReprocessSelectedActivity -> reprocessSelectedActivity()
+            ExercisesIntent.AcceptSelectedPlausibility -> acceptSelectedPlausibility()
             ExercisesIntent.SyncSelectedActivity -> syncSelectedActivity()
             ExercisesIntent.DiscardSelectedActivity -> discardSelectedActivity()
             ExercisesIntent.ConfirmExitDetail -> closeSelectedActivity()
@@ -1492,6 +1505,27 @@ class ExercisesViewModel internal constructor(
             operationError.value = ExerciseOperationError(ExerciseOperationErrorCategory.INVALID_TYPE, "Selecione um tipo válido para concluir a revisão.")
             return
         }
+        if (form.acceptPlausibility) {
+            val snapshot = activity.derivationSnapshot
+            when {
+                activity.activityOrigin != br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin.WATCH_D3_D4 ||
+                    snapshot == null || !snapshot.canonicalSeriesEligible -> {
+                    reviewError(
+                        ExerciseOperationErrorCategory.PLAUSIBILITY_ACCEPTANCE_REQUIRED,
+                        "A série canônica precisa estar materializada e elegível antes do aceite explícito.",
+                    )
+                    return
+                }
+
+                snapshot.hasPlausibilityIndicators -> {
+                    reviewError(
+                        ExerciseOperationErrorCategory.PLAUSIBILITY_INDICATORS_BLOCKED,
+                        "Indicadores IMPLAUSIBLE_* impedem aceite genérico. A série permanece bloqueada para o Health Connect.",
+                    )
+                    return
+                }
+            }
+        }
         if (form.isSaving) return
 
         reviewFormState.value = form.copy(isSaving = true, error = null)
@@ -1504,6 +1538,7 @@ class ExercisesViewModel internal constructor(
                         title = form.titleInput,
                         notes = form.notesInput,
                         reviewedAt = Instant.now(),
+                        acceptPlausibility = form.acceptPlausibility,
                     ),
                 )
             ) {
@@ -1524,6 +1559,116 @@ class ExercisesViewModel internal constructor(
                 -> reviewError(ExerciseOperationErrorCategory.INVALID_STATE, "A atividade não está em um estado válido para revisão.")
             }
         }
+    }
+
+    private fun acceptSelectedPlausibility() {
+        val activity = selectedActivity.value ?: return
+        if (isAcceptingPlausibility.value) return
+        if (activity.workflowState == ActivityWorkflowState.SYNCED) {
+            operationError.value = ExerciseOperationError(
+                ExerciseOperationErrorCategory.REPROCESS_SYNCED_BLOCKED,
+                "A atividade já está sincronizada. O aceite não reabre nem reprocessa a projeção.",
+            )
+            return
+        }
+        if (activity.workflowState == ActivityWorkflowState.SYNCING) {
+            operationError.value = ExerciseOperationError(
+                ExerciseOperationErrorCategory.REPROCESS_SYNCING,
+                "A atividade está em sincronização. Aguarde antes de confirmar a plausibilidade.",
+            )
+            return
+        }
+        val snapshot = activity.derivationSnapshot
+        when {
+            snapshot == null || !snapshot.canonicalSeriesEligible -> {
+                operationError.value = ExerciseOperationError(
+                    ExerciseOperationErrorCategory.PLAUSIBILITY_ACCEPTANCE_REQUIRED,
+                    "A série canônica precisa estar materializada e elegível antes do aceite explícito.",
+                )
+                return
+            }
+
+            snapshot.hasPlausibilityIndicators -> {
+                operationError.value = ExerciseOperationError(
+                    ExerciseOperationErrorCategory.PLAUSIBILITY_INDICATORS_BLOCKED,
+                    "Indicadores IMPLAUSIBLE_* impedem aceite genérico. A série permanece bloqueada para o Health Connect.",
+                )
+                return
+            }
+        }
+        isAcceptingPlausibility.value = true
+        operationError.value = null
+        scope.launch {
+            when (val result = workoutActivityRepository.acceptWatchWorkoutPlausibility(activity.id)) {
+                is WatchWorkoutPlausibilityAcceptanceResult.Accepted -> {
+                    isAcceptingPlausibility.value = false
+                    operationError.value = null
+                }
+
+                is WatchWorkoutPlausibilityAcceptanceResult.Blocked -> {
+                    isAcceptingPlausibility.value = false
+                    operationError.value = plausibilityAcceptanceError(result.reason)
+                }
+            }
+        }
+    }
+
+    private fun plausibilityAcceptanceError(
+        reason: WatchWorkoutPlausibilityAcceptanceFailureReason,
+    ): ExerciseOperationError {
+        val category = when (reason) {
+            WatchWorkoutPlausibilityAcceptanceFailureReason.INDICATORS_PRESENT ->
+                ExerciseOperationErrorCategory.PLAUSIBILITY_INDICATORS_BLOCKED
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.DERIVATION_NOT_MATERIALIZED,
+            WatchWorkoutPlausibilityAcceptanceFailureReason.SERIES_INELIGIBLE,
+            -> ExerciseOperationErrorCategory.PLAUSIBILITY_ACCEPTANCE_REQUIRED
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.SYNCED_BLOCKED ->
+                ExerciseOperationErrorCategory.REPROCESS_SYNCED_BLOCKED
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.SYNC_IN_PROGRESS ->
+                ExerciseOperationErrorCategory.REPROCESS_SYNCING
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.ACTIVITY_NOT_FOUND ->
+                ExerciseOperationErrorCategory.NOT_FOUND
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.NOT_WATCH_WORKOUT,
+            WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE,
+            -> ExerciseOperationErrorCategory.INVALID_STATE
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.STORAGE_UNAVAILABLE ->
+                ExerciseOperationErrorCategory.STORAGE
+        }
+        val message = when (reason) {
+            WatchWorkoutPlausibilityAcceptanceFailureReason.INDICATORS_PRESENT ->
+                "Indicadores IMPLAUSIBLE_* impedem aceite genérico. A série permanece bloqueada para o Health Connect."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.DERIVATION_NOT_MATERIALIZED ->
+                "A derivação canônica ainda não está materializada. Nenhuma política foi alterada."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.SERIES_INELIGIBLE ->
+                "A série canônica é inelegível. Nenhuma política foi alterada."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.SYNCED_BLOCKED ->
+                "A atividade já está sincronizada. Nenhuma projeção foi reaberta ou reprocessada."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.SYNC_IN_PROGRESS ->
+                "A atividade está em sincronização. Tente novamente após a conclusão."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.ACTIVITY_NOT_FOUND ->
+                "Atividade não encontrada para confirmar plausibilidade."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.NOT_WATCH_WORKOUT ->
+                "Aceite explícito disponível somente para treino importado do relógio."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE ->
+                "A atividade não está em estado válido para confirmação explícita."
+
+            WatchWorkoutPlausibilityAcceptanceFailureReason.STORAGE_UNAVAILABLE ->
+                "Não foi possível persistir o aceite explícito. Nenhuma alteração foi confirmada."
+        }
+        return ExerciseOperationError(category, message)
     }
 
     private fun submitCalibration() {
@@ -1691,19 +1836,43 @@ class ExercisesViewModel internal constructor(
         }
         scope.launch {
             when (val outcome = healthConnectSyncCoordinator.syncActivity(activity.id)) {
-                is HealthConnectSyncOutcome.Completed -> operationError.value = null
+                is HealthConnectSyncOutcome.Completed -> operationError.value = ExerciseOperationError(
+                    ExerciseOperationErrorCategory.WRITE_ACCEPTED_NO_READBACK,
+                    "Escrita local aceita para ${outcome.report.writeAcceptedWithoutReadbackCount} operação(ões). O provider não foi lido; isso não confirma records visíveis no Health Connect.",
+                )
                 is HealthConnectSyncOutcome.NothingToSync -> operationError.value = null
                 is HealthConnectSyncOutcome.CompletedWithFailures -> {
                     operationError.value = ExerciseOperationError(
                         ExerciseOperationErrorCategory.PARTIAL_BLOCKED,
-                        "Alguns records do treino foram sincronizados, mas ${outcome.failures.size} ainda precisam de retry.",
+                        buildString {
+                            append("Falha parcial por capacidade: ")
+                            append(formatHealthConnectFailures(outcome.failures))
+                            append(". Filhos com falha permanecem recuperáveis para retry.")
+                            if (outcome.report.writeAcceptedWithoutReadbackCount > 0) {
+                                append(" Escritas aceitas não foram confirmadas por leitura do provider.")
+                            }
+                        },
                     )
                 }
 
                 is HealthConnectSyncOutcome.PermissionRequired -> {
                     operationError.value = ExerciseOperationError(
                         ExerciseOperationErrorCategory.PERMISSION_REQUIRED,
-                        "Permissões do Health Connect ainda faltam para concluir a sincronização deste treino.",
+                        "Permissão pendente para ${outcome.missingPermissions.joinToString { it.toFriendlyLabel() }}. Autorize no provider e tente novamente; nenhum filho pendente foi marcado como sincronizado.",
+                    )
+                }
+
+                is HealthConnectSyncOutcome.PlausibilityAcceptanceRequired -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.PLAUSIBILITY_ACCEPTANCE_REQUIRED,
+                        "Confirme explicitamente a plausibilidade da série sem indicadores antes de preparar os filhos do Health Connect.",
+                    )
+                }
+
+                is HealthConnectSyncOutcome.PlausibilityBlocked -> {
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.PLAUSIBILITY_INDICATORS_BLOCKED,
+                        "Indicadores ${outcome.indicators.joinToString()} impedem aceite genérico. O Gate F permanece bloqueado.",
                     )
                 }
 
@@ -1735,6 +1904,54 @@ class ExercisesViewModel internal constructor(
         }
     }
 
+    private fun formatHealthConnectFailures(
+        failures: List<br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncFailure>,
+    ): String = failures
+        .groupBy { it.recordType }
+        .entries
+        .joinToString("; ") { (recordType, capabilityFailures) ->
+            val causes = capabilityFailures
+                .map { it.failureKind.toFriendlyLabel() }
+                .distinct()
+                .joinToString(" e ")
+            val children = capabilityFailures
+                .mapNotNull { it.projectionChildKey?.stableValue }
+                .distinct()
+                .joinToString(", ")
+            "${recordType.toFriendlyLabel()}${children.takeIf { it.isNotBlank() }?.let { " [$it]" }.orEmpty()}: $causes (${capabilityFailures.size} filho(s))"
+        }
+
+    private fun HealthConnectWritePermission.toFriendlyLabel(): String = when (this) {
+        HealthConnectWritePermission.STEPS -> "passos"
+        HealthConnectWritePermission.HEART_RATE -> "frequência cardíaca"
+        HealthConnectWritePermission.EXERCISE -> "exercícios"
+        HealthConnectWritePermission.DISTANCE -> "distância"
+        HealthConnectWritePermission.SPEED -> "velocidade"
+        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias"
+        HealthConnectWritePermission.WEIGHT -> "peso"
+        HealthConnectWritePermission.HEIGHT -> "altura"
+    }
+
+    private fun HealthSyncRecordType.toFriendlyLabel(): String = when (this) {
+        HealthSyncRecordType.STEPS -> "Passos"
+        HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
+        HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
+        HealthSyncRecordType.DISTANCE -> "Distância"
+        HealthSyncRecordType.SPEED -> "Velocidade"
+        HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias"
+        HealthSyncRecordType.WEIGHT -> "Peso"
+        HealthSyncRecordType.HEIGHT -> "Altura"
+    }
+
+    private fun HealthConnectFailureKind.toFriendlyLabel(): String = when (this) {
+        HealthConnectFailureKind.PERMISSION_REQUIRED -> "permissão pendente"
+        HealthConnectFailureKind.PROVIDER_UNAVAILABLE -> "provider indisponível"
+        HealthConnectFailureKind.PROVIDER_UPDATE_REQUIRED -> "atualização do provider necessária"
+        HealthConnectFailureKind.WRITE_REJECTED -> "escrita rejeitada pelo provider"
+        HealthConnectFailureKind.INVALID_LOCAL_DATA -> "dados locais inválidos"
+        HealthConnectFailureKind.INTERNAL -> "falha interna"
+    }
+
     private fun syncFormsWithSelectedActivity(activity: WorkoutActivity?) {
         if (activity == null) {
             reviewFormState.value = ExerciseReviewFormState()
@@ -1747,6 +1964,8 @@ class ExercisesViewModel internal constructor(
                 selectedType = activity.confirmedType ?: activity.suggestedType,
                 titleInput = activity.title.orEmpty(),
                 notesInput = activity.notes.orEmpty(),
+                acceptPlausibility = activity.derivationSnapshot?.plausibility?.policy ==
+                    br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED,
             )
         }
         if (calibrationFormState.value.loadedActivityId != activity.id || !calibrationFormState.value.isSaving) {

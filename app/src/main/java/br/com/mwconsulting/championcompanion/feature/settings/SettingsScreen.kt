@@ -24,11 +24,15 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
@@ -45,6 +49,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
+    val lifecycleOwner = LocalLifecycleOwner.current
     val missingPermissions = viewModel.requestedPermissions()
     val isConnected = state.availability == SettingsAvailability.AVAILABLE && missingPermissions.isEmpty()
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -55,6 +60,16 @@ fun SettingsScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.onIntent(SettingsIntent.Load)
+    }
+
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onIntent(SettingsIntent.RefreshHealthConnectState)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Surface(
@@ -238,6 +253,11 @@ private fun SyncQueueCard(state: SettingsUiState) {
             Text("Falhas: ${state.failedCount}", style = MaterialTheme.typography.bodyMedium)
             Text("Sincronizando: ${state.syncingCount}", style = MaterialTheme.typography.bodyMedium)
             Text("Sincronizados: ${state.syncedCount}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Sincronizado significa escrita local aceita; o provider não é lido para confirmação.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 "Última sincronização: ${state.lastSyncedAt?.toString() ?: "ainda não registrada"}",
                 style = MaterialTheme.typography.bodyMedium,
