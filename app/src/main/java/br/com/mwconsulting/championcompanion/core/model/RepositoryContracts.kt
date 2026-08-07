@@ -632,6 +632,12 @@ data class HealthSyncBacklogReconciliationResult(
     val heightCount: Int = 0,
 )
 
+/** Fila processável com agregados locais que exigem bloqueio fail-closed. */
+data class HealthSyncProcessableQueue(
+    val operations: List<HealthSyncOperation> = emptyList(),
+    val blockedAggregates: Set<HealthSyncAggregate> = emptySet(),
+)
+
 interface HealthSyncRepository {
     suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
     /** Persiste um filho congelado sem executar qualquer efeito remoto. */
@@ -643,14 +649,36 @@ interface HealthSyncRepository {
         projectionOrigin: HealthProjectionOrigin,
     ): RepositoryResult<HealthSyncOperation> = RepositoryResult.UnexpectedState
     suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
+    suspend fun findProcessableWithIntegrity(
+        limit: Int = 100,
+    ): RepositoryResult<HealthSyncProcessableQueue> = when (val result = findProcessable(limit)) {
+        is RepositoryResult.Success -> RepositoryResult.Success(
+            HealthSyncProcessableQueue(operations = result.value),
+        )
+
+        RepositoryResult.Conflict -> RepositoryResult.Conflict
+        RepositoryResult.UnexpectedState -> RepositoryResult.UnexpectedState
+        RepositoryResult.NotFound -> RepositoryResult.NotFound
+        RepositoryResult.StorageUnavailable -> RepositoryResult.StorageUnavailable
+    }
     fun observeSyncSummary(): Flow<HealthSyncSummary>
     suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
 
-    /** Identidade local exata do agregado legado de distância para atividade do relógio. */
-    suspend fun hasKnownLegacyWorkoutDistanceProjection(
+    /** Inspeciona somente identidade local do agregado legado de distância. */
+    suspend fun inspectLegacyWorkoutDistanceProjection(
         activityId: WorkoutActivityId,
         activityOrigin: WorkoutActivityOrigin,
-    ): RepositoryResult<Boolean> = RepositoryResult.UnexpectedState
+    ): RepositoryResult<HealthLegacyDistanceProjectionStatus> = RepositoryResult.UnexpectedState
+
+    /** Persiste tombstone DELETE do agregado legado sem efeito remoto. */
+    suspend fun prepareLegacyWorkoutDistanceDeletion(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<HealthSyncOperation> = RepositoryResult.UnexpectedState
+
+    /** Valida identidade determinística antes de qualquer DELETE remoto. */
+    suspend fun validateDeleteIdentity(
+        operation: HealthSyncOperation,
+    ): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
 
     /** Consulta em lote; data civil continua pertencendo ao aggregate, nunca à operação. */
     fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> =

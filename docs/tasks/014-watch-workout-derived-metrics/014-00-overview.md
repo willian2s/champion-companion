@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 13/16 subtarefas concluídas
+- **Progresso:** 14/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -40,7 +40,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
 - [x] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
 - [x] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
-- [ ] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
+- [x] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
 - [ ] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
 - [ ] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
 
@@ -113,7 +113,9 @@ Esses resultados são entrada obrigatória de `014-02`.
 
 A migration local efetiva é `MIGRATION_8_9`, e a migration aditiva de projeções
 é `MIGRATION_9_10`; não há derivação, mudança de workflow ou efeito remoto
-durante upgrade. O writer granular continua pendente para `014-13`.
+durante upgrade. O writer granular e a reconciliação permanecem fora de qualquer
+efeito durante upgrade; ambos foram concluídos nas subtarefas `014-13` e
+`014-14`.
 
 ## Observações
 
@@ -288,8 +290,14 @@ durante upgrade. O writer granular continua pendente para `014-13`.
   identidade e origem locais, bloqueia distância/velocidade de `WATCH_D3_D4` e
   preserva atividades phone. `lint`, builds debug/release, `installDebug` e
   `git diff --check` passaram; testes automatizados não foram criados nem
-  executados. Provider real, midpoint e falha parcial permanecem para `014-15`;
-  reconciliação do agregado legado permanece em `014-14`.
+   executados. Provider real, midpoint e falha parcial permanecem para `014-15`;
+   reconciliação do agregado legado foi concluída em `014-14`.
 - Revisão independente final de `014-13` aprovada sem blockers ou majors. A spec
   principal ainda exibe progresso histórico `11/16`; este overview permanece a
-  fonte operacional atualizada em `13/16`.
+  fonte operacional atualizada em `14/16`.
+- `014-14` concluiu reconciliação global: tombstone, checkpoints antes/depois,
+  delete-before-insert, retries com identidade congelada, deleção exata de
+  filhos obsoletos, bloqueio fail-closed de identidades desconhecidas e reparo
+  de workflows concluídos. Lint, builds debug/release, instalação e
+  `git diff --check` passaram; provider real e matriz física de falhas permanecem
+  para `014-15`.

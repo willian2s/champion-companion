@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Número:** `14`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -97,3 +97,84 @@ marcado.
 
 Parar o reconciliador e preservar checkpoints. Não recriar agregado nem apagar
 filhos automaticamente; retomada exige fluxo explícito.
+
+## Implementação
+
+- O gateway agora remove somente por classe de record, `clientRecordId` exato e
+  lista vazia de versões; não há leitura remota nem deleção por janela.
+- O repository inspeciona a identidade legada local, cria tombstone `DELETE`
+  idempotente e mantém estado `UNKNOWN_ID` fail-closed.
+- O coordinator grava checkpoint antes do efeito remoto, executa o delete legado
+  antes dos filhos de distância/velocidade, grava o checkpoint posterior e só
+  então libera inserts granulares.
+- O manifesto anterior é comparado ao manifesto atual; filhos obsoletos viram
+  operações `DELETE` com identidade, versão e payload já congelados.
+- Atividade sem série substituta elegível não remove agregado legado. Identidade
+  desconhecida não inicia delete nem inserts concorrentes.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectGateway.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HealthProjectionContracts.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+- este arquivo e o overview da task.
+
+## Decisões e desvios
+
+- Nenhuma migration, schema, Gradle, parser, derivação, UI ou código phone foi
+  alterado.
+- O fluxo global prepara reconciliações locais antes de processar a fila; ID
+  desconhecido ou filho não reconstituível bloqueia o agregado inteiro.
+- Tombstone legado pendente sem série de distância substituta bloqueia todo o
+  agregado; nenhum record remoto é processado nesse estado.
+- Operações legadas presas em `SYNCING` retornam a `FAILED` na recuperação,
+  preservando ID, versão e checkpoint para retomada.
+- A chamada Health Connect informa `clientRecordId` somente em
+  `clientRecordIdsList`, mantendo `recordIdsList` vazio; sync global inicia a
+  atividade antes dos efeitos remotos e repara workflow já sincronizado para
+  permitir conclusão após retry.
+- `DELETE` usa mesma identidade natural da projeção e incrementa versão somente
+  ao transformar operação legada ou filho obsoleto; retry idêntico reutiliza
+  identidade, versão e payload congelados.
+- Falha ao marcar sucesso local após efeito remoto mantém operação falha e
+  checkpoint retomável; nova tentativa repete delete exato de forma idempotente.
+
+## Comandos executados e resultados
+
+- `./gradlew app:compileDebugKotlin` — PASS após correção das referências do
+  coordinator;
+- `./gradlew lint assembleDebug assembleRelease` — primeira execução falhou por
+  corrida conhecida do lint/Hilt em fontes geradas; validações isoladas
+  subsequentes passaram;
+- `./gradlew lint` — PASS após execução isolada;
+- `./gradlew assembleDebug assembleRelease` — PASS;
+- `./gradlew installDebug` — PASS, APK instalado no dispositivo `SM-S901E`;
+- `git diff --check` — PASS;
+- `git status --short` — diff local revisado;
+- testes automatizados — não criados nem executados, conforme escopo.
+
+## Evidências
+
+- Query DAO libera somente tombstones `DELETE` do legado do relógio, mantendo
+  inserts legados bloqueados.
+- Ordenação do coordinator coloca delete agregado, deletes de filhos e depois
+  inserts; o gate de distância/velocidade permanece fechado até checkpoint de
+  reconciliação.
+- Gateway seleciona classe Health Connect pelo tipo local e envia somente ID
+  conhecido.
+- Builds debug/release, lint, instalação e `git diff --check` passaram.
+
+## Riscos residuais
+
+- Provider Health Connect real não foi exercitado para delete exato, delete
+  idempotente, falha entre efeito remoto e marcação local ou ausência de record;
+  validação física permanece em `014-15`.
+- Revisão independente anterior encontrou bloqueios no fail-closed global; a
+  correção foi validada por revisão independente final, sem blockers funcionais.
+- Não foram criados cenários automatizados para matriz de falhas, conforme fora
+  do escopo explícito.

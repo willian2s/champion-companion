@@ -729,6 +729,9 @@ interface HealthSyncOperationDao {
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, projectionChildKey, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
 
+    @Query("SELECT * FROM health_sync_operations WHERE projectionChildKey != '__legacy__' ORDER BY aggregateType, aggregateId, recordType, projectionChildKey, operationSequence, id")
+    suspend fun findProjectionOperations(): List<HealthSyncOperationEntity>
+
     @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType, projectionChildKey, operationSequence, id")
     fun observeByAggregateIds(aggregateType: String, aggregateIds: List<String>): Flow<List<HealthSyncOperationEntity>>
 
@@ -741,11 +744,11 @@ interface HealthSyncOperationDao {
      * ocultarem operações elegíveis posteriores; phone continua elegível.
      */
     @Query(
-            "SELECT operation.* FROM health_sync_operations operation " +
-                "WHERE operation.state IN ('PENDING', 'FAILED') " +
-                "AND (operation.projectionChildKey != '__legacy__' OR " +
-                "(operation.aggregateType != 'WORKOUT_ACTIVITY' OR NOT EXISTS (" +
-                "SELECT 1 FROM workout_activities activity " +
+             "SELECT operation.* FROM health_sync_operations operation " +
+                 "WHERE operation.state IN ('PENDING', 'FAILED') " +
+                 "AND (operation.projectionChildKey != '__legacy__' OR operation.action = 'DELETE' OR " +
+                 "(operation.aggregateType != 'WORKOUT_ACTIVITY' OR NOT EXISTS (" +
+                 "SELECT 1 FROM workout_activities activity " +
                 "WHERE activity.id = operation.aggregateId " +
                 "AND activity.origin = 'WATCH_D3_D4'" +
                 "))) " +

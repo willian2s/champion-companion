@@ -687,6 +687,56 @@ data class HealthSyncOperation private constructor(
         ))
     }
 
+    /** Prepara remoção exata de agregado legado sem criar novo payload remoto. */
+    fun prepareAggregateDeletion(
+        clientRecordId: String,
+        clientRecordVersion: Long,
+        updatedAt: Instant?,
+    ): DomainResult<HealthSyncOperation> {
+        if (key.projectionChildKey != null || clientRecordId.isBlank() || clientRecordVersion < 0L) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+        if (this.clientRecordId != null && this.clientRecordId != clientRecordId) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+        if (this.clientRecordVersion != null && clientRecordVersion < this.clientRecordVersion) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
+        if (state == SyncOperationState.SYNCING) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+        if (action == HealthSyncOperationAction.DELETE) {
+            return DomainResult.Success(
+                if (this.clientRecordVersion == null) {
+                    copy(clientRecordVersion = clientRecordVersion)
+                } else {
+                    this
+                },
+            )
+        }
+
+        val nextVersion = when (val currentVersion = this.clientRecordVersion) {
+            null -> clientRecordVersion
+            Long.MAX_VALUE -> return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            else -> maxOf(clientRecordVersion, currentVersion + 1L)
+        }
+        return DomainResult.Success(copy(
+            state = SyncOperationState.PENDING,
+            attemptCount = 0,
+            lastAttemptAt = null,
+            lastError = null,
+            clientRecordId = clientRecordId,
+            clientRecordVersion = nextVersion,
+            syncedAt = null,
+            updatedAt = updatedAt ?: this.updatedAt,
+            action = HealthSyncOperationAction.DELETE,
+            frozenPayload = null,
+            reconciliationState = HealthProjectionReconciliationState.EXPECTED,
+            reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.NOT_STARTED,
+            projectionOrigin = null,
+        ))
+    }
+
     fun markReconciliationBeforeRemoteEffect(): DomainResult<HealthSyncOperation> =
         if (state == SyncOperationState.SYNCING &&
             reconciliationCheckpoint != HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT

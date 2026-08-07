@@ -49,6 +49,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncBacklogReconci
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncProcessableQueue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncQueueObservation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
@@ -73,6 +74,7 @@ import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
+import br.com.mwconsulting.championcompanion.core.model.HealthLegacyDistanceProjectionStatus
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationCheckpoint
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationState
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
@@ -899,10 +901,9 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = write {
         RepositoryResult.Success(
-            database.workoutActivityDao().transitionAllByStateExcludingOriginUnlessProjection(
+            database.workoutActivityDao().transitionAllByState(
                 expectedState = "SYNCING",
                 nextState = "SYNC_FAILED",
-                excludedOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
             ),
         )
     }
@@ -1459,25 +1460,204 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(next)
     }
 
+    override suspend fun inspectLegacyWorkoutDistanceProjection(
+        activityId: WorkoutActivityId,
+        activityOrigin: WorkoutActivityOrigin,
+    ): RepositoryResult<HealthLegacyDistanceProjectionStatus> = withContext(ioDispatcher) {
+        if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+            return@withContext RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.ABSENT)
+        }
+        val entity = database.healthSyncOperationDao().findKnownLegacyWorkoutDistanceProjection(
+            activityId = activityId.value.toString(),
+            activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
+        ) ?: return@withContext RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.ABSENT)
+        val key = HealthSyncOperationKey(
+            aggregate = HealthSyncAggregate.WorkoutActivity(activityId),
+            recordType = HealthSyncRecordType.DISTANCE,
+        )
+        val expectedClientRecordId = stableClientRecordId(key)
+        if (entity.clientRecordId.isNullOrBlank() || entity.clientRecordId != expectedClientRecordId) {
+            return@withContext RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.UNKNOWN_ID)
+        }
+        val action = enumValueOfOrNull<HealthSyncOperationAction>(entity.action)
+        val state = enumValueOfOrNull<SyncOperationState>(entity.state)
+        val reconciliationState = enumValueOfOrNull<HealthProjectionReconciliationState>(entity.reconciliationState)
+        val checkpoint = enumValueOfOrNull<HealthProjectionReconciliationCheckpoint>(entity.reconciliationCheckpoint)
+        if (action == null || state == null || reconciliationState == null || checkpoint == null) {
+            return@withContext RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.UNKNOWN_ID)
+        }
+        when {
+            action == HealthSyncOperationAction.DELETE &&
+                state == SyncOperationState.SYNCED &&
+                reconciliationState == HealthProjectionReconciliationState.OBSOLETE &&
+                checkpoint == HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT ->
+                RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.RECONCILED)
+
+            action == HealthSyncOperationAction.DELETE && state == SyncOperationState.SYNCED ->
+                RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.UNKNOWN_ID)
+
+            else -> RepositoryResult.Success(HealthLegacyDistanceProjectionStatus.KNOWN_PENDING_DELETE)
+        }
+    }
+
+    override suspend fun prepareLegacyWorkoutDistanceDeletion(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<HealthSyncOperation> = write {
+        val activity = database.workoutActivityDao().findById(activityId.value.toString())
+            ?: return@write RepositoryResult.NotFound
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        val key = HealthSyncOperationKey(
+            aggregate = HealthSyncAggregate.WorkoutActivity(activityId),
+            recordType = HealthSyncRecordType.DISTANCE,
+        )
+        val entity = database.healthSyncOperationDao().findKnownLegacyWorkoutDistanceProjection(
+            activityId = activityId.value.toString(),
+            activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
+        ) ?: return@write RepositoryResult.NotFound
+        val expectedClientRecordId = stableClientRecordId(key)
+        if (entity.clientRecordId.isNullOrBlank() || entity.clientRecordId != expectedClientRecordId) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        val current = entity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        val next = current.prepareAggregateDeletion(
+            clientRecordId = expectedClientRecordId,
+            clientRecordVersion = current.clientRecordVersion ?: 0L,
+            updatedAt = Instant.now(),
+        ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+        if (next != current && database.healthSyncOperationDao().update(next.toEntity()) != 1) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        RepositoryResult.Success(next)
+    }
+
+    override suspend fun validateDeleteIdentity(
+        operation: HealthSyncOperation,
+    ): RepositoryResult<Unit> = withContext(ioDispatcher) {
+        if (operation.action != HealthSyncOperationAction.DELETE) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+        val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
+            ?: return@withContext RepositoryResult.UnexpectedState
+        val activity = database.workoutActivityDao().findById(aggregate.activityId.value.toString())
+            ?: return@withContext RepositoryResult.NotFound
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+        val child = operation.key.projectionChildKey
+        if (child == null && operation.key.recordType != HealthSyncRecordType.DISTANCE) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+        if (child != null && child.recordTypeName != operation.key.recordType.name) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+        val expectedClientRecordId = stableClientRecordId(operation.key)
+        if (operation.clientRecordId != expectedClientRecordId ||
+            operation.clientRecordVersion == null ||
+            operation.clientRecordVersion < 0L
+        ) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+
+        val entity = database.healthSyncOperationDao().findById(operation.id.value.toString())
+            ?: return@withContext RepositoryResult.NotFound
+        val expectedProjectionChildKey = child?.stableValue
+            ?: HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY
+        if (entity.aggregateId != aggregate.activityId.value.toString() ||
+            entity.aggregateType != HealthSyncAggregateType.WORKOUT_ACTIVITY.name ||
+            entity.recordType != operation.key.recordType.name ||
+            entity.projectionChildKey != expectedProjectionChildKey ||
+            entity.action != HealthSyncOperationAction.DELETE.name ||
+            entity.clientRecordId != expectedClientRecordId
+        ) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+        val persisted = entity.toDomainStrict().valueOrNull()
+            ?: return@withContext RepositoryResult.UnexpectedState
+        if (persisted.key != operation.key ||
+            persisted.action != HealthSyncOperationAction.DELETE ||
+            persisted.clientRecordId != expectedClientRecordId ||
+            persisted.clientRecordVersion != operation.clientRecordVersion
+        ) {
+            return@withContext RepositoryResult.UnexpectedState
+        }
+        RepositoryResult.Success(Unit)
+    }
+
     override suspend fun findProcessable(limit: Int): RepositoryResult<List<HealthSyncOperation>> = write {
-        if (limit <= 0) return@write RepositoryResult.Success(emptyList())
+        when (val result = findProcessableInternal(limit)) {
+            is RepositoryResult.Success -> RepositoryResult.Success(result.value.operations)
+            RepositoryResult.Conflict -> RepositoryResult.Conflict
+            RepositoryResult.UnexpectedState -> RepositoryResult.UnexpectedState
+            RepositoryResult.NotFound -> RepositoryResult.NotFound
+            RepositoryResult.StorageUnavailable -> RepositoryResult.StorageUnavailable
+        }
+    }
+
+    override suspend fun findProcessableWithIntegrity(
+        limit: Int,
+    ): RepositoryResult<HealthSyncProcessableQueue> = write {
+        findProcessableInternal(limit)
+    }
+
+    private suspend fun findProcessableInternal(
+        limit: Int,
+    ): RepositoryResult<HealthSyncProcessableQueue> {
+        if (limit <= 0) return RepositoryResult.Success(HealthSyncProcessableQueue())
+
+        val blockedAggregates = linkedSetOf<HealthSyncAggregate>()
+        var unreconstructableAggregate = false
+        for (entity in database.healthSyncOperationDao().findProjectionOperations()) {
+            val aggregate = entity.toAggregateOrNull()
+            if (aggregate == null) {
+                unreconstructableAggregate = true
+                continue
+            }
+            if (HealthProjectionChildKey.fromStableValue(entity.projectionChildKey) == null ||
+                entity.toDomainStrict().valueOrNull() == null
+            ) {
+                blockedAggregates += aggregate
+            }
+        }
+        if (unreconstructableAggregate) return RepositoryResult.UnexpectedState
+
         val repaired = database.healthSyncOperationDao().findProcessable(limit)
             .mapNotNull { entity ->
                 if (isBlockedWatchWorkoutOperation(entity)) return@mapNotNull null
+                val aggregate = entity.toAggregateOrNull()
+                    ?: run {
+                        unreconstructableAggregate = true
+                        return@mapNotNull null
+                    }
+                val domain = entity.toDomainStrict().valueOrNull()
+                    ?: run {
+                        blockedAggregates += aggregate
+                        return@mapNotNull null
+                    }
                 if (entity.isDailyStepsOperationEntity()) {
-                    return@mapNotNull entity.toDomain()
+                    return@mapNotNull domain
                 }
-                val domain = entity.toDomain() ?: return@mapNotNull null
                 if (entity.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY) {
                     return@mapNotNull domain
                 }
-                val key = domain.key
-                when (val ensured = ensureOperationInternal(key)) {
+                if (domain.action == HealthSyncOperationAction.DELETE) {
+                    return@mapNotNull domain
+                }
+                when (val ensured = ensureOperationInternal(domain.key)) {
                     is RepositoryResult.Success -> ensured.value
                     else -> null
                 }
             }
-        RepositoryResult.Success(repaired.filter { it.state != SyncOperationState.SYNCED })
+        if (unreconstructableAggregate) return RepositoryResult.UnexpectedState
+        return RepositoryResult.Success(
+            HealthSyncProcessableQueue(
+                operations = repaired.filter {
+                    it.state != SyncOperationState.SYNCED && it.key.aggregate !in blockedAggregates
+                },
+                blockedAggregates = blockedAggregates,
+            ),
+        )
     }
 
     override fun observeSyncSummary(): Flow<HealthSyncSummary> =
@@ -1488,36 +1668,19 @@ class RoomRepositories @Inject constructor(
     override suspend fun findOperationsForAggregate(
         aggregate: HealthSyncAggregate,
     ): RepositoryResult<List<HealthSyncOperation>> = withContext(ioDispatcher) {
-        if (isBlockedWatchWorkoutAggregate(aggregate)) {
-            if (aggregate !is HealthSyncAggregate.WorkoutActivity) {
-                return@withContext RepositoryResult.Success(emptyList())
+        val entities = database.healthSyncOperationDao()
+            .findByAggregate(aggregate.id.toString(), aggregate.type.name)
+            .filterNot { entity ->
+                entity.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+                    entity.action != HealthSyncOperationAction.DELETE.name &&
+                    isBlockedWatchWorkoutOperation(entity)
             }
-            return@withContext RepositoryResult.Success(
-                database.healthSyncOperationDao()
-                    .findByAggregate(aggregate.id.toString(), aggregate.type.name)
-                    .filterNot { it.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY }
-                    .mapNotNull { it.toDomain() },
-            )
+        val operations = entities.map { entity ->
+            entity.toDomainStrict().valueOrNull()
+                ?: return@withContext RepositoryResult.UnexpectedState
         }
         RepositoryResult.Success(
-            database.healthSyncOperationDao()
-                .findByAggregate(aggregate.id.toString(), aggregate.type.name)
-                .mapNotNull { it.toDomain() },
-        )
-    }
-
-    override suspend fun hasKnownLegacyWorkoutDistanceProjection(
-        activityId: WorkoutActivityId,
-        activityOrigin: WorkoutActivityOrigin,
-    ): RepositoryResult<Boolean> = withContext(ioDispatcher) {
-        if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
-            return@withContext RepositoryResult.Success(false)
-        }
-        RepositoryResult.Success(
-            database.healthSyncOperationDao().findKnownLegacyWorkoutDistanceProjection(
-                activityId = activityId.value.toString(),
-                activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
-            ) != null,
+            operations,
         )
     }
 
@@ -1692,7 +1855,6 @@ class RoomRepositories @Inject constructor(
         var resetCount = 0
         syncing.forEach { operation ->
             if (operation.lastAttemptAtEpochMillis != null && operation.lastAttemptAtEpochMillis > at.toEpochMilli()) return@forEach
-            if (isBlockedWatchWorkoutOperation(operation)) return@forEach
             if (!aggregateExists(operation)) return@forEach
             syncDao.update(
                 operation.copy(
@@ -2207,6 +2369,7 @@ class RoomRepositories @Inject constructor(
     private suspend fun isBlockedWatchWorkoutOperation(entity: HealthSyncOperationEntity): Boolean {
         if (entity.aggregateType != HealthSyncAggregateType.WORKOUT_ACTIVITY.name) return false
         return entity.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+            entity.action != HealthSyncOperationAction.DELETE.name &&
             database.workoutActivityDao().findById(entity.aggregateId)?.origin ==
                 WorkoutActivityOrigin.WATCH_D3_D4.name
     }
@@ -3163,6 +3326,7 @@ private fun HealthSyncOperationEntity.isBlockedWatchWorkoutOperation(
     blockedWatchActivityIds: Set<String>,
 ): Boolean = aggregateType == HealthSyncAggregateType.WORKOUT_ACTIVITY.name &&
     projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+    action != HealthSyncOperationAction.DELETE.name &&
     aggregateId in blockedWatchActivityIds
 
 private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
@@ -3170,6 +3334,7 @@ private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
 ): Boolean {
     val aggregate = key.aggregate as? HealthSyncAggregate.WorkoutActivity ?: return false
     return key.projectionChildKey == null &&
+        action != HealthSyncOperationAction.DELETE &&
         candidates.workoutActivities[aggregate.activityId.value]?.activityOrigin ==
             WorkoutActivityOrigin.WATCH_D3_D4
 }
@@ -3192,7 +3357,9 @@ private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = wh
 private fun isSemanticallyResolved(
     operation: HealthSyncOperation,
     candidates: HealthSyncSemanticCandidateIndex,
-): Boolean = when (val aggregate = operation.key.aggregate) {
+): Boolean {
+    if (operation.action == HealthSyncOperationAction.DELETE) return true
+    return when (val aggregate = operation.key.aggregate) {
     is HealthSyncAggregate.DailySummary ->
         operation.key.recordType == HealthSyncRecordType.STEPS &&
             candidates.dailySummaries[aggregate.summaryId.value]?.let { summary ->
@@ -3228,6 +3395,7 @@ private fun isSemanticallyResolved(
             candidates.userProfiles[aggregate.profileId.value]?.let { profile ->
                 isUserProfileEligibleForHeight(profile)
             } == true
+    }
 }
 
 private fun isDailySummaryEligibleForSteps(

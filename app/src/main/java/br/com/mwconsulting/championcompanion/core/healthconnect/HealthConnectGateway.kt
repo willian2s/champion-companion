@@ -3,6 +3,15 @@ package br.com.mwconsulting.championcompanion.core.healthconnect
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.Record
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.HeightRecord
+import androidx.health.connect.client.records.SpeedRecord
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
+import androidx.health.connect.client.records.WeightRecord
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +40,9 @@ interface HealthConnectGateway {
     suspend fun getGrantedPermissions(): Set<HealthConnectWritePermission>
 
     suspend fun insert(records: List<Record>)
+
+    /** Remove somente record próprio identificado por clientRecordId exato. */
+    suspend fun delete(recordType: HealthSyncRecordType, clientRecordId: String)
 }
 
 @Singleton
@@ -50,6 +62,26 @@ class AndroidHealthConnectGateway @Inject constructor(
         client().insertRecords(records)
     }
 
+    override suspend fun delete(recordType: HealthSyncRecordType, clientRecordId: String) {
+        require(clientRecordId.isNotBlank())
+        client().deleteRecords(
+            recordType = recordType.toHealthConnectRecordClass(),
+            recordIdsList = emptyList(),
+            clientRecordIdsList = listOf(clientRecordId),
+        )
+    }
+
     private fun client(): HealthConnectClient =
         HealthConnectClient.getOrCreate(context, platform.providerPackageName)
+}
+
+private fun HealthSyncRecordType.toHealthConnectRecordClass() = when (this) {
+    HealthSyncRecordType.STEPS -> StepsRecord::class
+    HealthSyncRecordType.HEART_RATE -> HeartRateRecord::class
+    HealthSyncRecordType.EXERCISE_SESSION -> ExerciseSessionRecord::class
+    HealthSyncRecordType.DISTANCE -> DistanceRecord::class
+    HealthSyncRecordType.TOTAL_CALORIES_BURNED -> TotalCaloriesBurnedRecord::class
+    HealthSyncRecordType.WEIGHT -> WeightRecord::class
+    HealthSyncRecordType.HEIGHT -> HeightRecord::class
+    HealthSyncRecordType.SPEED -> SpeedRecord::class
 }

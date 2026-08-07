@@ -60,6 +60,7 @@ import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadId
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticParseResult
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.DomainValidationError
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
@@ -1335,6 +1336,14 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
         lastError = operationLastError,
     ).successOrNull()
 }
+
+/** Variante explícita: operação não reconstituível nunca vira ausência silenciosa. */
+internal fun HealthSyncOperationEntity.toDomainStrict(): DomainResult<HealthSyncOperation> =
+    toDomain()?.let { DomainResult.Success(it) }
+        ?: DomainResult.Failure(DomainValidationError.INVALID_STATE)
+
+internal fun HealthSyncOperationEntity.toAggregateOrNull(): HealthSyncAggregate? =
+    toHealthSyncAggregate(aggregateType, aggregateId)
 
 private fun HealthSyncOperationEntity.toDailyStepsSyncPayload(): DailyStepsSyncPayload? {
     if (!hasAnyDailyStepsPayloadField()) return null

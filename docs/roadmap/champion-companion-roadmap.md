@@ -14,7 +14,8 @@
   existentes permanecem preservados até decisão explícita de remoção.
 - A direção futura prioriza importação D3/D4, derivação de métricas, revisão e
   sincronização com Health Connect de treinos iniciados pelo relógio.
-- A Fase 014 está `in_progress`, com `014-01` concluída e progresso `1/16`.
+- A Fase 014 está `in_progress`, com `014-01` a `014-14` concluídas e progresso
+  `14/16`. A próxima task elegível é `014-15`, validação física.
   WorkManager permanece somente como detalhe técnico de trabalho finito e
   adiável, não como objetivo funcional genérico nem owner de sessão ativa.
 - Critérios finais do roadmap não exigem novos treinos phone, GPS, rota ou
@@ -2025,7 +2026,7 @@ Health Connect
 
 # Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio
 
-**Status:** `in_progress`. **Progresso:** `1/16`.
+**Status:** `in_progress`. **Progresso:** `14/16`.
 
 A Fase 014 não é uma fase genérica de WorkManager. Seu objetivo funcional é
 refinar importação, derivação, revisão e sincronização de treinos iniciados pelo
@@ -2061,8 +2062,11 @@ canônica deriva exclusivamente da série de passos válidos e
 
 ## Estado das tasks
 
-- `014-01`: `completed` — auditoria D4, consumidores, legado e protocolo.
-- `014-02..16`: `pending`.
+- `014-01..13`: `completed` — auditoria, contratos, derivação, consumidores e
+  writer granular das projeções Health Connect.
+- `014-14`: `completed` — reconciliação do agregado legado, tombstones,
+  checkpoints, retries e remoção exata de filhos obsoletos.
+- `014-15..16`: `pending` — validação física e encerramento documental.
 
 Relatório de `014-01`:
 
@@ -2853,7 +2857,7 @@ Fase 10 — D3/D4
 Fase 11 — Revisão e calibração
 Fase 12 — Health Connect (concluída)
 Fase 13 — Exercícios phone (`closed`, `partially_delivered`)
-Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio (`in_progress`, `1/16`)
+Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio (`in_progress`, `14/16`)
 Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
 Fase 17 — Backup próprio
@@ -2872,8 +2876,8 @@ Fase 25 — Lançamento
 # 13. Priorização
 
 Fase 15 está concluída. Fase 13 está fechada como `partially_delivered` após a
-descontinuação de novos treinos phone. Fase 14 está `in_progress`, com `014-01`
-concluída e `014-02` como próxima task. WorkManager permanece somente detalhe
+descontinuação de novos treinos phone. Fase 14 está `in_progress`, com `014-01` até
+`014-14` concluídas e `014-15` como próxima task. WorkManager permanece somente detalhe
 técnico de tarefas finitas e adiáveis. O refinamento visual da Spec 017 é pacote
 independente e não constitui nova fase nem altera essa ordem.
 

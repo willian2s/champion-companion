@@ -82,6 +82,14 @@ enum class HealthSyncOperationAction {
     DELETE,
 }
 
+/** Estado local da identidade do agregado legado de distância. */
+enum class HealthLegacyDistanceProjectionStatus {
+    ABSENT,
+    KNOWN_PENDING_DELETE,
+    RECONCILED,
+    UNKNOWN_ID,
+}
+
 /** Estado do filho dentro do conjunto esperado pela reconciliação local. */
 enum class HealthProjectionReconciliationState {
     EXPECTED,
