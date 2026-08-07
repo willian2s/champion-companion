@@ -8,16 +8,16 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 
 ## Atualizacao Factual Pos-Fase 12
 
-- Banco real do Champion Companion está em `ChampionDatabase` schema `v9`.
+- Banco real do Champion Companion está em `ChampionDatabase` schema `v10`.
 - `workout_activities` ja cobre fluxo local ate `SYNCED` e `SYNC_FAILED`, incluindo sync explicito de Health Connect.
 - `health_sync_operations` ja cobre backlog e sincronizacao granular para passos, BPM, sessao de exercicio, distancia, calorias, peso e altura, com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt`.
 - `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
 - A Fase 12 não alterou schema nesta atualização; migrations `5→6`, `6→7`,
-  `7→8` e `8→9` permanecem parte do histórico factual.
+  `7→8`, `8→9` e `9→10` permanecem parte do histórico factual.
 - Fase 013 está `closed`, com resultado `partially_delivered` e motivo
   `product_reorientation`. Fase 014 está `in_progress`; a migration local
-  aditiva `8→9` foi implementada em `014-03`. Projeções Health Connect continuam
-  fora desta migration e permanecem planejadas para `014-12`.
+  aditiva `8→9` foi implementada em `014-03`; `9→10` foi implementada em
+  `014-12` para projeções filhas Health Connect.
 
 ## Atualização factual da Fase 014 — schema v9
 
@@ -61,6 +61,25 @@ Durante `8→9`, somente linhas com atividade/importação `WATCH_D3_D4` e
 `rawMotionValue`, dentro da faixa u24. `decodedSteps` permanece nulo; não há
 backfill de duração, métricas, snapshot ou split. Versões desconhecidas não são
 reinterpretadas. `d4-v1` permanece identificável para reprocessamento explícito.
+
+## Atualização factual da Fase 014 — schema v10
+
+`MIGRATION_9_10` é manual e aditiva. Adiciona metadados somente à tabela
+`health_sync_operations`, remove o índice natural legado e cria unicidade por
+agregado, tipo de record, filho e sequência. Não deriva atividade, altera
+workflow, acessa Health Connect nem executa efeito remoto.
+
+| Tabela | Colunas | Nullable/default |
+| --- | --- | --- |
+| `health_sync_operations` | `projectionChildKey TEXT`; `action TEXT`; `frozenPayload TEXT`; `frozenPayloadVersion INTEGER`; `reconciliationState TEXT`; `reconciliationCheckpoint TEXT`; `projectionOriginId TEXT`; `projectionOriginVersion TEXT` | `projectionChildKey='__legacy__'` para operações legadas; payload e origem nullable; `action='INSERT'`; `reconciliationState='EXPECTED'`; `reconciliationCheckpoint='NOT_STARTED'` |
+
+Filhos novos usam a identidade natural
+`aggregateId + aggregateType + recordType + projectionChildKey`, com
+`operationSequence=0`. Operações legadas recebem `projectionChildKey='__legacy__'`,
+preservam `operationSequence` e permanecem distinguíveis. A preparação local
+exige payload congelado, origem, ID determinístico e versão monotônica; retry
+idêntico reutiliza esses valores. O índice único impede mais de uma operação
+por filho na mesma projeção.
 
 ## Fechamento Factual Da Fase 12
 

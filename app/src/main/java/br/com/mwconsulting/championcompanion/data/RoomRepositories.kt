@@ -72,6 +72,12 @@ import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryIn
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationCheckpoint
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationState
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
@@ -1390,6 +1396,59 @@ class RoomRepositories @Inject constructor(
         ensureOperationInternal(key)
     }
 
+    override suspend fun prepareProjectionChild(
+        key: HealthSyncOperationKey,
+        action: HealthSyncOperationAction,
+        frozenPayload: HealthSyncFrozenPayload,
+        clientRecordVersion: Long,
+        projectionOrigin: HealthProjectionOrigin,
+    ): RepositoryResult<HealthSyncOperation> = write {
+        if (key.projectionChildKey == null || key.aggregate !is HealthSyncAggregate.WorkoutActivity) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        if (key.projectionChildKey.recordTypeName != key.recordType.name) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        if (clientRecordVersion < 0L) return@write RepositoryResult.UnexpectedState
+
+        val metadata = resolveSyncMetadata(key) ?: return@write RepositoryResult.NotFound
+        val preparedMetadata = metadata.copy(clientRecordVersion = clientRecordVersion)
+        val syncDao = database.healthSyncOperationDao()
+        val existing = syncDao.findByNaturalKey(
+            aggregateId = key.aggregate.id.toString(),
+            aggregateType = key.aggregate.type.name,
+            recordType = key.recordType.name,
+            projectionChildKey = key.projectionChildKey.stableValue,
+        )
+
+        if (existing == null) {
+            val entity = newPendingOperationEntity(key, preparedMetadata).copy(
+                action = action.name,
+                frozenPayload = frozenPayload.serializedPayload,
+                frozenPayloadVersion = frozenPayload.schemaVersion,
+                projectionOriginId = projectionOrigin.originId,
+                projectionOriginVersion = projectionOrigin.originVersion,
+            )
+            val operation = entity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+            syncDao.insert(entity)
+            return@write RepositoryResult.Success(operation)
+        }
+
+        val current = existing.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        val next = current.freezeProjection(
+            action = action,
+            frozenPayload = frozenPayload,
+            clientRecordId = stableClientRecordId(key),
+            clientRecordVersion = clientRecordVersion,
+            projectionOrigin = projectionOrigin,
+            updatedAt = preparedMetadata.updatedAtEpochMillis?.let(Instant::ofEpochMilli),
+        ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+        if (next != current && syncDao.update(next.toEntity()) != 1) {
+            return@write RepositoryResult.UnexpectedState
+        }
+        RepositoryResult.Success(next)
+    }
+
     override suspend fun findProcessable(limit: Int): RepositoryResult<List<HealthSyncOperation>> = write {
         if (limit <= 0) return@write RepositoryResult.Success(emptyList())
         val repaired = database.healthSyncOperationDao().findProcessable(limit)
@@ -1549,17 +1608,31 @@ class RoomRepositories @Inject constructor(
                 lastAttemptAtEpochMillis = at.toEpochMilli(),
                 lastError = null,
                 updatedAtEpochMillis = at.toEpochMilli(),
+                reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT.name,
             )
         }
 
     override suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =
         transitionSync(operationId) { operation ->
             if (operation.state != SyncOperationState.SYNCING.name) null
+            else if (
+                operation.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+                    operation.reconciliationCheckpoint !in setOf(
+                        HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT.name,
+                        HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name,
+                    )
+            ) null
             else operation.copy(
                 state = SyncOperationState.SYNCED.name,
                 lastError = null,
                 syncedAtEpochMillis = at.toEpochMilli(),
                 updatedAtEpochMillis = at.toEpochMilli(),
+                reconciliationState = if (operation.action == HealthSyncOperationAction.DELETE.name) {
+                    HealthProjectionReconciliationState.OBSOLETE.name
+                } else {
+                    HealthProjectionReconciliationState.SENT.name
+                },
+                reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name,
             )
         }
 
@@ -2636,6 +2709,9 @@ class RoomRepositories @Inject constructor(
             // ainda usa distância original, calibrada ou estimada.
             return RepositoryResult.UnexpectedState
         }
+        // Filho só pode nascer com payload congelado e origem por meio de
+        // prepareProjectionChild; nunca criar linha parcial nesta rota legada.
+        if (key.projectionChildKey != null) return RepositoryResult.UnexpectedState
         if (key.aggregate is HealthSyncAggregate.DailySummary && key.recordType == HealthSyncRecordType.STEPS) {
             return ensureDailyStepsOperationInternal(key)
         }
@@ -2645,6 +2721,8 @@ class RoomRepositories @Inject constructor(
             aggregateId = key.aggregate.id.toString(),
             aggregateType = key.aggregate.type.name,
             recordType = key.recordType.name,
+            projectionChildKey = key.projectionChildKey?.stableValue
+                ?: HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY,
         )
         val nextEntity = when (existing) {
             null -> newPendingOperationEntity(key, metadata)
@@ -2659,11 +2737,14 @@ class RoomRepositories @Inject constructor(
 
     private suspend fun ensureReconciledOperation(key: HealthSyncOperationKey): ReconciledOperation? {
         if (isBlockedWatchWorkoutAggregate(key.aggregate)) return null
+        if (key.projectionChildKey != null) return null
         val metadata = resolveSyncMetadata(key) ?: return null
         val existing = database.healthSyncOperationDao().findByNaturalKey(
             aggregateId = key.aggregate.id.toString(),
             aggregateType = key.aggregate.type.name,
             recordType = key.recordType.name,
+            projectionChildKey = key.projectionChildKey?.stableValue
+                ?: HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY,
         )
         val repaired = existing?.needsRepair(metadata) == true
         return when (val ensured = ensureOperationInternal(key)) {
@@ -2844,10 +2925,29 @@ class RoomRepositories @Inject constructor(
             aggregateId = key.aggregate.id.toString(),
             aggregateType = key.aggregate.type.name,
         )
+        val childStableValue = key.projectionChildKey?.stableValue
         return existingOperations
-            .firstOrNull { it.recordType == key.recordType.name }
+            .firstOrNull {
+                it.recordType == key.recordType.name &&
+                    it.projectionChildKey == childStableValue
+            }
             ?.timeZoneId
             .validZoneIdOrNull()
+            ?: if (childStableValue != null) {
+                existingOperations
+                    .firstOrNull {
+                        it.recordType == key.recordType.name &&
+                            it.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY
+                    }
+                    ?.timeZoneId
+                    .validZoneIdOrNull()
+            } else {
+                null
+            }
+            ?: existingOperations
+                .firstOrNull { it.recordType == key.recordType.name }
+                ?.timeZoneId
+                .validZoneIdOrNull()
             ?: existingOperations.firstNotNullOfOrNull { operation -> operation.timeZoneId.validZoneIdOrNull() }
             ?: ZoneId.systemDefault().id
     }
@@ -2930,10 +3030,22 @@ class RoomRepositories @Inject constructor(
         timeZoneId = metadata.timeZoneId,
         createdAtEpochMillis = metadata.createdAtEpochMillis ?: metadata.updatedAtEpochMillis,
         updatedAtEpochMillis = metadata.updatedAtEpochMillis,
+        projectionChildKey = key.projectionChildKey?.stableValue
+            ?: HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY,
+        action = HealthSyncOperationAction.INSERT.name,
+        frozenPayload = null,
+        frozenPayloadVersion = null,
+        reconciliationState = HealthProjectionReconciliationState.EXPECTED.name,
+        reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.NOT_STARTED.name,
+        projectionOriginId = null,
+        projectionOriginVersion = null,
     )
 
-    private fun stableClientRecordId(key: HealthSyncOperationKey): String =
-        "${BuildConfig.APPLICATION_ID}:${key.aggregate.type.name}:${key.aggregate.id}:${key.recordType.name}"
+    private fun stableClientRecordId(key: HealthSyncOperationKey): String {
+        val legacyId =
+            "${BuildConfig.APPLICATION_ID}:${key.aggregate.type.name}:${key.aggregate.id}:${key.recordType.name}"
+        return key.projectionChildKey?.let { "$legacyId:${it.stableValue}" } ?: legacyId
+    }
 
     private fun parseUuid(value: String): UUID? = br.com.mwconsulting.championcompanion.core.model.UuidV7.parse(value).valueOrNull()
 
@@ -3023,7 +3135,8 @@ private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = wh
         HealthSyncRecordType.DISTANCE.name,
         HealthSyncRecordType.TOTAL_CALORIES_BURNED.name,
         HealthSyncRecordType.HEART_RATE.name,
-    )
+    ) || recordType == HealthSyncRecordType.SPEED.name &&
+        projectionChildKey == HealthProjectionChildKey.SpeedSeries.stableValue
     HealthSyncAggregateType.WEIGHT_MEASUREMENT.name -> recordType == HealthSyncRecordType.WEIGHT.name
     HealthSyncAggregateType.USER_PROFILE_HEIGHT.name -> recordType == HealthSyncRecordType.HEIGHT.name
     else -> false
@@ -3052,6 +3165,7 @@ private fun isSemanticallyResolved(
                 HealthSyncRecordType.DISTANCE -> isWorkoutActivityEligibleForDistance(activity, operation)
                 HealthSyncRecordType.TOTAL_CALORIES_BURNED -> isWorkoutActivityEligibleForCalories(activity, operation)
                 HealthSyncRecordType.HEART_RATE -> isWorkoutActivityEligibleForHeartRate(activity, operation)
+                HealthSyncRecordType.SPEED -> isWorkoutActivityEligibleForSpeed(activity, operation)
                 else -> false
             }
         } == true
@@ -3113,6 +3227,13 @@ private fun isWorkoutActivityEligibleForCalories(
 ): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
         activity.metrics.caloriesKilocalories.presentDoubleOrNull()
             ?.takeIf { it.isFinite() && it > 0.0 } != null
+
+private fun isWorkoutActivityEligibleForSpeed(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
+    operation.key.projectionChildKey == HealthProjectionChildKey.SpeedSeries &&
+    operation.frozenPayload != null
 
 private fun isWorkoutActivityEligibleForHeartRate(
     activity: WorkoutActivity,

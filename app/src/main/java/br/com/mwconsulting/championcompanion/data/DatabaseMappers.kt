@@ -62,11 +62,17 @@ import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregateType
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationCheckpoint
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationState
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
 import br.com.mwconsulting.championcompanion.core.model.HeartRateDeduplicationKey
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
@@ -1254,15 +1260,63 @@ internal fun HealthSyncOperation.toEntity() = HealthSyncOperationEntity(
     stepDelta = dailyStepsPayload?.stepDelta,
     stepStartTimeEpochMillis = dailyStepsPayload?.startTime?.toEpochMilli(),
     stepEndTimeEpochMillis = dailyStepsPayload?.endTime?.toEpochMilli(),
+    projectionChildKey = key.projectionChildKey?.stableValue
+        ?: HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY,
+    action = action.name,
+    frozenPayload = frozenPayload?.serializedPayload,
+    frozenPayloadVersion = frozenPayload?.schemaVersion,
+    reconciliationState = reconciliationState.name,
+    reconciliationCheckpoint = reconciliationCheckpoint.name,
+    projectionOriginId = projectionOrigin?.originId,
+    projectionOriginVersion = projectionOrigin?.originVersion,
 )
 
 internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
     val aggregate = toHealthSyncAggregate(aggregateType, aggregateId) ?: return null
+    val projectionChildKey = this.projectionChildKey
+        .takeUnless { it == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY }
+        ?.let { HealthProjectionChildKey.fromStableValue(it) ?: return null }
     val dailyStepsPayload = toDailyStepsSyncPayload()
     if (dailyStepsPayload == null && hasAnyDailyStepsPayloadField()) return null
-    var operation = HealthSyncOperation.create(
+    val persistedFrozenPayload = this.frozenPayload
+    val frozenPayload = if (persistedFrozenPayload == null && frozenPayloadVersion == null) {
+        null
+    } else {
+        val payloadVersion = frozenPayloadVersion ?: return null
+        val payload = persistedFrozenPayload ?: return null
+        runCatching {
+            HealthSyncFrozenPayload(
+                schemaVersion = payloadVersion,
+                serializedPayload = payload,
+            )
+        }.getOrNull() ?: return null
+    }
+    val projectionOrigin = if (projectionOriginId == null && projectionOriginVersion == null) {
+        null
+    } else {
+        val originId = projectionOriginId ?: return null
+        val originVersion = projectionOriginVersion ?: return null
+        runCatching {
+            HealthProjectionOrigin(
+                originId = originId,
+                originVersion = originVersion,
+            )
+        }.getOrNull() ?: return null
+    }
+    val operationState = enum<SyncOperationState>(state) ?: return null
+    val operationAction = enum<HealthSyncOperationAction>(action) ?: return null
+    val operationReconciliationState =
+        enum<HealthProjectionReconciliationState>(reconciliationState) ?: return null
+    val operationReconciliationCheckpoint =
+        enum<HealthProjectionReconciliationCheckpoint>(reconciliationCheckpoint) ?: return null
+    val operationLastError = lastError?.let { enum<SafeSyncError>(it) ?: return null }
+    return HealthSyncOperation.create(
         id = uuid(id)?.let(::HealthSyncOperationId) ?: return null,
-        key = HealthSyncOperationKey(aggregate, enum<HealthSyncRecordType>(recordType) ?: return null),
+        key = HealthSyncOperationKey(
+            aggregate = aggregate,
+            recordType = enum<HealthSyncRecordType>(recordType) ?: return null,
+            projectionChildKey = projectionChildKey,
+        ),
         clientRecordId = clientRecordId,
         clientRecordVersion = clientRecordVersion,
         syncedAt = syncedAtEpochMillis?.let(Instant::ofEpochMilli),
@@ -1270,17 +1324,16 @@ internal fun HealthSyncOperationEntity.toDomain(): HealthSyncOperation? {
         dailyStepsPayload = dailyStepsPayload,
         createdAt = createdAtEpochMillis?.let(Instant::ofEpochMilli),
         updatedAt = updatedAtEpochMillis?.let(Instant::ofEpochMilli),
-    ).successOrNull() ?: return null
-    if (state != SyncOperationState.PENDING.name) {
-        operation = operation.start(lastAttemptAtEpochMillis?.let(Instant::ofEpochMilli) ?: return null).successOrNull() ?: return null
-        operation = when (enum<SyncOperationState>(state)) {
-            SyncOperationState.SYNCED -> operation.markSynced().successOrNull()
-            SyncOperationState.FAILED -> operation.markFailed(enum<SafeSyncError>(lastError) ?: return null).successOrNull()
-            SyncOperationState.SYNCING -> operation
-            else -> null
-        } ?: return null
-    }
-    return operation
+        action = operationAction,
+        frozenPayload = frozenPayload,
+        reconciliationState = operationReconciliationState,
+        reconciliationCheckpoint = operationReconciliationCheckpoint,
+        projectionOrigin = projectionOrigin,
+        state = operationState,
+        attemptCount = attemptCount,
+        lastAttemptAt = lastAttemptAtEpochMillis?.let(Instant::ofEpochMilli),
+        lastError = operationLastError,
+    ).successOrNull()
 }
 
 private fun HealthSyncOperationEntity.toDailyStepsSyncPayload(): DailyStepsSyncPayload? {

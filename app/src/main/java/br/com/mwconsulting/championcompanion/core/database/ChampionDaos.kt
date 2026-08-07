@@ -679,19 +679,24 @@ interface WorkoutRouteDao {
 
 @Dao
 interface HealthSyncOperationDao {
-    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, operationSequence, id")
+    @Query("SELECT * FROM health_sync_operations ORDER BY aggregateType, aggregateId, recordType, projectionChildKey, operationSequence, id")
     fun observeAll(): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE id = :id")
     suspend fun findById(id: String): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType AND operationSequence = 0")
-    suspend fun findByNaturalKey(aggregateId: String, aggregateType: String, recordType: String): HealthSyncOperationEntity?
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType AND recordType = :recordType AND projectionChildKey = :projectionChildKey AND operationSequence = 0")
+    suspend fun findByNaturalKey(
+        aggregateId: String,
+        aggregateType: String,
+        recordType: String,
+        projectionChildKey: String = HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY,
+    ): HealthSyncOperationEntity?
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, operationSequence, id")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, projectionChildKey, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
 
-    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType, operationSequence, id")
+    @Query("SELECT * FROM health_sync_operations WHERE aggregateType = :aggregateType AND aggregateId IN (:aggregateIds) ORDER BY aggregateId, recordType, projectionChildKey, operationSequence, id")
     fun observeByAggregateIds(aggregateType: String, aggregateIds: List<String>): Flow<List<HealthSyncOperationEntity>>
 
     @Query("SELECT * FROM health_sync_operations WHERE state = 'FAILED' ORDER BY updatedAtEpochMillis, lastAttemptAtEpochMillis")
@@ -703,8 +708,9 @@ interface HealthSyncOperationDao {
      * ocultarem operações elegíveis posteriores; phone continua elegível.
      */
     @Query(
-        "SELECT operation.* FROM health_sync_operations operation " +
+            "SELECT operation.* FROM health_sync_operations operation " +
             "WHERE operation.state IN ('PENDING', 'FAILED') " +
+            "AND operation.projectionChildKey = '__legacy__' " +
             "AND (operation.aggregateType != 'WORKOUT_ACTIVITY' OR NOT EXISTS (" +
             "SELECT 1 FROM workout_activities activity " +
             "WHERE activity.id = operation.aggregateId " +

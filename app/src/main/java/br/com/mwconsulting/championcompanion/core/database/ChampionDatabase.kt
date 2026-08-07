@@ -594,7 +594,16 @@ data class HeartRateMeasurementEntity(
 @Entity(
     tableName = "health_sync_operations",
     indices = [
-        Index(value = ["aggregateId", "recordType", "operationSequence"], unique = true),
+        Index(
+            value = [
+                "aggregateId",
+                "aggregateType",
+                "recordType",
+                "projectionChildKey",
+                "operationSequence",
+            ],
+            unique = true,
+        ),
         Index(value = ["state", "updatedAtEpochMillis"]),
         Index(value = ["clientRecordId"]),
     ],
@@ -621,7 +630,20 @@ data class HealthSyncOperationEntity(
     val stepDelta: Long? = null,
     val stepStartTimeEpochMillis: Long? = null,
     val stepEndTimeEpochMillis: Long? = null,
-)
+    @ColumnInfo(defaultValue = "'__legacy__'")
+    val projectionChildKey: String = LEGACY_PROJECTION_CHILD_KEY,
+    @ColumnInfo(defaultValue = "'INSERT'") val action: String = "INSERT",
+    val frozenPayload: String? = null,
+    val frozenPayloadVersion: Int? = null,
+    @ColumnInfo(defaultValue = "'EXPECTED'") val reconciliationState: String = "EXPECTED",
+    @ColumnInfo(defaultValue = "'NOT_STARTED'") val reconciliationCheckpoint: String = "NOT_STARTED",
+    val projectionOriginId: String? = null,
+    val projectionOriginVersion: String? = null,
+) {
+    companion object {
+        const val LEGACY_PROJECTION_CHILD_KEY = "__legacy__"
+    }
+}
 
 @Entity(
     tableName = "diagnostic_derived_outputs",
@@ -672,7 +694,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 9,
+    version = 10,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),

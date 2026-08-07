@@ -434,6 +434,37 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     }
 }
 
+/** Migration manual aditiva: separa identidade, payload e checkpoint de cada filho. */
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN projectionChildKey TEXT NOT NULL DEFAULT '__legacy__'",
+        )
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN action TEXT NOT NULL DEFAULT 'INSERT'")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN frozenPayload TEXT")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN frozenPayloadVersion INTEGER")
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN reconciliationState TEXT NOT NULL DEFAULT 'EXPECTED'",
+        )
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN reconciliationCheckpoint TEXT NOT NULL DEFAULT 'NOT_STARTED'",
+        )
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN projectionOriginId TEXT")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN projectionOriginVersion TEXT")
+
+        // operationSequence continua distinguindo deltas legados de Steps. Para
+        // filhos novos, a chave estável é projectionChildKey e sequence permanece 0.
+        connection.execute(
+            "DROP INDEX IF EXISTS index_health_sync_operations_aggregateId_recordType_operationSequence",
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "index_health_sync_operations_aggregateId_aggregateType_recordType_projectionChildKey_operationSequence " +
+                "ON health_sync_operations(aggregateId, aggregateType, recordType, projectionChildKey, operationSequence)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

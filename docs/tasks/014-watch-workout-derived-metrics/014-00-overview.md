@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 11/16 subtarefas concluídas
+- **Progresso:** 12/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -38,7 +38,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-09-calculate-kilometer-splits-and-heart-rate.md](014-09-calculate-kilometer-splits-and-heart-rate.md)
 - [x] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
 - [x] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
-- [ ] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
+- [x] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
 - [ ] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
 - [ ] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
 - [ ] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
@@ -111,9 +111,9 @@ Esses resultados são entrada obrigatória de `014-02`.
 - `014-12`: evolução aditiva posterior para manifesto, `projectionChildKey`,
   payload congelado, ações e checkpoints Health Connect.
 
-A migration local efetiva é `MIGRATION_8_9`; não há derivação, mudança de
-workflow ou efeito remoto durante upgrade. A migration de projeções Health
-Connect continua pendente.
+A migration local efetiva é `MIGRATION_8_9`, e a migration aditiva de projeções
+é `MIGRATION_9_10`; não há derivação, mudança de workflow ou efeito remoto
+durante upgrade. O writer granular continua pendente para `014-13`.
 
 ## Observações
 
@@ -266,3 +266,17 @@ Connect continua pendente.
   regressão no diff: `./gradlew lint` isolado passou duas vezes, incluindo após
   regeneração parcial de tarefas, sem nova `FileNotFoundException` Hilt ou erro
   FIR. Nenhum código, Gradle ou teste foi alterado; `git diff --check` passou.
+- `014-12` integrou `RoomRepositories` à identidade natural por filho, persistiu
+  defaults seguros de ação/reconciliação/payload, preservou IDs legados com
+  sentinela `__legacy__` e priorizou timezone da mesma chave filha.
+  `MIGRATION_9_10` e schema `10.json`
+  adicionam payload congelado, origem, versão, ação, estados e checkpoints sem
+  efeito remoto. O bloqueio do writer legado de `WATCH_D3_D4` permaneceu
+  intacto; não foram adicionados writer, gateway ou mapeamentos remotos.
+  `app:compileDebugKotlin`, `lint assembleDebug assembleRelease`,
+  `installDebug` e `git diff --check` passaram. Testes automatizados não foram
+  criados nem executados. `014-13` permanece bloqueada até implementação
+  explícita do writer granular.
+- Revisão independente final de `014-12` aprovada sem blockers ou majors;
+  permanecem apenas riscos documentados de validação física, writer granular e
+  reconciliação, previstos para `014-13`/`014-14`/`014-15`.

@@ -524,9 +524,17 @@ data class HealthSyncOperation private constructor(
     val dailyStepsPayload: DailyStepsSyncPayload?,
     val createdAt: Instant?,
     val updatedAt: Instant?,
+    val action: HealthSyncOperationAction,
+    val frozenPayload: HealthSyncFrozenPayload?,
+    val reconciliationState: HealthProjectionReconciliationState,
+    val reconciliationCheckpoint: HealthProjectionReconciliationCheckpoint,
+    val projectionOrigin: HealthProjectionOrigin?,
 ) {
     val isPending: Boolean
         get() = state == SyncOperationState.PENDING || state == SyncOperationState.FAILED
+
+    val isProjectionChild: Boolean
+        get() = key.projectionChildKey != null
 
     fun start(at: Instant): DomainResult<HealthSyncOperation> {
         if (state != SyncOperationState.PENDING && state != SyncOperationState.FAILED) {
@@ -546,12 +554,19 @@ data class HealthSyncOperation private constructor(
     }
 
     fun markSynced(at: Instant = lastAttemptAt ?: Instant.EPOCH): DomainResult<HealthSyncOperation> =
-        if (state == SyncOperationState.SYNCING) {
+        if (state == SyncOperationState.SYNCING &&
+            (!isProjectionChild || reconciliationCheckpoint != HealthProjectionReconciliationCheckpoint.NOT_STARTED)
+        ) {
             DomainResult.Success(copy(
                 state = SyncOperationState.SYNCED,
                 lastError = null,
                 syncedAt = at,
                 updatedAt = at,
+                reconciliationState = when (action) {
+                    HealthSyncOperationAction.INSERT -> HealthProjectionReconciliationState.SENT
+                    HealthSyncOperationAction.DELETE -> HealthProjectionReconciliationState.OBSOLETE
+                },
+                reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT,
             ))
         } else {
             DomainResult.Failure(DomainValidationError.INVALID_STATE)
@@ -598,6 +613,9 @@ data class HealthSyncOperation private constructor(
         ) {
             return DomainResult.Failure(DomainValidationError.INVALID_STATE)
         }
+        if (frozenPayload != null && clientRecordVersion != this.clientRecordVersion) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
         return DomainResult.Success(copy(
             clientRecordId = clientRecordId,
             clientRecordVersion = clientRecordVersion,
@@ -605,6 +623,95 @@ data class HealthSyncOperation private constructor(
             updatedAt = updatedAt,
         ))
     }
+
+    /**
+     * Congela projeção para retry. Mudança de payload, ação ou origem exige
+     * versão estritamente maior e reinicia somente filho afetado.
+     */
+    fun freezeProjection(
+        action: HealthSyncOperationAction,
+        frozenPayload: HealthSyncFrozenPayload?,
+        clientRecordId: String,
+        clientRecordVersion: Long,
+        projectionOrigin: HealthProjectionOrigin?,
+        updatedAt: Instant?,
+    ): DomainResult<HealthSyncOperation> {
+        if (clientRecordId.isBlank() || clientRecordVersion < 0L) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+        if (this.clientRecordId != null && this.clientRecordId != clientRecordId) {
+            return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        }
+        if (this.clientRecordVersion != null && clientRecordVersion < this.clientRecordVersion) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
+        if (state == SyncOperationState.SYNCING) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+
+        val projectionChanged = this.action != action ||
+            this.frozenPayload != frozenPayload ||
+            this.projectionOrigin != projectionOrigin
+        if (projectionChanged && this.clientRecordVersion != null &&
+            clientRecordVersion <= this.clientRecordVersion
+        ) {
+            return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        }
+
+        return DomainResult.Success(copy(
+            state = if (projectionChanged) SyncOperationState.PENDING else state,
+            attemptCount = if (projectionChanged) 0 else attemptCount,
+            lastAttemptAt = if (projectionChanged) null else lastAttemptAt,
+            lastError = if (projectionChanged) null else lastError,
+            clientRecordId = clientRecordId,
+            clientRecordVersion = if (projectionChanged) {
+                clientRecordVersion
+            } else {
+                this.clientRecordVersion ?: clientRecordVersion
+            },
+            syncedAt = if (projectionChanged) null else syncedAt,
+            updatedAt = updatedAt ?: this.updatedAt,
+            action = action,
+            frozenPayload = frozenPayload,
+            reconciliationState = if (projectionChanged) {
+                HealthProjectionReconciliationState.EXPECTED
+            } else {
+                reconciliationState
+            },
+            reconciliationCheckpoint = if (projectionChanged) {
+                HealthProjectionReconciliationCheckpoint.NOT_STARTED
+            } else {
+                reconciliationCheckpoint
+            },
+            projectionOrigin = projectionOrigin,
+        ))
+    }
+
+    fun markReconciliationBeforeRemoteEffect(): DomainResult<HealthSyncOperation> =
+        if (state == SyncOperationState.SYNCING &&
+            reconciliationCheckpoint != HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
+        ) {
+            DomainResult.Success(copy(
+                reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT,
+            ))
+        } else {
+            DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+
+    fun markReconciliationAfterRemoteEffect(): DomainResult<HealthSyncOperation> =
+        if (state == SyncOperationState.SYNCING &&
+            reconciliationCheckpoint == HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT
+        ) {
+            DomainResult.Success(copy(
+                reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT,
+                reconciliationState = when (action) {
+                    HealthSyncOperationAction.INSERT -> HealthProjectionReconciliationState.SENT
+                    HealthSyncOperationAction.DELETE -> HealthProjectionReconciliationState.OBSOLETE
+                },
+            ))
+        } else {
+            DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
 
     companion object {
         fun create(
@@ -617,19 +724,33 @@ data class HealthSyncOperation private constructor(
             dailyStepsPayload: DailyStepsSyncPayload? = null,
             createdAt: Instant? = null,
             updatedAt: Instant? = null,
+            action: HealthSyncOperationAction = HealthSyncOperationAction.INSERT,
+            frozenPayload: HealthSyncFrozenPayload? = null,
+            reconciliationState: HealthProjectionReconciliationState =
+                HealthProjectionReconciliationState.EXPECTED,
+            reconciliationCheckpoint: HealthProjectionReconciliationCheckpoint =
+                HealthProjectionReconciliationCheckpoint.NOT_STARTED,
+            projectionOrigin: HealthProjectionOrigin? = null,
+            state: SyncOperationState = SyncOperationState.PENDING,
+            attemptCount: Int = 0,
+            lastAttemptAt: Instant? = null,
+            lastError: SafeSyncError? = null,
         ): DomainResult<HealthSyncOperation> =
             if (supports(key) &&
                 isValidIdentityMetadata(clientRecordId, clientRecordVersion) &&
-                isValidDailyStepsPayload(key, timeZoneId, dailyStepsPayload)
+                isValidDailyStepsPayload(key, timeZoneId, dailyStepsPayload) &&
+                isValidProjectionPayload(key, clientRecordId, clientRecordVersion, frozenPayload, projectionOrigin) &&
+                isValidProjectionState(key, state, reconciliationCheckpoint) &&
+                attemptCount >= 0
             ) {
                 DomainResult.Success(
                     HealthSyncOperation(
                         id = id,
                         key = key,
-                        state = SyncOperationState.PENDING,
-                        attemptCount = 0,
-                        lastAttemptAt = null,
-                        lastError = null,
+                        state = state,
+                        attemptCount = attemptCount,
+                        lastAttemptAt = lastAttemptAt,
+                        lastError = lastError,
                         clientRecordId = clientRecordId,
                         clientRecordVersion = clientRecordVersion,
                         syncedAt = syncedAt,
@@ -637,6 +758,11 @@ data class HealthSyncOperation private constructor(
                         dailyStepsPayload = dailyStepsPayload,
                         createdAt = createdAt,
                         updatedAt = updatedAt,
+                        action = action,
+                        frozenPayload = frozenPayload,
+                        reconciliationState = reconciliationState,
+                        reconciliationCheckpoint = reconciliationCheckpoint,
+                        projectionOrigin = projectionOrigin,
                     ),
                 )
             } else {
@@ -644,7 +770,9 @@ data class HealthSyncOperation private constructor(
             }
 
         private fun supports(key: HealthSyncOperationKey): Boolean {
-            if (key.projectionChildKey?.isSpeedSeries == true) return false
+            if (key.projectionChildKey != null && key.aggregate !is HealthSyncAggregate.WorkoutActivity) {
+                return false
+            }
             val supportedRecordType = when (key.aggregate) {
                 is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
                 is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
@@ -653,6 +781,7 @@ data class HealthSyncOperation private constructor(
                     HealthSyncRecordType.DISTANCE,
                     HealthSyncRecordType.TOTAL_CALORIES_BURNED,
                     HealthSyncRecordType.HEART_RATE,
+                    HealthSyncRecordType.SPEED,
                 )
 
                 is HealthSyncAggregate.WeightMeasurement -> key.recordType == HealthSyncRecordType.WEIGHT
@@ -664,10 +793,10 @@ data class HealthSyncOperation private constructor(
         private fun supportsProjectionChild(key: HealthSyncOperationKey): Boolean = when (
             val child = key.projectionChildKey
         ) {
-            null -> true
+            null -> key.recordType != HealthSyncRecordType.SPEED
             HealthProjectionChildKey.ExerciseSession -> key.recordType == HealthSyncRecordType.EXERCISE_SESSION
             is HealthProjectionChildKey.DistanceInterval -> key.recordType == HealthSyncRecordType.DISTANCE
-            HealthProjectionChildKey.SpeedSeries -> false
+            HealthProjectionChildKey.SpeedSeries -> key.recordType == HealthSyncRecordType.SPEED
             HealthProjectionChildKey.HeartRateSeries -> key.recordType == HealthSyncRecordType.HEART_RATE
             HealthProjectionChildKey.TotalCaloriesBurned ->
                 key.recordType == HealthSyncRecordType.TOTAL_CALORIES_BURNED
@@ -688,6 +817,34 @@ data class HealthSyncOperation private constructor(
             key.aggregate !is HealthSyncAggregate.DailySummary -> false
             key.recordType != HealthSyncRecordType.STEPS -> false
             else -> payload.timeZoneId == timeZoneId
+        }
+
+        private fun isValidProjectionPayload(
+            key: HealthSyncOperationKey,
+            clientRecordId: String?,
+            clientRecordVersion: Long?,
+            frozenPayload: HealthSyncFrozenPayload?,
+            projectionOrigin: HealthProjectionOrigin?,
+        ): Boolean = if (key.projectionChildKey == null) {
+            true
+        } else {
+            clientRecordId != null && clientRecordVersion != null &&
+                frozenPayload != null && projectionOrigin != null
+        }
+
+        private fun isValidProjectionState(
+            key: HealthSyncOperationKey,
+            state: SyncOperationState,
+            checkpoint: HealthProjectionReconciliationCheckpoint,
+        ): Boolean = if (key.projectionChildKey == null) {
+            true
+        } else {
+            when (state) {
+                SyncOperationState.PENDING -> checkpoint != HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
+                SyncOperationState.FAILED -> checkpoint != HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
+                SyncOperationState.SYNCING -> checkpoint != HealthProjectionReconciliationCheckpoint.NOT_STARTED
+                SyncOperationState.SYNCED -> checkpoint == HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
+            }
         }
     }
 }

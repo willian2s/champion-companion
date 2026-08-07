@@ -37,8 +37,8 @@ derivada de passos válidos e comprimento individual do passo (`stepLengthMeters
 O valor original do relógio é
 diagnóstico e não pode ser fallback. O contrato futuro adiciona `SPEED`, permite
 múltiplos `DISTANCE` por intervalo e exige snapshot/projeção congelados conforme
-ADR-018. Fase 014 permanece `pending`; esta seção é planejamento e não afirma
-implementação concluída.
+ADR-018. A migration local de projeções filhas está concluída em `014-12`;
+writer e efeitos remotos permanecem pendentes para `014-13`.
 
 ## Fechamento Factual Da Fase 12
 
@@ -103,11 +103,32 @@ ou inventar distribuição temporal para uma fonte que só possua total.
 | `weight_measurements` | `Weight` | so quando houver dado local elegivel |
 | `user_profiles.heightCentimeters` | `Height` | so quando houver altura local elegivel |
 
-## IDs E Versoes Planejados Champion Companion
+## IDs E Versoes Champion Companion
 
-- `clientRecordId` deterministico por `applicationId + aggregateType + aggregateId + recordType`.
-- `clientRecordVersion` obrigatorio para agregados mutaveis do app novo.
+- Para operações legadas, `clientRecordId` permanece determinístico por
+  `applicationId + aggregateType + aggregateId + recordType`.
+- Para filhos, `projectionChildKey` é acrescentado ao ID. A chave não contém
+  valores de saúde.
+- `clientRecordVersion` é monotônico por `clientRecordId`; retry idêntico mantém
+  ID, versão e payload congelado.
 - IDs `motionlog:` deixam de ser referencia de implementacao e permanecem apenas como baseline comparativa legada.
+
+### Projeções filhas persistidas
+
+`health_sync_operations` mantém uma linha independente por filho:
+
+| Record | Filho | Persistência |
+| --- | --- | --- |
+| `EXERCISE_SESSION` | `exercise-session` | ação, payload, estado e checkpoint próprios |
+| `DISTANCE` | `interval-<índice>` | uma operação por intervalo, sem subfila |
+| `SPEED` | `speed-series` | uma operação independente, sem mapeamento nesta task |
+| `HEART_RATE` | `heart-rate-series` | uma operação independente, sem mapeamento nesta task |
+| `TOTAL_CALORIES_BURNED` | `total-calories-burned` | uma operação independente, sem mapeamento nesta task |
+
+Preparação é local e transacional. `action`, payload serializado, origem da
+derivação, estado esperado/enviado/obsoleto e checkpoint são persistidos antes
+de qualquer writer. `MIGRATION_9_10` apenas aplica defaults seguros a operações
+legadas; não insere nem remove records no provider.
 
 ## Diferencas Deliberadas Em Relacao Ao MotionLog
 

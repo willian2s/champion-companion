@@ -634,6 +634,14 @@ data class HealthSyncBacklogReconciliationResult(
 
 interface HealthSyncRepository {
     suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
+    /** Persiste um filho congelado sem executar qualquer efeito remoto. */
+    suspend fun prepareProjectionChild(
+        key: HealthSyncOperationKey,
+        action: HealthSyncOperationAction,
+        frozenPayload: HealthSyncFrozenPayload,
+        clientRecordVersion: Long,
+        projectionOrigin: HealthProjectionOrigin,
+    ): RepositoryResult<HealthSyncOperation> = RepositoryResult.UnexpectedState
     suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
     fun observeSyncSummary(): Flow<HealthSyncSummary>
     suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
