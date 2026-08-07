@@ -2,7 +2,8 @@
 
 - **Origem:** validação física de `014-15`
 - **Dispositivo:** Galaxy S22 `SM-S901E`, Android 16, API 36
-- **Aplicativo:** `1.0-dev`, commit `0286c79`
+- **Aplicativo:** `1.0-dev`, working tree pós-`014-17`, sem commit criado;
+  build instalado via `./gradlew installDebug`
 - **Estado:** bloqueador funcional para conclusão do Gate F
 
 ## Fato observado
@@ -50,3 +51,26 @@ task `014-15`.
   duração zero e falhou fechada na materialização local.
 - O limite write-only permanece preservado; observação manual do provider não
   foi implementada como leitura no app.
+
+## Falha parcial e retry físico
+
+- Dois treinos novos foram importados; o de 15 minutos foi aceito como
+  `Corrida`, e o de 20 minutos como `Treino livre`.
+- Com `WRITE_SPEED` revogada, a corrida exibiu `Falha parcial por capacidade`,
+  com um filho de velocidade pendente e recuperável.
+- Após restauração da permissão, retry explícito concluiu como `Sincronizada`.
+- Observação manual do provider mostrou distância acumulada `3,517 km` e uma
+  única velocidade nova `0,202 km/h` no intervalo `12:33–12:49`; nenhum
+  duplicado observado.
+- Evidências: `014-17-health-connect-distance-after-retry.png` e
+  `014-17-health-connect-speed-after-retry.png`.
+
+## Revogação isolada de distância e retry
+
+- `WRITE_DISTANCE` foi revogada no mesmo package debug. O treino livre de 20
+  minutos exibiu falha parcial nomeada no filho `Distância`, com três operações
+  recuperáveis.
+- Após reautorização, retry terminou `Sincronizada`. O provider exibiu
+  `3,570 km` acumulados, com acréscimo novo de `0,053 km` e sem duplicação
+  observada.
+- Evidência: `014-17-health-connect-distance-after-distance-retry.png`.

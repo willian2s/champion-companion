@@ -1,7 +1,8 @@
 # Evidência física 014-15
 
 - **Data:** 2026-08-07
-- **Aplicativo:** `1.0-dev` (`versionCode=1`), commit `0286c79`
+- **Aplicativo:** `1.0-dev` (`versionCode=1`), working tree pós-`014-17`, sem
+  commit criado; build instalado via `./gradlew installDebug`
 - **Dispositivo:** Galaxy S22 `SM-S901E`, Android 16, API 36
 - **Escopo:** Champion C001, importação D3/D4 explícita, revisão local e
   sincronização foreground com Health Connect real
@@ -57,3 +58,26 @@
 - Resultado: autorização e escrita de distância/velocidade passam para este
   cenário. Retry, falha parcial e ausência de duplicação continuam sem evidência
   física; `014-15` permanece `blocked`.
+
+### Resultado do retry com treinos novos
+
+- Treino de 15 minutos foi aceito como `Corrida`; treino de 20 minutos foi
+  aceito como `Treino livre`.
+- Revogação de `WRITE_SPEED` gerou falha parcial somente no filho de velocidade.
+- Reautorização e retry concluíram a corrida como `Sincronizada`.
+- Health Connect mostrou distância acumulada `3,517 km` e uma única entrada de
+  velocidade nova `0,202 km/h` para `12:33–12:49`; ausência de duplicação
+  observada manualmente.
+- Resultado: Gate F passa para este cenário. A task permanece `blocked` até
+  consolidação documental final; dois treinos antigos continuam pendentes de
+  revisão.
+
+### Revogação isolada de distância
+
+- Com `WRITE_DISTANCE` revogada, o treino livre de 20 minutos exibiu falha
+  parcial por capacidade no filho `Distância`, com três operações pendentes e
+  retry recuperável.
+- Após reautorização, retry terminou `Sincronizada`. O provider mostrou
+  distância acumulada `3,570 km`; o acréscimo do treino foi `0,053 km` e não
+  houve duplicação observada.
+- Resultado: Gate F passa também para o cenário de revogação de distância.

@@ -2,7 +2,7 @@
 
 - **Ticker:** `014`
 - **Número:** `17`
-- **Status:** blocked
+- **Status:** completed
 
 ## Origem e bloqueio
 
@@ -183,11 +183,10 @@ constituem teste automatizado. Não executar `Phase003PrivacyGuardTest`.
 
 ## Definição de pronto
 
-Follow-up funcional implementado e revisado, matriz física de autorização,
-distância, velocidade, retry e falha parcial registrada, Gate F de `014-15`
-revalidado ou bloqueador de provider explicitamente mantido. A implementação
-local está concluída, mas a revalidação física permanece pendente; `014-17` não marca
-`014-15` nem `014-16` automaticamente.
+Follow-up funcional implementado, matriz física de autorização, distância,
+velocidade, retry e falha parcial registrada, Gate F de `014-15` revalidado
+para os cenários novos e revisão independente concluída sem bloqueadores
+funcionais. `014-17` não marca `014-15` nem `014-16` automaticamente.
 
 ## Registro de execução local
 
@@ -206,12 +205,29 @@ local está concluída, mas a revalidação física permanece pendente; `014-17`
 - `WRITE_SPEED` foi revogada isoladamente no provider. Settings exibiu
   `Velocidade — Pendente`; a permissão foi restaurada pelo fluxo `Conectar` do
   app e o package voltou a exibir acesso concedido.
-- A matriz de falha parcial e retry não foi concluída: não havia outra atividade
-  `WATCH_D3_D4` elegível não sincronizada. A segunda corrida importada tinha
-  duração zero e permaneceu sem derivação após reprocessamento explícito. O
-  treino livre restante não pertence ao cenário canônico desta validação.
-- `014-17` permanece `blocked`; `014-15` e Gate F permanecem bloqueados até
-  evidência de falha parcial/retry em atividade elegível.
+- Registro histórico da primeira tentativa: não havia outra atividade
+  `WATCH_D3_D4` elegível não sincronizada; a segunda corrida importada tinha
+  duração zero e permaneceu sem derivação após reprocessamento explícito.
+- Esse bloqueio foi superado pela segunda importação física com dois treinos
+  novos; `014-15` permanece `blocked` somente por seus demais gates e pela
+  revisão documental independente.
+- Validação complementar concluída com dois treinos novos do relógio: o treino
+  de 15 minutos foi revisado como `Corrida`; o de 20 minutos, como `Treino
+  livre`. Com `WRITE_SPEED` revogada, a corrida produziu falha parcial por
+  capacidade somente no filho de velocidade.
+- Após restauração de `WRITE_SPEED`, o retry da mesma corrida terminou
+  `Sincronizada`, sem reescrever o filho de distância já aceito. O provider
+  mostrou o novo intervalo de velocidade `0,202 km/h` e distância acumulada
+  `3,517 km`, compatível com o acréscimo do treino novo.
+- `WRITE_DISTANCE` foi revogada isoladamente; o treino livre produziu falha
+  parcial nomeada para três filhos de distância pendentes. Após restauração, o
+  retry terminou `Sincronizada`; o provider mostrou distância acumulada
+  `3,570 km`, com acréscimo novo de `0,053 km` e sem duplicação observada.
+- O provider mostrou uma única entrada nova de velocidade para `12:33–12:49` e
+  entradas de distância correspondentes ao novo treino; não foram observadas
+  duplicações no retry.
+- A tela de resultado do retry manteve confirmação local e informou que o
+  provider não foi lido pelo app.
 
 ## Arquivos alterados
 
@@ -236,26 +252,42 @@ local está concluída, mas a revalidação física permanece pendente; `014-17`
   `WRITE_DISTANCE` e `WRITE_SPEED` concedidas após restauração.
 - `adb shell am start -a android.health.connect.action.MANAGE_HEALTH_DATA`:
   provider real abriu telas de distância, velocidade e acesso por app.
+- `adb shell am start -a android.health.connect.action.MANAGE_HEALTH_PERMISSIONS
+  --es android.intent.extra.PACKAGE_NAME br.com.mwconsulting.championcompanion.dev`:
+  provider abriu permissões do package debug; `WRITE_SPEED` e `WRITE_DISTANCE`
+  foram revogadas e restauradas manualmente.
 - Interação manual: importação, revisão, aceite explícito, sincronização,
-  revogação isolada de velocidade e reautorização.
+  revogação isolada de velocidade e distância, falha parcial, reautorização e
+  retry.
 - `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
 - `git diff --check`: sucesso, sem saída.
 - Evidências principais: `014-17-health-connect-distance.png`,
   `014-17-health-connect-speed.png`, `014-17-health-connect-speed-access.png`,
   `014-17-health-connect-speed-revoked.png`,
   `014-17-health-connect-restored.png` e
-  `014-17-settings-permissions-post-sync.png`.
+  `014-17-settings-permissions-post-sync.png`,
+  `014-17-health-connect-distance-after-retry.png`,
+  `014-17-health-connect-distance-after-distance-retry.png` e
+  `014-17-health-connect-speed-after-retry.png`.
 
 ## Resultados e riscos residuais
 
-- PASS parcial: provider aceitou e exibiu `DistanceRecord` granular e
-  `SpeedRecord` para atividade elegível com ambas as permissões.
-- PASS parcial: package correto e estado concedido de `WRITE_SPEED` foram
-  observados antes e depois da reautorização.
-- Pendente: falha de escrita por filho, conclusão sem `SYNCED` indevido, retry
-  com identidade congelada e ausência de duplicação.
-- Pendente: segunda atividade `WATCH_D3_D4` elegível para completar matriz sem
-  limpar dados e sem alterar o record já sincronizado.
+- PASS: provider aceitou e exibiu `DistanceRecord` granular e `SpeedRecord`
+  para atividades elegíveis com ambas as permissões.
+- PASS: package correto e estados concedidos de `WRITE_DISTANCE` e `WRITE_SPEED`
+  foram observados antes e depois das reautorizações.
+- PASS: corrida de 15 minutos produziu falha nomeada de velocidade, e treino
+  livre de 20 minutos produziu falha nomeada de distância; nenhum ficou
+  `SYNCED` durante a permissão revogada.
+- PASS: retry da mesma atividade após reautorização terminou `Sincronizada` nos
+  dois cenários; não foram observadas duplicações no provider.
+- Os dois treinos antigos permanecem aguardando revisão; não são necessários
+  para esta matriz e não foram sincronizados.
+- Revalidação física passou para os dois treinos novos: falha parcial por
+  velocidade e por distância, retry concluído, estado final `Sincronizada` e
+  registros provider sem duplicação observada.
+- Ainda há dois treinos antigos aguardando revisão local; não fazem parte desta
+  matriz e não foram sincronizados.
 
 ## Riscos e cuidados
 

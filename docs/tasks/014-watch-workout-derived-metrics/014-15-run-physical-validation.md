@@ -220,3 +220,23 @@ Evidência detalhada: `docs/integration/014-15-physical-validation.md`.
   mas permanece inconclusivo para falha parcial e retry. A segunda corrida tinha
   duração zero e não materializou derivação após reprocessamento explícito.
 - `014-15` permanece `blocked`; não marcar checklist nem encerrar fase.
+
+### Falha parcial e retry com treino novo
+
+- Dois treinos novos foram importados explicitamente. O treino de 15 minutos foi
+  classificado como `Corrida`; o de 20 minutos foi mantido como `Treino livre`.
+- Com `WRITE_SPEED` revogada, a corrida produziu `Falha parcial por capacidade`:
+  o filho `Velocidade [speed-series]` falhou por permissão pendente e permaneceu
+  recuperável; a distância aceita não foi reescrita.
+- Após reautorização, `Tentar novamente no Health Connect` levou a atividade a
+  `Sincronizada`. O provider exibiu distância acumulada `3,517 km` e um único
+  intervalo novo de velocidade `0,202 km/h` para `12:33–12:49`.
+- Não foram observadas duplicações no provider durante retry. O app permaneceu
+  write-only e informou que o provider não foi lido para confirmar records.
+- Com `WRITE_DISTANCE` revogada, o treino livre de 20 minutos exibiu falha
+  parcial nomeada para três operações de distância; reautorização e retry
+  terminaram `Sincronizada`, com `3,570 km` acumulados no provider e sem
+  duplicação observada.
+- Gate F passa para este cenário de falha parcial/retry. A task permanece
+  `blocked` até consolidar evidências sanitizadas e revisar os dois treinos
+  antigos ainda pendentes.
