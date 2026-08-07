@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectAvailability
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectGateway
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectPlatform
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthRecordMapper
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncOutcome
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectWritePermission
@@ -16,6 +17,9 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
+import br.com.mwconsulting.championcompanion.core.model.isSpeedSeries
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -34,6 +40,8 @@ class SettingsViewModel @Inject constructor(
     private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val healthConnectPlatform: HealthConnectPlatform,
     private val healthConnectGateway: HealthConnectGateway,
+    private val workoutActivityRepository: WorkoutActivityRepository,
+    private val healthRecordMapper: HealthRecordMapper,
 ) : ViewModel(), SettingsFeatureContract {
     private val grantedPermissions = MutableStateFlow<Set<HealthConnectWritePermission>>(emptySet())
     private val availability = MutableStateFlow(SettingsAvailability.UNAVAILABLE)
@@ -45,20 +53,30 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            val hasEligibleSpeedProjection = workoutActivityRepository
+                .observeActivities(WorkoutActivityFilter.ALL)
+                .map { activities ->
+                    activities.any { activity ->
+                        healthRecordMapper.findEligibleWorkoutProjectionChildren(activity)
+                            .any { child -> child.isSpeedSeries }
+                    }
+                }
+                .distinctUntilChanged()
             val coreFlow = combine(
                 appPreferencesRepository.observe(),
                 personalMetricsRepository.observeSnapshot(),
                 healthSyncRepository.observeSyncSummary(),
-            ) { preferences: AppPreferences, metrics: PersonalMetricsSnapshot, summary: HealthSyncSummary ->
-                Triple(preferences, metrics, summary)
+                hasEligibleSpeedProjection,
+            ) { preferences: AppPreferences, metrics: PersonalMetricsSnapshot, summary: HealthSyncSummary, speedProjectionEligible: Boolean ->
+                SettingsCore(preferences, metrics, summary, speedProjectionEligible)
             }
             combine(coreFlow, grantedPermissions, availability, syncStatusMessage, isSyncNowRunning) { core, granted, currentAvailability, status, syncRunning ->
-                val (preferences, metrics, summary) = core
+                val (preferences, metrics, summary, speedProjectionEligible) = core
                 SettingsUiState(
                     availability = currentAvailability,
                     healthSyncEnabled = preferences.healthSyncEnabled,
                     providerPackageName = healthConnectPlatform.providerPackageName,
-                    permissionGroups = buildPermissionGroups(metrics, granted),
+                    permissionGroups = buildPermissionGroups(metrics, granted, speedProjectionEligible),
                     pendingCount = summary.pendingCount,
                     failedCount = summary.failedCount,
                     syncingCount = summary.syncingCount,
@@ -160,11 +178,15 @@ class SettingsViewModel @Inject constructor(
     private fun buildPermissionGroups(
         metrics: PersonalMetricsSnapshot,
         granted: Set<HealthConnectWritePermission>,
+        speedProjectionEligible: Boolean,
     ): List<HealthConnectPermissionGroupUiModel> = buildList {
         add(permissionGroup("Passos", setOf(HealthConnectWritePermission.STEPS), granted))
         add(permissionGroup("Frequência cardíaca", setOf(HealthConnectWritePermission.HEART_RATE), granted))
         add(permissionGroup("Exercícios", setOf(HealthConnectWritePermission.EXERCISE), granted))
         add(permissionGroup("Distância", setOf(HealthConnectWritePermission.DISTANCE), granted))
+        if (speedProjectionEligible) {
+            add(permissionGroup("Velocidade", setOf(HealthConnectWritePermission.SPEED), granted))
+        }
         add(permissionGroup("Calorias", setOf(HealthConnectWritePermission.TOTAL_CALORIES_BURNED), granted))
         if (metrics.weightKilograms != null && metrics.latestWeightMeasuredAt != null) {
             add(permissionGroup("Peso", setOf(HealthConnectWritePermission.WEIGHT), granted))
@@ -182,5 +204,12 @@ class SettingsViewModel @Inject constructor(
         title = title,
         permissions = permissions,
         isGranted = permissions.all { it in granted },
+    )
+
+    private data class SettingsCore(
+        val preferences: AppPreferences,
+        val metrics: PersonalMetricsSnapshot,
+        val summary: HealthSyncSummary,
+        val speedProjectionEligible: Boolean,
     )
 }

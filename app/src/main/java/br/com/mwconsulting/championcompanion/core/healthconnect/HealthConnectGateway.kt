@@ -14,6 +14,7 @@ enum class HealthConnectWritePermission(
     HEART_RATE("android.permission.health.WRITE_HEART_RATE"),
     EXERCISE("android.permission.health.WRITE_EXERCISE"),
     DISTANCE("android.permission.health.WRITE_DISTANCE"),
+    SPEED("android.permission.health.WRITE_SPEED"),
     TOTAL_CALORIES_BURNED("android.permission.health.WRITE_TOTAL_CALORIES_BURNED"),
     WEIGHT("android.permission.health.WRITE_WEIGHT"),
     HEIGHT("android.permission.health.WRITE_HEIGHT"),

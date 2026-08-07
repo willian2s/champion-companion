@@ -311,6 +311,23 @@ interface WorkoutActivityDao {
         nextState: String,
         excludedOrigin: String,
     ): Int
+
+    @Query(
+        "UPDATE workout_activities SET workflowState = :nextState " +
+            "WHERE workflowState = :expectedState AND " +
+            "(origin != :excludedOrigin OR EXISTS (" +
+            "SELECT 1 FROM health_sync_operations operation " +
+            "WHERE operation.aggregateId = workout_activities.id " +
+            "AND operation.aggregateType = 'WORKOUT_ACTIVITY' " +
+            "AND operation.projectionChildKey != '__legacy__' " +
+            "AND operation.frozenPayload IS NOT NULL" +
+            "))",
+    )
+    suspend fun transitionAllByStateExcludingOriginUnlessProjection(
+        expectedState: String,
+        nextState: String,
+        excludedOrigin: String,
+    ): Int
 }
 
 data class WorkoutWorkflowSummaryRecord(
@@ -693,6 +710,22 @@ interface HealthSyncOperationDao {
         projectionChildKey: String = HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY,
     ): HealthSyncOperationEntity?
 
+    @Query(
+        "SELECT operation.* FROM health_sync_operations operation " +
+            "INNER JOIN workout_activities activity ON activity.id = operation.aggregateId " +
+            "WHERE operation.aggregateId = :activityId " +
+            "AND operation.aggregateType = 'WORKOUT_ACTIVITY' " +
+            "AND operation.recordType = 'DISTANCE' " +
+            "AND operation.projectionChildKey = '__legacy__' " +
+            "AND operation.operationSequence = 0 " +
+            "AND activity.origin = :activityOrigin " +
+            "LIMIT 1",
+    )
+    suspend fun findKnownLegacyWorkoutDistanceProjection(
+        activityId: String,
+        activityOrigin: String,
+    ): HealthSyncOperationEntity?
+
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, projectionChildKey, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
 
@@ -709,13 +742,13 @@ interface HealthSyncOperationDao {
      */
     @Query(
             "SELECT operation.* FROM health_sync_operations operation " +
-            "WHERE operation.state IN ('PENDING', 'FAILED') " +
-            "AND operation.projectionChildKey = '__legacy__' " +
-            "AND (operation.aggregateType != 'WORKOUT_ACTIVITY' OR NOT EXISTS (" +
-            "SELECT 1 FROM workout_activities activity " +
-            "WHERE activity.id = operation.aggregateId " +
-            "AND activity.origin = 'WATCH_D3_D4'" +
-            ")) " +
+                "WHERE operation.state IN ('PENDING', 'FAILED') " +
+                "AND (operation.projectionChildKey != '__legacy__' OR " +
+                "(operation.aggregateType != 'WORKOUT_ACTIVITY' OR NOT EXISTS (" +
+                "SELECT 1 FROM workout_activities activity " +
+                "WHERE activity.id = operation.aggregateId " +
+                "AND activity.origin = 'WATCH_D3_D4'" +
+                "))) " +
             "ORDER BY COALESCE(operation.updatedAtEpochMillis, operation.createdAtEpochMillis, operation.lastAttemptAtEpochMillis, 0), operation.id " +
             "LIMIT :limit",
     )

@@ -4,7 +4,11 @@ import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionManifest
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
@@ -13,6 +17,7 @@ import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepositor
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import java.time.Instant
@@ -217,7 +222,11 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             }
 
             else -> when (val result = processableOperations()) {
-                is RepositoryResult.Success -> result.value
+                is RepositoryResult.Success -> filterProcessableOperations(
+                    operations = result.value,
+                    workoutActivityRepository = workoutActivityRepository,
+                    healthRecordMapper = healthRecordMapper,
+                )
                 else -> return HealthConnectSyncOutcome.Failed(
                     report = baseline.report.finish(),
                     error = SafeSyncError.INTERNAL,
@@ -236,11 +245,24 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         val missingPermissions = linkedSetOf<HealthConnectWritePermission>()
         val touchedActivities = linkedSetOf<WorkoutActivityId>()
         var syncedCount = 0
+        val legacyDistanceGateByActivity = mutableMapOf<WorkoutActivityId, Boolean>()
 
         for (operation in operations) {
             val now = Instant.now()
             if (operation.key.aggregate is HealthSyncAggregate.WorkoutActivity) {
                 touchedActivities += operation.key.aggregate.activityId
+            }
+            if (operation.isBlockedByKnownLegacyDistance(
+                    healthSyncRepository = healthSyncRepository,
+                    workoutActivityRepository = workoutActivityRepository,
+                    cache = legacyDistanceGateByActivity,
+                )
+            ) {
+                failures += operation.failure(
+                    SafeSyncError.RETRY_LATER,
+                    "Projeções de distância e velocidade aguardam reconciliação do agregado legado.",
+                )
+                continue
             }
             when (val started = healthSyncRepository.markStarted(operation.id, now)) {
                 is RepositoryResult.Success -> Unit
@@ -324,6 +346,9 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 reason = "Atividade não encontrada para sync explícito.",
             )
         }
+        if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
+            return prepareWatchActivityOperations(activity)
+        }
         val eligibleRecordTypes = healthRecordMapper.findEligibleWorkoutRecordTypes(activity)
         if (eligibleRecordTypes.isEmpty()) {
             return PreparedActivityOperations.Failed(
@@ -371,6 +396,123 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         return PreparedActivityOperations.Success(operations)
     }
 
+    private suspend fun prepareWatchActivityOperations(
+        activity: br.com.mwconsulting.championcompanion.core.model.WorkoutActivity,
+    ): PreparedActivityOperations {
+        val existingOperations = when (
+            val result = healthSyncRepository.findOperationsForAggregate(
+                HealthSyncAggregate.WorkoutActivity(activity.id),
+            )
+        ) {
+            is RepositoryResult.Success -> result.value.associateBy { operation ->
+                operation.key.projectionChildKey
+            }
+            else -> return PreparedActivityOperations.Failed(
+                error = SafeSyncError.INTERNAL,
+                reason = "Não foi possível carregar operações existentes da atividade.",
+            )
+        }
+        val eligibleChildren = healthRecordMapper.findEligibleWorkoutProjectionChildren(activity)
+        val children = (
+            eligibleChildren +
+                existingOperations.values.mapNotNull { operation -> operation.key.projectionChildKey }
+            ).distinct()
+        if (children.isEmpty()) {
+            return PreparedActivityOperations.Failed(
+                error = SafeSyncError.INVALID_LOCAL_DATA,
+                reason = "Atividade do relógio sem filhos elegíveis para sincronização.",
+            )
+        }
+        val origin = HealthProjectionOrigin(
+            originId = activity.id.value.toString(),
+            originVersion = activity.derivationSnapshot?.derivationVersion ?: WATCH_ACTIVITY_PROJECTION_VERSION,
+        )
+        val manifest = runCatching {
+            HealthProjectionManifest(
+                aggregate = HealthSyncAggregate.WorkoutActivity(activity.id),
+                children = children,
+                origin = origin,
+            )
+        }.getOrNull() ?: return PreparedActivityOperations.Failed(
+            error = SafeSyncError.INVALID_LOCAL_DATA,
+            reason = "Manifesto local de projeção inválido.",
+        )
+        val clientRecordVersion = maxOf(
+            activity.recordedAt.toEpochMilli(),
+            activity.reviewedAt?.toEpochMilli() ?: Long.MIN_VALUE,
+        )
+        val operations = mutableListOf<HealthSyncOperation>()
+        for (child in manifest.children) {
+            val key = HealthSyncOperationKey(
+                aggregate = manifest.aggregate,
+                recordType = recordTypeFor(child),
+                projectionChildKey = child,
+            )
+            val existing = existingOperations[child]
+            val frozenCandidate = if (child in eligibleChildren) {
+                when (val result = healthRecordMapper.freezeWorkoutProjection(key, activity)) {
+                    is HealthSyncFrozenPayloadResult.Success -> result.value
+                    is HealthSyncFrozenPayloadResult.Failure -> {
+                        return PreparedActivityOperations.Failed(result.error, result.reason)
+                    }
+                }
+            } else {
+                // Filhos que deixaram de ser elegíveis permanecem preservados
+                // para reconciliação explícita em 014-14.
+                null
+            }
+            if (existing != null && frozenCandidate == null) {
+                operations += existing
+                continue
+            }
+            val frozen = frozenCandidate ?: return PreparedActivityOperations.Failed(
+                error = SafeSyncError.INVALID_LOCAL_DATA,
+                reason = "Filho elegível sem payload de projeção congelável.",
+            )
+            val canReuseExisting = existing != null &&
+                existing.key == key &&
+                existing.action == HealthSyncOperationAction.INSERT &&
+                existing.frozenPayload == frozen &&
+                existing.projectionOrigin == origin
+            if (canReuseExisting) {
+                operations += existing
+                continue
+            }
+            when (
+                val prepared = healthSyncRepository.prepareProjectionChild(
+                    key = key,
+                    action = HealthSyncOperationAction.INSERT,
+                    frozenPayload = frozen,
+                    clientRecordVersion = clientRecordVersion,
+                    projectionOrigin = origin,
+                )
+            ) {
+                is RepositoryResult.Success -> operations += prepared.value
+                else -> return PreparedActivityOperations.Failed(
+                    error = SafeSyncError.INTERNAL,
+                    reason = "Não foi possível preparar filho congelado da atividade.",
+                )
+            }
+        }
+
+        val expectedChildren = eligibleChildren.toSet()
+        val processable = operations.filter { operation ->
+            operation.action == HealthSyncOperationAction.INSERT &&
+                operation.key.projectionChildKey in expectedChildren &&
+                operation.isPending
+        }
+        if (processable.isNotEmpty()) {
+            when (workoutActivityRepository.startSync(activity.id)) {
+                is RepositoryResult.Success -> Unit
+                else -> return PreparedActivityOperations.Failed(
+                    error = SafeSyncError.INVALID_LOCAL_DATA,
+                    reason = "Atividade não está em estado válido para iniciar sync explícito.",
+                )
+            }
+        }
+        return PreparedActivityOperations.Success(processable)
+    }
+
     private suspend fun loadAndMap(operation: HealthSyncOperation): HealthRecordMappingResult = when (val aggregate = operation.key.aggregate) {
         is HealthSyncAggregate.DailySummary -> healthRecordMapper.mapDailySummary(operation)
 
@@ -389,9 +531,13 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             else -> HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, "Perfil não encontrado para sync de altura.")
         }
 
-        is HealthSyncAggregate.WorkoutActivity -> when (val activity = workoutActivityRepository.findById(aggregate.activityId)) {
-            is RepositoryResult.Success -> healthRecordMapper.mapWorkoutActivity(operation, activity.value)
-            else -> HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, "Atividade não encontrada para sync.")
+        is HealthSyncAggregate.WorkoutActivity -> if (operation.isProjectionChild) {
+            healthRecordMapper.mapFrozenWorkoutActivity(operation)
+        } else {
+            when (val activity = workoutActivityRepository.findById(aggregate.activityId)) {
+                is RepositoryResult.Success -> healthRecordMapper.mapWorkoutActivity(operation, activity.value)
+                else -> HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, "Atividade não encontrada para sync.")
+            }
         }
     }
 
@@ -399,11 +545,46 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         activityId: WorkoutActivityId,
         grantedPermissions: Set<HealthConnectWritePermission>,
     ) {
-        val operations = when (val result = healthSyncRepository.findOperationsForAggregate(HealthSyncAggregate.WorkoutActivity(activityId))) {
-            is RepositoryResult.Success -> result.value.filter { permissionFor(it.key.recordType) in grantedPermissions }
+        val storedOperations = when (val result = healthSyncRepository.findOperationsForAggregate(HealthSyncAggregate.WorkoutActivity(activityId))) {
+            is RepositoryResult.Success -> result.value
             else -> return
         }
+        val projectionOperations = storedOperations.filter(HealthSyncOperation::isProjectionChild)
+        val operations = if (projectionOperations.isNotEmpty()) {
+            // Projeções filhas são o manifesto efetivo da atividade. Permissão
+            // ausente deve aparecer como FAILED, nunca ser removida da decisão.
+            storedOperations
+        } else {
+            // Mantém política legada de complementos opcionais para atividades
+            // phone, que só entram na fila quando a permissão foi concedida.
+            storedOperations.filter { permissionFor(it.key.recordType) in grantedPermissions }
+        }
         if (operations.isEmpty()) {
+            workoutActivityRepository.markSyncFailed(activityId)
+            return
+        }
+        val activity = when (val result = workoutActivityRepository.findById(activityId)) {
+            is RepositoryResult.Success -> result.value
+            else -> return
+        }
+        val expectedProjectionChildren = if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
+            healthRecordMapper.findEligibleWorkoutProjectionChildren(activity).toSet()
+        } else {
+            emptySet()
+        }
+        val storedProjectionChildren = projectionOperations.mapNotNull { it.key.projectionChildKey }.toSet()
+        val obsoleteInsertOperations = if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
+            projectionOperations.filter { operation ->
+                operation.action == HealthSyncOperationAction.INSERT &&
+                    operation.key.projectionChildKey !in expectedProjectionChildren
+            }
+        } else {
+            emptyList()
+        }
+        if (obsoleteInsertOperations.isNotEmpty() ||
+            (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+                !expectedProjectionChildren.all(storedProjectionChildren::contains))
+        ) {
             workoutActivityRepository.markSyncFailed(activityId)
             return
         }
@@ -413,6 +594,38 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             workoutActivityRepository.markSyncFailed(activityId)
         }
     }
+}
+
+private suspend fun filterProcessableOperations(
+    operations: List<HealthSyncOperation>,
+    workoutActivityRepository: WorkoutActivityRepository,
+    healthRecordMapper: HealthRecordMapper,
+): List<HealthSyncOperation> {
+    val expectedChildrenByActivity = mutableMapOf<WorkoutActivityId, Set<HealthProjectionChildKey>>()
+    val filtered = mutableListOf<HealthSyncOperation>()
+    for (operation in operations) {
+        val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
+        val child = operation.key.projectionChildKey
+        if (aggregate == null || child == null) {
+            filtered += operation
+            continue
+        }
+        val activity = when (val result = workoutActivityRepository.findById(aggregate.activityId)) {
+            is RepositoryResult.Success -> result.value
+            else -> continue
+        }
+        if (activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+            filtered += operation
+            continue
+        }
+        val expectedChildren = expectedChildrenByActivity.getOrPut(aggregate.activityId) {
+            healthRecordMapper.findEligibleWorkoutProjectionChildren(activity).toSet()
+        }
+        if (operation.action == HealthSyncOperationAction.INSERT && child in expectedChildren) {
+            filtered += operation
+        }
+    }
+    return filtered
 }
 
 private sealed interface PreparedActivityOperations {
@@ -451,6 +664,35 @@ private fun HealthSyncOperation.failure(error: SafeSyncError, reason: String) = 
     reason = reason,
 )
 
+private suspend fun HealthSyncOperation.isBlockedByKnownLegacyDistance(
+    healthSyncRepository: HealthSyncRepository,
+    workoutActivityRepository: WorkoutActivityRepository,
+    cache: MutableMap<WorkoutActivityId, Boolean>,
+): Boolean {
+    if (key.recordType !in setOf(HealthSyncRecordType.DISTANCE, HealthSyncRecordType.SPEED)) return false
+    val aggregate = key.aggregate as? HealthSyncAggregate.WorkoutActivity ?: return false
+    val activityId = aggregate.activityId
+    cache[activityId]?.let { return it }
+    val activityOrigin = when (val result = workoutActivityRepository.findById(activityId)) {
+        is RepositoryResult.Success -> result.value.activityOrigin
+        else -> return true
+    }
+    if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+        cache[activityId] = false
+        return false
+    }
+    return when (val result = healthSyncRepository.hasKnownLegacyWorkoutDistanceProjection(activityId, activityOrigin)) {
+        is RepositoryResult.Success -> {
+            cache[activityId] = result.value
+            result.value
+        }
+        else -> true
+    }
+}
+
+private fun recordTypeFor(child: HealthProjectionChildKey): HealthSyncRecordType =
+    HealthSyncRecordType.entries.first { it.name == child.recordTypeName }
+
 private fun <T> RepositoryResult<T>.successOrNull(): T? = (this as? RepositoryResult.Success)?.value
 
 private fun RepositoryResult<Int>.successOrZero(): Int = (this as? RepositoryResult.Success)?.value ?: 0
@@ -460,8 +702,10 @@ private fun permissionFor(recordType: HealthSyncRecordType): HealthConnectWriteP
     HealthSyncRecordType.HEART_RATE -> HealthConnectWritePermission.HEART_RATE
     HealthSyncRecordType.EXERCISE_SESSION -> HealthConnectWritePermission.EXERCISE
     HealthSyncRecordType.DISTANCE -> HealthConnectWritePermission.DISTANCE
+    HealthSyncRecordType.SPEED -> HealthConnectWritePermission.SPEED
     HealthSyncRecordType.TOTAL_CALORIES_BURNED -> HealthConnectWritePermission.TOTAL_CALORIES_BURNED
     HealthSyncRecordType.WEIGHT -> HealthConnectWritePermission.WEIGHT
     HealthSyncRecordType.HEIGHT -> HealthConnectWritePermission.HEIGHT
-    HealthSyncRecordType.SPEED -> error("SpeedRecord writer is not enabled in this phase.")
 }
+
+private const val WATCH_ACTIVITY_PROJECTION_VERSION = "watch-activity-v1"

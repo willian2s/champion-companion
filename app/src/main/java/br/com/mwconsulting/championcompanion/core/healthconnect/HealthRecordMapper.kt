@@ -5,6 +5,7 @@ import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeightRecord
 import androidx.health.connect.client.records.Record
+import androidx.health.connect.client.records.SpeedRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
@@ -13,10 +14,21 @@ import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Energy
 import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Mass
+import androidx.health.connect.client.units.Velocity
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION
+import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenHeartRateSample
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenInstant
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenProjectionPayload
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenSpeedSample
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
@@ -26,13 +38,18 @@ import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightUnit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.decodeFromString
 
 data class HealthConnectMappedRecord(
     val recordType: HealthSyncRecordType,
@@ -51,6 +68,17 @@ sealed interface HealthRecordMappingResult {
     ) : HealthRecordMappingResult
 }
 
+sealed interface HealthSyncFrozenPayloadResult {
+    data class Success(
+        val value: HealthSyncFrozenPayload,
+    ) : HealthSyncFrozenPayloadResult
+
+    data class Failure(
+        val error: SafeSyncError,
+        val reason: String,
+    ) : HealthSyncFrozenPayloadResult
+}
+
 interface HealthRecordMapper {
     fun mapDailySummary(operation: HealthSyncOperation): HealthRecordMappingResult
 
@@ -62,11 +90,25 @@ interface HealthRecordMapper {
 
     fun mapWorkoutActivity(operation: HealthSyncOperation, activity: WorkoutActivity): HealthRecordMappingResult
 
+    fun mapFrozenWorkoutActivity(operation: HealthSyncOperation): HealthRecordMappingResult
+
+    fun freezeWorkoutProjection(
+        key: br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey,
+        activity: WorkoutActivity,
+    ): HealthSyncFrozenPayloadResult
+
+    fun findEligibleWorkoutProjectionChildren(activity: WorkoutActivity): List<HealthProjectionChildKey>
+
     fun findEligibleWorkoutRecordTypes(activity: WorkoutActivity): Set<HealthSyncRecordType>
 }
 
 @Singleton
 class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
+    private val frozenProjectionJson = Json {
+        encodeDefaults = true
+        explicitNulls = true
+    }
+
     override fun mapDailySummary(
         operation: HealthSyncOperation,
     ): HealthRecordMappingResult {
@@ -222,6 +264,12 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         operation: HealthSyncOperation,
         activity: WorkoutActivity,
     ): HealthRecordMappingResult {
+        if (operation.key.projectionChildKey != null) {
+            return mapFrozenWorkoutActivity(operation)
+        }
+        if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
+            return invalid("Atividade do relógio exige projeção filha congelada.")
+        }
         val identity = operation.identityOrNull() ?: return invalid("Operação sem identidade estável para atividade.")
         val sessionWindow = activity.sessionWindowOrNull() ?: return invalid("Atividade sem janela temporal válida.")
         val zoneId = operation.timeZoneId.toZoneIdOrSystemDefault()
@@ -234,7 +282,264 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         }
     }
 
+    override fun mapFrozenWorkoutActivity(
+        operation: HealthSyncOperation,
+    ): HealthRecordMappingResult {
+        if (operation.key.aggregate !is HealthSyncAggregate.WorkoutActivity) {
+            return invalid("Operação filha sem agregado de atividade.")
+        }
+        if (operation.action != HealthSyncOperationAction.INSERT) {
+            return invalid("Ação de projeção não suportada nesta etapa.")
+        }
+        val child = operation.key.projectionChildKey
+            ?: return invalid("Operação filha sem chave estável.")
+        val identity = operation.identityOrNull()
+            ?: return invalid("Operação sem identidade estável para atividade.")
+        val payload = operation.frozenPayload?.let(::decodeFrozenProjection)
+            ?: return invalid("Operação filha sem payload congelado válido.")
+        if (payload.recordType != operation.key.recordType.name ||
+            payload.projectionChildKey != child.stableValue
+        ) {
+            return invalid("Payload congelado não corresponde ao filho persistido.")
+        }
+        val start = payload.start.toInstantOrNull()
+            ?: return invalid("Payload congelado sem início temporal válido.")
+        val end = payload.end.toInstantOrNull()
+            ?: return invalid("Payload congelado sem fim temporal válido.")
+        val startOffset = payload.startZoneOffsetSeconds.toZoneOffsetOrNull()
+            ?: return invalid("Payload congelado sem offset inicial válido.")
+        val endOffset = payload.endZoneOffsetSeconds.toZoneOffsetOrNull()
+            ?: return invalid("Payload congelado sem offset final válido.")
+        val metadata = Metadata.autoRecorded(
+            device = watchDevice(),
+            clientRecordId = identity.clientRecordId,
+            clientRecordVersion = identity.clientRecordVersion,
+        )
+
+        return when (child) {
+            HealthProjectionChildKey.ExerciseSession -> {
+                if (operation.key.recordType != HealthSyncRecordType.EXERCISE_SESSION ||
+                    payload.exerciseType == null || !start.isBefore(end)
+                ) {
+                    invalid("Payload de sessão inválido.")
+                } else {
+                    HealthRecordMappingResult.Success(
+                        HealthConnectMappedRecord(
+                            recordType = HealthSyncRecordType.EXERCISE_SESSION,
+                            permission = HealthConnectWritePermission.EXERCISE,
+                            record = ExerciseSessionRecord(
+                                start,
+                                startOffset,
+                                end,
+                                endOffset,
+                                metadata,
+                                payload.exerciseType,
+                                payload.title,
+                                payload.notes,
+                            ),
+                        ),
+                    )
+                }
+            }
+
+            is HealthProjectionChildKey.DistanceInterval -> {
+                val distance = payload.distanceMeters
+                if (operation.key.recordType != HealthSyncRecordType.DISTANCE ||
+                    !start.isBefore(end) || distance == null || !distance.isFinite() ||
+                    distance <= 0.0 || distance > MAX_HEALTH_CONNECT_DISTANCE_METERS
+                ) {
+                    invalid("Payload de distância granular inválido.")
+                } else {
+                    HealthRecordMappingResult.Success(
+                        HealthConnectMappedRecord(
+                            recordType = HealthSyncRecordType.DISTANCE,
+                            permission = HealthConnectWritePermission.DISTANCE,
+                            record = DistanceRecord(
+                                start,
+                                startOffset,
+                                end,
+                                endOffset,
+                                Length.meters(distance),
+                                metadata,
+                            ),
+                        ),
+                    )
+                }
+            }
+
+            HealthProjectionChildKey.SpeedSeries -> {
+                if (operation.key.recordType != HealthSyncRecordType.SPEED ||
+                    !start.isBefore(end) || payload.speedSamples.isEmpty() ||
+                    payload.speedSamples.any { it.speedMetersPerSecond > MAX_HEALTH_CONNECT_SPEED_METERS_PER_SECOND }
+                ) {
+                    invalid("Payload de velocidade inválido.")
+                } else {
+                    val samples = payload.speedSamples.mapNotNull { sample ->
+                        val sampledAt = sample.sampledAt.toInstantOrNull() ?: return@mapNotNull null
+                        SpeedRecord.Sample(
+                            time = sampledAt,
+                            speed = Velocity.metersPerSecond(sample.speedMetersPerSecond),
+                        )
+                    }
+                    if (samples.size != payload.speedSamples.size ||
+                        samples.zipWithNext().any { (first, second) -> !first.time.isBefore(second.time) } ||
+                        samples.any { it.time.isBefore(start) || !it.time.isBefore(end) } ||
+                        samples.any { it.speed.inMetersPerSecond > MAX_HEALTH_CONNECT_SPEED_METERS_PER_SECOND }
+                    ) {
+                        invalid("Amostras de velocidade fora da janela congelada.")
+                    } else {
+                        HealthRecordMappingResult.Success(
+                            HealthConnectMappedRecord(
+                                recordType = HealthSyncRecordType.SPEED,
+                                permission = HealthConnectWritePermission.SPEED,
+                                record = SpeedRecord(
+                                    start,
+                                    startOffset,
+                                    end,
+                                    endOffset,
+                                    samples,
+                                    metadata,
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+
+            HealthProjectionChildKey.HeartRateSeries -> {
+                if (operation.key.recordType != HealthSyncRecordType.HEART_RATE ||
+                    payload.heartRateSamples.isEmpty() || start.isAfter(end)
+                ) {
+                    invalid("Payload de BPM granular inválido.")
+                } else {
+                    val samples = payload.heartRateSamples.mapNotNull { sample ->
+                        val sampledAt = sample.sampledAt.toInstantOrNull() ?: return@mapNotNull null
+                        HeartRateRecord.Sample(sampledAt, sample.bpm.toLong())
+                    }
+                    if (samples.size != payload.heartRateSamples.size ||
+                        samples.zipWithNext().any { (first, second) -> !first.time.isBefore(second.time) } ||
+                        samples.any { it.time.isBefore(start) || it.time.isAfter(end) }
+                    ) {
+                        invalid("Amostras de BPM fora da janela congelada.")
+                    } else {
+                        HealthRecordMappingResult.Success(
+                            HealthConnectMappedRecord(
+                                recordType = HealthSyncRecordType.HEART_RATE,
+                                permission = HealthConnectWritePermission.HEART_RATE,
+                                record = HeartRateRecord(
+                                    start,
+                                    startOffset,
+                                    end,
+                                    endOffset,
+                                    samples,
+                                    metadata,
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+
+            HealthProjectionChildKey.TotalCaloriesBurned -> {
+                val calories = payload.caloriesKilocalories
+                if (operation.key.recordType != HealthSyncRecordType.TOTAL_CALORIES_BURNED ||
+                    !start.isBefore(end) || calories == null || !calories.isFinite() ||
+                    calories <= 0.0 || calories > MAX_HEALTH_CONNECT_CALORIES_KILOCALORIES
+                ) {
+                    invalid("Payload de calorias inválido.")
+                } else {
+                    HealthRecordMappingResult.Success(
+                        HealthConnectMappedRecord(
+                            recordType = HealthSyncRecordType.TOTAL_CALORIES_BURNED,
+                            permission = HealthConnectWritePermission.TOTAL_CALORIES_BURNED,
+                            record = TotalCaloriesBurnedRecord(
+                                start,
+                                startOffset,
+                                end,
+                                endOffset,
+                                Energy.kilocalories(calories),
+                                metadata,
+                            ),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    override fun freezeWorkoutProjection(
+        key: HealthSyncOperationKey,
+        activity: WorkoutActivity,
+    ): HealthSyncFrozenPayloadResult {
+        if (key.aggregate != HealthSyncAggregate.WorkoutActivity(activity.id) ||
+            activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4
+        ) {
+            return frozenPayloadInvalid("Atividade não elegível para projeção granular.")
+        }
+        val child = key.projectionChildKey
+            ?: return frozenPayloadInvalid("Projeção sem filho estável.")
+        val payload = createFrozenProjectionPayload(key, child, activity)
+            ?: return frozenPayloadInvalid("Não foi possível congelar payload da projeção.")
+        return runCatching {
+            HealthSyncFrozenPayload(
+                schemaVersion = HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION,
+                serializedPayload = frozenProjectionJson.encodeToString(payload),
+            )
+        }.fold(
+            onSuccess = HealthSyncFrozenPayloadResult::Success,
+            onFailure = { frozenPayloadInvalid("Payload de projeção inválido.") },
+        )
+    }
+
+    override fun findEligibleWorkoutProjectionChildren(
+        activity: WorkoutActivity,
+    ): List<HealthProjectionChildKey> {
+        if (activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+            activity.workflowState !in setOf(
+                ActivityWorkflowState.READY_TO_SYNC,
+                ActivityWorkflowState.SYNC_FAILED,
+                ActivityWorkflowState.SYNCING,
+            ) || activity.confirmedType == null || activity.confirmedType == WorkoutType.UNKNOWN ||
+            activity.sessionWindowOrNull() == null
+        ) {
+            return emptyList()
+        }
+        val children = mutableListOf<HealthProjectionChildKey>(HealthProjectionChildKey.ExerciseSession)
+        val snapshot = activity.derivationSnapshot
+        if (snapshot?.isEligibleForHealthProjection == true) {
+            val series = snapshot.canonicalSeries
+            if (series != null) {
+                series.intervals
+                    .filter { interval ->
+                        interval.canonicalIntervalDistanceMeters.isFinite() &&
+                            interval.canonicalIntervalDistanceMeters > 0.0
+                    }
+                    .forEach { interval ->
+                        HealthProjectionChildKey.DistanceInterval.create(interval.index)
+                            .valueOrNull()
+                            ?.let(children::add)
+                    }
+                if (series.speedSamples.isNotEmpty()) {
+                    children += HealthProjectionChildKey.SpeedSeries
+                }
+            }
+        }
+        if (activity.samplesInsideSession().isNotEmpty()) {
+            children += HealthProjectionChildKey.HeartRateSeries
+        }
+        if (activity.positiveCaloriesKilocalories() != null) {
+            children += HealthProjectionChildKey.TotalCaloriesBurned
+        }
+        return children
+    }
+
     override fun findEligibleWorkoutRecordTypes(activity: WorkoutActivity): Set<HealthSyncRecordType> {
+        if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
+            return findEligibleWorkoutProjectionChildren(activity)
+                .mapTo(linkedSetOf()) { child ->
+                    HealthSyncRecordType.entries.first { it.name == child.recordTypeName }
+                }
+        }
         val sessionWindow = activity.sessionWindowOrNull() ?: return emptySet()
         if (activity.workflowState !in setOf(ActivityWorkflowState.READY_TO_SYNC, ActivityWorkflowState.SYNC_FAILED)) {
             return emptySet()
@@ -247,6 +552,149 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         if (activity.positiveCaloriesKilocalories() != null) eligible += HealthSyncRecordType.TOTAL_CALORIES_BURNED
         if (activity.samplesInside(sessionWindow.start, sessionWindow.end).isNotEmpty()) eligible += HealthSyncRecordType.HEART_RATE
         return eligible
+    }
+
+    private fun createFrozenProjectionPayload(
+        key: HealthSyncOperationKey,
+        child: HealthProjectionChildKey,
+        activity: WorkoutActivity,
+    ): HealthSyncFrozenProjectionPayload? {
+        if (child.recordTypeName != key.recordType.name) return null
+        val session = activity.sessionWindowOrNull() ?: return null
+        val zoneId = ZoneId.systemDefault()
+        return when (child) {
+            HealthProjectionChildKey.ExerciseSession -> {
+                val exerciseType = activity.confirmedType
+                    ?.takeUnless { it == WorkoutType.UNKNOWN }
+                    ?.toHealthConnectExerciseType()
+                    ?: return null
+                frozenProjectionPayload(
+                    key = key,
+                    child = child,
+                    start = session.start,
+                    end = session.end,
+                    zoneId = zoneId,
+                ).copy(
+                    exerciseType = exerciseType,
+                    title = activity.title,
+                    notes = activity.notes,
+                )
+            }
+
+            is HealthProjectionChildKey.DistanceInterval -> {
+                val interval = activity.canonicalSeries?.intervals
+                    ?.firstOrNull { it.index == child.intervalIndex }
+                    ?: return null
+                val distance = interval.canonicalIntervalDistanceMeters
+                if (!distance.isFinite() || distance <= 0.0 || distance > MAX_HEALTH_CONNECT_DISTANCE_METERS) {
+                    return null
+                }
+                frozenProjectionPayload(
+                    key = key,
+                    child = child,
+                    start = interval.effectiveWindow.start,
+                    end = interval.effectiveWindow.end,
+                    zoneId = zoneId,
+                ).copy(distanceMeters = distance)
+            }
+
+            HealthProjectionChildKey.SpeedSeries -> {
+                val snapshot = activity.derivationSnapshot
+                    ?.takeIf { it.isEligibleForHealthProjection }
+                    ?: return null
+                val samples = snapshot.canonicalSeries?.speedSamples?.map { sample ->
+                    if (!sample.speedMetersPerSecond.isFinite() ||
+                        sample.speedMetersPerSecond < 0.0 ||
+                        sample.speedMetersPerSecond > MAX_HEALTH_CONNECT_SPEED_METERS_PER_SECOND
+                    ) {
+                        return null
+                    }
+                    HealthSyncFrozenSpeedSample(
+                        sampledAt = sample.sampledAt.toFrozenInstant(),
+                        speedMetersPerSecond = sample.speedMetersPerSecond,
+                    )
+                } ?: return null
+                if (samples.isEmpty()) return null
+                frozenProjectionPayload(
+                    key = key,
+                    child = child,
+                    start = session.start,
+                    end = session.end,
+                    zoneId = zoneId,
+                ).copy(speedSamples = samples)
+            }
+
+            HealthProjectionChildKey.HeartRateSeries -> {
+                val samples = activity.samplesInside(session.start, session.end)
+                if (samples.isEmpty()) return null
+                frozenProjectionPayload(
+                    key = key,
+                    child = child,
+                    start = samples.first().sampledAt,
+                    end = samples.last().sampledAt,
+                    zoneId = zoneId,
+                ).copy(
+                    heartRateSamples = samples.map { sample ->
+                        HealthSyncFrozenHeartRateSample(
+                            sampledAt = sample.sampledAt.toFrozenInstant(),
+                            bpm = sample.bpm,
+                        )
+                    },
+                )
+            }
+
+            HealthProjectionChildKey.TotalCaloriesBurned -> {
+                val calories = activity.positiveCaloriesKilocalories()
+                    ?.takeIf { it <= MAX_HEALTH_CONNECT_CALORIES_KILOCALORIES }
+                    ?: return null
+                frozenProjectionPayload(
+                    key = key,
+                    child = child,
+                    start = session.start,
+                    end = session.end,
+                    zoneId = zoneId,
+                ).copy(caloriesKilocalories = calories)
+            }
+        }
+    }
+
+    private fun frozenProjectionPayload(
+        key: HealthSyncOperationKey,
+        child: HealthProjectionChildKey,
+        start: Instant,
+        end: Instant,
+        zoneId: ZoneId,
+    ): HealthSyncFrozenProjectionPayload = HealthSyncFrozenProjectionPayload(
+        recordType = key.recordType.name,
+        projectionChildKey = child.stableValue,
+        start = start.toFrozenInstant(),
+        end = end.toFrozenInstant(),
+        startZoneOffsetSeconds = zoneId.offsetAt(start).totalSeconds,
+        endZoneOffsetSeconds = zoneId.offsetAt(end).totalSeconds,
+    )
+
+    private fun decodeFrozenProjection(
+        payload: HealthSyncFrozenPayload,
+    ): HealthSyncFrozenProjectionPayload? = if (
+        payload.schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION
+    ) {
+        runCatching {
+            frozenProjectionJson.decodeFromString<HealthSyncFrozenProjectionPayload>(payload.serializedPayload)
+        }.getOrNull()
+    } else {
+        null
+    }
+
+    private fun WorkoutActivity.samplesInsideSession(): List<WorkoutHeartRateSample> =
+        sessionWindowOrNull()?.let { session -> samplesInside(session.start, session.end) }.orEmpty()
+
+    private fun frozenPayloadInvalid(reason: String): HealthSyncFrozenPayloadResult.Failure =
+        HealthSyncFrozenPayloadResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, reason)
+
+    private companion object {
+        const val MAX_HEALTH_CONNECT_DISTANCE_METERS = 1_000_000.0
+        const val MAX_HEALTH_CONNECT_SPEED_METERS_PER_SECOND = 1_000_000.0
+        const val MAX_HEALTH_CONNECT_CALORIES_KILOCALORIES = 1_000_000.0
     }
 
     private fun mapWorkoutSession(
@@ -455,3 +903,16 @@ private fun String.toZoneIdOrNull(): ZoneId? = runCatching { ZoneId.of(this) }.g
 private fun ZoneId.offsetAt(instant: Instant): ZoneOffset = rules.getOffset(instant)
 
 private fun DomainValue<Double>.presentOrNull(): Double? = (this as? DomainValue.Present)?.value
+
+private fun Instant.toFrozenInstant(): HealthSyncFrozenInstant = HealthSyncFrozenInstant(
+    epochSecond = epochSecond,
+    nano = nano,
+)
+
+private fun HealthSyncFrozenInstant.toInstantOrNull(): Instant? = runCatching {
+    Instant.ofEpochSecond(epochSecond, nano.toLong())
+}.getOrNull()
+
+private fun Int.toZoneOffsetOrNull(): ZoneOffset? = runCatching {
+    ZoneOffset.ofTotalSeconds(this)
+}.getOrNull()

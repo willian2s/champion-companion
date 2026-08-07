@@ -645,6 +645,13 @@ interface HealthSyncRepository {
     suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
     fun observeSyncSummary(): Flow<HealthSyncSummary>
     suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
+
+    /** Identidade local exata do agregado legado de distância para atividade do relógio. */
+    suspend fun hasKnownLegacyWorkoutDistanceProjection(
+        activityId: WorkoutActivityId,
+        activityOrigin: WorkoutActivityOrigin,
+    ): RepositoryResult<Boolean> = RepositoryResult.UnexpectedState
+
     /** Consulta em lote; data civil continua pertencendo ao aggregate, nunca à operação. */
     fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> =
         flowOf(emptyList())

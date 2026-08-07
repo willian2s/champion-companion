@@ -1,5 +1,7 @@
 package br.com.mwconsulting.championcompanion.core.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * Identidade estável de um filho da projeção. Chaves não carregam valores de
  * saúde e cada chave representa uma única operação, nunca uma subfila.
@@ -105,6 +107,69 @@ data class HealthSyncFrozenPayload(
     init {
         require(schemaVersion > 0)
         require(serializedPayload.isNotBlank())
+    }
+}
+
+const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 1
+
+/** Instante lossless usado pelo payload remoto congelado. */
+@Serializable
+data class HealthSyncFrozenInstant(
+    val epochSecond: Long,
+    val nano: Int,
+) {
+    init {
+        require(nano in 0..999_999_999)
+    }
+}
+
+@Serializable
+data class HealthSyncFrozenSpeedSample(
+    val sampledAt: HealthSyncFrozenInstant,
+    val speedMetersPerSecond: Double,
+) {
+    init {
+        require(speedMetersPerSecond.isFinite() && speedMetersPerSecond >= 0.0)
+    }
+}
+
+@Serializable
+data class HealthSyncFrozenHeartRateSample(
+    val sampledAt: HealthSyncFrozenInstant,
+    val bpm: Int,
+) {
+    init {
+        require(bpm in 30..220)
+    }
+}
+
+/**
+ * Conteúdo imutável de um filho de treino. Identidade fica na operação; este
+ * payload contém somente dados necessários para recriar record em retry.
+ */
+@Serializable
+data class HealthSyncFrozenProjectionPayload(
+    val recordType: String,
+    val projectionChildKey: String,
+    val start: HealthSyncFrozenInstant,
+    val end: HealthSyncFrozenInstant,
+    val startZoneOffsetSeconds: Int,
+    val endZoneOffsetSeconds: Int,
+    val exerciseType: Int? = null,
+    val title: String? = null,
+    val notes: String? = null,
+    val distanceMeters: Double? = null,
+    val caloriesKilocalories: Double? = null,
+    val speedSamples: List<HealthSyncFrozenSpeedSample> = emptyList(),
+    val heartRateSamples: List<HealthSyncFrozenHeartRateSample> = emptyList(),
+) {
+    init {
+        require(recordType.isNotBlank())
+        require(projectionChildKey.isNotBlank())
+        require(startZoneOffsetSeconds in -64_800..64_800)
+        require(endZoneOffsetSeconds in -64_800..64_800)
+        require(distanceMeters?.let { it.isFinite() && it >= 0.0 } != false)
+        require(caloriesKilocalories?.let { it.isFinite() && it >= 0.0 } != false)
     }
 }
 

@@ -37,8 +37,9 @@ derivada de passos válidos e comprimento individual do passo (`stepLengthMeters
 O valor original do relógio é
 diagnóstico e não pode ser fallback. O contrato futuro adiciona `SPEED`, permite
 múltiplos `DISTANCE` por intervalo e exige snapshot/projeção congelados conforme
-ADR-018. A migration local de projeções filhas está concluída em `014-12`;
-writer e efeitos remotos permanecem pendentes para `014-13`.
+ADR-018. A migration local de projeções filhas foi concluída em `014-12`, e o
+writer granular de `014-13` prepara e processa cada filho em foreground, sem
+leitura remota ampla.
 
 ## Fechamento Factual Da Fase 12
 
@@ -97,7 +98,7 @@ ou inventar distribuição temporal para uma fonte que só possua total.
 | `heart_rate_measurements` D1 | `HeartRate` | uma operacao por ponto persistido valido, sem selecao manual |
 | `workout_activities` | `ExerciseSession` | sessao obrigatoria, so por acao explicita do usuario |
 | `workout_activities` | `Distance` | complementar opcional e independente; Fase 12 usou distância final, Fase 13 usa série temporal da fonte elegível |
-| `workout_activities` + série derivada | `Speed` | Fase 014 planeja amostras derivadas; não enviar velocidade original ou estimativa sem snapshot |
+| `workout_activities` + série derivada | `Speed` | um `SpeedRecord` por atividade; uma amostra por intervalo, no midpoint, usando velocidade canônica derivada |
 | `workout_activities` | `TotalCaloriesBurned` | complementar opcional e independente |
 | `workout_activities` + `workout_heart_rate_samples` | `HeartRate` | complementar opcional com amostras reais da sessao |
 | `weight_measurements` | `Weight` | so quando houver dado local elegivel |
@@ -121,14 +122,17 @@ ou inventar distribuição temporal para uma fonte que só possua total.
 | --- | --- | --- |
 | `EXERCISE_SESSION` | `exercise-session` | ação, payload, estado e checkpoint próprios |
 | `DISTANCE` | `interval-<índice>` | uma operação por intervalo, sem subfila |
-| `SPEED` | `speed-series` | uma operação independente, sem mapeamento nesta task |
+| `SPEED` | `speed-series` | uma operação independente com payload congelado e amostras de midpoint |
 | `HEART_RATE` | `heart-rate-series` | uma operação independente, sem mapeamento nesta task |
 | `TOTAL_CALORIES_BURNED` | `total-calories-burned` | uma operação independente, sem mapeamento nesta task |
 
 Preparação é local e transacional. `action`, payload serializado, origem da
 derivação, estado esperado/enviado/obsoleto e checkpoint são persistidos antes
-de qualquer writer. `MIGRATION_9_10` apenas aplica defaults seguros a operações
-legadas; não insere nem remove records no provider.
+de qualquer writer. Retry lê payload congelado; mudança de payload incrementa
+versão monotônica por filho. `MIGRATION_9_10` apenas aplica defaults seguros a
+operações legadas; não insere nem remove records no provider. Agregado legado
+conhecido de distância bloqueia filhos `DISTANCE` e `SPEED` de `WATCH_D3_D4` até
+`014-14`.
 
 ## Diferencas Deliberadas Em Relacao Ao MotionLog
 

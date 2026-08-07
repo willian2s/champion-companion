@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [014-watch-workout-derived-metrics.md](../../specs/014-watch-workout-derived-metrics.md)
-- **Progresso:** 12/16 subtarefas concluídas
+- **Progresso:** 13/16 subtarefas concluídas
 
 ## Objetivo
 
@@ -39,7 +39,7 @@ filhas idempotentes de treinos iniciados pelo Champion C001.
 - [x] [014-10-integrate-estimated-metrics-charts-and-splits.md](014-10-integrate-estimated-metrics-charts-and-splits.md)
 - [x] [014-11-reprocess-existing-watch-activities.md](014-11-reprocess-existing-watch-activities.md)
 - [x] [014-12-model-and-migrate-health-connect-child-projections.md](014-12-model-and-migrate-health-connect-child-projections.md)
-- [ ] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
+- [x] [014-13-sync-granular-distance-and-speed-with-health-connect.md](014-13-sync-granular-distance-and-speed-with-health-connect.md)
 - [ ] [014-14-reconcile-legacy-health-connect-distance-projections.md](014-14-reconcile-legacy-health-connect-distance-projections.md)
 - [ ] [014-15-run-physical-validation.md](014-15-run-physical-validation.md)
 - [ ] [014-16-close-watch-workout-derived-metrics-phase.md](014-16-close-watch-workout-derived-metrics-phase.md)
@@ -280,3 +280,16 @@ durante upgrade. O writer granular continua pendente para `014-13`.
 - Revisão independente final de `014-12` aprovada sem blockers ou majors;
   permanecem apenas riscos documentados de validação física, writer granular e
   reconciliação, previstos para `014-13`/`014-14`/`014-15`.
+- `014-13` concluiu writer granular foreground e write-only para projeções filhas:
+  distância usa somente intervalos canônicos positivos, velocidade usa midpoint,
+  BPM usa amostras reais e calorias usam total elegível. Payload congelado mantém
+  retry idêntico; mudança de payload incrementa versão e reinicia somente filho
+  afetado. `SPEED` só aparece quando há projeção elegível. O gate de legado usa
+  identidade e origem locais, bloqueia distância/velocidade de `WATCH_D3_D4` e
+  preserva atividades phone. `lint`, builds debug/release, `installDebug` e
+  `git diff --check` passaram; testes automatizados não foram criados nem
+  executados. Provider real, midpoint e falha parcial permanecem para `014-15`;
+  reconciliação do agregado legado permanece em `014-14`.
+- Revisão independente final de `014-13` aprovada sem blockers ou majors. A spec
+  principal ainda exibe progresso histórico `11/16`; este overview permanece a
+  fonte operacional atualizada em `13/16`.

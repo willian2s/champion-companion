@@ -899,7 +899,7 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = write {
         RepositoryResult.Success(
-            database.workoutActivityDao().transitionAllByStateExcludingOrigin(
+            database.workoutActivityDao().transitionAllByStateExcludingOriginUnlessProjection(
                 expectedState = "SYNCING",
                 nextState = "SYNC_FAILED",
                 excludedOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
@@ -1435,11 +1435,21 @@ class RoomRepositories @Inject constructor(
         }
 
         val current = existing.toDomain() ?: return@write RepositoryResult.UnexpectedState
+        val projectionChanged = current.action != action ||
+            current.frozenPayload != frozenPayload ||
+            current.projectionOrigin != projectionOrigin
+        val nextClientRecordVersion = if (projectionChanged) {
+            val currentVersion = current.clientRecordVersion ?: -1L
+            if (currentVersion == Long.MAX_VALUE) return@write RepositoryResult.UnexpectedState
+            maxOf(clientRecordVersion, currentVersion + 1L)
+        } else {
+            current.clientRecordVersion ?: clientRecordVersion
+        }
         val next = current.freezeProjection(
             action = action,
             frozenPayload = frozenPayload,
             clientRecordId = stableClientRecordId(key),
-            clientRecordVersion = clientRecordVersion,
+            clientRecordVersion = nextClientRecordVersion,
             projectionOrigin = projectionOrigin,
             updatedAt = preparedMetadata.updatedAtEpochMillis?.let(Instant::ofEpochMilli),
         ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
@@ -1457,7 +1467,11 @@ class RoomRepositories @Inject constructor(
                 if (entity.isDailyStepsOperationEntity()) {
                     return@mapNotNull entity.toDomain()
                 }
-                val key = entity.toDomain()?.key ?: return@mapNotNull null
+                val domain = entity.toDomain() ?: return@mapNotNull null
+                if (entity.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY) {
+                    return@mapNotNull domain
+                }
+                val key = domain.key
                 when (val ensured = ensureOperationInternal(key)) {
                     is RepositoryResult.Success -> ensured.value
                     else -> null
@@ -1475,12 +1489,35 @@ class RoomRepositories @Inject constructor(
         aggregate: HealthSyncAggregate,
     ): RepositoryResult<List<HealthSyncOperation>> = withContext(ioDispatcher) {
         if (isBlockedWatchWorkoutAggregate(aggregate)) {
-            return@withContext RepositoryResult.Success(emptyList())
+            if (aggregate !is HealthSyncAggregate.WorkoutActivity) {
+                return@withContext RepositoryResult.Success(emptyList())
+            }
+            return@withContext RepositoryResult.Success(
+                database.healthSyncOperationDao()
+                    .findByAggregate(aggregate.id.toString(), aggregate.type.name)
+                    .filterNot { it.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY }
+                    .mapNotNull { it.toDomain() },
+            )
         }
         RepositoryResult.Success(
             database.healthSyncOperationDao()
                 .findByAggregate(aggregate.id.toString(), aggregate.type.name)
                 .mapNotNull { it.toDomain() },
+        )
+    }
+
+    override suspend fun hasKnownLegacyWorkoutDistanceProjection(
+        activityId: WorkoutActivityId,
+        activityOrigin: WorkoutActivityOrigin,
+    ): RepositoryResult<Boolean> = withContext(ioDispatcher) {
+        if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+            return@withContext RepositoryResult.Success(false)
+        }
+        RepositoryResult.Success(
+            database.healthSyncOperationDao().findKnownLegacyWorkoutDistanceProjection(
+                activityId = activityId.value.toString(),
+                activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4.name,
+            ) != null,
         )
     }
 
@@ -2169,8 +2206,9 @@ class RoomRepositories @Inject constructor(
 
     private suspend fun isBlockedWatchWorkoutOperation(entity: HealthSyncOperationEntity): Boolean {
         if (entity.aggregateType != HealthSyncAggregateType.WORKOUT_ACTIVITY.name) return false
-        return database.workoutActivityDao().findById(entity.aggregateId)?.origin ==
-            WorkoutActivityOrigin.WATCH_D3_D4.name
+        return entity.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+            database.workoutActivityDao().findById(entity.aggregateId)?.origin ==
+                WorkoutActivityOrigin.WATCH_D3_D4.name
     }
 
     private suspend fun mutateSession(
@@ -2476,9 +2514,16 @@ class RoomRepositories @Inject constructor(
     ): RepositoryResult<WorkoutActivity> {
         val entity = database.workoutActivityDao().findById(activityId.value.toString()) ?: return RepositoryResult.NotFound
         if (entity.origin == WorkoutActivityOrigin.WATCH_D3_D4.name) {
-            // Writer legado não consome série canônica do relógio; bloqueie
-            // início, sucesso e falha no mesmo ponto de entrada.
-            return RepositoryResult.UnexpectedState
+            val hasPreparedChild = database.healthSyncOperationDao()
+                .findByAggregate(
+                    aggregateId = activityId.value.toString(),
+                    aggregateType = HealthSyncAggregateType.WORKOUT_ACTIVITY.name,
+                )
+                .any {
+                    it.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+                        it.frozenPayload != null
+                }
+            if (!hasPreparedChild) return RepositoryResult.UnexpectedState
         }
         val activity = loadWorkoutActivity(entity) ?: return RepositoryResult.UnexpectedState
         val updated = transition(activity).valueOrNull() ?: return RepositoryResult.UnexpectedState
@@ -3117,14 +3162,16 @@ private fun List<WorkoutIntervalEntity>.hasPersistedUnvalidatedSourceOrder(): Bo
 private fun HealthSyncOperationEntity.isBlockedWatchWorkoutOperation(
     blockedWatchActivityIds: Set<String>,
 ): Boolean = aggregateType == HealthSyncAggregateType.WORKOUT_ACTIVITY.name &&
+    projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
     aggregateId in blockedWatchActivityIds
 
 private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
     candidates: HealthSyncSemanticCandidateIndex,
 ): Boolean {
     val aggregate = key.aggregate as? HealthSyncAggregate.WorkoutActivity ?: return false
-    return candidates.workoutActivities[aggregate.activityId.value]?.activityOrigin ==
-        WorkoutActivityOrigin.WATCH_D3_D4
+    return key.projectionChildKey == null &&
+        candidates.workoutActivities[aggregate.activityId.value]?.activityOrigin ==
+            WorkoutActivityOrigin.WATCH_D3_D4
 }
 
 private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = when (aggregateType) {
@@ -3219,7 +3266,20 @@ private fun isWorkoutActivityEligibleForExerciseSession(
 private fun isWorkoutActivityEligibleForDistance(
     activity: WorkoutActivity,
     operation: HealthSyncOperation,
-): Boolean = isWorkoutActivityBaseEligible(activity, operation) && activity.finalPositiveDistanceMeters() != null
+): Boolean {
+    if (!isWorkoutActivityBaseEligible(activity, operation)) return false
+    if (activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+        return activity.finalPositiveDistanceMeters() != null
+    }
+    val child = operation.key.projectionChildKey as? HealthProjectionChildKey.DistanceInterval
+        ?: return false
+    return activity.derivationSnapshot?.isEligibleForHealthProjection == true &&
+        activity.canonicalSeries?.intervals?.any { interval ->
+            interval.index == child.intervalIndex &&
+                interval.canonicalIntervalDistanceMeters.isFinite() &&
+                interval.canonicalIntervalDistanceMeters > 0.0
+        } == true
+}
 
 private fun isWorkoutActivityEligibleForCalories(
     activity: WorkoutActivity,
@@ -3232,6 +3292,8 @@ private fun isWorkoutActivityEligibleForSpeed(
     activity: WorkoutActivity,
     operation: HealthSyncOperation,
 ): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
+    activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+    activity.derivationSnapshot?.isEligibleForHealthProjection == true &&
     operation.key.projectionChildKey == HealthProjectionChildKey.SpeedSeries &&
     operation.frozenPayload != null
 
