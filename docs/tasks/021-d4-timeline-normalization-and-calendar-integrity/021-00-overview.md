@@ -1,10 +1,10 @@
 # 021 — Normalização temporal D4 e integridade do calendário
 
-- **Status geral:** `pending`
+- **Status geral:** `in_progress`
 - **Spec:** [021-d4-timeline-normalization-and-calendar-integrity.md](../../specs/021-d4-timeline-normalization-and-calendar-integrity.md)
 - **ADR:** [ADR-019](../../decisions/adr-019-authoritative-workout-duration-and-normalized-d4-timeline.md)
 - **Base:** `feat/014-watch-workout-derived-metrics`
-- **Progresso:** `0/4`
+- **Progresso:** `1/4`
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ Corrigir duas falhas independentes observadas após a Fase 014:
 
 ## Checklist
 
-- [ ] [021-01-correct-d4-authoritative-duration.md](021-01-correct-d4-authoritative-duration.md)
+- [x] [021-01-correct-d4-authoritative-duration.md](021-01-correct-d4-authoritative-duration.md)
 - [ ] [021-02-normalize-d4-samples-to-workout-duration.md](021-02-normalize-d4-samples-to-workout-duration.md)
 - [ ] [021-03-restore-health-sync-semantic-candidate-derivation.md](021-03-restore-health-sync-semantic-candidate-derivation.md)
 - [ ] [021-04-validate-existing-data-and-close.md](021-04-validate-existing-data-and-close.md)
@@ -70,7 +70,7 @@ métricas pessoais nas evidências da task.
 
 | Task | Status |
 | --- | --- |
-| 021-01 | `pending` |
+| 021-01 | `completed` |
 | 021-02 | `pending` |
 | 021-03 | `pending` |
 | 021-04 | `pending` |

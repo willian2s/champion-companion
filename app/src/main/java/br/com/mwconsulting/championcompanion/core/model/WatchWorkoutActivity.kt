@@ -11,6 +11,8 @@ enum class ParserValidity {
 
 internal const val WATCH_WORKOUT_D4_V1_PARSER_VERSION = "d4-v1"
 internal const val WATCH_WORKOUT_D4_V2_PARSER_VERSION = "d4-v2"
+/** Preparada para o contrato completo de timeline normalizada; não ativa no runtime. */
+internal const val WATCH_WORKOUT_D4_V3_PARSER_VERSION = "d4-v3"
 
 internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
     parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION ||

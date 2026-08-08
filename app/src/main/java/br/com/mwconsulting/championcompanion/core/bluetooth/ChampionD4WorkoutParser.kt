@@ -40,19 +40,22 @@ object ChampionD4WorkoutParser {
 
         val startEnd = parsePacket1(packet1.rawBytesCopy())
             ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
-        val totals = parsePacket2(packet2.rawBytesCopy())
+        val totals = parsePacket2(packet2.rawBytesCopy(), startEnd.layout)
             ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
         val durationData = parsePacket3(packet3.rawBytesCopy())
             ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
 
-        val durationFromPacket1 = Duration.between(startEnd.startedAt, startEnd.endedAt).seconds
+        val correctedEndedAt = resolveEndedAt(startEnd, totals)
+            ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        val durationFromHeader = Duration.between(startEnd.startedAt, correctedEndedAt).seconds
         val resolvedDurationSeconds = when {
-            durationFromPacket1 > 0 -> durationFromPacket1
-            durationData.durationFallbackSeconds > 0 -> durationData.durationFallbackSeconds
+            durationFromHeader > 0 -> durationFromHeader
+            startEnd.layout == WatchWorkoutD4Layout.LEGACY && durationData.durationFallbackSeconds > 0 ->
+                durationData.durationFallbackSeconds
             else -> 0L
         }
-        val resolvedEndedAt = if (startEnd.endedAt.isAfter(startEnd.startedAt)) {
-            startEnd.endedAt
+        val resolvedEndedAt = if (correctedEndedAt.isAfter(startEnd.startedAt)) {
+            correctedEndedAt
         } else {
             startEnd.startedAt.plusSeconds(resolvedDurationSeconds)
         }
@@ -186,6 +189,8 @@ object ChampionD4WorkoutParser {
         val totalSteps: Int,
         val totalDistanceRaw: Int,
         val totalCaloriesRaw: Int,
+        /** Presente somente quando o layout preferido do pacote 2 é selecionado. */
+        val endSecond: Int?,
         val layout: WatchWorkoutD4Layout,
     )
 
@@ -268,18 +273,20 @@ object ChampionD4WorkoutParser {
         }
     }
 
-    private fun parsePacket2(bytes: ByteArray): Packet2Data? {
+    private fun parsePacket2(bytes: ByteArray, expectedLayout: WatchWorkoutD4Layout): Packet2Data? {
         if (bytes.size < minimumPacketSize || bytes[0].toUnsignedInt() != ChampionD4WorkoutBlockProtocol.commandCode) return null
         val observed = Packet2Data(
             totalSteps = bytes.readUInt16LittleEndian(7),
             totalDistanceRaw = bytes.readUInt16LittleEndian(11) * 100,
             totalCaloriesRaw = bytes.readUInt24LittleEndian(15),
+            endSecond = bytes[6].toUnsignedInt(),
             layout = WatchWorkoutD4Layout.PREFERRED,
         )
         val legacy = Packet2Data(
             totalSteps = bytes.readUInt24LittleEndian(5),
             totalDistanceRaw = bytes.readUInt32LittleEndian(8),
             totalCaloriesRaw = bytes.readUInt32LittleEndian(12),
+            endSecond = null,
             layout = WatchWorkoutD4Layout.LEGACY,
         )
         val observedLooksPlausible = observed.totalSteps in 1..200_000 &&
@@ -288,7 +295,22 @@ object ChampionD4WorkoutParser {
         val legacyLooksPlausible = legacy.totalSteps in 1..200_000 &&
             legacy.totalDistanceRaw in 0..500_000_000 &&
             legacy.totalCaloriesRaw in 0..10_000_000
-        return if (observedLooksPlausible && !legacyLooksPlausible) observed else legacy
+        return when (expectedLayout) {
+            WatchWorkoutD4Layout.PREFERRED -> observed.takeIf {
+                observedLooksPlausible && it.endSecond?.let { second -> second in 0..59 } == true
+            }
+
+            WatchWorkoutD4Layout.LEGACY -> legacy.takeIf { legacyLooksPlausible }
+        }
+    }
+
+    private fun resolveEndedAt(packet1: Packet1Data, packet2: Packet2Data): Instant? {
+        if (packet1.layout != WatchWorkoutD4Layout.PREFERRED) return packet1.endedAt
+        if (packet2.layout != WatchWorkoutD4Layout.PREFERRED) return null
+        val endSecond = packet2.endSecond ?: return null
+        return packet1.endedAt.atZone(ZoneId.systemDefault())
+            .withSecond(endSecond)
+            .toInstant()
     }
 
     private fun parsePacket3(bytes: ByteArray): Packet3Data? {

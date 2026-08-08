@@ -2,7 +2,7 @@
 
 - **Ticker:** `021`
 - **Número:** `01`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -126,3 +126,60 @@ Não criar nem executar testes automatizados.
 - ativar `d4-v3` cedo criaria versão semanticamente incompleta; rollback é manter
   coordinator em `d4-v2` até `021-02`;
 - não alterar dados persistidos nesta subtarefa, tornando rollback local simples.
+
+## Evidências de execução
+
+- `ChampionD4WorkoutParser` compõe o segundo final preferido com `packet2[6]`,
+  rejeita valores fora de `0..59` e mantém `packet1[14]` como segundo legado.
+- Duração oficial usa `startedAt`/`endedAt` corrigidos; `recordCount` e samples
+  não participam da resolução temporal.
+- `d4-v3` foi preparado como constante de domínio, sem inclusão na lista de
+  versões suportadas; coordenador permanece em `d4-v2`.
+- Protocolo atualizado com range guard, limite da evidência física e fronteira
+  entre `d4-v3` preparado e runtime `d4-v2`.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/bluetooth/ChampionD4WorkoutParser.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+- `docs/protocol/workouts-d3-d4.md`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-00-overview.md`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-01-correct-d4-authoritative-duration.md`
+
+## Decisões e desvios
+
+- A seleção do pacote 2 passou a seguir o layout resolvido no pacote 1. Isso
+  impede que um candidato preferido inválido seja reinterpretado como legado.
+- `d4-v3` foi somente preparado como constante de domínio. A lista de versões
+  suportadas e o coordenador permanecem em `d4-v2`; timeline normalizada fica
+  para `021-02`.
+- ADR-019 não foi alterada porque já registrava a mesma fonte temporal, guard e
+  fronteira de ativação exigidos por esta subtarefa.
+
+## Comandos executados
+
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — primeira execução excedeu o
+  timeout operacional de 120 s após concluir as tarefas de assemble; repetição
+  com timeout de 300 s passou.
+- Testes automatizados — não executados, conforme escopo da subtarefa e regras do
+  repositório.
+
+## Resultados e evidências
+
+- Build completo `lint`, `assembleDebug` e `assembleRelease` concluído com
+  sucesso.
+- Nenhum schema, migration, atividade persistida ou operação Health Connect foi
+  alterado.
+- Evidência física dos três treinos e validação no banco preservado permanecem
+  para a validação integrada de `021-04`; esta subtarefa não registra IDs,
+  payloads ou dados pessoais.
+
+## Riscos residuais
+
+- A correspondência de `packet2[6]` foi observada em três atividades, mas ainda
+  não constitui garantia para firmwares não observados; valores fora de `0..59`
+  continuam falhando fechados.
+- Samples ainda usam a política temporal anterior e podem permanecer `PARTIAL`
+  até `021-02` entregar a timeline normalizada; nenhuma semântica `d4-v3` foi
+  ativada antecipadamente.
