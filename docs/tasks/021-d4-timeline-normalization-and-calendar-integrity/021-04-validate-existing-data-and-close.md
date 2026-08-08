@@ -2,7 +2,7 @@
 
 - **Ticker:** `021`
 - **Número:** `04`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -157,3 +157,93 @@ Registrar em `docs/integration/` um relatório sanitizado contendo:
 - Health Connect continua sem readback amplo pelo app;
 - reprocessar atividade já sincronizada permanece condicionado à reconciliação
   explícita definida na Fase 014.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/specs/021-d4-timeline-normalization-and-calendar-integrity.md`
+- `docs/protocol/workouts-d3-d4.md`
+- `docs/decisions/adr-018-canonical-workout-time-series-and-health-projection.md`
+- `docs/decisions/adr-019-authoritative-workout-duration-and-normalized-d4-timeline.md`
+- `docs/baseline/current-baseline.md`
+- `docs/baseline/database-reference.md`
+- `docs/baseline/gaps-and-open-questions.md`
+- `docs/roadmap/champion-companion-roadmap.md`
+- `docs/integration/021-04-validation-and-close.md`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-00-overview.md`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-03-restore-health-sync-semantic-candidate-derivation.md`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-04-validate-existing-data-and-close.md`
+
+## Decisões e desvios
+
+- A validação foi executada sobre o banco existente, sem `clear data`, exclusão
+  de atividade, nova leitura BLE ou SQL corretivo.
+- O gate foi concluído após reprocessar explicitamente o caso
+  `15:28` e conferir `endSecond = 42` no envelope local preservado do caso
+  `20:45`. A atividade `20:45` estava `SYNCED` e não foi reprocessada.
+- O relatório registra somente contagens, estados, durações e resultados
+  sanitizados; identificadores, payloads, BPM e valores pessoais foram omitidos.
+- O calendário foi exercitado offline; Bluetooth foi restaurado ao final e não
+  houve readback amplo do Health Connect.
+- Cenário negativo de operação órfã/snapshot ausente ficou `N/A`: não havia issue
+  real segura e não foi fabricada corrupção no banco de produção.
+- Revisão independente encontrou uma janela transacional: a duração recuperada
+  podia ser atualizada antes de uma falha de derivação retornada normalmente.
+  `reprocessWatchWorkoutInternal` agora lança a exceção controlada do
+  repositório para qualquer resultado não materializado após o update, incluindo
+  `Success(null)`, preservando o rollback da atividade e de gravações parciais.
+
+## Comandos executados
+
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — passou.
+- `./gradlew installDebug` — passou, instalando sobre o pacote existente.
+- Revalidação após a correção transacional: `git diff --check` — passou;
+  `./gradlew lint assembleDebug assembleRelease` — passou em 4m57s;
+  `./gradlew installDebug` — passou em 11s, instalando no Galaxy S22 conectado.
+- `adb shell am force-stop ...` e extração read-only do banco — executados para
+  diagnóstico sanitizado.
+- Consultas SQLite read-only: `PRAGMA integrity_check`, `PRAGMA user_version`,
+  contagens agregadas, estados da fila e invariantes da atividade de 32 samples
+  — passaram.
+- Navegação UI offline em Calendário, mês e detalhe diário — passou.
+- Testes automatizados — não executados, conforme escopo da task e regras do
+  repositório.
+
+## Resultados e evidências
+
+- Relatório completo: `docs/integration/021-04-validation-and-close.md`.
+- Upgrade preservou 4 atividades, 98 intervalos raw, 98 intervalos derivados,
+  98 amostras de frequência cardíaca, 4 payloads diagnósticos e 84 operações.
+- Banco pós-upgrade: integrity `ok`, schema `v11`.
+- Atividade existente de 32 samples reprocessada in-place com duração `29:15`,
+  32 intervalos preservados, índices `0..31`, soma temporal exata e derivação
+  `watch-d3-d4-v2`.
+- Fila permaneceu com 84 operações `SYNCED`, sem erro ou identidade ausente.
+- Calendário offline não exibiu `Dados parciais do mês`; cards sincronizados
+  exibiram status real.
+- `15:28` resultou de reprocessamento explícito; `20:45` foi confirmado em
+  diagnóstico read-only, sem reprocessar atividade `SYNCED`.
+- A atualização de duração/`endedAt` agora só confirma quando a derivação retorna
+  snapshot materializado; qualquer falha pós-update atravessa
+  `withWriteTransaction` como exceção controlada e desfaz o lote.
+- Revisão independente final: aprovada com ressalvas; nenhuma correção adicional
+  de código foi solicitada.
+
+## Riscos residuais
+
+- A tela do app oficial não foi reaberta neste gate; a confirmação de duração
+  usou payload diagnóstico local preservado.
+- O cenário negativo de degradação permanece `N/A` por ausência de issue real
+  segura para observar.
+- Health Connect permanece write-only, sem readback amplo.
+- Evidência física continua limitada ao Galaxy S22 e firmware observado.
+
+## Revisão independente
+
+- Revisão final aprovada com ressalvas após correção da janela transacional em
+  `RoomRepositories.reprocessWatchWorkoutInternal`.
+- A correção força rollback quando a derivação não materializa snapshot após a
+  atualização de duração/`endedAt`.
+- Ressalvas aceitas: Health Connect write-only, cenário negativo `N/A`, tela do
+  app oficial não reaberta neste gate e cobertura limitada ao firmware observado.

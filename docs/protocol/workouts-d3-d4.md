@@ -58,19 +58,20 @@ dispositivo”.
 - Treinos phone, GPS, rota, mapa, `ExerciseRoute` e BLE live não fazem parte da
   direção da Fase 014.
 
-## Estado factual final da Fase 014
+## Estado factual final da Fase 014 e da Spec 021
 
-- Novas importações usam `parserVersion = d4-v2`; `d4-v1` permanece identificável
-  como legado. `MIGRATION_8_9` preserva o u24 legado como raw e não cria
-  `decodedSteps` automaticamente.
+- Novas importações usam `parserVersion = d4-v3`; `d4-v1` e `d4-v2` permanecem
+  identificáveis como legado. `MIGRATION_8_9` preserva o u24 legado como raw e
+  não cria `decodedSteps` automaticamente.
 - O parser novo preserva `rawMotionValue`, deriva `decodedSteps` com deslocamento
   de 16 bits e mantém os 16 bits inferiores, distância temporal e calorias
   temporais como desconhecidos/raw. A sequência sanitizada de referência soma
   `3.737` passos; isso é evidência do caso observado, não garantia para todos os
   firmwares.
-- A série entregue aplica índices contínuos e únicos, duração `T/N/60 s`,
-  residual positivo e plausibilidade separada. `T = 1.637 s` produz `27 × 60 s +
-  17 s`; não há redistribuição nem síntese de cauda.
+- A série entregue pela Spec 021 aplica índices contínuos e únicos, timeline
+  normalizada por divisão inteira de `T` entre `N` e resto distribuído nos
+  primeiros intervalos. A soma efetiva fecha exatamente em `T`; `60 s` permanece
+  granularidade nominal, não duração obrigatória.
 - A distância canônica usa a soma dos intervalos `decodedSteps ×
   stepLengthMetersUsed`. O snapshot congela valor individual, origem, método e
   versão da derivação. Distâncias original e calibrada histórica permanecem
@@ -316,9 +317,9 @@ A migration não deve:
 - alterar workflow;
 - depender do payload diagnóstico.
 
-## `d4-v2`
+## `d4-v2` — legado
 
-O runtime de novas importações usa `parserVersion = d4-v2` e produz
+O runtime histórico usava `parserVersion = d4-v2` e produzia
 separadamente:
 
 ```kotlin
@@ -329,6 +330,14 @@ val decodedSteps = rawMotionValue ushr 16
 Versão desconhecida falha fechada na criação da atividade; não há reclassificação
 silenciosa de dados legados.
 
+## `d4-v3` — contrato efetivo
+
+O runtime de novas importações usa `parserVersion = d4-v3` e combina duração
+autoritativa corrigida com timeline normalizada. O parser preserva ordem, passos,
+BPM e valores raw; timestamps e durações efetivas são derivados por
+`watch-d3-d4-v2`. `d4-v1` e `d4-v2` continuam disponíveis somente como
+proveniência legada e para reprocessamento explícito seguro.
+
 ## Fronteira da Spec 021 — subtarefa `021-01`
 
 O parser passou a resolver a duração oficial a partir de `startedAt` e `endedAt`
@@ -337,21 +346,19 @@ de `0..59` falha fechado; não há inferência por `recordCount`, quantidade de
 samples ou horário inventado. No layout legado, o segundo continua vindo de
 `packet1[14]`.
 
-Esta correção de fonte temporal não ativa uma semântica parcial `d4-v3`: o
-coordenador e o runtime efetivo continuam em `d4-v2`. `d4-v3` fica preparado no
-domínio para o contrato completo, cuja timeline normalizada pertence à
-subtarefa `021-02`. A correspondência de `packet2[6]` foi observada em três
-atividades; não constitui garantia universal para firmware não observado.
+Esta correção de fonte temporal integra o contrato efetivo `d4-v3` com a timeline
+normalizada entregue em `021-02`. A correspondência de `packet2[6]` foi observada
+em três atividades; não constitui garantia universal para firmware não observado.
 
 # Índices, parcialidade e duração
 
-## Estado atual
+## Estado efetivo da Spec 021
 
 - pacotes `4+` presentes são ordenados por `minuteIndex`;
 - duplicatas usam a primeira ocorrência e tornam o parser parcial;
 - lacunas permanecem como lacunas;
-- os intervalos brutos mantêm 60 segundos nominais;
-- o resolvedor temporal valida índices antes de aplicar a política `T/N/60 s`;
+- os intervalos brutos preservam 60 segundos como duração nominal/proveniência;
+- o resolvedor temporal valida índices antes de distribuir `T` por `N`;
 - lacuna, duplicata, primeiro índice não zero ou ordem inconsistente preservam os
   fatos sem receber janelas efetivas sintetizadas;
 - séries elegíveis distinguem duração exata, residual, insuficiente e cauda não
@@ -359,7 +366,7 @@ atividades; não constitui garantia universal para firmware não observado.
 - a materialização do snapshot e da duração efetiva persistida pertence à
   derivação posterior.
 
-## Contrato planejado V1
+## Contrato efetivo V1
 
 A série canônica exige índices:
 
@@ -370,12 +377,16 @@ A série canônica exige índices:
 Primeiro índice diferente de zero, lacuna, duplicata ou ordem inconsistente torna
 a série inelegível, preservando os fatos raw/measured.
 
-Com duração total `T`, `N` intervalos elegíveis e quantum `Q = 60 s`:
+Com duração total `T` e `N` intervalos elegíveis:
 
-- `T == NQ`: todos usam 60 s;
-- `(N−1)Q < T < NQ`: último usa o restante positivo;
-- `T <= (N−1)Q`: série inelegível;
-- `T > NQ`: cauda permanece sem intervalo sintético.
+```text
+base = T / N       (divisão inteira em nanos)
+resto = T % N
+duration[i] = base + 1 ns quando i < resto
+```
+
+Todas as janelas são positivas, contíguas e contidas na sessão; a soma fecha
+exatamente em `T`, sem cauda sintética ou descarte de sample.
 
 Exemplo disponível:
 

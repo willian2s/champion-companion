@@ -1,9 +1,9 @@
 # 021 — Normalização temporal D4 e integridade do calendário
 
 - **Ticker:** `021`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Base:** `feat/014-watch-workout-derived-metrics`
-- **Progresso planejado:** `0/4`
+- **Progresso:** `4/4`
 
 ## Contexto
 
@@ -294,3 +294,15 @@ Além dos comandos de build, a validação deve confirmar:
 - ADR-016 continua definindo integridade temporal de reimportação.
 - Spec 018 continua fechada; `021-03` corrige uma causa nova e independente de
   `UNRESOLVED_AGGREGATE`.
+
+## Estado factual da validação
+
+- Upgrade sem wipe e migration `v10 → v11` foram observados no Galaxy S22.
+- A atividade de 32 samples foi reprocessada in-place com duração `29:15`.
+- O caso `15:28` foi reprocessado explicitamente; o caso `20:45` foi conferido
+  por envelope diagnóstico preservado sem reabrir atividade `SYNCED`.
+- Calendário offline não exibiu estado parcial falso e a fila permaneceu com 84
+  operações `SYNCED`, sem erro ou identidade ausente.
+- Evidência sanitizada: `docs/integration/021-04-validation-and-close.md`.
+- Fechamento global concluído com revisão independente aprovada com ressalvas.
+- O runtime efetivo usa `d4-v3`, derivação `watch-d3-d4-v2` e Room schema `v11`.

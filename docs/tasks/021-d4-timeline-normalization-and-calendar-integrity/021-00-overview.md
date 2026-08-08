@@ -1,10 +1,10 @@
 # 021 — Normalização temporal D4 e integridade do calendário
 
-- **Status geral:** `in_progress`
+- **Status geral:** `completed`
 - **Spec:** [021-d4-timeline-normalization-and-calendar-integrity.md](../../specs/021-d4-timeline-normalization-and-calendar-integrity.md)
 - **ADR:** [ADR-019](../../decisions/adr-019-authoritative-workout-duration-and-normalized-d4-timeline.md)
 - **Base:** `feat/014-watch-workout-derived-metrics`
-- **Progresso:** `2/4`
+- **Progresso:** `4/4`
 
 ## Objetivo
 
@@ -19,8 +19,8 @@ Corrigir duas falhas independentes observadas após a Fase 014:
 
 - [x] [021-01-correct-d4-authoritative-duration.md](021-01-correct-d4-authoritative-duration.md)
 - [x] [021-02-normalize-d4-samples-to-workout-duration.md](021-02-normalize-d4-samples-to-workout-duration.md)
-- [ ] [021-03-restore-health-sync-semantic-candidate-derivation.md](021-03-restore-health-sync-semantic-candidate-derivation.md)
-- [ ] [021-04-validate-existing-data-and-close.md](021-04-validate-existing-data-and-close.md)
+- [x] [021-03-restore-health-sync-semantic-candidate-derivation.md](021-03-restore-health-sync-semantic-candidate-derivation.md)
+- [x] [021-04-validate-existing-data-and-close.md](021-04-validate-existing-data-and-close.md)
 
 ## Dependências
 
@@ -66,14 +66,14 @@ Corrigir duas falhas independentes observadas após a Fase 014:
 Não registrar IDs, payloads integrais, BPM, comprimento de passo ou outras
 métricas pessoais nas evidências da task.
 
-## Estado inicial
+## Estado final
 
 | Task | Status |
 | --- | --- |
 | 021-01 | `completed` |
 | 021-02 | `completed` |
-| 021-03 | `pending` |
-| 021-04 | `pending` |
+| 021-03 | `completed` |
+| 021-04 | `completed` |
 
 ## Regras de execução
 
@@ -88,11 +88,19 @@ métricas pessoais nas evidências da task.
 ## Observações
 
 - `021-02` implementada e validada por `git diff --check` e build completo.
-- `021-03` possui implementação e build/instalação validados, com revisão
-  independente estática aprovada; permanece `[ ]` até validação factual do banco
-  preservado e do calendário em `021-04`.
-- Validação física com banco preservado, reprocessamento do cenário de 32 samples
-  e confirmação do calendário permanecem em `021-04`.
+- `021-03` possui implementação, validação factual e revisão independente
+  aprovadas com ressalvas.
+- A validação física com banco preservado, reprocessamento dos cenários locais e
+  confirmação do calendário foram executados em `021-04`.
+- `021-04` executou upgrade sem wipe, migration para schema v11, reprocessamento
+  in-place de 32 samples, validação offline do Calendário e build/instalação.
+  Evidência sanitizada está em
+  `docs/integration/021-04-validation-and-close.md`.
+- `021-04` foi concluída com ressalvas documentadas no relatório sanitizado.
+- A revisão independente encontrou e aprovou a correção da janela de confirmação
+  parcial no reprocessamento temporal. A duração recuperada agora só confirma com
+  derivação materializada, e falhas pós-update atravessam o rollback de
+  `withWriteTransaction`.
 
 ## Fechamento esperado
 

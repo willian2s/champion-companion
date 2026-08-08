@@ -261,10 +261,12 @@ e adiciona manifesto, `projectionChildKey`, payload, ação e checkpoints.
 
 ## Estado efetivo e limites de validação
 
-A decisão foi implementada na Fase 014 com parser `d4-v2`, Room v9 por
-`MIGRATION_8_9`, projeções em schema v10 por `MIGRATION_9_10`, snapshots com
-`stepLengthMeters` individual congelado, política temporal `T/N/60 s` e filhos
-Health Connect com IDs, versões, payloads, retry e reconciliação determinísticos.
+A decisão foi implementada inicialmente na Fase 014 com parser `d4-v2`, Room v9
+por `MIGRATION_8_9`, projeções em schema v10 por `MIGRATION_9_10`, snapshots com
+`stepLengthMeters` individual congelado, política temporal histórica `T/N/60 s` e
+filhos Health Connect com IDs, versões, payloads, retry e reconciliação
+determinísticos. A Spec 021 supersedeu a política temporal para `WATCH_D3_D4`:
+runtime `d4-v3`, timeline normalizada e Room schema v11 por `MIGRATION_10_11`.
 O provider continua sendo destino write-only: a evidência de records e permissões
 é observação manual no dispositivo, não leitura executada pelo aplicativo.
 

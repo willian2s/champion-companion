@@ -2073,12 +2073,16 @@ canônica deriva exclusivamente da série de passos válidos e
 - `014-17`: `completed` — follow-up funcional de autorização, resultado por filho,
   falha parcial e retry, sem leitura ampla do Health Connect.
 - `014-16`: `completed` — fechamento documental factual da fase.
+- `021-01..04`: `completed` — duração D4 autoritativa, timeline normalizada,
+  candidate semântico hidratado e validação do banco preservado/calendário.
 
 Gate F não representa cobertura física universal: a observação manual do provider
 permanece limitada aos cenários exercitados e o aplicativo continua write-only.
 Fixtures físicos não executados, midpoint, delete-before-insert e cobertura de
-firmwares permanecem riscos residuais documentados. Parser `d4-v2`,
-`MIGRATION_8_9`/Room v9 e `MIGRATION_9_10`/schema v10 são as versões efetivas.
+firmwares permanecem riscos residuais documentados. Parser efetivo novo é
+`d4-v3`, derivação `watch-d3-d4-v2`, e `MIGRATION_8_9`/Room v9,
+`MIGRATION_9_10`/schema v10 e `MIGRATION_10_11`/schema v11 permanecem no
+histórico aditivo.
 
 Relatório de `014-01`:
 
@@ -2118,7 +2122,8 @@ adiável posterior, com retry limitado e consentimento operacional apropriado.
 ## Critérios de aceite da direção redefinida
 
 - importação D3/D4 explícita preserva início e fim definidos pelo relógio;
-- `d4-v1` preserva o u24 legado como raw e o parser corrigido usa `d4-v2`;
+- `d4-v1` e `d4-v2` preservam proveniência legada e novas importações usam
+  `d4-v3`;
 - índices da série V1 são contínuos, únicos e iniciam em zero;
 - derivação de distância usa a soma exata dos intervalos canônicos;
 - distância original do relógio permanece diagnóstica e não vira fallback;

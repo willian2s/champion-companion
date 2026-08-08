@@ -2,7 +2,7 @@
 
 - **Ticker:** `021`
 - **Número:** `03`
-- **Status:** `in_progress`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -176,8 +176,8 @@ Não criar nem executar testes automatizados.
   `./gradlew lint assembleDebug assembleRelease` — sucesso; `installDebug`
   também concluiu.
 - Nenhum teste automatizado foi criado ou executado. Validação física integrada
-  permanece pendente para `021-04`; revisão independente foi solicitada e
-  aprovada com ressalva factual.
+  foi concluída em `021-04`; revisão independente estática foi aprovada e a
+  revisão integrada final foi aprovada com ressalvas.
 
 ## Arquivos alterados
 
@@ -218,17 +218,17 @@ Não criar nem executar testes automatizados.
   hidratação `d4-v1` e da leitura transacional dos records ativos.
 - O índice semântico permanece local-only e reativo; o diff não contém writes em
   `health_sync_operations`, chamadas Health Connect ou leitura BLE.
-- A validação física com banco preservado e a confirmação das 84 operações sem
-  falso `UNRESOLVED_AGGREGATE` permanecem para `021-04`.
-- Revisão independente aprovou a implementação estática após a correção da
-  ponte `d4-v1`, sem bloqueador no diff; a ressalva é a validação factual
-  integrada ainda não executada.
+- A validação física com banco preservado confirmou 84 operações `SYNCED`, sem
+  erro ou identidade ausente, e Calendário sem falso `UNRESOLVED_AGGREGATE`.
+- A navegação offline confirmou status sincronizado observável e nenhuma escrita
+  na fila; a evidência sanitizada está em
+  `docs/integration/021-04-validation-and-close.md`.
 
 ## Riscos residuais
 
 - Flows agregados carregam dados locais relacionados em memória; não há N+1,
   mas custo global pode crescer com histórico grande.
-- Validação física no dispositivo, estabilidade das operações existentes e
-  ausência observável do banner ainda não foram executadas nesta subtarefa.
-- Revisão independente foi concluída com aprovação estática e ressalva de
-  evidência física; status só deve virar `completed` após essa evidência.
+- Cenários negativos de corrupção real não foram fabricados no banco do usuário;
+  permanecem `N/A` nesta validação.
+- Health Connect permanece write-only e a evidência física continua limitada ao
+  Galaxy S22 e firmware observado.

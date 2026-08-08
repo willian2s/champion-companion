@@ -2202,22 +2202,24 @@ class RoomRepositories @Inject constructor(
             )
         }
 
+        // A duração recuperada só pode ser publicada junto com uma derivação
+        // materializada. Como este update já ocorreu dentro de
+        // withWriteTransaction, qualquer resultado diferente de sucesso
+        // materializado precisa atravessar a transação como exceção para
+        // desfazer a alteração da atividade e quaisquer gravações parciais da
+        // derivação.
         return when (val result = deriveWatchWorkoutInternal(
             activityId = activityId,
             derivedAt = derivedAt,
             replaceActive = true,
         )) {
             is RepositoryResult.Success -> result.value?.let(WatchWorkoutReprocessResult::Success)
-                ?: WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
-            RepositoryResult.NotFound -> WatchWorkoutReprocessResult.Blocked(
-                WatchWorkoutReprocessFailureReason.ACTIVITY_NOT_FOUND,
-            )
+                ?: throw WatchWorkoutDerivationPreflightException()
+            RepositoryResult.NotFound,
             RepositoryResult.Conflict,
             RepositoryResult.UnexpectedState,
-            -> WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
-            RepositoryResult.StorageUnavailable -> WatchWorkoutReprocessResult.Blocked(
-                WatchWorkoutReprocessFailureReason.STORAGE_UNAVAILABLE,
-            )
+            RepositoryResult.StorageUnavailable,
+            -> throw WatchWorkoutDerivationPreflightException()
         }
     }
 

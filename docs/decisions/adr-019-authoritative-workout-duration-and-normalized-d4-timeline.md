@@ -1,6 +1,6 @@
 # ADR-019 — Duração autoritativa do treino e timeline D4 normalizada
 
-- **Status:** aceita para implementação na Spec 021
+- **Status:** aceita e implementada na Spec 021
 - **Data:** 2026-08-08
 
 ## Contexto
@@ -202,3 +202,14 @@ mesmo conjunto de treinos. A correspondência de `packet2[6]` com os segundos
 finais foi exata em três atividades observadas. Isso é evidência física forte do
 layout preferido conhecido, não garantia universal para firmware ainda não
 observado; valores fora de `0..59` permanecem fail-closed.
+
+## Estado de implementação
+
+- Runtime novo usa `d4-v3` com duração autoritativa e timeline normalizada no
+  mesmo contrato.
+- Derivação ativa usa `watch-d3-d4-v2`; `d4-v1` e `d4-v2` permanecem preservados
+  como proveniência legada.
+- Room schema `v11` preserva índice de origem de amostras D4 por migration
+  aditiva, sem efeitos remotos.
+- Validação integrada da Spec 021 foi concluída no Galaxy S22, com ressalvas de
+  firmware, Health Connect write-only e cenários físicos não repetidos.
