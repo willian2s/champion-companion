@@ -465,6 +465,30 @@ val MIGRATION_9_10: Migration = object : Migration(9, 10) {
     }
 }
 
+/** Migration aditiva: preserva origem/index e precisão temporal das amostras BPM. */
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "ALTER TABLE workout_heart_rate_samples ADD COLUMN sourceSampleIndex INTEGER",
+        )
+        connection.execute(
+            "ALTER TABLE workout_heart_rate_samples ADD COLUMN sampledAtEpochSecond INTEGER",
+        )
+        connection.execute(
+            "ALTER TABLE workout_heart_rate_samples ADD COLUMN sampledAtNano INTEGER",
+        )
+        // IDs continuam sendo a identidade primária. Timestamps podem coincidir
+        // após normalização sub-milisegundo, portanto o índice não é único.
+        connection.execute(
+            "DROP INDEX IF EXISTS index_workout_heart_rate_samples_activityId_sampledAtEpochMillis",
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_workout_heart_rate_samples_activityId_sampledAtEpochMillis " +
+                "ON workout_heart_rate_samples(activityId, sampledAtEpochMillis)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

@@ -15,8 +15,12 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutMetrics
+import br.com.mwconsulting.championcompanion.core.model.MeasuredWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V3_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDurationResolver
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -30,9 +34,12 @@ object ChampionD4WorkoutParser {
     fun parse(request: Request): WatchWorkoutParserResult {
         val usesDecodedIntervalSteps = when (request.parserVersion.value) {
             WATCH_WORKOUT_D4_V1_PARSER_VERSION -> false
-            WATCH_WORKOUT_D4_V2_PARSER_VERSION -> true
+            WATCH_WORKOUT_D4_V2_PARSER_VERSION,
+            WATCH_WORKOUT_D4_V3_PARSER_VERSION,
+            -> true
             else -> return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
         }
+        val usesNormalizedTimeline = request.parserVersion.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
         val packetsByIndex = request.block.packets.groupBy { it.packetIndex }
         val packet1 = packetsByIndex[1]?.firstOrNull() ?: return invalid(WatchWorkoutImportErrorCategory.REQUIRED_PACKET_MISSING, request)
         val packet2 = packetsByIndex[2]?.firstOrNull() ?: return invalid(WatchWorkoutImportErrorCategory.REQUIRED_PACKET_MISSING, request)
@@ -44,6 +51,12 @@ object ChampionD4WorkoutParser {
             ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
         val durationData = parsePacket3(packet3.rawBytesCopy())
             ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        if (request.parserVersion.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION &&
+            startEnd.layout == WatchWorkoutD4Layout.PREFERRED &&
+            durationData.layout != WatchWorkoutD4Layout.PREFERRED
+        ) {
+            return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        }
 
         val correctedEndedAt = resolveEndedAt(startEnd, totals)
             ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
@@ -59,6 +72,9 @@ object ChampionD4WorkoutParser {
         } else {
             startEnd.startedAt.plusSeconds(resolvedDurationSeconds)
         }
+        if (usesNormalizedTimeline && resolvedDurationSeconds <= 0L) {
+            return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        }
 
         val distinctSamplePackets = linkedMapOf<Int, ChampionD4WorkoutBlockProtocol.D4CollectedPacket>()
         request.block.packets.filter { it.packetIndex >= 4 }.forEach { packet ->
@@ -69,11 +85,32 @@ object ChampionD4WorkoutParser {
 
         val parsedSamples = distinctSamplePackets.values.mapNotNull { parseSamplePacket(it.rawBytesCopy(), it.packetIndex) }
             .sortedBy { it.minuteIndex }
+        val normalizedSampleTiming = if (usesNormalizedTimeline) {
+            normalizedSampleTiming(
+                intervals = parsedSamples.map {
+                    WorkoutInterval(
+                        index = it.minuteIndex,
+                        duration = Duration.ofSeconds(60),
+                        steps = it.rawMotionValue ushr 16,
+                        distanceMeters = DomainValue.Absent(AbsenceReason.UNKNOWN),
+                        caloriesKilocalories = DomainValue.Absent(AbsenceReason.UNKNOWN),
+                        rawMotionValue = it.rawMotionValue,
+                        rawDistanceValue = it.rawDistanceValue,
+                        rawCaloriesValue = it.rawCaloriesValue,
+                        decodedSteps = it.rawMotionValue ushr 16,
+                    )
+                },
+                totalDuration = Duration.ofSeconds(resolvedDurationSeconds),
+                sessionStartedAt = startEnd.startedAt,
+            )
+        } else {
+            null
+        }
         val intervals = parsedSamples.map {
             val decodedSteps = it.rawMotionValue.takeIf { usesDecodedIntervalSteps }?.ushr(16)
             WorkoutInterval(
                 index = it.minuteIndex,
-                duration = Duration.ofSeconds(60),
+                duration = normalizedSampleTiming?.get(it.minuteIndex)?.duration ?: Duration.ofSeconds(60),
                 steps = decodedSteps ?: it.rawMotionValue,
                 distanceMeters = DomainValue.Absent(AbsenceReason.UNKNOWN),
                 caloriesKilocalories = DomainValue.Absent(AbsenceReason.UNKNOWN),
@@ -86,8 +123,12 @@ object ChampionD4WorkoutParser {
         val heartRateSamples = parsedSamples.mapNotNull { sample ->
             sample.bpm?.let { bpm ->
                 WorkoutHeartRateSample(
-                    sampledAt = startEnd.startedAt.plusSeconds(sample.minuteIndex.toLong() * 60L),
+                    // D4 não entrega timestamp de BPM. d4-v3 usa midpoint da
+                    // janela normalizada; versões legadas preservam grade nominal.
+                    sampledAt = normalizedSampleTiming?.get(sample.minuteIndex)?.sampledAt
+                        ?: startEnd.startedAt.plusSeconds(sample.minuteIndex.toLong() * 60L),
                     bpm = bpm,
+                    sourceSampleIndex = sample.minuteIndex,
                 )
             }
         }.sortedBy { it.sampledAt }
@@ -128,7 +169,10 @@ object ChampionD4WorkoutParser {
             endedAt = resolvedEndedAt,
         )
 
-        val outOfDurationSampleCount = heartRateSamples.count { it.sampledAt.isAfter(resolvedEndedAt) }
+        val outOfDurationSampleCount = if (usesNormalizedTimeline) 0 else heartRateSamples.count { sample ->
+            val sourceIndex = sample.sourceSampleIndex ?: return@count false
+            startEnd.startedAt.plusSeconds(sourceIndex.toLong() * 60L).isAfter(resolvedEndedAt)
+        }
         val ignoredHeartRateSampleCount = parsedSamples.count { it.bpm == null }
         val crcMatchesD3 = durationData.reportedCrc == request.crc
         val hasPartialCondition = request.block.timedOut ||
@@ -136,7 +180,7 @@ object ChampionD4WorkoutParser {
             request.block.duplicatePacketIndices.isNotEmpty() ||
             (durationData.recordCount > 0 && parsedSamples.size != durationData.recordCount) ||
             !crcMatchesD3 ||
-            outOfDurationSampleCount > 0
+            (usesNormalizedTimeline && normalizedSampleTiming == null)
         val layout = resolveOverallLayout(startEnd.layout, totals.layout, durationData.layout)
         val parserValidity = if (hasPartialCondition) ParserValidity.PARTIAL else ParserValidity.VALID
         val input = WatchWorkoutParserInput(
@@ -346,6 +390,40 @@ object ChampionD4WorkoutParser {
             rawDistanceValue = bytes.readUInt24LittleEndian(10).toLong(),
             rawCaloriesValue = bytes.readUInt16LittleEndian(13).toLong(),
         )
+    }
+
+    private data class NormalizedSampleTiming(
+        val duration: Duration,
+        val sampledAt: Instant,
+    )
+
+    private fun normalizedSampleTiming(
+        intervals: List<WorkoutInterval>,
+        totalDuration: Duration,
+        sessionStartedAt: Instant,
+    ): Map<Int, NormalizedSampleTiming>? {
+        val measuredIntervals = intervals.map { interval ->
+            MeasuredWorkoutInterval.fromD4V2(
+                index = interval.index,
+                rawMotionValue = interval.rawMotionValue ?: return null,
+                rawTemporalDistance = interval.rawDistanceValue,
+                rawTemporalCalories = interval.rawCaloriesValue,
+            ).valueOrNull() ?: return null
+        }
+        val resolution = WorkoutDurationResolver.resolve(
+            totalDuration = totalDuration,
+            intervals = measuredIntervals,
+            sessionStartedAt = sessionStartedAt,
+        )
+        if (!resolution.isEligible) return null
+        return resolution.intervals.associate { interval ->
+            val window = interval.effectiveWindow ?: return null
+            val duration = interval.effectiveDuration ?: return null
+            interval.index to NormalizedSampleTiming(
+                duration = duration,
+                sampledAt = window.start.plus(duration.dividedBy(2)),
+            )
+        }
     }
 
     private fun buildTimestamp(

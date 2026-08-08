@@ -434,10 +434,10 @@ interface WorkoutDetailDao {
     @Query("DELETE FROM workout_heart_rate_samples WHERE activityId = :activityId")
     suspend fun deleteHeartRateSamplesForActivity(activityId: String): Int
 
-    @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis")
+    @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis, sampledAtEpochSecond, sampledAtNano, id")
     suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
 
-    @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, id")
+    @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, sampledAtEpochSecond, sampledAtNano, id")
     fun observeAllHeartRateSamples(): Flow<List<WorkoutHeartRateSampleEntity>>
 
     @Query(
@@ -458,6 +458,9 @@ interface WorkoutDetailDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>)
+
+    @Update
+    suspend fun updateHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>): Int
 }
 
 data class WorkoutDerivationRecord(

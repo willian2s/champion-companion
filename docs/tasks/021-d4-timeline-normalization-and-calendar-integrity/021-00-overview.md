@@ -4,7 +4,7 @@
 - **Spec:** [021-d4-timeline-normalization-and-calendar-integrity.md](../../specs/021-d4-timeline-normalization-and-calendar-integrity.md)
 - **ADR:** [ADR-019](../../decisions/adr-019-authoritative-workout-duration-and-normalized-d4-timeline.md)
 - **Base:** `feat/014-watch-workout-derived-metrics`
-- **Progresso:** `1/4`
+- **Progresso:** `2/4`
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ Corrigir duas falhas independentes observadas após a Fase 014:
 ## Checklist
 
 - [x] [021-01-correct-d4-authoritative-duration.md](021-01-correct-d4-authoritative-duration.md)
-- [ ] [021-02-normalize-d4-samples-to-workout-duration.md](021-02-normalize-d4-samples-to-workout-duration.md)
+- [x] [021-02-normalize-d4-samples-to-workout-duration.md](021-02-normalize-d4-samples-to-workout-duration.md)
 - [ ] [021-03-restore-health-sync-semantic-candidate-derivation.md](021-03-restore-health-sync-semantic-candidate-derivation.md)
 - [ ] [021-04-validate-existing-data-and-close.md](021-04-validate-existing-data-and-close.md)
 
@@ -71,7 +71,7 @@ métricas pessoais nas evidências da task.
 | Task | Status |
 | --- | --- |
 | 021-01 | `completed` |
-| 021-02 | `pending` |
+| 021-02 | `completed` |
 | 021-03 | `pending` |
 | 021-04 | `pending` |
 
@@ -84,6 +84,12 @@ métricas pessoais nas evidências da task.
 - não executar wipe, `clear data`, exclusão de atividade ou ressync automático;
 - manter documentação, comandos, evidências e riscos atualizados na própria task;
 - solicitar revisão independente antes de marcar cada subtarefa concluída.
+
+## Observações
+
+- `021-02` implementada e validada por `git diff --check` e build completo.
+- Validação física com banco preservado, reprocessamento do cenário de 32 samples
+  e instalação no dispositivo permanecem em `021-04`.
 
 ## Fechamento esperado
 

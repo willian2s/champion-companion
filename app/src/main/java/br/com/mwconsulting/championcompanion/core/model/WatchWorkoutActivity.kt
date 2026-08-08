@@ -11,12 +11,13 @@ enum class ParserValidity {
 
 internal const val WATCH_WORKOUT_D4_V1_PARSER_VERSION = "d4-v1"
 internal const val WATCH_WORKOUT_D4_V2_PARSER_VERSION = "d4-v2"
-/** Preparada para o contrato completo de timeline normalizada; não ativa no runtime. */
+/** Parser completo com duração oficial e timeline normalizada. */
 internal const val WATCH_WORKOUT_D4_V3_PARSER_VERSION = "d4-v3"
 
 internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
     parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION ||
-        parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION
+        parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
+        parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
 
 enum class WorkoutType {
     WALKING,
@@ -93,6 +94,8 @@ data class WorkoutInterval(
 data class WorkoutHeartRateSample(
     val sampledAt: Instant,
     val bpm: Int,
+    /** Índice D4 de origem; nulo para origens com timestamp efetivamente real. */
+    val sourceSampleIndex: Int? = null,
 )
 
 /** Valores interpretados cruzam o parser sem reter pacotes binários D3/D4. */
@@ -749,7 +752,8 @@ data class WorkoutActivity private constructor(
 
         private fun isValidRawInterval(interval: WorkoutInterval, parserVersion: ParserVersion?): Boolean {
             val isD4V1 = parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION
-            val isD4V2 = parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION
+            val isD4V2OrV3 = parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
+                parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
             val rawMotionValid = interval.rawMotionValue == null ||
                 interval.rawMotionValue in 0L..MeasuredWorkoutInterval.MAX_RAW_MOTION_VALUE
             val rawDistanceValid = interval.rawDistanceValue == null || interval.rawDistanceValue in 0L..0xFF_FFFFL
@@ -761,7 +765,7 @@ data class WorkoutActivity private constructor(
                     interval.steps == interval.decodedSteps
                 )
             val versionedRawValid = when {
-                isD4V2 -> interval.rawMotionValue != null && interval.rawDistanceValue != null &&
+                isD4V2OrV3 -> interval.rawMotionValue != null && interval.rawDistanceValue != null &&
                     interval.rawCaloriesValue != null && interval.decodedSteps != null
                 isD4V1 -> interval.rawMotionValue != null && interval.decodedSteps == null
                 else -> true
@@ -769,8 +773,11 @@ data class WorkoutActivity private constructor(
             return rawMotionValid && rawDistanceValid && rawCaloriesValid && decodedStepsValid && versionedRawValid
         }
 
-        private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean =
-            samples.all { it.bpm in 30..220 }
+        private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean {
+            val sourceIndexes = samples.mapNotNull { it.sourceSampleIndex }
+            return samples.all { it.bpm in 30..220 && it.sourceSampleIndex?.let { index -> index >= 0 } != false } &&
+                sourceIndexes.size == sourceIndexes.toSet().size
+        }
 
         private fun areValidTemporalOrder(samples: List<WorkoutHeartRateSample>): Boolean {
             var previous: Instant? = null
