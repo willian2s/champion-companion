@@ -17,8 +17,10 @@ import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionCheckpoint
@@ -1854,13 +1856,37 @@ class RoomRepositories @Inject constructor(
             )
         }
         val workoutCandidates = combine(
-            database.workoutActivityDao().observeAllHealthSyncCandidates(),
-            database.workoutDetailDao().observeAllHeartRateSamples(),
-        ) { records, samples ->
-            val samplesByActivityId = samples.groupBy { it.activityId }
-            records.mapNotNull { record ->
+            combine(
+                database.workoutActivityDao().observeAllHealthSyncCandidates(),
+                database.workoutDetailDao().observeAllIntervals(),
+                database.workoutDetailDao().observeAllHeartRateSamples(),
+            ) { records, intervals, samples ->
+                HealthSyncWorkoutCandidateFacts(
+                    records = records,
+                    intervalsByActivityId = intervals.groupBy { it.activityId },
+                    samplesByActivityId = samples.groupBy { it.activityId },
+                )
+            },
+            database.workoutDerivationDao().observeActiveRecords().map { records ->
+                records.groupBy { it.snapshot.activityId }
+                    .mapNotNull { (activityId, activityRecords) ->
+                        activityRecords.singleOrNull()?.let { activityId to it }
+                    }
+                    .toMap()
+            },
+        ) { facts, derivationsByActivityId ->
+            facts.records.mapNotNull { record ->
+                val rawIntervals = facts.intervalsByActivityId[record.activity.id].orEmpty()
+                val derivationIntervals = record.importParserVersion
+                    ?.let { parserVersion ->
+                        prepareWatchWorkoutIntervalsForDerivation(parserVersion, rawIntervals)
+                    }
+                    ?: rawIntervals
                 record.toHealthSyncCandidateDomain(
-                    samples = samplesByActivityId[record.activity.id].orEmpty(),
+                    intervals = rawIntervals,
+                    samples = facts.samplesByActivityId[record.activity.id].orEmpty(),
+                    derivation = derivationsByActivityId[record.activity.id],
+                    derivationIntervals = derivationIntervals,
                 )
             }.associateBy { it.id.value }
         }
@@ -3572,6 +3598,12 @@ private data class NonWorkoutHealthSyncCandidates(
     val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
     val weightMeasurements: Map<UUID, WeightMeasurement>,
     val userProfiles: Map<UUID, UserProfile>,
+)
+
+private data class HealthSyncWorkoutCandidateFacts(
+    val records: List<HealthSyncWorkoutCandidateRecord>,
+    val intervalsByActivityId: Map<String, List<WorkoutIntervalEntity>>,
+    val samplesByActivityId: Map<String, List<WorkoutHeartRateSampleEntity>>,
 )
 
 private data class HealthSyncSemanticCandidateIndex(

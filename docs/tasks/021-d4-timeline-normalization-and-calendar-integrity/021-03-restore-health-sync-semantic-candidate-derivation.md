@@ -2,7 +2,7 @@
 
 - **Ticker:** `021`
 - **Número:** `03`
-- **Status:** `pending`
+- **Status:** `in_progress`
 
 ## Objetivo
 
@@ -158,3 +158,77 @@ Não criar nem executar testes automatizados.
   apenas fornecer dados faltantes;
 - rollback deve voltar ao read model anterior sem modificar nenhuma linha da
   fila, pois a task não autoriza writes corretivos.
+
+## Evidências de implementação
+
+- `WorkoutDetailDao` e `WorkoutDerivationDao` passaram a expor flows agregados
+  para intervalos raw e records ativos de derivação.
+- O índice semântico agrupa dados por `activityId`/`snapshotId` e reconstrói o
+  candidate com fatos raw, snapshot ativo e filhos derivados antes dos
+  predicados de elegibilidade.
+- O record ativo é observado com relação transacional, e múltiplos snapshots
+  ativos para a mesma atividade não são colapsados silenciosamente.
+- A hidratação usa ponte em memória para `d4-v1`, preservando a validação
+  parser-aware de `d4-v2`/`d4-v3` sem alterar dados persistidos.
+- Ausência, corrupção, orfandade e pares não suportados continuam falhando
+  fechados; nenhuma operação ou payload da fila é alterado.
+- Validações executadas: `git diff --check` e
+  `./gradlew lint assembleDebug assembleRelease` — sucesso; `installDebug`
+  também concluiu.
+- Nenhum teste automatizado foi criado ou executado. Validação física integrada
+  permanece pendente para `021-04`; revisão independente foi solicitada e
+  aprovada com ressalva factual.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-00-overview.md`
+- `docs/tasks/021-d4-timeline-normalization-and-calendar-integrity/021-03-restore-health-sync-semantic-candidate-derivation.md`
+
+## Decisões e desvios
+
+- Foi usado `observeActiveRecords()` transacional para carregar snapshot e
+  filhos derivados no mesmo read model, evitando consultas individuais por
+  operação e emissões parciais entre tabelas relacionadas.
+- A preparação parser-aware dos intervalos ocorre somente em memória no índice:
+  `d4-v1` recupera `decodedSteps` de `rawMotionValue`; `d4-v2`/`d4-v3` exigem a
+  igualdade persistida. Nenhuma coluna raw/measured é reescrita.
+- Snapshots ativos duplicados por atividade são omitidos do mapa semântico, em
+  vez de selecionar uma linha arbitrariamente; a atividade continua fail-closed
+  para operações que exigem derivação.
+- Não houve migration, mudança de fila, alteração de payload, efeito remoto,
+  mudança visual ou alteração em Spec 018.
+
+## Comandos executados
+
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — passou; execução final em
+  4m30s; warnings
+  preexistentes de índice Room e overrides deprecated não bloquearam o build.
+- `./gradlew installDebug` — passou; APK instalado em um dispositivo conectado
+  (`SM-S901E`, Android 16).
+- Testes automatizados — não executados, conforme escopo da subtarefa e regras
+  do repositório.
+
+## Resultados e evidências
+
+- Compilação debug/release e lint concluídos com sucesso após a correção da
+  hidratação `d4-v1` e da leitura transacional dos records ativos.
+- O índice semântico permanece local-only e reativo; o diff não contém writes em
+  `health_sync_operations`, chamadas Health Connect ou leitura BLE.
+- A validação física com banco preservado e a confirmação das 84 operações sem
+  falso `UNRESOLVED_AGGREGATE` permanecem para `021-04`.
+- Revisão independente aprovou a implementação estática após a correção da
+  ponte `d4-v1`, sem bloqueador no diff; a ressalva é a validação factual
+  integrada ainda não executada.
+
+## Riscos residuais
+
+- Flows agregados carregam dados locais relacionados em memória; não há N+1,
+  mas custo global pode crescer com histórico grande.
+- Validação física no dispositivo, estabilidade das operações existentes e
+  ausência observável do banner ainda não foram executadas nesta subtarefa.
+- Revisão independente foi concluída com aprovação estática e ressalva de
+  evidência física; status só deve virar `completed` após essa evidência.

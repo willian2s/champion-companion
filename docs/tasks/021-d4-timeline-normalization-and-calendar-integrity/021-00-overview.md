@@ -88,8 +88,11 @@ métricas pessoais nas evidências da task.
 ## Observações
 
 - `021-02` implementada e validada por `git diff --check` e build completo.
+- `021-03` possui implementação e build/instalação validados, com revisão
+  independente estática aprovada; permanece `[ ]` até validação factual do banco
+  preservado e do calendário em `021-04`.
 - Validação física com banco preservado, reprocessamento do cenário de 32 samples
-  e instalação no dispositivo permanecem em `021-04`.
+  e confirmação do calendário permanecem em `021-04`.
 
 ## Fechamento esperado
 

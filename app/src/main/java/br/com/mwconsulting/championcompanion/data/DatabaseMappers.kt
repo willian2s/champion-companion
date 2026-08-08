@@ -998,14 +998,25 @@ internal fun WorkoutActivityEntity.toDomain(
 }
 
 internal fun HealthSyncWorkoutCandidateRecord.toHealthSyncCandidateDomain(
+    intervals: List<WorkoutIntervalEntity>,
     samples: List<WorkoutHeartRateSampleEntity>,
+    derivation: WorkoutDerivationRecord?,
+    derivationIntervals: List<WorkoutIntervalEntity> = intervals,
 ): WorkoutActivity? {
     val importRecord = optionalImportEntity() ?: if (importId == null) null else return null
     if (importRecord != null && !importRecord.isStructurallyRelatedTo(activity)) return null
+    val derivationSnapshot = derivation?.toDomain(
+        activityOrigin = enum<WorkoutActivityOrigin>(activity.origin) ?: return null,
+        activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+        activityDurationNanos = activity.durationNanos,
+        rawIntervals = derivationIntervals,
+        heartRateSamples = samples.map { it.toDomain() ?: return null },
+    )
     return activity.toDomain(
         importRecord = importRecord,
-        intervals = emptyList(),
+        intervals = intervals,
         samples = samples,
+        derivationSnapshot = derivationSnapshot,
     )
 }
 
