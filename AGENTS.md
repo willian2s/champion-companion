@@ -3,7 +3,17 @@
 ## Ler primeiro
 
 - Leia `docs/baseline/current-baseline.md` antes de mudar código, dependências ou arquitetura.
+- Para direção macro após a Fase 15, leia `docs/roadmap/post-phase-15-direction.md`.
 - Se tocar escopo funcional, confira spec correspondente em `docs/specs/` e ADRs em `docs/decisions/`.
+
+## Fases e tickers
+
+- Número de fase do roadmap e ticker de spec/task são conceitos independentes.
+- Coincidência numérica não implica relação semântica. Exemplo: a Spec/Task `021` não representa a Fase 21.
+- Fases representam evolução macro do produto; tickers identificam unidades de trabalho executáveis.
+- Fases removidas não são renumeradas nem têm seus números reciclados.
+- Correção posterior de funcionalidade concluída não reabre uma fase por padrão.
+- Antes de planejar qualquer fase posterior à Fase 15, siga `docs/roadmap/post-phase-15-direction.md` e audite o estado real do código para não reimplementar trabalho já entregue por specs independentes.
 
 ## Estrutura real
 
@@ -46,46 +56,50 @@
 ## Guard rails
 
 - Existem suites em `app/src/test` e `app/src/androidTest`; não trate criação ou execução de testes como etapa padrão e não crie novos testes, salvo pedido explícito do usuário.
-- `Phase003PrivacyGuardTest` ainda bloqueia termos de localização/rota em
-  `core/model`, `core/database`, `data`, `core/logging` e testes existentes.
-  Essa regra ficou incompatível com a política autorizada da Fase 13 e é dívida
-  conhecida: não alterar, contornar, renomear termos ou executar esse guard como
-  validação desta fase. Implementação de rota só é permitida para sessão
-  explícita de caminhada/corrida da Fase 13, nas fronteiras de domínio,
-  persistência e dados; nunca em logs, diagnósticos, exportações ou testes.
-- Fase 13 não autoriza rastreamento passivo, servidor, exportação, GPX, TCX,
-  FIT, backup ou device transfer de rota. Treino livre e esteira não usam
-  localização. Fase 12 continua sem rota; Fase 14 mantém WorkManager para
-  tarefas adiáveis, sem controlar sessão ativa.
+- Treinos iniciados pelo celular, GPS, localização de sessão, rota, mapa e `ExerciseRoute` não fazem parte da direção futura do produto.
+- Infraestrutura, migrations, schemas, dados e evidências históricas da Fase 13 permanecem preservados até trabalho explícito de limpeza. Preservação não autoriza expansão funcional.
+- Não introduza localização em novos fluxos, nem use código legado da Fase 13 como justificativa para reativar treino phone.
+- `Phase003PrivacyGuardTest` preserva o bloqueio de termos de localização/rota em áreas sensíveis; não contorne ou renomeie termos para burlar o guard.
 - `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
 ## Diretriz autoritativa após encerramento da Fase 013
 
-- Não continuar implementando ou corrigindo treinos iniciados pelo celular.
+- Não continuar implementando ou corrigindo treinos iniciados pelo celular como direção de produto.
 - Não expandir GPS, rota, `ExerciseRoute` ou BLE live em sessão phone.
 - Preservar migrations, schemas, dados e evidências existentes até task explícita de remoção.
 - Priorizar importação, derivação, revisão e sincronização com Health Connect de treinos iniciados pelo relógio.
 
-## Planejamento documental da Fase 014
+## Estado documental da Fase 014 e correções posteriores
 
-- Fase 014 usa ticker `014` e permanece `pending` até implementação e validação
-  explícitas.
-- Fluxo planejado: Champion C001 inicia e encerra; importação D3/D4 explícita;
-  derivação; revisão local; sincronização Health Connect.
-- Distância canônica de `WATCH_D3_D4` usa somente passos válidos ×
-  `stepLengthMeters`. Distância original do relógio permanece diagnóstica e não
-  é fallback.
-- `stepLengthMeters` representa um passo individual. Contratos novos usam essa
-  terminologia e congelam valor, origem e versão da derivação por atividade.
-- Fase 014 não autoriza GPS, rota, mapa, `ExerciseRoute`, treino phone, BLE live,
-  importação silenciosa, TCX, FIT, GPX ou remoção de legado da Fase 013.
-- Health Connect continua write-only, local-first e explícito; projeções filhas,
-  IDs estáveis, versões monotônicas, retry e reconciliação seguem ADR-018.
+- A Fase 014 está `completed`, com progresso `17/17`.
+- Fluxo vigente: Champion C001 inicia e encerra; importação D3/D4 explícita; derivação; revisão local; sincronização Health Connect.
+- Distância canônica de `WATCH_D3_D4` usa somente passos válidos × `stepLengthMeters`. Distância original do relógio permanece diagnóstica e não é fallback.
+- `stepLengthMeters` representa um passo individual e fica congelado por snapshot de atividade.
+- Parser efetivo de novas importações é `d4-v3`; `d4-v1` e `d4-v2` permanecem legados identificáveis.
+- Derivação temporal efetiva usa `watch-d3-d4-v2`, com duração oficial da atividade como fonte temporal e samples D4 normalizados dentro dessa janela.
+- A Spec/Task `021` corrigiu duração D4, normalização temporal e candidate semântico do calendário. Esse ticker não representa a Fase 21.
+- Health Connect continua write-only, local-first e explícito; projeções filhas, IDs estáveis, versões monotônicas, retry e reconciliação seguem ADR-018/ADR-019.
+
+## Direção pós-Fase 15
+
+A fonte autoritativa é `docs/roadmap/post-phase-15-direction.md`.
+
+Resumo vigente:
+
+- Fase 16: manter e auditar antes do planejamento;
+- Fase 17: manter, simplificar e auditar antes do planejamento;
+- Fase 18: removida do roadmap ativo;
+- Fase 19: manter e auditar antes do planejamento;
+- Fase 20: manter e reescrever sem GPS/rota/distribuição pública;
+- Fases 21, 22, 23, 24 e 25: removidas do roadmap ativo.
+
+O Champion Companion é um aplicativo pessoal. Não criar fases de beta, lançamento público, matriz multi-device, paridade obrigatória com MotionLog ou cobertura ampla de testes sem nova decisão explícita.
 
 ## Privacidade e backup
 
 - `AndroidManifest.xml` mantém `android:allowBackup="false"`.
-- `app/src/main/res/xml/backup_rules.xml` e `data_extraction_rules.xml` negam backup e device transfer para root/files/database/sharedpref/external. Preserve isso ao tocar manifest ou regras XML.
+- `app/src/main/res/xml/backup_rules.xml` e `data_extraction_rules.xml` negam backup e device transfer para root/files/database/sharedpref/external. Preserve isso até decisão explícita da futura Fase 17.
+- Backup futuro, se planejado, deve partir da direção de exportação/restauração manual local registrada no roadmap pós-Fase 15.
 
 ## Convenções de mudança
 
@@ -94,7 +108,7 @@
 - Em documentação, ADRs, specs, tasks, roadmap, comentários e textos de UI escritos durante as tasks, siga sempre as regras gramaticais do português brasileiro, incluindo acentuação correta.
 - Sempre que executar uma task com spec associada, atualize também o `overview` da spec correspondente no mesmo trabalho.
 - Se algum arquivo de task, spec ou overview repetir essa regra com texto divergente, siga `AGENTS.md` e alinhe a documentação no mesmo trabalho.
-- Se mudança introduzir decisão arquitetural, de persistência, privacidade, navegação, build ou workflow com impacto duradouro, crie ou atualize ADR correspondente em `docs/decisions/` no mesmo trabalho.
+- Se mudança introduzir decisão arquitetural, de persistência, privacidade, navegação, build ou workflow com impacto duradouro, crie ou atualize ADR correspondente no mesmo trabalho.
 - Se mudança for visual, inclua screenshot no PR.
 - Não misture refatorações não relacionadas.
 - Testes não devem ser considerados para este projeto e não devem ser criados sem pedido explícito do usuário.
