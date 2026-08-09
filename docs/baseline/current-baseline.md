@@ -89,12 +89,12 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v10`; as migrations efetivas da Fase 014 são `MIGRATION_8_9` (Room v9, métricas locais) e `MIGRATION_9_10` (schema 10, projeções filhas), ambas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v11`; as migrations efetivas das Fases 014/021 são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas) e `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
 ## Registro factual final da Fase 014
 
-- O parser efetivo de novas importações é `d4-v2`; `d4-v1` permanece legado
-  identificável e reprocessável somente por ação explícita.
+- O parser efetivo de novas importações é `d4-v3`; `d4-v1` e `d4-v2` permanecem
+  legados identificáveis e reprocessáveis somente por ação explícita.
 - A derivação congela `stepLengthMeters` como distância de um passo individual,
   origem, método e versão por atividade. Distância canônica usa somente a soma
   dos intervalos elegíveis; valores originais, calibrados históricos e agregados

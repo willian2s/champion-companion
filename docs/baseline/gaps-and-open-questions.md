@@ -18,10 +18,11 @@
 
 ## Estado factual final da Fase 014
 
-- Parser novo usa `d4-v2`; `d4-v1` permanece legado identificável, sem
-  `decodedSteps` criado automaticamente pela migration.
-- `MIGRATION_8_9` levou o banco ao Room v9 e `MIGRATION_9_10` levou o banco ao
-  schema v10. Ambas são aditivas e não executam efeitos remotos.
+- Parser efetivo novo usa `d4-v3`; `d4-v1` e `d4-v2` permanecem legados
+  identificáveis, sem reescrita silenciosa.
+- `MIGRATION_8_9` levou o banco ao Room v9, `MIGRATION_9_10` ao schema v10 e
+  `MIGRATION_10_11` ao schema v11. Todas são aditivas e não executam efeitos
+  remotos.
 - A projeção Health Connect usa operações filhas com payload, ID e versão
   congelados, retry foreground explícito e reconciliação por ID exato. A
   integração permanece write-only.

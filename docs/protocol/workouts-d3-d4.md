@@ -58,19 +58,20 @@ dispositivo”.
 - Treinos phone, GPS, rota, mapa, `ExerciseRoute` e BLE live não fazem parte da
   direção da Fase 014.
 
-## Estado factual final da Fase 014
+## Estado factual final da Fase 014 e da Spec 021
 
-- Novas importações usam `parserVersion = d4-v2`; `d4-v1` permanece identificável
-  como legado. `MIGRATION_8_9` preserva o u24 legado como raw e não cria
-  `decodedSteps` automaticamente.
+- Novas importações usam `parserVersion = d4-v3`; `d4-v1` e `d4-v2` permanecem
+  identificáveis como legado. `MIGRATION_8_9` preserva o u24 legado como raw e
+  não cria `decodedSteps` automaticamente.
 - O parser novo preserva `rawMotionValue`, deriva `decodedSteps` com deslocamento
   de 16 bits e mantém os 16 bits inferiores, distância temporal e calorias
   temporais como desconhecidos/raw. A sequência sanitizada de referência soma
   `3.737` passos; isso é evidência do caso observado, não garantia para todos os
   firmwares.
-- A série entregue aplica índices contínuos e únicos, duração `T/N/60 s`,
-  residual positivo e plausibilidade separada. `T = 1.637 s` produz `27 × 60 s +
-  17 s`; não há redistribuição nem síntese de cauda.
+- A série entregue pela Spec 021 aplica índices contínuos e únicos, timeline
+  normalizada por divisão inteira de `T` entre `N` e resto distribuído nos
+  primeiros intervalos. A soma efetiva fecha exatamente em `T`; `60 s` permanece
+  granularidade nominal, não duração obrigatória.
 - A distância canônica usa a soma dos intervalos `decodedSteps ×
   stepLengthMetersUsed`. O snapshot congela valor individual, origem, método e
   versão da derivação. Distâncias original e calibrada histórica permanecem
@@ -186,14 +187,17 @@ Essa é uma regra do parser, não uma garantia universal do protocolo do relógi
 | --- | --- | --- |
 | layout preferido | início em `7..13`; fim em `14..19`; anos u16 LE | heurística do código |
 | layout legado | offsets alternativos em `5..19` | fallback do código |
-| duração | diferença positiva entre início/fim; fallback do pacote 3 | interpretação do código |
-| `endedAt` no domínio | parser propaga o fim resolvido do pacote 1 ou o fallback de duração do pacote 3 | proveniência temporal explícita no domínio |
+| segundo final preferido | `packet2[6]`, somente quando o candidato preferido do pacote 2 é selecionado; exige `0..59` | evidência confirmada no dispositivo para três atividades; limite de firmware |
+| segundo final legado | `packet1[14]` | comportamento do código atual; sem alteração de offset |
+| duração | diferença positiva entre `startedAt` e `endedAt` corrigidos; fallback do pacote 3 somente no layout legado | duração oficial separada de `recordCount` e samples |
+| `endedAt` no domínio | layout preferido combina data/hora/minuto de `packet1[14..19]` com `packet2[6]`; valor preferido fora de `0..59` falha fechado | proveniência temporal explícita no domínio |
 
 ## Pacote 2 — totais
 
 | Campo | Layout preferido atual | Layout legado atual | Classificação |
 | --- | --- | --- | --- |
 | passos totais | u16 LE `7..8` | u24 LE `5..7` | comportamento do código; coerente na atividade de referência |
+| segundo final | byte `6`, `0..59` | não usado; segundo vem de `packet1[14]` | confirmado no dispositivo somente no layout preferido observado |
 | distância total raw | u16 LE `11..12`, escalado pelo parser | u32 LE `8..11` | unidade/layout do dispositivo não comprovados de forma geral |
 | calorias totais raw | u24 LE `15..17` | u32 LE `12..15` | unidade/layout do dispositivo não comprovados de forma geral |
 
@@ -313,9 +317,9 @@ A migration não deve:
 - alterar workflow;
 - depender do payload diagnóstico.
 
-## `d4-v2`
+## `d4-v2` — legado
 
-O runtime de novas importações usa `parserVersion = d4-v2` e produz
+O runtime histórico usava `parserVersion = d4-v2` e produzia
 separadamente:
 
 ```kotlin
@@ -326,15 +330,35 @@ val decodedSteps = rawMotionValue ushr 16
 Versão desconhecida falha fechada na criação da atividade; não há reclassificação
 silenciosa de dados legados.
 
+## `d4-v3` — contrato efetivo
+
+O runtime de novas importações usa `parserVersion = d4-v3` e combina duração
+autoritativa corrigida com timeline normalizada. O parser preserva ordem, passos,
+BPM e valores raw; timestamps e durações efetivas são derivados por
+`watch-d3-d4-v2`. `d4-v1` e `d4-v2` continuam disponíveis somente como
+proveniência legada e para reprocessamento explícito seguro.
+
+## Fronteira da Spec 021 — subtarefa `021-01`
+
+O parser passou a resolver a duração oficial a partir de `startedAt` e `endedAt`
+corrigidos. No layout preferido, `packet2[6]` é `endSecond` e qualquer valor fora
+de `0..59` falha fechado; não há inferência por `recordCount`, quantidade de
+samples ou horário inventado. No layout legado, o segundo continua vindo de
+`packet1[14]`.
+
+Esta correção de fonte temporal integra o contrato efetivo `d4-v3` com a timeline
+normalizada entregue em `021-02`. A correspondência de `packet2[6]` foi observada
+em três atividades; não constitui garantia universal para firmware não observado.
+
 # Índices, parcialidade e duração
 
-## Estado atual
+## Estado efetivo da Spec 021
 
 - pacotes `4+` presentes são ordenados por `minuteIndex`;
 - duplicatas usam a primeira ocorrência e tornam o parser parcial;
 - lacunas permanecem como lacunas;
-- os intervalos brutos mantêm 60 segundos nominais;
-- o resolvedor temporal valida índices antes de aplicar a política `T/N/60 s`;
+- os intervalos brutos preservam 60 segundos como duração nominal/proveniência;
+- o resolvedor temporal valida índices antes de distribuir `T` por `N`;
 - lacuna, duplicata, primeiro índice não zero ou ordem inconsistente preservam os
   fatos sem receber janelas efetivas sintetizadas;
 - séries elegíveis distinguem duração exata, residual, insuficiente e cauda não
@@ -342,7 +366,7 @@ silenciosa de dados legados.
 - a materialização do snapshot e da duração efetiva persistida pertence à
   derivação posterior.
 
-## Contrato planejado V1
+## Contrato efetivo V1
 
 A série canônica exige índices:
 
@@ -353,12 +377,16 @@ A série canônica exige índices:
 Primeiro índice diferente de zero, lacuna, duplicata ou ordem inconsistente torna
 a série inelegível, preservando os fatos raw/measured.
 
-Com duração total `T`, `N` intervalos elegíveis e quantum `Q = 60 s`:
+Com duração total `T` e `N` intervalos elegíveis:
 
-- `T == NQ`: todos usam 60 s;
-- `(N−1)Q < T < NQ`: último usa o restante positivo;
-- `T <= (N−1)Q`: série inelegível;
-- `T > NQ`: cauda permanece sem intervalo sintético.
+```text
+base = T / N       (divisão inteira em nanos)
+resto = T % N
+duration[i] = base + 1 ns quando i < resto
+```
+
+Todas as janelas são positivas, contíguas e contidas na sessão; a soma fecha
+exatamente em `T`, sem cauda sintética ou descarte de sample.
 
 Exemplo disponível:
 
@@ -376,7 +404,7 @@ Plausibilidade é avaliada separadamente e nunca redistribui passos.
 
 | Campo | Estado atual |
 | --- | --- |
-| início e duração | interpretados dos pacotes 1/3 |
+| início e duração | início e `endedAt` vêm dos cabeçalhos; no preferido, `endedAt` usa `packet1[14..19]` + `packet2[6]` validado |
 | passos totais | interpretados do pacote 2 |
 | `steps` temporal | contém o u24 empacotado no `d4-v1` |
 | distância total | conversão atual de raw, diagnóstica para a Fase 014 |

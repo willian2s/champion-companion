@@ -422,6 +422,9 @@ data class WatchWorkoutImportLookupRecord(
 
 @Dao
 interface WorkoutDetailDao {
+    @Query("SELECT * FROM workout_intervals ORDER BY activityId, intervalIndex")
+    fun observeAllIntervals(): Flow<List<WorkoutIntervalEntity>>
+
     @Query("SELECT * FROM workout_intervals WHERE activityId = :activityId ORDER BY intervalIndex")
     suspend fun findIntervalsForActivity(activityId: String): List<WorkoutIntervalEntity>
 
@@ -434,10 +437,10 @@ interface WorkoutDetailDao {
     @Query("DELETE FROM workout_heart_rate_samples WHERE activityId = :activityId")
     suspend fun deleteHeartRateSamplesForActivity(activityId: String): Int
 
-    @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis")
+    @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis, sampledAtEpochSecond, sampledAtNano, id")
     suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
 
-    @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, id")
+    @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, sampledAtEpochSecond, sampledAtNano, id")
     fun observeAllHeartRateSamples(): Flow<List<WorkoutHeartRateSampleEntity>>
 
     @Query(
@@ -458,6 +461,9 @@ interface WorkoutDetailDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>)
+
+    @Update
+    suspend fun updateHeartRateSamples(samples: List<WorkoutHeartRateSampleEntity>): Int
 }
 
 data class WorkoutDerivationRecord(
@@ -472,6 +478,10 @@ data class WorkoutDerivationRecord(
 interface WorkoutDerivationDao {
     @Query("SELECT * FROM workout_derivation_snapshots WHERE isActive = 1 ORDER BY activityId")
     fun observeActiveSnapshots(): Flow<List<WorkoutDerivationSnapshotEntity>>
+
+    @Transaction
+    @Query("SELECT * FROM workout_derivation_snapshots WHERE isActive = 1 ORDER BY activityId")
+    fun observeActiveRecords(): Flow<List<WorkoutDerivationRecord>>
 
     @Query("SELECT * FROM workout_derivation_snapshots WHERE activeActivityId = :activityId AND isActive = 1 LIMIT 1")
     fun observeActiveSnapshotForActivity(activityId: String): Flow<WorkoutDerivationSnapshotEntity?>

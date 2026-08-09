@@ -8,8 +8,11 @@ import kotlin.math.min
 
 private const val U16_MASK = 0xFFFFL
 
-/** Versão inicial do algoritmo de série canônica de treinos do relógio. */
-const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v1"
+/** Versão da derivação normalizada de série canônica de treinos do relógio. */
+const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v2"
+
+/** Versão legada preservada somente para leitura de snapshots já persistidos. */
+internal const val WATCH_WORKOUT_LEGACY_DERIVATION_VERSION = "watch-d3-d4-v1"
 
 /** Origem explícita do comprimento de um passo individual. */
 enum class StepLengthSource {
@@ -378,6 +381,7 @@ object TemporalSeriesValidator {
 }
 
 enum class WorkoutDurationCase {
+    NORMALIZED,
     EXACT,
     LAST_INTERVAL_RESIDUAL,
     INSUFFICIENT_TOTAL_DURATION,
@@ -406,7 +410,139 @@ data class WorkoutDurationResolution(
 object WorkoutDurationResolver {
     val DEFAULT_INTERVAL_DURATION: Duration = Duration.ofSeconds(60)
 
+    /**
+     * Distribui duração oficial inteira entre todos os samples elegíveis. O
+     * quantum nominal continua somente como proveniência no snapshot.
+     */
     fun resolve(
+        totalDuration: Duration,
+        intervals: List<MeasuredWorkoutInterval>,
+        sessionStartedAt: Instant,
+        nominalIntervalDuration: Duration = DEFAULT_INTERVAL_DURATION,
+    ): WorkoutDurationResolution {
+        val indexValidation = TemporalSeriesValidator.validate(intervals)
+        val reasons = linkedSetOf<TemporalSeriesValidationReason>().apply {
+            addAll(indexValidation.reasons)
+            if (intervals.any { it.decodedSteps == null }) {
+                add(TemporalSeriesValidationReason.MISSING_DECODED_STEPS)
+            }
+        }
+        val validNominalDuration = nominalIntervalDuration.isPositive()
+        if (!validNominalDuration) reasons += TemporalSeriesValidationReason.INVALID
+
+        // Índices inválidos não têm posição temporal confiável. Preserve fatos
+        // measured sem fabricar janelas pela posição da lista.
+        if (!indexValidation.isEligible || intervals.isEmpty()) {
+            return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons.toSet(),
+            )
+        }
+
+        if (!totalDuration.isPositive()) {
+            reasons += TemporalSeriesValidationReason.INVALID
+            return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons + TemporalSeriesValidationReason.EMPTY,
+            )
+        }
+        if (!validNominalDuration) {
+            return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons,
+            )
+        }
+
+        val totalDurationNanos = runCatching { totalDuration.toNanos() }.getOrNull()
+        if (totalDurationNanos == null || totalDurationNanos <= 0L) {
+            reasons += TemporalSeriesValidationReason.INVALID
+            return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons + TemporalSeriesValidationReason.INVALID,
+            )
+        }
+
+        val intervalCount = intervals.size.toLong()
+        val baseDurationNanos = totalDurationNanos / intervalCount
+        val remainderNanos = totalDurationNanos % intervalCount
+        if (baseDurationNanos <= 0L) {
+            reasons += TemporalSeriesValidationReason.INSUFFICIENT_TOTAL_DURATION
+            return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons,
+            )
+        }
+
+        val durations = intervals.indices.map { index ->
+            val nanos = runCatching {
+                Math.addExact(baseDurationNanos, if (index.toLong() < remainderNanos) 1L else 0L)
+            }.getOrNull() ?: return WorkoutDurationResolution(
+                durationCase = WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION,
+                totalDuration = totalDuration,
+                nominalIntervalDuration = nominalIntervalDuration,
+                intervals = intervals.toList(),
+                eligibility = TemporalSeriesEligibility.INELIGIBLE,
+                reasons = reasons + TemporalSeriesValidationReason.INVALID,
+            )
+            Duration.ofNanos(nanos)
+        }
+        val resolvedIntervals = mutableListOf<MeasuredWorkoutInterval>()
+        var currentStart = sessionStartedAt
+        var windowsValid = true
+        durations.forEachIndexed { index, duration ->
+            val windowResult = runCatching {
+                WorkoutIntervalWindow.create(currentStart, currentStart.plus(duration))
+            }.getOrNull()?.valueOrNull()
+            if (windowResult == null) {
+                windowsValid = false
+                return@forEachIndexed
+            }
+            val resolved = intervals[index].withEffectiveWindow(windowResult).valueOrNull()
+            if (resolved == null) {
+                windowsValid = false
+            } else {
+                resolvedIntervals += resolved
+            }
+            currentStart = windowResult.end
+        }
+        val expectedEnd = runCatching { sessionStartedAt.plus(totalDuration) }.getOrNull()
+        if (!windowsValid || resolvedIntervals.size != intervals.size || expectedEnd == null || currentStart != expectedEnd) {
+            reasons += TemporalSeriesValidationReason.INVALID
+        }
+        val eligible = reasons.isEmpty() && windowsValid
+        return WorkoutDurationResolution(
+            durationCase = WorkoutDurationCase.NORMALIZED,
+            totalDuration = totalDuration,
+            nominalIntervalDuration = nominalIntervalDuration,
+            intervals = if (windowsValid) resolvedIntervals.toList() else intervals.toList(),
+            tailUncovered = Duration.ZERO,
+            eligibility = if (eligible) TemporalSeriesEligibility.ELIGIBLE else TemporalSeriesEligibility.INELIGIBLE,
+            reasons = reasons.toSet(),
+        )
+    }
+
+    /** Política temporal da Fase 014, usada somente para ler snapshots antigos. */
+    internal fun resolveLegacy(
         totalDuration: Duration,
         intervals: List<MeasuredWorkoutInterval>,
         sessionStartedAt: Instant,
@@ -501,6 +637,7 @@ object WorkoutDurationResolver {
                 else totalDuration.minus(beforeLastDuration)
             }
 
+            WorkoutDurationCase.NORMALIZED,
             WorkoutDurationCase.INSUFFICIENT_TOTAL_DURATION -> emptyList()
         }
         val resolvedIntervals = mutableListOf<MeasuredWorkoutInterval>()
@@ -907,6 +1044,34 @@ data class WorkoutDerivationSnapshot private constructor(
             plausibility = plausibility,
         )
 
+        /**
+         * Reconstrói snapshot v1 sem aplicar normalização nova ao read path.
+         * Usado somente para preservar snapshots históricos até reprocessamento
+         * explícito.
+         */
+        internal fun deriveLegacy(
+            intervals: List<MeasuredWorkoutInterval>,
+            totalDuration: Duration,
+            sessionStartedAt: Instant,
+            stepLengthMeters: Double,
+            stepLengthSource: StepLengthSource,
+            derivationVersion: String,
+            derivedAt: Instant,
+            totalSteps: Long? = null,
+            plausibility: WorkoutSeriesPlausibility = WorkoutSeriesPlausibility(),
+        ): DomainResult<WorkoutDerivationSnapshot> = createInternal(
+            intervals = intervals,
+            totalDuration = totalDuration,
+            sessionStartedAt = sessionStartedAt,
+            stepLengthMetersUsed = stepLengthMeters,
+            stepLengthSource = stepLengthSource,
+            derivationVersion = derivationVersion,
+            derivedAt = derivedAt,
+            totalSteps = totalSteps,
+            plausibility = plausibility,
+            useLegacyTemporalPolicy = true,
+        )
+
         private fun createInternal(
             intervals: List<MeasuredWorkoutInterval>,
             totalDuration: Duration,
@@ -917,6 +1082,7 @@ data class WorkoutDerivationSnapshot private constructor(
             derivedAt: Instant,
             totalSteps: Long?,
             plausibility: WorkoutSeriesPlausibility,
+            useLegacyTemporalPolicy: Boolean = false,
         ): DomainResult<WorkoutDerivationSnapshot> {
             if (!stepLengthMetersUsed.isFinite() || stepLengthMetersUsed <= 0.0 || derivationVersion.isBlank()) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
@@ -924,11 +1090,19 @@ data class WorkoutDerivationSnapshot private constructor(
             if (totalSteps != null && totalSteps < 0L) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }
-            val temporalResolution = WorkoutDurationResolver.resolve(
-                totalDuration = totalDuration,
-                intervals = intervals,
-                sessionStartedAt = sessionStartedAt,
-            )
+            val temporalResolution = if (useLegacyTemporalPolicy) {
+                WorkoutDurationResolver.resolveLegacy(
+                    totalDuration = totalDuration,
+                    intervals = intervals,
+                    sessionStartedAt = sessionStartedAt,
+                )
+            } else {
+                WorkoutDurationResolver.resolve(
+                    totalDuration = totalDuration,
+                    intervals = intervals,
+                    sessionStartedAt = sessionStartedAt,
+                )
+            }
             val diagnosticEstimate = totalSteps?.let {
                 DiagnosticAggregateStepEstimate.create(it, stepLengthMetersUsed).valueOrNull()
             }

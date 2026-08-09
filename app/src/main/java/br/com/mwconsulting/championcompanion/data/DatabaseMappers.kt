@@ -107,6 +107,8 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V3_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_LEGACY_DERIVATION_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
@@ -474,7 +476,10 @@ internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>
     val parserVersion = watchImportContext?.parserVersion?.value
     val isWatchD4 = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4
     val isD4V1 = isWatchD4 && parserVersion == WATCH_WORKOUT_D4_V1_PARSER_VERSION
-    val isD4V2 = isWatchD4 && parserVersion == WATCH_WORKOUT_D4_V2_PARSER_VERSION
+    val isD4V2OrV3 = isWatchD4 && parserVersion in setOf(
+        WATCH_WORKOUT_D4_V2_PARSER_VERSION,
+        WATCH_WORKOUT_D4_V3_PARSER_VERSION,
+    )
     WorkoutIntervalEntity(
         id = ids.next().toString(),
         activityId = activityId,
@@ -484,13 +489,13 @@ internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>
         distanceMeters = it.distanceMeters.valueOrNull().takeUnless { isWatchD4 },
         caloriesKilocalories = it.caloriesKilocalories.valueOrNull().takeUnless { isWatchD4 },
         rawMotionValue = when {
-            isD4V2 -> it.rawMotionValue
+            isD4V2OrV3 -> it.rawMotionValue
             isD4V1 -> it.rawMotionValue ?: it.steps
             else -> null
         },
-        rawDistanceValue = it.rawDistanceValue.takeIf { isD4V1 || isD4V2 },
-        rawCaloriesValue = it.rawCaloriesValue.takeIf { isD4V1 || isD4V2 },
-        decodedSteps = it.decodedSteps.takeIf { isD4V2 },
+        rawDistanceValue = it.rawDistanceValue.takeIf { isD4V1 || isD4V2OrV3 },
+        rawCaloriesValue = it.rawCaloriesValue.takeIf { isD4V1 || isD4V2OrV3 },
+        decodedSteps = it.decodedSteps.takeIf { isD4V2OrV3 },
     )
 }
 
@@ -794,17 +799,35 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
             diagnosticAggregateDistanceMeters == null -> return null
         else -> diagnosticAggregateTotalSteps
     }
-    val snapshot = WorkoutDerivationSnapshot.derive(
-        intervals = measuredIntervals,
-        totalDuration = runCatching { Duration.ofNanos(totalDurationNanos) }.getOrNull() ?: return null,
-        sessionStartedAt = activityStartedAt,
-        stepLengthMeters = stepLengthMetersUsed,
-        stepLengthSource = source,
-        derivationVersion = derivationVersion,
-        derivedAt = persistedDerivedAt,
-        totalSteps = totalSteps,
-        plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
-    ).successOrNull() ?: return null
+    val totalDuration = runCatching { Duration.ofNanos(totalDurationNanos) }.getOrNull() ?: return null
+    val snapshot = when (derivationVersion) {
+        WATCH_WORKOUT_LEGACY_DERIVATION_VERSION -> WorkoutDerivationSnapshot.deriveLegacy(
+            intervals = measuredIntervals,
+            totalDuration = totalDuration,
+            sessionStartedAt = activityStartedAt,
+            stepLengthMeters = stepLengthMetersUsed,
+            stepLengthSource = source,
+            derivationVersion = derivationVersion,
+            derivedAt = persistedDerivedAt,
+            totalSteps = totalSteps,
+            plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
+        )
+
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION ->
+            WorkoutDerivationSnapshot.derive(
+                intervals = measuredIntervals,
+                totalDuration = totalDuration,
+                sessionStartedAt = activityStartedAt,
+                stepLengthMeters = stepLengthMetersUsed,
+                stepLengthSource = source,
+                derivationVersion = derivationVersion,
+                derivedAt = persistedDerivedAt,
+                totalSteps = totalSteps,
+                plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
+            )
+
+        else -> return null
+    }.successOrNull() ?: return null
     val temporal = snapshot.temporalResolution
     if (rawIntervals.size != temporal.intervals.size || rawIntervals.zip(temporal.intervals).any { (entity, resolved) ->
             entity.effectiveDurationNanos != null &&
@@ -854,13 +877,33 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
 }
 
 internal fun WorkoutActivity.toHeartRateSamples(activityId: String, ids: Iterator<UUID>) = heartRateSamples.map {
-    WorkoutHeartRateSampleEntity(ids.next().toString(), activityId, it.sampledAt.toEpochMilli(), it.bpm)
+    WorkoutHeartRateSampleEntity(
+        id = ids.next().toString(),
+        activityId = activityId,
+        sampledAtEpochMillis = it.sampledAt.toEpochMilli(),
+        bpm = it.bpm,
+        sourceSampleIndex = it.sourceSampleIndex,
+        sampledAtEpochSecond = it.sampledAt.epochSecond,
+        sampledAtNano = it.sampledAt.nano,
+    )
 }
 
-internal fun WorkoutHeartRateSampleEntity.toDomain(): WorkoutHeartRateSample = WorkoutHeartRateSample(
-    sampledAt = Instant.ofEpochMilli(sampledAtEpochMillis),
-    bpm = bpm,
-)
+internal fun WorkoutHeartRateSampleEntity.toDomain(): WorkoutHeartRateSample? {
+    val sampledAt = when {
+        sampledAtEpochSecond == null && sampledAtNano == null -> Instant.ofEpochMilli(sampledAtEpochMillis)
+        sampledAtEpochSecond == null || sampledAtNano == null -> return null
+        else -> exactPersistedInstant(
+            epochMillis = sampledAtEpochMillis,
+            epochSecond = sampledAtEpochSecond,
+            nano = sampledAtNano,
+        ) ?: return null
+    }
+    return WorkoutHeartRateSample(
+        sampledAt = sampledAt,
+        bpm = bpm,
+        sourceSampleIndex = sourceSampleIndex,
+    )
+}
 
 internal fun WorkoutActivityEntity.toPendingReviewDomain(
     importRecord: WatchWorkoutImportEntity,
@@ -879,8 +922,11 @@ internal fun WorkoutActivityEntity.toDomain(
     val mappedOrigin = enum<WorkoutActivityOrigin>(origin) ?: return null
     val isWatchD4V1 = mappedOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
         importRecord?.parserVersion == WATCH_WORKOUT_D4_V1_PARSER_VERSION
-    val isWatchD4V2 = mappedOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
-        importRecord?.parserVersion == WATCH_WORKOUT_D4_V2_PARSER_VERSION
+    val isWatchD4V2OrV3 = mappedOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+        importRecord?.parserVersion in setOf(
+            WATCH_WORKOUT_D4_V2_PARSER_VERSION,
+            WATCH_WORKOUT_D4_V3_PARSER_VERSION,
+        )
     val mappedDeviceId = deviceId?.let(::uuid)?.let(::DeviceId)
     val mappedSessionId = appWorkoutSessionId?.let(::uuid)?.let(::AppWorkoutSessionId)
     if (deviceId != null && mappedDeviceId == null) return null
@@ -918,10 +964,10 @@ internal fun WorkoutActivityEntity.toDomain(
             endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
         ),
         intervals = intervals.map {
-            if (isWatchD4V2 && (
+            if (isWatchD4V2OrV3 && (
                     it.rawMotionValue == null ||
-                        it.decodedSteps == null ||
-                        it.steps != it.decodedSteps ||
+                    it.decodedSteps == null ||
+                    it.steps != it.decodedSteps ||
                         it.decodedSteps != (it.rawMotionValue ushr 16)
                     )
             ) return null
@@ -930,17 +976,15 @@ internal fun WorkoutActivityEntity.toDomain(
                 it.intervalIndex,
                 Duration.ofNanos(it.durationNanos),
                 it.steps,
-                if (isWatchD4V2) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.distanceMeters.domainValue(),
-                if (isWatchD4V2) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.caloriesKilocalories.domainValue(),
-                rawMotionValue = it.rawMotionValue.takeIf { isWatchD4V1 || isWatchD4V2 },
-                rawDistanceValue = it.rawDistanceValue.takeIf { isWatchD4V1 || isWatchD4V2 },
-                rawCaloriesValue = it.rawCaloriesValue.takeIf { isWatchD4V1 || isWatchD4V2 },
-                decodedSteps = it.decodedSteps.takeIf { isWatchD4V2 },
+                if (isWatchD4V2OrV3) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.distanceMeters.domainValue(),
+                if (isWatchD4V2OrV3) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.caloriesKilocalories.domainValue(),
+                rawMotionValue = it.rawMotionValue.takeIf { isWatchD4V1 || isWatchD4V2OrV3 },
+                rawDistanceValue = it.rawDistanceValue.takeIf { isWatchD4V1 || isWatchD4V2OrV3 },
+                rawCaloriesValue = it.rawCaloriesValue.takeIf { isWatchD4V1 || isWatchD4V2OrV3 },
+                decodedSteps = it.decodedSteps.takeIf { isWatchD4V2OrV3 },
             )
         },
-        heartRateSamples = samples.map {
-            WorkoutHeartRateSample(Instant.ofEpochMilli(it.sampledAtEpochMillis), it.bpm)
-        },
+        heartRateSamples = samples.map { it.toDomain() ?: return null },
         suggestedType = enum<WorkoutType>(suggestedType) ?: return null,
         title = title,
         notes = notes,
@@ -954,14 +998,25 @@ internal fun WorkoutActivityEntity.toDomain(
 }
 
 internal fun HealthSyncWorkoutCandidateRecord.toHealthSyncCandidateDomain(
+    intervals: List<WorkoutIntervalEntity>,
     samples: List<WorkoutHeartRateSampleEntity>,
+    derivation: WorkoutDerivationRecord?,
+    derivationIntervals: List<WorkoutIntervalEntity> = intervals,
 ): WorkoutActivity? {
     val importRecord = optionalImportEntity() ?: if (importId == null) null else return null
     if (importRecord != null && !importRecord.isStructurallyRelatedTo(activity)) return null
+    val derivationSnapshot = derivation?.toDomain(
+        activityOrigin = enum<WorkoutActivityOrigin>(activity.origin) ?: return null,
+        activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+        activityDurationNanos = activity.durationNanos,
+        rawIntervals = derivationIntervals,
+        heartRateSamples = samples.map { it.toDomain() ?: return null },
+    )
     return activity.toDomain(
         importRecord = importRecord,
-        intervals = emptyList(),
+        intervals = intervals,
         samples = samples,
+        derivationSnapshot = derivationSnapshot,
     )
 }
 

@@ -405,13 +405,16 @@ data class WorkoutSplitEntity(
         childColumns = ["activityId"],
         onDelete = ForeignKey.CASCADE,
     )],
-    indices = [Index(value = ["activityId", "sampledAtEpochMillis"], unique = true)],
+    indices = [Index(value = ["activityId", "sampledAtEpochMillis"])],
 )
 data class WorkoutHeartRateSampleEntity(
     @PrimaryKey val id: String,
     val activityId: String,
     val sampledAtEpochMillis: Long,
     val bpm: Int,
+    val sourceSampleIndex: Int? = null,
+    val sampledAtEpochSecond: Long? = null,
+    val sampledAtNano: Int? = null,
 )
 
 @Entity(
@@ -694,7 +697,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 10,
+    version = 11,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),

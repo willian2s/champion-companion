@@ -8,7 +8,7 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 
 ## Atualizacao Factual Pos-Fase 12
 
-- Banco real do Champion Companion está em `ChampionDatabase` schema `v10`.
+- Banco real do Champion Companion está em `ChampionDatabase` schema `v11`.
 - `workout_activities` ja cobre fluxo local ate `SYNCED` e `SYNC_FAILED`, incluindo sync explicito de Health Connect.
 - `health_sync_operations` ja cobre backlog e sincronizacao granular para passos, BPM, sessao de exercicio, distancia, calorias, peso e altura, com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt`.
 - `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
@@ -62,7 +62,7 @@ Durante `8→9`, somente linhas com atividade/importação `WATCH_D3_D4` e
 backfill de duração, métricas, snapshot ou split. Versões desconhecidas não são
 reinterpretadas. `d4-v1` permanece identificável para reprocessamento explícito.
 
-## Atualização factual da Fase 014 — schema v10
+## Atualização factual da Fase 014 — schema v10 (histórico)
 
 `MIGRATION_9_10` é manual e aditiva. Adiciona metadados somente à tabela
 `health_sync_operations`, remove o índice natural legado e cria unicidade por
@@ -98,6 +98,24 @@ por filho na mesma projeção.
 - A matriz física confirmou apenas os cenários exercitados após `014-17`.
   Gates B, C, D, E e G ficaram `N/A`; midpoint, delete-before-insert, round-trip
   físico completo e variações de firmware permanecem riscos de evidência.
+
+## Atualização factual da Spec 021 — schema v11
+
+`MIGRATION_10_11` é aditiva e adiciona o índice de origem das amostras de
+frequência cardíaca D4. Não deriva métricas, altera workflow, cria operações ou
+executa efeitos remotos durante o upgrade.
+
+Estado efetivo após a Spec 021:
+
+- novas importações usam `d4-v3`; `d4-v1` e `d4-v2` permanecem identificáveis
+  como legado;
+- duração autoritativa vem do cabeçalho corrigido e a série usa timeline
+  normalizada `watch-d3-d4-v2`, com soma exata até `endedAt`;
+- reprocessamento existente é explícito, preserva identidade e não ressincroniza
+  automaticamente;
+- candidate semântico do Calendário carrega snapshot ativo e série canônica;
+- upgrade validado sem wipe no banco preservado, com integrity `ok` e schema
+  `v11`.
 
 ## Fechamento Factual Da Fase 12
 

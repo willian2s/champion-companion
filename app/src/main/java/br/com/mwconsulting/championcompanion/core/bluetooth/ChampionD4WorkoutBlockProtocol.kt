@@ -41,6 +41,69 @@ object ChampionD4WorkoutBlockProtocol {
         )
     }
 
+    /** Recupera envelope diagnóstico local sem executar nova operação BLE. */
+    fun parseDiagnosticBytes(bytes: ByteArray): D4BlockCollectionOutcome? {
+        if (bytes.size < DIAGNOSTIC_HEADER_SIZE ||
+            bytes[0].toUnsignedInt() != 'D'.code ||
+            bytes[1].toUnsignedInt() != '4'.code ||
+            bytes[2].toUnsignedInt() != 'B'.code ||
+            bytes[3].toUnsignedInt() != '1'.code
+        ) return null
+
+        var offset = 4
+        val blockIndex = bytes.readUInt16LittleEndian(offset).also { offset += 2 }
+        val packetCount = bytes.readUInt16LittleEndian(offset).also { offset += 2 }
+        if (packetCount !in 1..MAX_DIAGNOSTIC_PACKET_COUNT) return null
+        var expectedTotalPackets: Int? = null
+        val packets = buildList {
+            repeat(packetCount) {
+                if (offset + DIAGNOSTIC_PACKET_HEADER_SIZE > bytes.size) return null
+                val packetIndex = bytes.readUInt16LittleEndian(offset).also { offset += 2 }
+                val totalPackets = bytes.readUInt16LittleEndian(offset).also { offset += 2 }
+                val byteCount = bytes.readUInt16LittleEndian(offset).also { offset += 2 }
+                if (totalPackets !in 1..MAX_DIAGNOSTIC_PACKET_COUNT ||
+                    packetIndex !in 1..totalPackets ||
+                    (expectedTotalPackets != null && expectedTotalPackets != totalPackets) ||
+                    byteCount < minimumHeaderSize ||
+                    byteCount > bytes.size - offset
+                ) return null
+                expectedTotalPackets = totalPackets
+                val rawBytes = bytes.copyOfRange(offset, offset + byteCount)
+                offset += byteCount
+                val parsed = parsePayload(rawBytes) ?: return null
+                if (parsed.packetIndex != packetIndex || parsed.totalPackets != totalPackets) return null
+                add(D4CollectedPacket(packetIndex, totalPackets, rawBytes))
+            }
+        }
+        if (offset != bytes.size) return null
+
+        val distinctIndices = packets.map { it.packetIndex }.toSet()
+        val duplicateIndices = packets.map { it.packetIndex }
+            .groupingBy { it }
+            .eachCount()
+            .filterValues { it > 1 }
+            .keys
+        val totalPackets = packets.maxOfOrNull { it.totalPackets } ?: 0
+        val missingIndices = if (totalPackets > 0) {
+            (1..totalPackets).filterNot(distinctIndices::contains).toSet()
+        } else {
+            emptySet()
+        }
+        return D4BlockCollectionOutcome(
+            blockIndex = blockIndex,
+            packets = packets,
+            progress = D4BlockProgress(
+                receivedPacketCount = packets.size,
+                highestPacketIndex = packets.maxOfOrNull { it.packetIndex } ?: 0,
+                totalPackets = totalPackets,
+            ),
+            duplicatePacketIndices = duplicateIndices,
+            missingPacketIndices = missingIndices,
+            timedOut = false,
+            receivedPacketCount = packets.size,
+        )
+    }
+
     data class D4BlockContext(
         val importAttemptId: String,
         val bleSessionId: ChampionSessionId,
@@ -167,4 +230,8 @@ object ChampionD4WorkoutBlockProtocol {
         this[offset].toUnsignedInt() or (this[offset + 1].toUnsignedInt() shl 8)
 
     private fun Byte.toUnsignedInt(): Int = toInt() and 0xFF
+
+    private const val DIAGNOSTIC_HEADER_SIZE = 8
+    private const val DIAGNOSTIC_PACKET_HEADER_SIZE = 6
+    private const val MAX_DIAGNOSTIC_PACKET_COUNT = 4_096
 }
