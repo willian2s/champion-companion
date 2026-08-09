@@ -2,7 +2,7 @@
 
 ## Direção atual após encerramento da Fase 013
 
-Fase 013 está em `closing`, com resultado previsto `partially_delivered` por
+Fase 013 está `closed`, com resultado `partially_delivered` por
 `product_reorientation`. O fluxo futuro não exige GPS, rota ou `ExerciseRoute`:
 o relógio inicia e encerra o treino, o app importa D3/D4, deriva métricas,
 permite revisão e sincroniza de forma granular com Health Connect. A distância
@@ -21,7 +21,7 @@ Mapear integração Health Connect da baseline MotionLog `feat/015-watch-workout
 
 Salvo indicação contrária, itens são `Confirmado pelo código` em `../motionlog-app`. Regras marcadas `Decisão já definida` vêm de spec/requisitos Fase 0. Prefixos `motionlog:` são referência legada, não contrato para novo app.
 
-## Atualizacao Factual Pos-Fase 12
+## Atualização factual pós-Fase 12 e direção da Fase 014
 
 No estado atual do Champion Companion apos a integracao nativa real:
 
@@ -31,6 +31,29 @@ No estado atual do Champion Companion apos a integracao nativa real:
 - SDK Android do Health Connect, provider e rationale Android ja estao integrados.
 
 Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
+
+Na Fase 014, atividades `WATCH_D3_D4` usam somente distância canônica derivada
+de passos válidos e comprimento individual do passo (`stepLengthMeters`). O valor
+original do relógio é diagnóstico e não pode ser fallback. A entrega adicionou
+`SPEED`, múltiplos `DISTANCE` por intervalo e snapshot/projeção congelados conforme
+ADR-018. A migration local de projeções filhas é `MIGRATION_9_10` (schema 10), e
+o writer granular prepara e processa cada filho em foreground, sem leitura remota
+ampla.
+
+## Estado factual final da Fase 014
+
+- Cada filho Health Connect possui operação, `projectionChildKey`, ID, versão,
+  payload e resultado próprios. Retry idêntico reutiliza identidade e payload;
+  reconciliação usa IDs exatos e fluxo retomável de delete-before-insert.
+- Distância usa somente intervalos canônicos positivos; velocidade usa midpoint;
+  BPM usa amostras reais; calorias usam o total elegível. Distância original,
+  calibrada histórica e estimativa agregada não são fallback de `WATCH_D3_D4`.
+- A integração permanece local-first, foreground, explícita e write-only.
+  `SYNCED` representa aceitação do caminho local de escrita, não confirmação por
+  leitura do provider.
+- A evidência física confirmou provider, autorização, falha parcial e retry nos
+  cenários exercitados após `014-17`. Gates sem fixture física permanecem `N/A`;
+  observação manual do provider não é readback do aplicativo.
 
 ## Fechamento Factual Da Fase 12
 
@@ -80,7 +103,7 @@ O record agregado legado não pode coexistir com a série corrigida. A fila deve
 preservar IDs e versões para retry/reconciliação, sem apagar records de terceiros
 ou inventar distribuição temporal para uma fonte que só possua total.
 
-## Mapeamento Planejado Champion Companion
+## Mapeamento Champion Companion — contrato histórico e estado efetivo
 
 | Origem local Champion Companion | Record planejado | Politica Champion Companion Fase 12 |
 | --- | --- | --- |
@@ -89,16 +112,42 @@ ou inventar distribuição temporal para uma fonte que só possua total.
 | `heart_rate_measurements` D1 | `HeartRate` | uma operacao por ponto persistido valido, sem selecao manual |
 | `workout_activities` | `ExerciseSession` | sessao obrigatoria, so por acao explicita do usuario |
 | `workout_activities` | `Distance` | complementar opcional e independente; Fase 12 usou distância final, Fase 13 usa série temporal da fonte elegível |
+| `workout_activities` + série derivada | `Speed` | um `SpeedRecord` por atividade; uma amostra por intervalo, no midpoint, usando velocidade canônica derivada |
 | `workout_activities` | `TotalCaloriesBurned` | complementar opcional e independente |
 | `workout_activities` + `workout_heart_rate_samples` | `HeartRate` | complementar opcional com amostras reais da sessao |
 | `weight_measurements` | `Weight` | so quando houver dado local elegivel |
 | `user_profiles.heightCentimeters` | `Height` | so quando houver altura local elegivel |
 
-## IDs E Versoes Planejados Champion Companion
+## IDs E Versoes Champion Companion
 
-- `clientRecordId` deterministico por `applicationId + aggregateType + aggregateId + recordType`.
-- `clientRecordVersion` obrigatorio para agregados mutaveis do app novo.
+- Para operações legadas, `clientRecordId` permanece determinístico por
+  `applicationId + aggregateType + aggregateId + recordType`.
+- Para filhos, `projectionChildKey` é acrescentado ao ID. A chave não contém
+  valores de saúde.
+- `clientRecordVersion` é monotônico por `clientRecordId`; retry idêntico mantém
+  ID, versão e payload congelado.
 - IDs `motionlog:` deixam de ser referencia de implementacao e permanecem apenas como baseline comparativa legada.
+
+### Projeções filhas persistidas
+
+`health_sync_operations` mantém uma linha independente por filho:
+
+| Record | Filho | Persistência |
+| --- | --- | --- |
+| `EXERCISE_SESSION` | `exercise-session` | ação, payload, estado e checkpoint próprios |
+| `DISTANCE` | `interval-<índice>` | uma operação por intervalo, sem subfila |
+| `SPEED` | `speed-series` | uma operação independente com payload congelado e amostras de midpoint |
+| `HEART_RATE` | `heart-rate-series` | uma operação independente, sem mapeamento nesta task |
+| `TOTAL_CALORIES_BURNED` | `total-calories-burned` | uma operação independente, sem mapeamento nesta task |
+
+Preparação é local e transacional. `action`, payload serializado, origem da
+derivação, estado esperado/enviado/obsoleto e checkpoint são persistidos antes
+de qualquer writer. Retry lê payload congelado; mudança de payload incrementa
+versão monotônica por filho. `MIGRATION_9_10` apenas aplica defaults seguros a
+operações legadas; não insere nem remove records no provider. Durante a execução,
+agregado legado conhecido de distância bloqueou filhos `DISTANCE` e `SPEED` de
+`WATCH_D3_D4` até `014-14`; após a reconciliação, somente o conjunto granular
+efetivo é preparado.
 
 ## Diferencas Deliberadas Em Relacao Ao MotionLog
 
@@ -160,7 +209,11 @@ MotionLog usa `insertRecords`; não há update explícito por ID de record remot
 - Todos registros D1 com BPM válido devem ser enviados. Sem seleção manual ponto a ponto. `Decisão já definida`.
 - Falha parcial fica pendente por entidade/record para retry seguro. Não marcar lote inteiro como sincronizado. `Decisão já definida`.
 - Importações D3/D4 nascem `pending_review`. Envio manual somente após revisão, validação `valid` e sessão vinculada. `Decisão já definida`; bloqueios atuais confirmados pelo código.
-- Esteira envia distância calibrada. Importação sem calibração confirmada não envia. `Decisão já definida`; bloqueio atual confirmado pelo código.
+- Regra histórica da Fase 12: esteira enviava distância calibrada e importação sem
+  calibração confirmada não enviava. Para `WATCH_D3_D4` na Fase 014, a série
+  canônica elegível remove essa dependência; calibração histórica permanece
+  diagnóstica e não é enviada como distância canônica. `Confirmado pelo código`;
+  confirmação física de TREADMILL permanece não exercitada.
 - Não armazenar nem enviar latitude, longitude, coordenadas, polylines, rotas ou
   `ExerciseRoute` em Fase 12 e D3/D4. A exceção de rota persistida para sessão
   phone explícita de caminhada/corrida está definida na ADR-014; treino livre e

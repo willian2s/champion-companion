@@ -284,6 +284,211 @@ val MIGRATION_7_8: Migration = object : Migration(7, 8) {
     }
 }
 
+/** Migration manual aditiva: preserva legado e prepara fatos raw/measured/derived locais. */
+val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute("ALTER TABLE user_profiles ADD COLUMN stepLengthMeters REAL")
+        connection.execute("ALTER TABLE user_profiles ADD COLUMN stepLengthSource TEXT")
+        connection.execute("ALTER TABLE user_profiles ADD COLUMN stepLengthUpdatedAtEpochMillis INTEGER")
+
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN rawMotionValue INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN rawDistanceValue INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN rawCaloriesValue INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN decodedSteps INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN effectiveDurationNanos INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN temporalEligibilityReason TEXT")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN plausibilityStatus TEXT")
+
+        // d4-v1 persisted the packed u24 in the legacy steps column. This bridge
+        // copies only known watch imports; it deliberately does not decode it.
+        connection.execute(
+            """
+            UPDATE workout_intervals
+            SET rawMotionValue = steps
+            WHERE rawMotionValue IS NULL
+              AND steps BETWEEN 0 AND 16777215
+              AND EXISTS (
+                  SELECT 1
+                  FROM workout_activities activity
+                  INNER JOIN watch_workout_imports importRecord
+                      ON importRecord.activityId = activity.id
+                  WHERE activity.id = workout_intervals.activityId
+                    AND activity.origin = 'WATCH_D3_D4'
+                    AND importRecord.origin = 'WATCH_D3_D4'
+                    AND importRecord.parserVersion = 'd4-v1'
+              )
+            """.trimIndent(),
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workout_derivation_snapshots (
+                id TEXT NOT NULL,
+                activityId TEXT NOT NULL,
+                stepLengthMetersUsed REAL NOT NULL,
+                stepLengthSource TEXT NOT NULL,
+                derivationMethod TEXT NOT NULL,
+                derivationVersion TEXT NOT NULL,
+                derivedAtEpochMillis INTEGER NOT NULL,
+                durationCase TEXT NOT NULL,
+                totalDurationNanos INTEGER NOT NULL,
+                nominalIntervalDurationNanos INTEGER NOT NULL,
+                tailUncoveredNanos INTEGER NOT NULL,
+                temporalEligibility TEXT NOT NULL,
+                temporalEligibilityReasons TEXT,
+                plausibilityPolicy TEXT NOT NULL,
+                plausibilityIndicators TEXT,
+                canonicalDistanceMeters REAL,
+                canonicalCoveredDurationNanos INTEGER,
+                diagnosticAggregateTotalSteps INTEGER,
+                diagnosticAggregateStepLengthMeters REAL,
+                diagnosticAggregateDistanceMeters REAL,
+                derivedAtEpochSecond INTEGER NOT NULL,
+                derivedAtNano INTEGER NOT NULL,
+                activeActivityId TEXT,
+                isActive INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id),
+                FOREIGN KEY(activityId) REFERENCES workout_activities(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_workout_derivation_snapshots_activityId " +
+                "ON workout_derivation_snapshots(activityId)",
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_workout_derivation_snapshots_activityId_derivedAtEpochMillis " +
+                "ON workout_derivation_snapshots(activityId, derivedAtEpochMillis)",
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_workout_derivation_snapshots_activeActivityId " +
+                "ON workout_derivation_snapshots(activeActivityId)",
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workout_derived_intervals (
+                id TEXT NOT NULL,
+                snapshotId TEXT NOT NULL,
+                intervalIndex INTEGER NOT NULL,
+                effectiveStartEpochMillis INTEGER NOT NULL,
+                effectiveStartEpochSecond INTEGER NOT NULL,
+                effectiveStartNano INTEGER NOT NULL,
+                effectiveDurationNanos INTEGER NOT NULL,
+                decodedSteps INTEGER NOT NULL,
+                canonicalIntervalDistanceMeters REAL NOT NULL,
+                cadenceStepsPerMinute REAL NOT NULL,
+                speedMetersPerSecond REAL NOT NULL,
+                paceSecondsPerKilometer REAL,
+                cumulativeSteps INTEGER NOT NULL,
+                cumulativeDistanceMeters REAL NOT NULL,
+                cumulativeDurationNanos INTEGER NOT NULL,
+                cumulativeCadenceStepsPerMinute REAL NOT NULL,
+                cumulativeSpeedMetersPerSecond REAL NOT NULL,
+                cumulativePaceSecondsPerKilometer REAL,
+                speedSampledAtEpochMillis INTEGER NOT NULL,
+                speedSampledAtEpochSecond INTEGER NOT NULL,
+                speedSampledAtNano INTEGER NOT NULL,
+                PRIMARY KEY(id),
+                FOREIGN KEY(snapshotId) REFERENCES workout_derivation_snapshots(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_workout_derived_intervals_snapshotId_intervalIndex " +
+                "ON workout_derived_intervals(snapshotId, intervalIndex)",
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workout_splits (
+                id TEXT NOT NULL,
+                snapshotId TEXT NOT NULL,
+                splitNumber INTEGER NOT NULL,
+                targetDistanceMeters REAL NOT NULL,
+                windowStartEpochMillis INTEGER NOT NULL,
+                windowStartEpochSecond INTEGER NOT NULL,
+                windowStartNano INTEGER NOT NULL,
+                windowEndEpochMillis INTEGER NOT NULL,
+                windowEndEpochSecond INTEGER NOT NULL,
+                windowEndNano INTEGER NOT NULL,
+                distanceMeters REAL NOT NULL,
+                durationNanos INTEGER NOT NULL,
+                averageCadenceStepsPerMinute REAL NOT NULL,
+                averageSpeedMetersPerSecond REAL NOT NULL,
+                averagePaceSecondsPerKilometer REAL,
+                averageBpm REAL,
+                bpmCoveredDurationNanos INTEGER NOT NULL,
+                PRIMARY KEY(id),
+                FOREIGN KEY(snapshotId) REFERENCES workout_derivation_snapshots(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_workout_splits_snapshotId_splitNumber " +
+                "ON workout_splits(snapshotId, splitNumber)",
+        )
+    }
+}
+
+/** Migration manual aditiva: separa identidade, payload e checkpoint de cada filho. */
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN projectionChildKey TEXT NOT NULL DEFAULT '__legacy__'",
+        )
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN action TEXT NOT NULL DEFAULT 'INSERT'")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN frozenPayload TEXT")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN frozenPayloadVersion INTEGER")
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN reconciliationState TEXT NOT NULL DEFAULT 'EXPECTED'",
+        )
+        connection.execute(
+            "ALTER TABLE health_sync_operations ADD COLUMN reconciliationCheckpoint TEXT NOT NULL DEFAULT 'NOT_STARTED'",
+        )
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN projectionOriginId TEXT")
+        connection.execute("ALTER TABLE health_sync_operations ADD COLUMN projectionOriginVersion TEXT")
+
+        // operationSequence continua distinguindo deltas legados de Steps. Para
+        // filhos novos, a chave estável é projectionChildKey e sequence permanece 0.
+        connection.execute(
+            "DROP INDEX IF EXISTS index_health_sync_operations_aggregateId_recordType_operationSequence",
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "index_health_sync_operations_aggregateId_aggregateType_recordType_projectionChildKey_operationSequence " +
+                "ON health_sync_operations(aggregateId, aggregateType, recordType, projectionChildKey, operationSequence)",
+        )
+    }
+}
+
+/** Migration aditiva: preserva origem/index e precisão temporal das amostras BPM. */
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "ALTER TABLE workout_heart_rate_samples ADD COLUMN sourceSampleIndex INTEGER",
+        )
+        connection.execute(
+            "ALTER TABLE workout_heart_rate_samples ADD COLUMN sampledAtEpochSecond INTEGER",
+        )
+        connection.execute(
+            "ALTER TABLE workout_heart_rate_samples ADD COLUMN sampledAtNano INTEGER",
+        )
+        // IDs continuam sendo a identidade primária. Timestamps podem coincidir
+        // após normalização sub-milisegundo, portanto o índice não é único.
+        connection.execute(
+            "DROP INDEX IF EXISTS index_workout_heart_rate_samples_activityId_sampledAtEpochMillis",
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_workout_heart_rate_samples_activityId_sampledAtEpochMillis " +
+                "ON workout_heart_rate_samples(activityId, sampledAtEpochMillis)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

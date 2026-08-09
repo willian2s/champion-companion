@@ -1,4 +1,4 @@
-# Referencia Conceitual Do Banco MotionLog
+# Referência conceitual do banco MotionLog
 
 ## Escopo E Regra De Transicao
 
@@ -8,15 +8,123 @@ Champion Companion tera banco proprio, iniciara vazio. Nao havera migracao de da
 
 ## Atualizacao Factual Pos-Fase 12
 
-- Banco real do Champion Companion esta em `ChampionDatabase` schema `v5`.
+- Banco real do Champion Companion está em `ChampionDatabase` schema `v11`.
 - `workout_activities` ja cobre fluxo local ate `SYNCED` e `SYNC_FAILED`, incluindo sync explicito de Health Connect.
 - `health_sync_operations` ja cobre backlog e sincronizacao granular para passos, BPM, sessao de exercicio, distancia, calorias, peso e altura, com `clientRecordId`, `clientRecordVersion`, `syncedAt`, `timeZoneId`, `createdAt` e `updatedAt`.
 - `daily_summaries`, `heart_rate_measurements`, `weight_measurements`, `user_profiles` e `workout_activities` ja alimentam fila expandida funcional da Fase 12.
-- Esta task de fechamento nao altera schema Room; apenas registra estado factual apos migration e fila funcional da fase.
+- A Fase 12 não alterou schema nesta atualização; migrations `5→6`, `6→7`,
+  `7→8`, `8→9` e `9→10` permanecem parte do histórico factual.
+- Fase 013 está `closed`, com resultado `partially_delivered` e motivo
+  `product_reorientation`. Fase 014 está `completed`, com progresso `17/17`; a
+  migration local aditiva `8→9` foi implementada em `014-03`; `9→10` foi
+  implementada em `014-12` para projeções filhas Health Connect.
+
+## Atualização factual da Fase 014 — schema v9
+
+`MIGRATION_8_9` é manual e aditiva. Não recria nem remove tabelas legadas, não
+altera IDs, `recordedAt`, revisão, calibração, imports, sessões, rotas ou fila de
+sincronização. A migration não cria snapshots, intervalos derivados, splits,
+operações remotas ou qualquer efeito no Health Connect.
+
+### Colunas adicionadas
+
+| Tabela | Colunas | Nullable/default |
+| --- | --- | --- |
+| `user_profiles` | `stepLengthMeters REAL`; `stepLengthSource TEXT`; `stepLengthUpdatedAtEpochMillis INTEGER` | todas nullable; sem default |
+| `workout_intervals` | `rawMotionValue INTEGER`; `rawDistanceValue INTEGER`; `rawCaloriesValue INTEGER`; `decodedSteps INTEGER`; `effectiveDurationNanos INTEGER`; `temporalEligibilityReason TEXT`; `plausibilityStatus TEXT` | todas nullable; sem default |
+
+`distanceMeters` legado permanece intacto e não recebe nova semântica canônica.
+`stepLengthSource` e os estados de intervalo são enums serializados por nome em
+`TEXT`.
+
+### Tabelas de derivação
+
+| Tabela | Conteúdo e defaults | Índices/FK |
+| --- | --- | --- |
+| `workout_derivation_snapshots` | perfil congelado, método/versão, resolução temporal, elegibilidade, motivos, política/indicadores de plausibilidade, distância canônica e agregado diagnóstico; `isActive INTEGER NOT NULL DEFAULT 0`; `activeActivityId TEXT` nullable | índice único `activeActivityId` (nulos podem repetir); índices `activityId` e `activityId,derivedAtEpochMillis`; FK `activityId → workout_activities.id ON DELETE CASCADE` |
+| `workout_derived_intervals` | índice, início efetivo, duração em nanos, passos, distância canônica, métricas instantâneas e acumuladas, amostra de velocidade | índice único `snapshotId,intervalIndex`; FK `snapshotId → workout_derivation_snapshots.id ON DELETE CASCADE` |
+| `workout_splits` | número, limite/distância, janela, duração, cadência, velocidade, ritmo e BPM ponderado | índice único `snapshotId,splitNumber`; FK `snapshotId → workout_derivation_snapshots.id ON DELETE CASCADE` |
+
+Filhos não repetem `activityId`: a atividade é determinada pelo snapshot pai e a
+FK em cascata impede filho órfão de outra atividade. Timestamps derivados
+mantêm `*EpochMillis` para ordenação e também `*EpochSecond` + `*Nano` para
+round-trip exato de `Instant`; durações efetivas permanecem em nanos.
+
+`activeActivityId` recebe `activityId` somente quando `isActive = true`; seu
+índice UNIQUE garante no banco novo e após migration no máximo uma derivação
+ativa por atividade. Snapshots inativos mantêm esse campo nulo.
+
+### Ponte de compatibilidade D4
+
+Durante `8→9`, somente linhas com atividade/importação `WATCH_D3_D4` e
+`parserVersion = d4-v1` copiam `workout_intervals.steps` para
+`rawMotionValue`, dentro da faixa u24. `decodedSteps` permanece nulo; não há
+backfill de duração, métricas, snapshot ou split. Versões desconhecidas não são
+reinterpretadas. `d4-v1` permanece identificável para reprocessamento explícito.
+
+## Atualização factual da Fase 014 — schema v10 (histórico)
+
+`MIGRATION_9_10` é manual e aditiva. Adiciona metadados somente à tabela
+`health_sync_operations`, remove o índice natural legado e cria unicidade por
+agregado, tipo de record, filho e sequência. Não deriva atividade, altera
+workflow, acessa Health Connect nem executa efeito remoto.
+
+| Tabela | Colunas | Nullable/default |
+| --- | --- | --- |
+| `health_sync_operations` | `projectionChildKey TEXT`; `action TEXT`; `frozenPayload TEXT`; `frozenPayloadVersion INTEGER`; `reconciliationState TEXT`; `reconciliationCheckpoint TEXT`; `projectionOriginId TEXT`; `projectionOriginVersion TEXT` | `projectionChildKey='__legacy__'` para operações legadas; payload e origem nullable; `action='INSERT'`; `reconciliationState='EXPECTED'`; `reconciliationCheckpoint='NOT_STARTED'` |
+
+Filhos novos usam a identidade natural
+`aggregateId + aggregateType + recordType + projectionChildKey`, com
+`operationSequence=0`. Operações legadas recebem `projectionChildKey='__legacy__'`,
+preservam `operationSequence` e permanecem distinguíveis. A preparação local
+exige payload congelado, origem, ID determinístico e versão monotônica; retry
+idêntico reutiliza esses valores. O índice único impede mais de uma operação
+por filho na mesma projeção.
+
+### Estado efetivo após o fechamento da Fase 014
+
+- Parser novo usa `d4-v2`; `d4-v1` continua preservado como legado e não recebe
+  `decodedSteps` por migration automática.
+- Snapshots e intervalos derivados congelam `stepLengthMeters` individual,
+  origem, método, versão, duração efetiva, elegibilidade e plausibilidade. A
+  distância canônica é a soma dos intervalos; `distanceMeters` legado não é
+  fallback.
+- `MIGRATION_8_9` corresponde ao Room v9 e `MIGRATION_9_10` ao schema v10.
+  Nenhuma migration deriva métricas, muda workflow ou acessa Health Connect.
+- A fila de projeções usa uma operação por filho, payload congelado, IDs e
+  versões monotônicos, retry foreground e reconciliação por identidade exata.
+  Health Connect permanece destino write-only; a validação manual do provider não
+  é readback do aplicativo.
+- A matriz física confirmou apenas os cenários exercitados após `014-17`.
+  Gates B, C, D, E e G ficaram `N/A`; midpoint, delete-before-insert, round-trip
+  físico completo e variações de firmware permanecem riscos de evidência.
+
+## Atualização factual da Spec 021 — schema v11
+
+`MIGRATION_10_11` é aditiva e adiciona o índice de origem das amostras de
+frequência cardíaca D4. Não deriva métricas, altera workflow, cria operações ou
+executa efeitos remotos durante o upgrade.
+
+Estado efetivo após a Spec 021:
+
+- novas importações usam `d4-v3`; `d4-v1` e `d4-v2` permanecem identificáveis
+  como legado;
+- duração autoritativa vem do cabeçalho corrigido e a série usa timeline
+  normalizada `watch-d3-d4-v2`, com soma exata até `endedAt`;
+- reprocessamento existente é explícito, preserva identidade e não ressincroniza
+  automaticamente;
+- candidate semântico do Calendário carrega snapshot ativo e série canônica;
+- upgrade validado sem wipe no banco preservado, com integrity `ok` e schema
+  `v11`.
 
 ## Fechamento Factual Da Fase 12
 
-O fechamento de 2026-07-28 confirma que o banco próprio permanece em schema `v5`, sem migração adicional nesta task. A fila `health_sync_operations` continua fonte local de estado, tentativas e falhas; Health Connect permanece destino derivado write-only. Gate C físico foi concluído no Galaxy S22 e não alterou dados legados do MotionLog nem introduziu rota, coordenadas ou backup.
+O fechamento de 2026-07-28 registrou o banco próprio em schema `v5`; o estado
+atual evoluiu para `v8` com migrations posteriores. A fila
+`health_sync_operations` continua fonte local de estado, tentativas e falhas;
+Health Connect permanece destino derivado write-only. Gate C físico foi concluído
+no Galaxy S22 e não alterou dados legados do MotionLog nem introduziu rota,
+coordenadas ou backup.
 
 Classificacao: itens de schema, SQL e fluxo marcados como `Confirmado pelo codigo`. Recomendacoes para banco novo sao `Decisao ja definida` quando derivam de roadmap/spec/ADR; demais sao `Inferido a partir do codigo`.
 
@@ -156,16 +264,17 @@ autorização não inclui servidor, exportação, backup ou device transfer.
 
 Lista e referencia de comportamento, nao autorizacao para copiar tabelas/colunas ou criar Room. `Inferido a partir do codigo`, exceto restricoes de rota.
 
-## Lacunas Para Task 000-14
+## Riscos residuais após Fase 014
 
-- Definir retenção, acesso e necessidade real de `raw_hex`, IDs de sessao brutos, logs e erros de Health Connect; codigo atual nao define politica de privacidade/expurgo geral. `Ainda nao confirmado`.
-- Definir entidades e limites de diagnóstico/background do novo app; ADR-014
-  coloca o foreground service mínimo da sessão na Fase 13 e WorkManager em
-  tarefas adiáveis da Fase 14. `Ainda nao confirmado`.
-- Confirmar modelo novo para exclusao de entidade e fila Health Connect: exclusao de sessao atual nao mostra exclusao de itens de fila relacionados. `Confirmado pelo codigo` para comportamento atual; decisao nova pendente.
-- Definir unicidade desejada para BPM sem `device_id`; indice SQLite atual aceita multiplos `NULL`. `Inferido a partir do codigo`.
-- Confirmar se samples D3/D4 e BPM por exercicio exigem retenção completa ou agregados atendem paridade futura. `Ainda nao confirmado`.
-- Confirmar semantica de `synced_at` de `daily_summaries` versus cursor especifico de Steps; ambos coexistem no schema atual. `Ainda nao confirmado`.
+- Retenção, acesso e expurgo geral de payloads diagnósticos e erros de Health
+  Connect continuam fora desta fase.
+- Abertura física de banco legado, cascatas e round-trip completo em dispositivo
+  não foram executados; migration manual, schema, mappers fail-closed e builds
+  permanecem evidência estática.
+- A matriz física não cobriu todos os cenários de midpoint,
+  delete-before-insert, identidade congelada ou variações de firmware.
+- A Fase 014 não autoriza leitura ampla do Health Connect, fallback de distância,
+  GPS, rota, treino phone ou remoção de legado da Fase 013.
 
 ## Validacao Da Task
 

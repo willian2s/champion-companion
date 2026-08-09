@@ -73,6 +73,7 @@ import br.com.mwconsulting.championcompanion.feature.health.StepsDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
+import br.com.mwconsulting.championcompanion.feature.profile.ProfileViewModel
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -119,6 +120,9 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
     }
     val settingsViewModel = remember(activity) {
         ViewModelProvider(activity)[SettingsViewModel::class.java]
+    }
+    val profileViewModel = remember(activity) {
+        ViewModelProvider(activity)[ProfileViewModel::class.java]
     }
     val backStack = rememberSaveable(saver = appBackStackSaver) {
         mutableStateListOf<AppDestination>(AppDestination.Home)
@@ -409,6 +413,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             exercisesViewModel = exercisesViewModel,
             exercisesState = exercisesState,
             settingsViewModel = settingsViewModel,
+            profileViewModel = profileViewModel,
             animationDirection = animationDirection,
             backLabel = contextualBackLabel,
         )
@@ -479,6 +484,7 @@ private fun ChampionNavDisplay(
     exercisesViewModel: ExercisesViewModel,
     exercisesState: ExercisesUiState,
     settingsViewModel: SettingsViewModel,
+    profileViewModel: ProfileViewModel,
     animationDirection: NavigationAnimationDirection,
     backLabel: String,
 ) {
@@ -591,7 +597,7 @@ private fun ChampionNavDisplay(
                 exercisesViewModel = exercisesViewModel,
             )
             AppDestination.Device -> DeviceScreen()
-            AppDestination.Profile -> ProfileScreen()
+            AppDestination.Profile -> ProfileScreen(viewModel = profileViewModel)
             AppDestination.Settings -> SettingsScreen(viewModel = settingsViewModel)
         }
     }

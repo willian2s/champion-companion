@@ -31,6 +31,8 @@ data class ExercisesUiState(
     val reviewFormState: ExerciseReviewFormState = ExerciseReviewFormState(),
     val calibrationFormState: ExerciseCalibrationFormState = ExerciseCalibrationFormState(),
     val operationError: ExerciseOperationError? = null,
+    val isReprocessing: Boolean = false,
+    val isAcceptingPlausibility: Boolean = false,
     val pendingActivities: List<WorkoutActivity> = emptyList(),
     val hasUnsavedDetailChanges: Boolean = false,
     val canDiscardSelectedActivity: Boolean = false,
@@ -115,6 +117,7 @@ data class ExerciseReviewFormState(
     val selectedType: WorkoutType? = null,
     val titleInput: String = "",
     val notesInput: String = "",
+    val acceptPlausibility: Boolean = false,
     val hasUnsavedChanges: Boolean = false,
     val isSaving: Boolean = false,
     val savedAt: Instant? = null,
@@ -143,12 +146,23 @@ enum class ExerciseOperationErrorCategory {
     PARTIAL_BLOCKED,
     PERMISSION_REQUIRED,
     PROVIDER_UNAVAILABLE,
+    WRITE_ACCEPTED_NO_READBACK,
     SYNC_DISABLED,
     SYNC_FAILED,
     INVALID_TYPE,
     INVALID_TITLE,
     INVALID_NOTES,
     INVALID_DISTANCE,
+    REPROCESS_RAW_MISSING,
+    REPROCESS_PARSER_UNKNOWN,
+    REPROCESS_INDEX_INELIGIBLE,
+    REPROCESS_PROFILE_MISSING,
+    REPROCESS_TEMPORAL_INVALID,
+    REPROCESS_SYNCED_BLOCKED,
+    REPROCESS_SYNCING,
+    REPROCESS_UNAVAILABLE,
+    PLAUSIBILITY_ACCEPTANCE_REQUIRED,
+    PLAUSIBILITY_INDICATORS_BLOCKED,
     STORAGE,
     INTERNAL,
 }
@@ -161,9 +175,12 @@ sealed interface ExercisesIntent {
     data class EditReviewType(val type: WorkoutType) : ExercisesIntent
     data class EditReviewTitle(val title: String) : ExercisesIntent
     data class EditReviewNotes(val notes: String) : ExercisesIntent
+    data class EditReviewPlausibilityAcceptance(val accepted: Boolean) : ExercisesIntent
     data object SubmitReview : ExercisesIntent
     data class EditCalibrationDistance(val distance: String) : ExercisesIntent
     data object SubmitCalibration : ExercisesIntent
+    data object ReprocessSelectedActivity : ExercisesIntent
+    data object AcceptSelectedPlausibility : ExercisesIntent
     data object SyncSelectedActivity : ExercisesIntent
     data object DiscardSelectedActivity : ExercisesIntent
     data object ConfirmExitDetail : ExercisesIntent

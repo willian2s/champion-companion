@@ -1,0 +1,2555 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 9,
+    "identityHash": "8cd91d0ac3554b2dde4a376dc2c1404c",
+    "entities": [
+      {
+        "tableName": "devices",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `platformIdentifier` TEXT NOT NULL, `name` TEXT NOT NULL, `model` TEXT NOT NULL, `firmware` TEXT, `associatedAtEpochMillis` INTEGER NOT NULL, `lastSuccessfulConnectionAtEpochMillis` INTEGER, `lastImportedAtEpochMillis` INTEGER, `importParserVersion` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "platformIdentifier",
+            "columnName": "platformIdentifier",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firmware",
+            "columnName": "firmware",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "associatedAtEpochMillis",
+            "columnName": "associatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessfulConnectionAtEpochMillis",
+            "columnName": "lastSuccessfulConnectionAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastImportedAtEpochMillis",
+            "columnName": "lastImportedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "importParserVersion",
+            "columnName": "importParserVersion",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_devices_platformIdentifier",
+            "unique": true,
+            "columnNames": [
+              "platformIdentifier"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_devices_platformIdentifier` ON `${TABLE_NAME}` (`platformIdentifier`)"
+          }
+        ]
+      },
+      {
+        "tableName": "device_import_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `deviceId` TEXT NOT NULL, `importType` TEXT NOT NULL, `lastAttemptAtEpochMillis` INTEGER NOT NULL, `lastSuccessAtEpochMillis` INTEGER, `lastResult` TEXT NOT NULL, `parserVersion` TEXT, `insertedCount` INTEGER NOT NULL, `duplicateCount` INTEGER NOT NULL, `conflictCount` INTEGER NOT NULL, `invalidCount` INTEGER NOT NULL, `missingIndexCount` INTEGER NOT NULL, `timedOut` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importType",
+            "columnName": "importType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAtEpochMillis",
+            "columnName": "lastAttemptAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessAtEpochMillis",
+            "columnName": "lastSuccessAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastResult",
+            "columnName": "lastResult",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parserVersion",
+            "columnName": "parserVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "insertedCount",
+            "columnName": "insertedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duplicateCount",
+            "columnName": "duplicateCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conflictCount",
+            "columnName": "conflictCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "invalidCount",
+            "columnName": "invalidCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missingIndexCount",
+            "columnName": "missingIndexCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timedOut",
+            "columnName": "timedOut",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_device_import_metadata_deviceId_importType",
+            "unique": true,
+            "columnNames": [
+              "deviceId",
+              "importType"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_device_import_metadata_deviceId_importType` ON `${TABLE_NAME}` (`deviceId`, `importType`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "devices",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "device_associations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `deviceId` TEXT NOT NULL, `associatedAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "associatedAtEpochMillis",
+            "columnName": "associatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_device_associations_deviceId",
+            "unique": true,
+            "columnNames": [
+              "deviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_device_associations_deviceId` ON `${TABLE_NAME}` (`deviceId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "devices",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "user_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `heightCentimeters` REAL, `stepLengthMeters` REAL, `stepLengthSource` TEXT, `stepLengthUpdatedAtEpochMillis` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "heightCentimeters",
+            "columnName": "heightCentimeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "stepLengthMeters",
+            "columnName": "stepLengthMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "stepLengthSource",
+            "columnName": "stepLengthSource",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stepLengthUpdatedAtEpochMillis",
+            "columnName": "stepLengthUpdatedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "weight_measurements",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `profileId` TEXT NOT NULL, `value` REAL NOT NULL, `unit` TEXT NOT NULL, `measuredAtEpochMillis` INTEGER NOT NULL, `origin` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`profileId`) REFERENCES `user_profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unit",
+            "columnName": "unit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "measuredAtEpochMillis",
+            "columnName": "measuredAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_weight_measurements_profileId",
+            "unique": false,
+            "columnNames": [
+              "profileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_weight_measurements_profileId` ON `${TABLE_NAME}` (`profileId`)"
+          },
+          {
+            "name": "index_weight_measurements_measuredAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "measuredAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_weight_measurements_measuredAtEpochMillis` ON `${TABLE_NAME}` (`measuredAtEpochMillis`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "user_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "daily_summaries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `deviceId` TEXT, `origin` TEXT NOT NULL, `localDateIso` TEXT NOT NULL, `steps` INTEGER NOT NULL, `estimatedDistanceMeters` REAL, `estimatedCaloriesKilocalories` REAL, `collectedAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `validity` TEXT NOT NULL, `collectedZoneId` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localDateIso",
+            "columnName": "localDateIso",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estimatedDistanceMeters",
+            "columnName": "estimatedDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "estimatedCaloriesKilocalories",
+            "columnName": "estimatedCaloriesKilocalories",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "collectedAtEpochMillis",
+            "columnName": "collectedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validity",
+            "columnName": "validity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedZoneId",
+            "columnName": "collectedZoneId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_summaries_deviceId",
+            "unique": false,
+            "columnNames": [
+              "deviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_summaries_deviceId` ON `${TABLE_NAME}` (`deviceId`)"
+          },
+          {
+            "name": "index_daily_summaries_deviceId_origin_localDateIso",
+            "unique": true,
+            "columnNames": [
+              "deviceId",
+              "origin",
+              "localDateIso"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_summaries_deviceId_origin_localDateIso` ON `${TABLE_NAME}` (`deviceId`, `origin`, `localDateIso`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "devices",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "heart_rate_measurements",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `source` TEXT NOT NULL, `bpm` INTEGER NOT NULL, `measuredAtEpochMillis` INTEGER, `observedLocalDateTime` TEXT, `validity` TEXT NOT NULL, `deviceId` TEXT, `importedAtEpochMillis` INTEGER, `parserVersion` TEXT, `appWorkoutSessionId` TEXT, `workoutActivityId` TEXT, `deduplicationKey` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`appWorkoutSessionId`) REFERENCES `app_workout_sessions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`workoutActivityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bpm",
+            "columnName": "bpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "measuredAtEpochMillis",
+            "columnName": "measuredAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observedLocalDateTime",
+            "columnName": "observedLocalDateTime",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "validity",
+            "columnName": "validity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "importedAtEpochMillis",
+            "columnName": "importedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "parserVersion",
+            "columnName": "parserVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "appWorkoutSessionId",
+            "columnName": "appWorkoutSessionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "workoutActivityId",
+            "columnName": "workoutActivityId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deduplicationKey",
+            "columnName": "deduplicationKey",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_heart_rate_measurements_deviceId",
+            "unique": false,
+            "columnNames": [
+              "deviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_heart_rate_measurements_deviceId` ON `${TABLE_NAME}` (`deviceId`)"
+          },
+          {
+            "name": "index_heart_rate_measurements_appWorkoutSessionId",
+            "unique": false,
+            "columnNames": [
+              "appWorkoutSessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_heart_rate_measurements_appWorkoutSessionId` ON `${TABLE_NAME}` (`appWorkoutSessionId`)"
+          },
+          {
+            "name": "index_heart_rate_measurements_workoutActivityId",
+            "unique": false,
+            "columnNames": [
+              "workoutActivityId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_heart_rate_measurements_workoutActivityId` ON `${TABLE_NAME}` (`workoutActivityId`)"
+          },
+          {
+            "name": "index_heart_rate_measurements_deduplicationKey",
+            "unique": true,
+            "columnNames": [
+              "deduplicationKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_heart_rate_measurements_deduplicationKey` ON `${TABLE_NAME}` (`deduplicationKey`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "devices",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "app_workout_sessions",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "appWorkoutSessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "workout_activities",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workoutActivityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_activities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `origin` TEXT NOT NULL, `deviceId` TEXT, `parserValidity` TEXT, `importedAtEpochMillis` INTEGER, `parserVersion` TEXT, `diagnosticPayloadId` TEXT, `startedAtEpochMillis` INTEGER NOT NULL, `durationNanos` INTEGER NOT NULL, `steps` INTEGER NOT NULL, `caloriesKilocalories` REAL, `originalDistanceMeters` REAL, `estimatedDistanceMeters` REAL, `calibratedDistanceMeters` REAL, `importedAveragePaceSecondsPerKilometer` REAL, `importedAverageSpeedMetersPerSecond` REAL, `calibratedAveragePaceSecondsPerKilometer` REAL, `calibratedAverageSpeedMetersPerSecond` REAL, `averageBpm` INTEGER, `minimumBpm` INTEGER, `maximumBpm` INTEGER, `suggestedType` TEXT NOT NULL, `title` TEXT, `notes` TEXT, `confirmedType` TEXT, `workflowState` TEXT NOT NULL, `reviewedAtEpochMillis` INTEGER, `calibrationId` TEXT, `appWorkoutSessionId` TEXT, `recordedAtEpochMillis` INTEGER NOT NULL, `endedAtEpochMillis` INTEGER NOT NULL, `stepsAvailable` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`diagnosticPayloadId`) REFERENCES `diagnostic_payloads`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "parserValidity",
+            "columnName": "parserValidity",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "importedAtEpochMillis",
+            "columnName": "importedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "parserVersion",
+            "columnName": "parserVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "diagnosticPayloadId",
+            "columnName": "diagnosticPayloadId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startedAtEpochMillis",
+            "columnName": "startedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationNanos",
+            "columnName": "durationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "caloriesKilocalories",
+            "columnName": "caloriesKilocalories",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "originalDistanceMeters",
+            "columnName": "originalDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "estimatedDistanceMeters",
+            "columnName": "estimatedDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "calibratedDistanceMeters",
+            "columnName": "calibratedDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "importedAveragePaceSecondsPerKilometer",
+            "columnName": "importedAveragePaceSecondsPerKilometer",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "importedAverageSpeedMetersPerSecond",
+            "columnName": "importedAverageSpeedMetersPerSecond",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "calibratedAveragePaceSecondsPerKilometer",
+            "columnName": "calibratedAveragePaceSecondsPerKilometer",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "calibratedAverageSpeedMetersPerSecond",
+            "columnName": "calibratedAverageSpeedMetersPerSecond",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "averageBpm",
+            "columnName": "averageBpm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "minimumBpm",
+            "columnName": "minimumBpm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "maximumBpm",
+            "columnName": "maximumBpm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "suggestedType",
+            "columnName": "suggestedType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "confirmedType",
+            "columnName": "confirmedType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "workflowState",
+            "columnName": "workflowState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reviewedAtEpochMillis",
+            "columnName": "reviewedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "calibrationId",
+            "columnName": "calibrationId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "appWorkoutSessionId",
+            "columnName": "appWorkoutSessionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "recordedAtEpochMillis",
+            "columnName": "recordedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtEpochMillis",
+            "columnName": "endedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepsAvailable",
+            "columnName": "stepsAvailable",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_activities_deviceId",
+            "unique": false,
+            "columnNames": [
+              "deviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_activities_deviceId` ON `${TABLE_NAME}` (`deviceId`)"
+          },
+          {
+            "name": "index_workout_activities_diagnosticPayloadId",
+            "unique": false,
+            "columnNames": [
+              "diagnosticPayloadId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_activities_diagnosticPayloadId` ON `${TABLE_NAME}` (`diagnosticPayloadId`)"
+          },
+          {
+            "name": "index_workout_activities_workflowState",
+            "unique": false,
+            "columnNames": [
+              "workflowState"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_activities_workflowState` ON `${TABLE_NAME}` (`workflowState`)"
+          },
+          {
+            "name": "index_workout_activities_appWorkoutSessionId",
+            "unique": true,
+            "columnNames": [
+              "appWorkoutSessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_activities_appWorkoutSessionId` ON `${TABLE_NAME}` (`appWorkoutSessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "devices",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "diagnostic_payloads",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "diagnosticPayloadId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "watch_workout_imports",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `activityId` TEXT NOT NULL, `deviceId` TEXT NOT NULL, `origin` TEXT NOT NULL, `crc` INTEGER NOT NULL, `externalBlockIndex` INTEGER NOT NULL, `parserVersion` TEXT NOT NULL, `parserValidity` TEXT NOT NULL, `diagnosticPayloadId` TEXT, `importedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`activityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`diagnosticPayloadId`) REFERENCES `diagnostic_payloads`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityId",
+            "columnName": "activityId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "crc",
+            "columnName": "crc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "externalBlockIndex",
+            "columnName": "externalBlockIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parserVersion",
+            "columnName": "parserVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parserValidity",
+            "columnName": "parserValidity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "diagnosticPayloadId",
+            "columnName": "diagnosticPayloadId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "importedAtEpochMillis",
+            "columnName": "importedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_watch_workout_imports_activityId",
+            "unique": true,
+            "columnNames": [
+              "activityId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_watch_workout_imports_activityId` ON `${TABLE_NAME}` (`activityId`)"
+          },
+          {
+            "name": "index_watch_workout_imports_deviceId_origin_crc",
+            "unique": true,
+            "columnNames": [
+              "deviceId",
+              "origin",
+              "crc"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_watch_workout_imports_deviceId_origin_crc` ON `${TABLE_NAME}` (`deviceId`, `origin`, `crc`)"
+          },
+          {
+            "name": "index_watch_workout_imports_diagnosticPayloadId",
+            "unique": false,
+            "columnNames": [
+              "diagnosticPayloadId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_watch_workout_imports_diagnosticPayloadId` ON `${TABLE_NAME}` (`diagnosticPayloadId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_activities",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "activityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "devices",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "diagnostic_payloads",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "diagnosticPayloadId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_intervals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `activityId` TEXT NOT NULL, `intervalIndex` INTEGER NOT NULL, `durationNanos` INTEGER NOT NULL, `steps` INTEGER NOT NULL, `distanceMeters` REAL, `caloriesKilocalories` REAL, `rawMotionValue` INTEGER, `rawDistanceValue` INTEGER, `rawCaloriesValue` INTEGER, `decodedSteps` INTEGER, `effectiveDurationNanos` INTEGER, `temporalEligibilityReason` TEXT, `plausibilityStatus` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`activityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityId",
+            "columnName": "activityId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalIndex",
+            "columnName": "intervalIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationNanos",
+            "columnName": "durationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "caloriesKilocalories",
+            "columnName": "caloriesKilocalories",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rawMotionValue",
+            "columnName": "rawMotionValue",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rawDistanceValue",
+            "columnName": "rawDistanceValue",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rawCaloriesValue",
+            "columnName": "rawCaloriesValue",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "decodedSteps",
+            "columnName": "decodedSteps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "effectiveDurationNanos",
+            "columnName": "effectiveDurationNanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "temporalEligibilityReason",
+            "columnName": "temporalEligibilityReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "plausibilityStatus",
+            "columnName": "plausibilityStatus",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_intervals_activityId_intervalIndex",
+            "unique": true,
+            "columnNames": [
+              "activityId",
+              "intervalIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_intervals_activityId_intervalIndex` ON `${TABLE_NAME}` (`activityId`, `intervalIndex`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_activities",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "activityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_derivation_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `activityId` TEXT NOT NULL, `stepLengthMetersUsed` REAL NOT NULL, `stepLengthSource` TEXT NOT NULL, `derivationMethod` TEXT NOT NULL, `derivationVersion` TEXT NOT NULL, `derivedAtEpochMillis` INTEGER NOT NULL, `durationCase` TEXT NOT NULL, `totalDurationNanos` INTEGER NOT NULL, `nominalIntervalDurationNanos` INTEGER NOT NULL, `tailUncoveredNanos` INTEGER NOT NULL, `temporalEligibility` TEXT NOT NULL, `temporalEligibilityReasons` TEXT, `plausibilityPolicy` TEXT NOT NULL, `plausibilityIndicators` TEXT, `canonicalDistanceMeters` REAL, `canonicalCoveredDurationNanos` INTEGER, `diagnosticAggregateTotalSteps` INTEGER, `diagnosticAggregateStepLengthMeters` REAL, `diagnosticAggregateDistanceMeters` REAL, `derivedAtEpochSecond` INTEGER NOT NULL, `derivedAtNano` INTEGER NOT NULL, `activeActivityId` TEXT, `isActive` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`), FOREIGN KEY(`activityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityId",
+            "columnName": "activityId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepLengthMetersUsed",
+            "columnName": "stepLengthMetersUsed",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepLengthSource",
+            "columnName": "stepLengthSource",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "derivationMethod",
+            "columnName": "derivationMethod",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "derivationVersion",
+            "columnName": "derivationVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "derivedAtEpochMillis",
+            "columnName": "derivedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationCase",
+            "columnName": "durationCase",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDurationNanos",
+            "columnName": "totalDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nominalIntervalDurationNanos",
+            "columnName": "nominalIntervalDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tailUncoveredNanos",
+            "columnName": "tailUncoveredNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temporalEligibility",
+            "columnName": "temporalEligibility",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temporalEligibilityReasons",
+            "columnName": "temporalEligibilityReasons",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "plausibilityPolicy",
+            "columnName": "plausibilityPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plausibilityIndicators",
+            "columnName": "plausibilityIndicators",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "canonicalDistanceMeters",
+            "columnName": "canonicalDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "canonicalCoveredDurationNanos",
+            "columnName": "canonicalCoveredDurationNanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "diagnosticAggregateTotalSteps",
+            "columnName": "diagnosticAggregateTotalSteps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "diagnosticAggregateStepLengthMeters",
+            "columnName": "diagnosticAggregateStepLengthMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "diagnosticAggregateDistanceMeters",
+            "columnName": "diagnosticAggregateDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "derivedAtEpochSecond",
+            "columnName": "derivedAtEpochSecond",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "derivedAtNano",
+            "columnName": "derivedAtNano",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeActivityId",
+            "columnName": "activeActivityId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "isActive",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_derivation_snapshots_activityId",
+            "unique": false,
+            "columnNames": [
+              "activityId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_derivation_snapshots_activityId` ON `${TABLE_NAME}` (`activityId`)"
+          },
+          {
+            "name": "index_workout_derivation_snapshots_activityId_derivedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "activityId",
+              "derivedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_derivation_snapshots_activityId_derivedAtEpochMillis` ON `${TABLE_NAME}` (`activityId`, `derivedAtEpochMillis`)"
+          },
+          {
+            "name": "index_workout_derivation_snapshots_activeActivityId",
+            "unique": true,
+            "columnNames": [
+              "activeActivityId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_derivation_snapshots_activeActivityId` ON `${TABLE_NAME}` (`activeActivityId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_activities",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "activityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_derived_intervals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `snapshotId` TEXT NOT NULL, `intervalIndex` INTEGER NOT NULL, `effectiveStartEpochMillis` INTEGER NOT NULL, `effectiveStartEpochSecond` INTEGER NOT NULL, `effectiveStartNano` INTEGER NOT NULL, `effectiveDurationNanos` INTEGER NOT NULL, `decodedSteps` INTEGER NOT NULL, `canonicalIntervalDistanceMeters` REAL NOT NULL, `cadenceStepsPerMinute` REAL NOT NULL, `speedMetersPerSecond` REAL NOT NULL, `paceSecondsPerKilometer` REAL, `cumulativeSteps` INTEGER NOT NULL, `cumulativeDistanceMeters` REAL NOT NULL, `cumulativeDurationNanos` INTEGER NOT NULL, `cumulativeCadenceStepsPerMinute` REAL NOT NULL, `cumulativeSpeedMetersPerSecond` REAL NOT NULL, `cumulativePaceSecondsPerKilometer` REAL, `speedSampledAtEpochMillis` INTEGER NOT NULL, `speedSampledAtEpochSecond` INTEGER NOT NULL, `speedSampledAtNano` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`snapshotId`) REFERENCES `workout_derivation_snapshots`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalIndex",
+            "columnName": "intervalIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveStartEpochMillis",
+            "columnName": "effectiveStartEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveStartEpochSecond",
+            "columnName": "effectiveStartEpochSecond",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveStartNano",
+            "columnName": "effectiveStartNano",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveDurationNanos",
+            "columnName": "effectiveDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decodedSteps",
+            "columnName": "decodedSteps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonicalIntervalDistanceMeters",
+            "columnName": "canonicalIntervalDistanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cadenceStepsPerMinute",
+            "columnName": "cadenceStepsPerMinute",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedMetersPerSecond",
+            "columnName": "speedMetersPerSecond",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paceSecondsPerKilometer",
+            "columnName": "paceSecondsPerKilometer",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "cumulativeSteps",
+            "columnName": "cumulativeSteps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cumulativeDistanceMeters",
+            "columnName": "cumulativeDistanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cumulativeDurationNanos",
+            "columnName": "cumulativeDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cumulativeCadenceStepsPerMinute",
+            "columnName": "cumulativeCadenceStepsPerMinute",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cumulativeSpeedMetersPerSecond",
+            "columnName": "cumulativeSpeedMetersPerSecond",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cumulativePaceSecondsPerKilometer",
+            "columnName": "cumulativePaceSecondsPerKilometer",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "speedSampledAtEpochMillis",
+            "columnName": "speedSampledAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedSampledAtEpochSecond",
+            "columnName": "speedSampledAtEpochSecond",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedSampledAtNano",
+            "columnName": "speedSampledAtNano",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_derived_intervals_snapshotId_intervalIndex",
+            "unique": true,
+            "columnNames": [
+              "snapshotId",
+              "intervalIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_derived_intervals_snapshotId_intervalIndex` ON `${TABLE_NAME}` (`snapshotId`, `intervalIndex`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_derivation_snapshots",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "snapshotId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_splits",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `snapshotId` TEXT NOT NULL, `splitNumber` INTEGER NOT NULL, `targetDistanceMeters` REAL NOT NULL, `windowStartEpochMillis` INTEGER NOT NULL, `windowStartEpochSecond` INTEGER NOT NULL, `windowStartNano` INTEGER NOT NULL, `windowEndEpochMillis` INTEGER NOT NULL, `windowEndEpochSecond` INTEGER NOT NULL, `windowEndNano` INTEGER NOT NULL, `distanceMeters` REAL NOT NULL, `durationNanos` INTEGER NOT NULL, `averageCadenceStepsPerMinute` REAL NOT NULL, `averageSpeedMetersPerSecond` REAL NOT NULL, `averagePaceSecondsPerKilometer` REAL, `averageBpm` REAL, `bpmCoveredDurationNanos` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`snapshotId`) REFERENCES `workout_derivation_snapshots`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "splitNumber",
+            "columnName": "splitNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetDistanceMeters",
+            "columnName": "targetDistanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowStartEpochMillis",
+            "columnName": "windowStartEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowStartEpochSecond",
+            "columnName": "windowStartEpochSecond",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowStartNano",
+            "columnName": "windowStartNano",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowEndEpochMillis",
+            "columnName": "windowEndEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowEndEpochSecond",
+            "columnName": "windowEndEpochSecond",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowEndNano",
+            "columnName": "windowEndNano",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationNanos",
+            "columnName": "durationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averageCadenceStepsPerMinute",
+            "columnName": "averageCadenceStepsPerMinute",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averageSpeedMetersPerSecond",
+            "columnName": "averageSpeedMetersPerSecond",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averagePaceSecondsPerKilometer",
+            "columnName": "averagePaceSecondsPerKilometer",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "averageBpm",
+            "columnName": "averageBpm",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bpmCoveredDurationNanos",
+            "columnName": "bpmCoveredDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_splits_snapshotId_splitNumber",
+            "unique": true,
+            "columnNames": [
+              "snapshotId",
+              "splitNumber"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_splits_snapshotId_splitNumber` ON `${TABLE_NAME}` (`snapshotId`, `splitNumber`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_derivation_snapshots",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "snapshotId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_heart_rate_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `activityId` TEXT NOT NULL, `sampledAtEpochMillis` INTEGER NOT NULL, `bpm` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`activityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityId",
+            "columnName": "activityId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sampledAtEpochMillis",
+            "columnName": "sampledAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bpm",
+            "columnName": "bpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_heart_rate_samples_activityId_sampledAtEpochMillis",
+            "unique": true,
+            "columnNames": [
+              "activityId",
+              "sampledAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_heart_rate_samples_activityId_sampledAtEpochMillis` ON `${TABLE_NAME}` (`activityId`, `sampledAtEpochMillis`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_activities",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "activityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "treadmill_calibrations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `activityId` TEXT NOT NULL, `revision` INTEGER NOT NULL, `originalDistanceMeters` REAL, `estimatedDistanceMeters` REAL, `reportedDistanceMeters` REAL, `calibratedDistanceMeters` REAL, `factor` REAL, `factorAbsenceReason` TEXT, `appliedAtEpochMillis` INTEGER NOT NULL, `origin` TEXT NOT NULL, `averagePaceSecondsPerKilometer` REAL, `averageSpeedMetersPerSecond` REAL, `metricsProvenance` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`activityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityId",
+            "columnName": "activityId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalDistanceMeters",
+            "columnName": "originalDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "estimatedDistanceMeters",
+            "columnName": "estimatedDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "reportedDistanceMeters",
+            "columnName": "reportedDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "calibratedDistanceMeters",
+            "columnName": "calibratedDistanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "factor",
+            "columnName": "factor",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "factorAbsenceReason",
+            "columnName": "factorAbsenceReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "appliedAtEpochMillis",
+            "columnName": "appliedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averagePaceSecondsPerKilometer",
+            "columnName": "averagePaceSecondsPerKilometer",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "averageSpeedMetersPerSecond",
+            "columnName": "averageSpeedMetersPerSecond",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "metricsProvenance",
+            "columnName": "metricsProvenance",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_treadmill_calibrations_activityId_revision",
+            "unique": true,
+            "columnNames": [
+              "activityId",
+              "revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_treadmill_calibrations_activityId_revision` ON `${TABLE_NAME}` (`activityId`, `revision`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_activities",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "activityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "app_workout_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `startedAtEpochMillis` INTEGER, `endedAtEpochMillis` INTEGER, `activeDurationNanos` INTEGER NOT NULL, `pausedDurationNanos` INTEGER NOT NULL, `activeSinceEpochMillis` INTEGER, `pausedSinceEpochMillis` INTEGER, `state` TEXT NOT NULL, `steps` INTEGER NOT NULL, `distanceMeters` REAL, `distanceAbsenceReason` TEXT, `caloriesKilocalories` REAL, `caloriesAbsenceReason` TEXT, `averageBpm` INTEGER, `averageBpmAbsenceReason` TEXT, `minimumBpm` INTEGER, `minimumBpmAbsenceReason` TEXT, `maximumBpm` INTEGER, `maximumBpmAbsenceReason` TEXT, `workoutActivityId` TEXT, `lastTransitionAtEpochMillis` INTEGER NOT NULL, `associatedDeviceId` TEXT, `revision` INTEGER NOT NULL, `runtimeGeneration` INTEGER NOT NULL, `stepsAvailable` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`workoutActivityId`) REFERENCES `workout_activities`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`associatedDeviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtEpochMillis",
+            "columnName": "startedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "endedAtEpochMillis",
+            "columnName": "endedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "activeDurationNanos",
+            "columnName": "activeDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pausedDurationNanos",
+            "columnName": "pausedDurationNanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeSinceEpochMillis",
+            "columnName": "activeSinceEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "pausedSinceEpochMillis",
+            "columnName": "pausedSinceEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "distanceAbsenceReason",
+            "columnName": "distanceAbsenceReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "caloriesKilocalories",
+            "columnName": "caloriesKilocalories",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "caloriesAbsenceReason",
+            "columnName": "caloriesAbsenceReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "averageBpm",
+            "columnName": "averageBpm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "averageBpmAbsenceReason",
+            "columnName": "averageBpmAbsenceReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "minimumBpm",
+            "columnName": "minimumBpm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "minimumBpmAbsenceReason",
+            "columnName": "minimumBpmAbsenceReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "maximumBpm",
+            "columnName": "maximumBpm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "maximumBpmAbsenceReason",
+            "columnName": "maximumBpmAbsenceReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "workoutActivityId",
+            "columnName": "workoutActivityId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastTransitionAtEpochMillis",
+            "columnName": "lastTransitionAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "associatedDeviceId",
+            "columnName": "associatedDeviceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runtimeGeneration",
+            "columnName": "runtimeGeneration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepsAvailable",
+            "columnName": "stepsAvailable",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_app_workout_sessions_workoutActivityId",
+            "unique": true,
+            "columnNames": [
+              "workoutActivityId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_app_workout_sessions_workoutActivityId` ON `${TABLE_NAME}` (`workoutActivityId`)"
+          },
+          {
+            "name": "index_app_workout_sessions_state",
+            "unique": false,
+            "columnNames": [
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_app_workout_sessions_state` ON `${TABLE_NAME}` (`state`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_activities",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workoutActivityId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "devices",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "associatedDeviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_routes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `workoutType` TEXT NOT NULL, `state` TEXT NOT NULL, `startedAtEpochMillis` INTEGER NOT NULL, `endedAtEpochMillis` INTEGER, `acceptedPointCount` INTEGER NOT NULL, `segmentCount` INTEGER NOT NULL, `distanceMeters` REAL NOT NULL, `averageHorizontalAccuracyMeters` REAL, `revision` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`sessionId`) REFERENCES `app_workout_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workoutType",
+            "columnName": "workoutType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtEpochMillis",
+            "columnName": "startedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtEpochMillis",
+            "columnName": "endedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "acceptedPointCount",
+            "columnName": "acceptedPointCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentCount",
+            "columnName": "segmentCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averageHorizontalAccuracyMeters",
+            "columnName": "averageHorizontalAccuracyMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_routes_sessionId",
+            "unique": true,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_routes_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "app_workout_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_route_points",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `routeId` TEXT NOT NULL, `sequence` INTEGER NOT NULL, `sampledAtEpochMillis` INTEGER NOT NULL, `latitudeDegrees` REAL NOT NULL, `longitudeDegrees` REAL NOT NULL, `altitudeMeters` REAL, `horizontalAccuracyMeters` REAL NOT NULL, `verticalAccuracyMeters` REAL, `speedMetersPerSecond` REAL, `bearingDegrees` REAL, `segmentIndex` INTEGER NOT NULL, `segmentStartReason` TEXT, `segmentStartedAtEpochMillis` INTEGER, `segmentDistanceMeters` REAL, PRIMARY KEY(`id`), FOREIGN KEY(`routeId`) REFERENCES `workout_routes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "routeId",
+            "columnName": "routeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequence",
+            "columnName": "sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sampledAtEpochMillis",
+            "columnName": "sampledAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latitudeDegrees",
+            "columnName": "latitudeDegrees",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitudeDegrees",
+            "columnName": "longitudeDegrees",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "altitudeMeters",
+            "columnName": "altitudeMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "horizontalAccuracyMeters",
+            "columnName": "horizontalAccuracyMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verticalAccuracyMeters",
+            "columnName": "verticalAccuracyMeters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "speedMetersPerSecond",
+            "columnName": "speedMetersPerSecond",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "bearingDegrees",
+            "columnName": "bearingDegrees",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "segmentIndex",
+            "columnName": "segmentIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentStartReason",
+            "columnName": "segmentStartReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "segmentStartedAtEpochMillis",
+            "columnName": "segmentStartedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "segmentDistanceMeters",
+            "columnName": "segmentDistanceMeters",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_route_points_routeId_sequence",
+            "unique": true,
+            "columnNames": [
+              "routeId",
+              "sequence"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_route_points_routeId_sequence` ON `${TABLE_NAME}` (`routeId`, `sequence`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_routes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "routeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "health_sync_operations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `aggregateId` TEXT NOT NULL, `aggregateType` TEXT NOT NULL, `recordType` TEXT NOT NULL, `state` TEXT NOT NULL, `attemptCount` INTEGER NOT NULL, `lastAttemptAtEpochMillis` INTEGER, `lastError` TEXT, `clientRecordId` TEXT, `clientRecordVersion` INTEGER, `syncedAtEpochMillis` INTEGER, `timeZoneId` TEXT, `createdAtEpochMillis` INTEGER, `updatedAtEpochMillis` INTEGER, `operationSequence` INTEGER NOT NULL DEFAULT 0, `dailyStepsPayloadKind` TEXT, `previousTotalSteps` INTEGER, `currentTotalSteps` INTEGER, `stepDelta` INTEGER, `stepStartTimeEpochMillis` INTEGER, `stepEndTimeEpochMillis` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "aggregateId",
+            "columnName": "aggregateId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "aggregateType",
+            "columnName": "aggregateType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordType",
+            "columnName": "recordType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attemptCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAtEpochMillis",
+            "columnName": "lastAttemptAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "clientRecordId",
+            "columnName": "clientRecordId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "clientRecordVersion",
+            "columnName": "clientRecordVersion",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncedAtEpochMillis",
+            "columnName": "syncedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timeZoneId",
+            "columnName": "timeZoneId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "operationSequence",
+            "columnName": "operationSequence",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "dailyStepsPayloadKind",
+            "columnName": "dailyStepsPayloadKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "previousTotalSteps",
+            "columnName": "previousTotalSteps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "currentTotalSteps",
+            "columnName": "currentTotalSteps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stepDelta",
+            "columnName": "stepDelta",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stepStartTimeEpochMillis",
+            "columnName": "stepStartTimeEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stepEndTimeEpochMillis",
+            "columnName": "stepEndTimeEpochMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_health_sync_operations_aggregateId_recordType_operationSequence",
+            "unique": true,
+            "columnNames": [
+              "aggregateId",
+              "recordType",
+              "operationSequence"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_health_sync_operations_aggregateId_recordType_operationSequence` ON `${TABLE_NAME}` (`aggregateId`, `recordType`, `operationSequence`)"
+          },
+          {
+            "name": "index_health_sync_operations_state_updatedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "state",
+              "updatedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_health_sync_operations_state_updatedAtEpochMillis` ON `${TABLE_NAME}` (`state`, `updatedAtEpochMillis`)"
+          },
+          {
+            "name": "index_health_sync_operations_clientRecordId",
+            "unique": false,
+            "columnNames": [
+              "clientRecordId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_health_sync_operations_clientRecordId` ON `${TABLE_NAME}` (`clientRecordId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "diagnostic_payloads",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `command` TEXT NOT NULL, `flow` TEXT NOT NULL, `privateBytes` BLOB NOT NULL, `byteCount` INTEGER NOT NULL, `deviceId` TEXT, `firmware` TEXT, `parserVersion` TEXT NOT NULL, `result` TEXT NOT NULL, `safeError` TEXT, `capturedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`deviceId`) REFERENCES `devices`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "command",
+            "columnName": "command",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "flow",
+            "columnName": "flow",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "privateBytes",
+            "columnName": "privateBytes",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "byteCount",
+            "columnName": "byteCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "firmware",
+            "columnName": "firmware",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "parserVersion",
+            "columnName": "parserVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "safeError",
+            "columnName": "safeError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capturedAtEpochMillis",
+            "columnName": "capturedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_diagnostic_payloads_deviceId",
+            "unique": false,
+            "columnNames": [
+              "deviceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diagnostic_payloads_deviceId` ON `${TABLE_NAME}` (`deviceId`)"
+          },
+          {
+            "name": "index_diagnostic_payloads_capturedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "capturedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diagnostic_payloads_capturedAtEpochMillis` ON `${TABLE_NAME}` (`capturedAtEpochMillis`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "devices",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "deviceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "diagnostic_derived_outputs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `payloadId` TEXT NOT NULL, `outputType` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`payloadId`) REFERENCES `diagnostic_payloads`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadId",
+            "columnName": "payloadId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputType",
+            "columnName": "outputType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ordinal",
+            "columnName": "ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_diagnostic_derived_outputs_payloadId_outputType_ordinal",
+            "unique": true,
+            "columnNames": [
+              "payloadId",
+              "outputType",
+              "ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_diagnostic_derived_outputs_payloadId_outputType_ordinal` ON `${TABLE_NAME}` (`payloadId`, `outputType`, `ordinal`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "diagnostic_payloads",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "payloadId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8cd91d0ac3554b2dde4a376dc2c1404c')"
+    ]
+  }
+}

@@ -27,6 +27,56 @@ sealed interface RepositoryResult<out T> {
     data object StorageUnavailable : RepositoryResult<Nothing>
 }
 
+/** Motivos seguros para bloquear reprocessamento local de treino do relógio. */
+enum class WatchWorkoutReprocessFailureReason {
+    ACTIVITY_NOT_FOUND,
+    NOT_WATCH_WORKOUT,
+    IMPORT_METADATA_MISSING,
+    UNKNOWN_PARSER_VERSION,
+    RAW_INTERVALS_MISSING,
+    RAW_INTERVAL_INVALID,
+    MEASURED_STEPS_MISSING,
+    INDEX_INELIGIBLE,
+    STEP_LENGTH_PROFILE_INVALID,
+    TEMPORAL_INCONSISTENCY,
+    SYNC_IN_PROGRESS,
+    SYNCED_REQUIRES_FUTURE_PROJECTION,
+    DERIVATION_INCONSISTENT,
+    STORAGE_UNAVAILABLE,
+}
+
+sealed interface WatchWorkoutReprocessResult {
+    data class Success(
+        val snapshot: WorkoutDerivationSnapshot,
+    ) : WatchWorkoutReprocessResult
+
+    data class Blocked(
+        val reason: WatchWorkoutReprocessFailureReason,
+    ) : WatchWorkoutReprocessResult
+}
+
+enum class WatchWorkoutPlausibilityAcceptanceFailureReason {
+    ACTIVITY_NOT_FOUND,
+    NOT_WATCH_WORKOUT,
+    DERIVATION_NOT_MATERIALIZED,
+    SERIES_INELIGIBLE,
+    INDICATORS_PRESENT,
+    SYNC_IN_PROGRESS,
+    SYNCED_BLOCKED,
+    INVALID_WORKFLOW_STATE,
+    STORAGE_UNAVAILABLE,
+}
+
+sealed interface WatchWorkoutPlausibilityAcceptanceResult {
+    data class Accepted(
+        val activity: WorkoutActivity,
+    ) : WatchWorkoutPlausibilityAcceptanceResult
+
+    data class Blocked(
+        val reason: WatchWorkoutPlausibilityAcceptanceFailureReason,
+    ) : WatchWorkoutPlausibilityAcceptanceResult
+}
+
 interface DeviceRepository {
     fun observeAssociatedDevice(): Flow<Device?>
     suspend fun associateDevice(device: Device): RepositoryResult<Device>
@@ -75,9 +125,17 @@ interface PersonalMetricsRepository {
     /** Pesos cujo measuredAt pertence ao intervalo semiaberto informado. */
     fun observeWeightsBetween(range: CalendarInstantRange): Flow<List<CalendarWeightMeasurementSummary>> =
         flowOf(emptyList())
+    suspend fun updateStepLength(input: UpdateStepLengthInput): RepositoryResult<UserProfile> =
+        RepositoryResult.UnexpectedState
     suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
     suspend fun findWeightById(measurementId: WeightMeasurementId): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
 }
+
+data class UpdateStepLengthInput(
+    val stepLengthMeters: Double,
+    val source: StepLengthSource,
+    val updatedAt: Instant,
+)
 
 data class PersonalMetricsSnapshot(
     val heightCentimeters: Double? = null,
@@ -85,6 +143,8 @@ data class PersonalMetricsSnapshot(
     val latestWeightMeasuredAt: Instant? = null,
     val latestWeightOrigin: DataOrigin? = null,
     val manualStrideLengthMeters: Double? = null,
+    /** Perfil novo; [manualStrideLengthMeters] permanece somente como ponte legada. */
+    val stepLengthProfile: StepLengthProfile? = null,
 )
 
 interface DailyStepsSyncCoordinator {
@@ -235,7 +295,44 @@ interface WorkoutActivityRepository {
     suspend fun findWatchWorkoutImport(deviceId: DeviceId, crc: Int): RepositoryResult<WatchWorkoutImportLookup?> = RepositoryResult.UnexpectedState
     fun observeWatchWorkoutImportMetadata(deviceId: DeviceId): Flow<WatchWorkoutImportMetadata?> = flowOf(null)
     suspend fun updateWatchWorkoutImportMetadata(metadata: WatchWorkoutImportMetadata): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
+    /** Lê somente derivação ativa de atividade originada no relógio. */
+    suspend fun findWatchWorkoutDerivation(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
+    /** Derivação inicial explícita; snapshot ativo existente nunca é substituído. */
+    suspend fun deriveWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant = Instant.now(),
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
+    /** Ação explícita para substituir snapshot quando fatos ou perfil mudarem. */
+    suspend fun rederiveWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant = Instant.now(),
+    ): RepositoryResult<WorkoutDerivationSnapshot?> = RepositoryResult.UnexpectedState
+    /** Reprocessamento explícito com motivo seguro quando a derivação falha fechada. */
+    suspend fun reprocessWatchWorkout(
+        activityId: WorkoutActivityId,
+        derivedAt: Instant = Instant.now(),
+    ): WatchWorkoutReprocessResult = when (val result = rederiveWatchWorkout(activityId, derivedAt)) {
+        is RepositoryResult.Success -> result.value?.let(WatchWorkoutReprocessResult::Success)
+            ?: WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
+        RepositoryResult.NotFound -> WatchWorkoutReprocessResult.Blocked(
+            WatchWorkoutReprocessFailureReason.ACTIVITY_NOT_FOUND,
+        )
+        RepositoryResult.StorageUnavailable -> WatchWorkoutReprocessResult.Blocked(
+            WatchWorkoutReprocessFailureReason.STORAGE_UNAVAILABLE,
+        )
+        RepositoryResult.Conflict,
+        RepositoryResult.UnexpectedState,
+        -> WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT)
+    }
     suspend fun submitReview(input: SubmitWorkoutReviewInput): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
+    /** Persiste aceite no snapshot ativo; não recalcula nem prepara fila remota. */
+    suspend fun acceptWatchWorkoutPlausibility(
+        activityId: WorkoutActivityId,
+    ): WatchWorkoutPlausibilityAcceptanceResult = WatchWorkoutPlausibilityAcceptanceResult.Blocked(
+        WatchWorkoutPlausibilityAcceptanceFailureReason.INVALID_WORKFLOW_STATE,
+    )
     suspend fun review(activityId: WorkoutActivityId, type: WorkoutType, reviewedAt: Instant): RepositoryResult<WorkoutActivity>
     suspend fun startSync(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun markSynced(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
@@ -276,6 +373,8 @@ data class SubmitWorkoutReviewInput(
     val title: String?,
     val notes: String?,
     val reviewedAt: Instant,
+    /** Aceite explícito da série sem indicadores antes da projeção remota. */
+    val acceptPlausibility: Boolean = false,
 )
 
 data class WatchWorkoutImportLookup(
@@ -283,12 +382,13 @@ data class WatchWorkoutImportLookup(
     val importId: WatchWorkoutImportId,
     val deviceId: DeviceId,
     val crc: Int,
+    val parserVersion: ParserVersion? = null,
     val parserValidity: ParserValidity,
     val workflowState: ActivityWorkflowState,
     val importedAt: Instant,
 ) {
     val canSkipOnResume: Boolean
-        get() = parserValidity == ParserValidity.VALID
+        get() = parserValidity == ParserValidity.VALID && isSupportedWatchWorkoutD4ParserVersion(parserVersion)
 
     val shouldRetryOnResume: Boolean
         get() = !canSkipOnResume
@@ -562,11 +662,54 @@ data class HealthSyncBacklogReconciliationResult(
     val heightCount: Int = 0,
 )
 
+/** Fila processável com agregados locais que exigem bloqueio fail-closed. */
+data class HealthSyncProcessableQueue(
+    val operations: List<HealthSyncOperation> = emptyList(),
+    val blockedAggregates: Set<HealthSyncAggregate> = emptySet(),
+)
+
 interface HealthSyncRepository {
     suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
+    /** Persiste um filho congelado sem executar qualquer efeito remoto. */
+    suspend fun prepareProjectionChild(
+        key: HealthSyncOperationKey,
+        action: HealthSyncOperationAction,
+        frozenPayload: HealthSyncFrozenPayload,
+        clientRecordVersion: Long,
+        projectionOrigin: HealthProjectionOrigin,
+    ): RepositoryResult<HealthSyncOperation> = RepositoryResult.UnexpectedState
     suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
+    suspend fun findProcessableWithIntegrity(
+        limit: Int = 100,
+    ): RepositoryResult<HealthSyncProcessableQueue> = when (val result = findProcessable(limit)) {
+        is RepositoryResult.Success -> RepositoryResult.Success(
+            HealthSyncProcessableQueue(operations = result.value),
+        )
+
+        RepositoryResult.Conflict -> RepositoryResult.Conflict
+        RepositoryResult.UnexpectedState -> RepositoryResult.UnexpectedState
+        RepositoryResult.NotFound -> RepositoryResult.NotFound
+        RepositoryResult.StorageUnavailable -> RepositoryResult.StorageUnavailable
+    }
     fun observeSyncSummary(): Flow<HealthSyncSummary>
     suspend fun findOperationsForAggregate(aggregate: HealthSyncAggregate): RepositoryResult<List<HealthSyncOperation>>
+
+    /** Inspeciona somente identidade local do agregado legado de distância. */
+    suspend fun inspectLegacyWorkoutDistanceProjection(
+        activityId: WorkoutActivityId,
+        activityOrigin: WorkoutActivityOrigin,
+    ): RepositoryResult<HealthLegacyDistanceProjectionStatus> = RepositoryResult.UnexpectedState
+
+    /** Persiste tombstone DELETE do agregado legado sem efeito remoto. */
+    suspend fun prepareLegacyWorkoutDistanceDeletion(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<HealthSyncOperation> = RepositoryResult.UnexpectedState
+
+    /** Valida identidade determinística antes de qualquer DELETE remoto. */
+    suspend fun validateDeleteIdentity(
+        operation: HealthSyncOperation,
+    ): RepositoryResult<Unit> = RepositoryResult.UnexpectedState
+
     /** Consulta em lote; data civil continua pertencendo ao aggregate, nunca à operação. */
     fun observeForAggregates(aggregates: Set<HealthSyncAggregate>): Flow<List<HealthSyncOperation>> =
         flowOf(emptyList())

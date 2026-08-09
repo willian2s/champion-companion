@@ -9,6 +9,16 @@ enum class ParserValidity {
     INVALID,
 }
 
+internal const val WATCH_WORKOUT_D4_V1_PARSER_VERSION = "d4-v1"
+internal const val WATCH_WORKOUT_D4_V2_PARSER_VERSION = "d4-v2"
+/** Parser completo com duração oficial e timeline normalizada. */
+internal const val WATCH_WORKOUT_D4_V3_PARSER_VERSION = "d4-v3"
+
+internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
+    parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION ||
+        parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
+        parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
+
 enum class WorkoutType {
     WALKING,
     RUNNING,
@@ -71,11 +81,21 @@ data class WorkoutInterval(
     val steps: Long,
     val distanceMeters: DomainValue<Double>,
     val caloriesKilocalories: DomainValue<Double>,
+    /** Movimento D4 integral, sem promover os bits inferiores a uma métrica. */
+    val rawMotionValue: Long? = null,
+    /** Distância temporal D4 preservada sem unidade semântica confirmada. */
+    val rawDistanceValue: Long? = null,
+    /** Calorias temporais D4 preservadas sem unidade semântica confirmada. */
+    val rawCaloriesValue: Long? = null,
+    /** Passos medidos após decodificação explícita da versão do parser. */
+    val decodedSteps: Long? = null,
 )
 
 data class WorkoutHeartRateSample(
     val sampledAt: Instant,
     val bpm: Int,
+    /** Índice D4 de origem; nulo para origens com timestamp efetivamente real. */
+    val sourceSampleIndex: Int? = null,
 )
 
 /** Valores interpretados cruzam o parser sem reter pacotes binários D3/D4. */
@@ -106,7 +126,8 @@ data class WatchWorkoutActivityImportContext(
     companion object {
         fun from(input: WatchWorkoutParserInput, importedAt: Instant): DomainResult<WatchWorkoutActivityImportContext> =
             if (input.crc !in VALID_CRC_RANGE || input.externalBlockIndex < 0 ||
-                importedAt.isBefore(input.metrics.startedAt)
+                importedAt.isBefore(input.metrics.startedAt) ||
+                !isSupportedWatchWorkoutD4ParserVersion(input.parserVersion)
             ) {
                 DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             } else {
@@ -162,7 +183,8 @@ data class WatchWorkoutImport private constructor(
             context: WatchWorkoutActivityImportContext,
         ): DomainResult<WatchWorkoutImport> =
             if (context.key.origin == DataOrigin.WATCH_D3_D4 && context.key.crc in 1..0xffff &&
-                context.externalBlockIndex >= 0
+                context.externalBlockIndex >= 0 &&
+                isSupportedWatchWorkoutD4ParserVersion(context.parserVersion)
             ) {
                 DomainResult.Success(fromContext(id, activityId, context))
             } else {
@@ -211,6 +233,10 @@ data class WorkoutActivity private constructor(
     val workflowState: ActivityWorkflowState,
     val reviewedAt: Instant?,
     val calibrationId: TreadmillCalibrationId?,
+    /** Série derivada local carregada separadamente dos fatos raw/measured. */
+    val derivationSnapshot: WorkoutDerivationSnapshot? = null,
+    /** Override de leitura usado para distinguir perfil ausente de derivação pendente. */
+    private val canonicalReadStatusOverride: WorkoutCanonicalReadStatus? = null,
 ) {
     /** Compatibilidade para consumidores anteriores à generalização. */
     val origin: DataOrigin
@@ -234,12 +260,33 @@ data class WorkoutActivity private constructor(
     internal val importedAt: Instant get() = legacyImportContext().importedAt
     internal val parserVersion: ParserVersion get() = legacyImportContext().parserVersion
     val diagnosticPayloadId: DiagnosticPayloadId? get() = watchImportContext?.diagnosticPayloadId
+    val canonicalDistanceMeters: Double?
+        get() = derivationSnapshot?.canonicalDistanceMeters
+    val canonicalSeries: CanonicalWorkoutSeries?
+        get() = derivationSnapshot?.canonicalSeries
+    val canonicalReadStatus: WorkoutCanonicalReadStatus
+        get() = when {
+            activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 -> WorkoutCanonicalReadStatus.NOT_APPLICABLE
+            canonicalReadStatusOverride != null -> canonicalReadStatusOverride
+            derivationSnapshot != null -> derivationSnapshot.canonicalReadStatus
+            else -> WorkoutCanonicalReadStatus.NOT_MATERIALIZED
+        }
+    /** Indicação read-only de atividade que ainda precisa da versão atual. */
+    val requiresWatchWorkoutReprocessing: Boolean
+        get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 && (
+            derivationSnapshot == null ||
+                derivationSnapshot.derivationVersion != WATCH_WORKOUT_DERIVATION_VERSION ||
+                canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
+            )
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {
         "Mapper legado D3/D4 não aceita atividade phone; use proveniência opcional generalizada"
     }
 
-    fun submitReview(input: SubmitWorkoutReviewInput): DomainResult<WorkoutActivity> {
+    fun submitReview(
+        input: SubmitWorkoutReviewInput,
+        derivationSnapshot: WorkoutDerivationSnapshot? = this.derivationSnapshot,
+    ): DomainResult<WorkoutActivity> {
         val normalizedTitle = normalizeTitle(input.title)
         val normalizedNotes = normalizeNotes(input.notes)
         if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText()) {
@@ -249,12 +296,44 @@ data class WorkoutActivity private constructor(
             return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
         }
 
-        return confirmReview(input.confirmedType, input.reviewedAt).mapSuccess { reviewed ->
+        val snapshotForReview = if (input.acceptPlausibility) {
+            when (val accepted = derivationSnapshot?.acceptExplicitPlausibility()) {
+                is DomainResult.Success -> accepted.value
+                is DomainResult.Failure -> return DomainResult.Failure(accepted.error)
+                null -> return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+            }
+        } else {
+            derivationSnapshot
+        }
+
+        return confirmReview(input.confirmedType, input.reviewedAt, snapshotForReview).mapSuccess { reviewed ->
             reviewed.copy(title = normalizedTitle, notes = normalizedNotes)
         }
     }
 
-    fun confirmReview(type: WorkoutType, reviewedAt: Instant): DomainResult<WorkoutActivity> {
+    /** Aceite explícito para atividade revisada, sem recalcular a série. */
+    fun acceptPlausibility(): DomainResult<WorkoutActivity> {
+        if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+            workflowState !in setOf(
+                ActivityWorkflowState.PENDING_REVIEW,
+                ActivityWorkflowState.READY_TO_SYNC,
+                ActivityWorkflowState.SYNC_FAILED,
+            )
+        ) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+        return when (val accepted = derivationSnapshot?.acceptExplicitPlausibility()) {
+            is DomainResult.Success -> DomainResult.Success(copy(derivationSnapshot = accepted.value))
+            is DomainResult.Failure -> accepted
+            null -> DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+    }
+
+    fun confirmReview(
+        type: WorkoutType,
+        reviewedAt: Instant,
+        derivationSnapshot: WorkoutDerivationSnapshot? = this.derivationSnapshot,
+    ): DomainResult<WorkoutActivity> {
         if (workflowState != ActivityWorkflowState.PENDING_REVIEW ||
             reviewedAt.isBefore(recordedAt) || type == WorkoutType.UNKNOWN
         ) {
@@ -263,12 +342,13 @@ data class WorkoutActivity private constructor(
 
         return DomainResult.Success(copy(
             confirmedType = type,
-            workflowState = if (type == WorkoutType.TREADMILL) {
-                ActivityWorkflowState.PENDING_CALIBRATION
-            } else {
-                ActivityWorkflowState.READY_TO_SYNC
-            },
+            workflowState = WatchWorkoutWorkflowPolicy.stateAfterReview(
+                origin = activityOrigin,
+                confirmedType = type,
+                derivationSnapshot = derivationSnapshot,
+            ),
             reviewedAt = reviewedAt,
+            derivationSnapshot = derivationSnapshot,
         ))
     }
 
@@ -350,6 +430,8 @@ data class WorkoutActivity private constructor(
             intervals = input.intervals,
             heartRateSamples = input.heartRateSamples,
             suggestedType = suggestType(input.metrics.steps),
+            derivationSnapshot = null,
+            canonicalReadStatusOverride = null,
         ))
     }
 
@@ -502,13 +584,16 @@ data class WorkoutActivity private constructor(
             workflowState: ActivityWorkflowState,
             reviewedAt: Instant?,
             calibrationId: TreadmillCalibrationId?,
+            derivationSnapshot: WorkoutDerivationSnapshot? = null,
+            canonicalReadStatusOverride: WorkoutCanonicalReadStatus? = null,
         ): DomainResult<WorkoutActivity> {
             val normalizedTitle = normalizeTitle(title)
             val normalizedNotes = normalizeNotes(notes)
             val candidate = WorkoutActivity(
                 id, activityOrigin, associatedDeviceId, appWorkoutSessionId, watchImportContext, recordedAt,
                 metrics, intervals, heartRateSamples, suggestedType, normalizedTitle,
-                normalizedNotes, confirmedType, workflowState, reviewedAt, calibrationId,
+                normalizedNotes, confirmedType, workflowState, reviewedAt, calibrationId, derivationSnapshot,
+                canonicalReadStatusOverride,
             )
             return if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText() ||
                 !candidate.hasValidProvenance() || !isValidCommon(candidate)
@@ -621,14 +706,14 @@ data class WorkoutActivity private constructor(
 
         private fun isValidCommon(activity: WorkoutActivity): Boolean =
             activity.suggestedType != WorkoutType.UNKNOWN && !activity.recordedAt.isBefore(activity.metrics.startedAt) &&
-                areValid(activity.metrics) && areValidIntervals(activity.intervals) &&
+                areValid(activity.metrics) && areValidIntervals(activity.intervals, activity.watchImportContext?.parserVersion) &&
                 areValidHeartRateSamples(activity.heartRateSamples) && areValidTemporalOrder(activity.heartRateSamples) &&
                 (activity.reviewedAt == null || !activity.reviewedAt.isBefore(activity.recordedAt))
 
         private fun isValidInput(input: WatchWorkoutParserInput): Boolean =
             input.crc in 1..0xffff && input.externalBlockIndex >= 0 &&
                 input.metrics.duration >= Duration.ZERO && input.metrics.steps >= 0 &&
-                areValid(input.metrics) && areValidIntervals(input.intervals) &&
+                areValid(input.metrics) && areValidIntervals(input.intervals, input.parserVersion) &&
                 areValidHeartRateSamples(input.heartRateSamples) && areValidTemporalOrder(input.heartRateSamples)
 
         private fun areValid(metrics: WorkoutMetrics): Boolean =
@@ -651,18 +736,48 @@ data class WorkoutActivity private constructor(
         private fun isValidBpm(value: DomainValue<Int>): Boolean =
             value !is DomainValue.Present || value.value in 30..220
 
-        private fun areValidIntervals(intervals: List<WorkoutInterval>): Boolean {
+        private fun areValidIntervals(
+            intervals: List<WorkoutInterval>,
+            parserVersion: ParserVersion? = null,
+        ): Boolean {
             var previousIndex = Int.MIN_VALUE
             return intervals.all { interval ->
                 val isOrdered = interval.index >= 0 && interval.index > previousIndex
                 previousIndex = interval.index
                 isOrdered && interval.duration >= Duration.ZERO && interval.steps >= 0 &&
-                    isNonNegative(interval.distanceMeters) && isNonNegative(interval.caloriesKilocalories)
+                    isNonNegative(interval.distanceMeters) && isNonNegative(interval.caloriesKilocalories) &&
+                    isValidRawInterval(interval, parserVersion)
             }
         }
 
-        private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean =
-            samples.all { it.bpm in 30..220 }
+        private fun isValidRawInterval(interval: WorkoutInterval, parserVersion: ParserVersion?): Boolean {
+            val isD4V1 = parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION
+            val isD4V2OrV3 = parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
+                parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
+            val rawMotionValid = interval.rawMotionValue == null ||
+                interval.rawMotionValue in 0L..MeasuredWorkoutInterval.MAX_RAW_MOTION_VALUE
+            val rawDistanceValid = interval.rawDistanceValue == null || interval.rawDistanceValue in 0L..0xFF_FFFFL
+            val rawCaloriesValid = interval.rawCaloriesValue == null || interval.rawCaloriesValue in 0L..0xFFFFL
+            val decodedStepsValid = interval.decodedSteps == null || (
+                interval.rawMotionValue != null &&
+                    interval.decodedSteps >= 0L &&
+                    interval.decodedSteps == (interval.rawMotionValue ushr 16) &&
+                    interval.steps == interval.decodedSteps
+                )
+            val versionedRawValid = when {
+                isD4V2OrV3 -> interval.rawMotionValue != null && interval.rawDistanceValue != null &&
+                    interval.rawCaloriesValue != null && interval.decodedSteps != null
+                isD4V1 -> interval.rawMotionValue != null && interval.decodedSteps == null
+                else -> true
+            }
+            return rawMotionValid && rawDistanceValid && rawCaloriesValid && decodedStepsValid && versionedRawValid
+        }
+
+        private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean {
+            val sourceIndexes = samples.mapNotNull { it.sourceSampleIndex }
+            return samples.all { it.bpm in 30..220 && it.sourceSampleIndex?.let { index -> index >= 0 } != false } &&
+                sourceIndexes.size == sourceIndexes.toSet().size
+        }
 
         private fun areValidTemporalOrder(samples: List<WorkoutHeartRateSample>): Boolean {
             var previous: Instant? = null

@@ -66,6 +66,22 @@
 - Preservar migrations, schemas, dados e evidências existentes até task explícita de remoção.
 - Priorizar importação, derivação, revisão e sincronização com Health Connect de treinos iniciados pelo relógio.
 
+## Planejamento documental da Fase 014
+
+- Fase 014 usa ticker `014` e permanece `pending` até implementação e validação
+  explícitas.
+- Fluxo planejado: Champion C001 inicia e encerra; importação D3/D4 explícita;
+  derivação; revisão local; sincronização Health Connect.
+- Distância canônica de `WATCH_D3_D4` usa somente passos válidos ×
+  `stepLengthMeters`. Distância original do relógio permanece diagnóstica e não
+  é fallback.
+- `stepLengthMeters` representa um passo individual. Contratos novos usam essa
+  terminologia e congelam valor, origem e versão da derivação por atividade.
+- Fase 014 não autoriza GPS, rota, mapa, `ExerciseRoute`, treino phone, BLE live,
+  importação silenciosa, TCX, FIT, GPX ou remoção de legado da Fase 013.
+- Health Connect continua write-only, local-first e explícito; projeções filhas,
+  IDs estáveis, versões monotônicas, retry e reconciliação seguem ADR-018.
+
 ## Privacidade e backup
 
 - `AndroidManifest.xml` mantém `android:allowBackup="false"`.

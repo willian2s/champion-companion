@@ -290,20 +290,13 @@ class LocalCalendarRepository @Inject constructor(
                 source = CalendarDataSource.HEALTH_SYNC_QUEUE,
                 fallback = HealthSyncQueueObservation(),
             ).map { operationsSource ->
-                val expectedAggregates = localWindow.aggregateDates.keys
-                val matchingOperations = operationsSource.value.operations
-                    .filter { it.key.aggregate in expectedAggregates }
-                val operations = matchingOperations
+                val operations = operationsSource.value.operations
                     .distinctBy { it.id }
-                val hasUnresolvedAggregate = operationsSource.value.hasUnresolvedAggregate ||
-                    matchingOperations.size != operationsSource.value.operations.size
-                val hasInvalidOperation = operationsSource.value.hasInvalidOperation ||
-                    operations.size != matchingOperations.size
                 localWindow.copy(
                     operations = operations,
                     issues = localWindow.issues +
                         operationsSource.issues +
-                        if (hasUnresolvedAggregate) {
+                        if (operationsSource.value.hasUnresolvedAggregate) {
                             setOf(
                                 CalendarDataIssue(
                                     source = CalendarDataSource.HEALTH_SYNC_QUEUE,
@@ -314,7 +307,7 @@ class LocalCalendarRepository @Inject constructor(
                             emptySet()
                         } +
                         invalidIssueIf(
-                            invalid = hasInvalidOperation,
+                            invalid = operationsSource.value.hasInvalidOperation,
                             source = CalendarDataSource.HEALTH_SYNC_QUEUE,
                         ),
                 )

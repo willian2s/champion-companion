@@ -58,7 +58,7 @@ private fun HealthConnectPermissionsRationaleScreen(
             ) {
                 RationaleSection(
                     title = "O que o app envia",
-                    body = "O Champion Companion pode enviar passos, frequência cardíaca, sessões de exercício, distância, calorias, peso e altura quando esses dados já existirem localmente e a capacidade correspondente estiver autorizada.",
+                    body = "O Champion Companion pode enviar passos, frequência cardíaca, sessões de exercício, distância, velocidade, calorias, peso e altura quando esses dados já existirem localmente e a capacidade correspondente estiver autorizada.",
                 )
                 RationaleSection(
                     title = "Por que envia",
