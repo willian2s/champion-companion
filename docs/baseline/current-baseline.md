@@ -25,6 +25,25 @@ Champion Companion é aplicativo Android nativo do relógio Champion C001, escri
 
 Baseline atual inclui fundação Android, design system próprio, persistência com Room/DataStore, núcleo BLE nativo reutilizável validado na Fase 04, PoC BLE validada na Fase 05, gerenciamento utilizável do Champion C001 concluído na Fase 06, Home funcional de resumo diário local concluída na Fase 07, Fase 08 concluída com medição manual de frequência cardíaca, Fase 09 concluída com histórico D1 local-first de frequência cardíaca, Fase 10 concluída com importação local-first de treinos D3/D4, Fase 11 concluída com revisão, calibração, descarte lógico e atividades importadas locais até `READY_TO_SYNC`, Fase 12 concluída com integração nativa write-only ao Health Connect em foreground e Fase 15 concluída com calendário e histórico consolidado local.
 
+## Governança de roadmap após a Fase 15
+
+Número de fase e ticker de spec/task são conceitos independentes. Fases representam evolução macro do produto; tickers identificam unidades de trabalho executáveis. Coincidência numérica não cria relação semântica.
+
+A Spec/Task `021` de normalização D4 e integridade do calendário é um trabalho corretivo posterior e **não representa a Fase 21**.
+
+A direção autoritativa após a Fase 15 está em `docs/roadmap/post-phase-15-direction.md` e a decisão de governança está em `docs/decisions/adr-020-roadmap-phases-and-work-item-tickers.md`.
+
+Estado futuro vigente:
+
+- Fase 16: manter e auditar antes do planejamento;
+- Fase 17: manter, simplificar e auditar antes do planejamento;
+- Fase 18: removida do roadmap ativo;
+- Fase 19: manter e auditar antes do planejamento;
+- Fase 20: manter e reescrever sem GPS/rota/distribuição pública;
+- Fases 21, 22, 23, 24 e 25: removidas do roadmap ativo.
+
+O Champion Companion é um aplicativo pessoal, sem objetivo de distribuição pública, beta formal, matriz multi-device ou gate de lançamento comercial. Validação física, testes e builds continuam sendo usados quando uma task específica exigir evidência.
+
 Escopo factual atual já inclui:
 
 - handshake A1 funcional;
@@ -89,7 +108,7 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v11`; as migrations efetivas das Fases 014/021 são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas) e `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v11`; as migrations efetivas da Fase 014 e da Spec/Task `021` são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas) e `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
 ## Registro factual final da Fase 014
 
@@ -111,6 +130,8 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
   delete-before-insert, identidade congelada em matriz completa e variações de
   firmware. Fase 013 continua `closed` / `partially_delivered` /
   `product_reorientation`.
+
+A Spec/Task `021` complementou o estado efetivo posterior da Fase 014 com parser `d4-v3`, derivação `watch-d3-d4-v2`, duração oficial autoritativa, normalização dos samples D4 dentro da janela da atividade e correção do candidate semântico usado pelo calendário. Esse trabalho não altera a numeração das fases.
 
 Spec 018 corrigiu falso `UNRESOLVED_AGGREGATE` no Calendário após reimportação
 D3/D4: `recordedAt` original é preservado e caminhos de reimportação falham
@@ -155,7 +176,7 @@ Compose constrói UI; Hilt faz injeção; Coroutines e `StateFlow` modelam estad
 
 `feature/home` expõe `HomeViewModel`, `ChampionDailyStepsSyncCoordinator` e Home com resumo diário persistido, retry manual, timeout seguro, day rollover local, pull-to-refresh como ação principal, atalho para detalhe de frequência cardíaca e banner de pendências de atividades importadas.
 
-`feature/health` expõe `HealthViewModel`, hub de métricas, detalhe de frequência cardíaca com medição manual persistida na superfície própria, importação D1 explícita por pull-to-refresh e histórico consolidado de manual, D1 e amostras reais de atividades importadas não descartadas, com agregações e gráfico local; peso, passos e distância seguem usando dados já persistidos.
+`feature/health` expõe `HealthViewModel`, hub de métricas, detalhe de frequência cardíaca com medição manual persistida na superfície própria, importação D1 explícita por pull-to-refresh e histórico consolidado de manual, D1 e amostras de atividades importadas não descartadas, com agregações e gráfico local; peso, passos e distância seguem usando dados já persistidos.
 
 `feature/exercises` expõe fluxo D3/D4 funcional com coordinator foreground, `ExercisesViewModel`, CTA explícita, progresso textual, confirmação de saída, cancelamento em background, resultado seguro, filtros, lista, detalhe, revisão local, calibração e descarte lógico.
 
@@ -166,7 +187,7 @@ Erros devem virar estado UI seguro; detalhes técnicos ficam no Logcat de debug.
 - `debug`: `br.com.mwconsulting.championcompanion.dev`, `Champion Companion Dev`, `1.0-dev`
 - `release`: `br.com.mwconsulting.championcompanion`, `Champion Companion`, `1.0`
 
-Release ainda não recebe assinatura de produção.
+Release permanece útil para validar o build, mas não existe objetivo atual de distribuição pública ou gate de lançamento comercial.
 
 ## Privacidade e fontes
 
@@ -175,6 +196,6 @@ Logs estruturados usam `android.util.Log` apenas para diagnóstico em debug. Nã
 ## Fontes autoritativas
 
 - Requisitos: `docs/specs/`
-- Direção de produto: `docs/roadmap/`
+- Direção de produto: `docs/roadmap/README.md` e `docs/roadmap/post-phase-15-direction.md`
 - Decisões: `docs/decisions/`
 - Protocolos: `docs/protocol/`
