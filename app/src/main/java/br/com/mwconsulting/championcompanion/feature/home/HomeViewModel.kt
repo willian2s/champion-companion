@@ -411,6 +411,7 @@ class HomeViewModel @Inject constructor(
             WorkoutType.RUNNING -> "Corrida pendente"
             WorkoutType.TREADMILL -> "Esteira pendente"
             WorkoutType.FREE_WORKOUT -> "Treino pendente"
+            WorkoutType.CYCLING -> "Bicicleta pendente"
             WorkoutType.UNKNOWN -> "Atividade pendente"
         },
         subtitle = PhoneWorkoutPolicy.NON_RESUMABLE_MESSAGE,

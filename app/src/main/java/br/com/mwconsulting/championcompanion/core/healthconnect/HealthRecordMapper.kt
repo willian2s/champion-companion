@@ -854,7 +854,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         WorkoutType.RUNNING -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING
         WorkoutType.TREADMILL -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL
         WorkoutType.FREE_WORKOUT -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
-        WorkoutType.UNKNOWN -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+        else -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
     }
 
     private fun invalid(reason: String): HealthRecordMappingResult.Failure =

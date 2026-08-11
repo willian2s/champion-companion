@@ -1466,13 +1466,16 @@ private fun GpsReadiness?.toGpsQualityDetail(): String = when {
 }
 
 private fun String.toWorkoutTypeOrNull(): WorkoutType? =
-    runCatching { WorkoutType.valueOf(this) }.getOrNull()?.takeIf { it != WorkoutType.UNKNOWN }
+    runCatching { WorkoutType.valueOf(this) }.getOrNull()?.takeIf {
+        it != WorkoutType.UNKNOWN && it != WorkoutType.CYCLING
+    }
 
 private fun WorkoutType.toWorkoutTypeLabel(): String = when (this) {
     WorkoutType.WALKING -> "Caminhada"
     WorkoutType.RUNNING -> "Corrida"
     WorkoutType.FREE_WORKOUT -> "Treino livre"
     WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Tipo desconhecido"
 }
 

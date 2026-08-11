@@ -5,7 +5,7 @@
 - **ADR:** [ADR-021](../../decisions/adr-021-cycling-distance-and-health-projection.md)
 - **Base:** `main`
 - **Branch:** `feat/022-cycling-workouts`
-- **Progresso:** `1/5`
+- **Progresso:** `2/5`
 
 ## Objetivo
 
@@ -16,7 +16,7 @@ usados como distância, velocidade, pace ou cadência de ciclismo.
 ## Checklist
 
 - [x] [022-01-audit-cycling-consumers-and-freeze-contracts.md](022-01-audit-cycling-consumers-and-freeze-contracts.md)
-- [ ] [022-02-add-cycling-type-manual-distance-and-persistence.md](022-02-add-cycling-type-manual-distance-and-persistence.md)
+- [x] [022-02-add-cycling-type-manual-distance-and-persistence.md](022-02-add-cycling-type-manual-distance-and-persistence.md)
 - [ ] [022-03-adapt-cycling-local-metrics-and-ui.md](022-03-adapt-cycling-local-metrics-and-ui.md)
 - [ ] [022-04-add-cycling-health-connect-projections.md](022-04-add-cycling-health-connect-projections.md)
 - [ ] [022-05-validate-cycling-workflow-and-close.md](022-05-validate-cycling-workflow-and-close.md)
@@ -95,4 +95,9 @@ distância manual;
 - `022-01` concluída com relatório sanitizado em
   `docs/integration/022-01-cycling-consumer-audit.md`.
 - Revisão independente aprovada em 2026-08-11.
-- Próxima subtarefa elegível: `022-02`.
+- `022-02` concluída com `CYCLING`, distância manual opcional, migration Room
+  v11→v12 e formulário de revisão; build/lint aprovados em 2026-08-11.
+- Riscos pendentes: `022-03` deve filtrar métricas locais derivadas por passos;
+  `022-04` deve implementar mapping e projeções Health Connect; upgrade físico
+  v11→v12 permanece em `022-05`.
+- Próxima subtarefa elegível: `022-03`.

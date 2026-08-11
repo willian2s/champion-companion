@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
@@ -63,6 +64,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
@@ -203,6 +205,7 @@ fun ExercisesScreen(
                     onNavigateBack = onNavigateBack,
                     onDismissError = dismissOperationError,
                     onReviewTypeChange = { viewModel.onIntent(ExercisesIntent.EditReviewType(it)) },
+                    onReviewDistanceChange = { viewModel.onIntent(ExercisesIntent.EditReviewDistance(it)) },
                     onReviewTitleChange = { viewModel.onIntent(ExercisesIntent.EditReviewTitle(it)) },
                     onReviewNotesChange = { viewModel.onIntent(ExercisesIntent.EditReviewNotes(it)) },
                     onReviewPlausibilityAcceptanceChange = {
@@ -837,6 +840,7 @@ private fun ExerciseDetailShell(
     onNavigateBack: (() -> Unit)?,
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
@@ -901,6 +905,7 @@ private fun ExerciseDetailShell(
                             canDiscardSelectedActivity = state.canDiscardSelectedActivity,
                             onDismissError = onDismissError,
                             onReviewTypeChange = onReviewTypeChange,
+                            onReviewDistanceChange = onReviewDistanceChange,
                             onReviewTitleChange = onReviewTitleChange,
                             onReviewNotesChange = onReviewNotesChange,
                             onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
@@ -1002,6 +1007,7 @@ private fun WorkoutActivityDetailContent(
     canDiscardSelectedActivity: Boolean,
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
@@ -1058,6 +1064,7 @@ private fun WorkoutActivityDetailContent(
                 activity = activity,
                 formState = reviewFormState,
                 onReviewTypeChange = onReviewTypeChange,
+                onReviewDistanceChange = onReviewDistanceChange,
                 onReviewTitleChange = onReviewTitleChange,
                 onReviewNotesChange = onReviewNotesChange,
                 onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
@@ -1821,6 +1828,7 @@ private fun ReviewFormSection(
     activity: WorkoutActivity,
     formState: ExerciseReviewFormState,
     onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
@@ -1840,7 +1848,9 @@ private fun ReviewFormSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            WorkoutType.entries.filter { it != WorkoutType.UNKNOWN }.forEach { type ->
+            WorkoutType.entries.filter { type ->
+                type != WorkoutType.UNKNOWN && (activity.isWatchWorkout || type != WorkoutType.CYCLING)
+            }.forEach { type ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1858,6 +1868,20 @@ private fun ReviewFormSection(
                         }
                     }
                 }
+            }
+            if (activity.isWatchWorkout && formState.selectedType == WorkoutType.CYCLING) {
+                OutlinedTextField(
+                    value = formState.manualDistanceInput,
+                    onValueChange = onReviewDistanceChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Distância") },
+                    supportingText = { Text("Opcional") },
+                    suffix = { Text("km") },
+                    singleLine = true,
+                    isError = formState.error?.category == ExerciseOperationErrorCategory.INVALID_DISTANCE,
+                    enabled = !formState.isSaving,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
             }
             OutlinedTextField(
                 value = formState.titleInput,
@@ -2427,6 +2451,7 @@ private fun WorkoutType.toFallbackTitle(): String = when (this) {
     WorkoutType.RUNNING -> "Corrida"
     WorkoutType.FREE_WORKOUT -> "Treino livre"
     WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Treino do relógio"
 }
 
@@ -2464,6 +2489,7 @@ private fun WorkoutType.toListIcon(): ImageVector = when (this) {
     WorkoutType.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
     WorkoutType.FREE_WORKOUT -> Icons.Filled.FitnessCenter
     WorkoutType.TREADMILL -> Icons.AutoMirrored.Filled.DirectionsWalk
+    WorkoutType.CYCLING -> Icons.Filled.FitnessCenter
     WorkoutType.UNKNOWN -> Icons.Filled.FitnessCenter
 }
 
@@ -2589,6 +2615,7 @@ private fun WorkoutType.toLabel(): String = when (this) {
     WorkoutType.RUNNING -> "Corrida"
     WorkoutType.FREE_WORKOUT -> "Treino livre"
     WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Tipo indefinido"
 }
 

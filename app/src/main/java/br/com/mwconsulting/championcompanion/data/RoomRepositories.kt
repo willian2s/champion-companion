@@ -985,6 +985,9 @@ class RoomRepositories @Inject constructor(
                 title = existing.title,
                 notes = existing.notes,
                 reviewedAt = reviewedAt,
+                manualDistanceMeters = (existing.metrics.distances.manualDistanceMeters as? DomainValue.Present)
+                    ?.value
+                    ?.takeIf { type == WorkoutType.CYCLING },
             ),
         )
     }

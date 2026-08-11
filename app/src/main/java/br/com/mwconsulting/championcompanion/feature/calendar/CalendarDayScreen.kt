@@ -538,6 +538,7 @@ private fun WorkoutType.toCalendarLabel(): String = when (this) {
     WorkoutType.RUNNING -> "Corrida"
     WorkoutType.FREE_WORKOUT -> "Treino livre"
     WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Tipo indefinido"
 }
 

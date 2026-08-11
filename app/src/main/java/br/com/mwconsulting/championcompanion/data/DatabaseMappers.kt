@@ -464,6 +464,8 @@ internal fun WorkoutActivity.toEntity(): WorkoutActivityEntity {
         recordedAtEpochMillis = recordedAt.toEpochMilli(),
         endedAtEpochMillis = metrics.endedAt.toEpochMilli(),
         stepsAvailable = metrics.stepsAvailable,
+        manualDistanceMeters = metrics.distances.manualDistanceMeters.valueOrNull()
+            ?.takeIf { confirmedType == WorkoutType.CYCLING && it.isFinite() && it > 0.0 },
     )
 }
 
@@ -937,6 +939,11 @@ internal fun WorkoutActivityEntity.toDomain(
     }
     val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    val mappedManualDistance = if (mappedConfirmedType == WorkoutType.CYCLING) {
+        manualDistanceMeters.domainValue()
+    } else {
+        DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
+    }
     return WorkoutActivity.restore(
         id = activityId,
         activityOrigin = mappedOrigin,
@@ -953,6 +960,7 @@ internal fun WorkoutActivityEntity.toDomain(
                 originalDistanceMeters.domainValue(),
                 estimatedDistanceMeters.domainValue(),
                 calibratedDistanceMeters.domainValue(),
+                mappedManualDistance,
             ),
             averagePaceSecondsPerKilometer = importedAveragePaceSecondsPerKilometer.domainValue(),
             averageSpeedMetersPerSecond = importedAverageSpeedMetersPerSecond.domainValue(),

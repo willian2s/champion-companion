@@ -373,6 +373,8 @@ data class SubmitWorkoutReviewInput(
     val title: String?,
     val notes: String?,
     val reviewedAt: Instant,
+    /** Distância total manual em metros; aplicável somente a CYCLING. */
+    val manualDistanceMeters: Double? = null,
     /** Aceite explícito da série sem indicadores antes da projeção remota. */
     val acceptPlausibility: Boolean = false,
 )

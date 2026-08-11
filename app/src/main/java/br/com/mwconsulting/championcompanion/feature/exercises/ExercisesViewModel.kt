@@ -51,6 +51,7 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibility
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
@@ -100,6 +101,16 @@ private data class ActiveWorkoutObservation(
     val route: WorkoutRoute?,
     val liveMetrics: WorkoutLiveMetricsSnapshot?,
 )
+
+private fun WorkoutActivity.manualDistanceInputForReview(): String {
+    if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 || confirmedType != WorkoutType.CYCLING) return ""
+    val meters = (metrics.distances.manualDistanceMeters as? DomainValue.Present)?.value ?: return ""
+    return if (meters.isFinite() && meters > 0.0) {
+        (meters / 1_000.0).toString().replace('.', ',')
+    } else {
+        ""
+    }
+}
 
 private fun AppWorkoutSession.toLiveMetrics(route: WorkoutRoute?): WorkoutLiveMetricsSnapshot? {
     if (!recordsRoute) return null
@@ -446,7 +457,8 @@ class ExercisesViewModel internal constructor(
             is ExercisesIntent.SelectFilter -> selectedFilter.value = intent.filter
             is ExercisesIntent.OpenActivity -> selectedActivityId.value = intent.activityId
             ExercisesIntent.CloseActivity -> closeSelectedActivity()
-            is ExercisesIntent.EditReviewType -> updateReviewForm { copy(selectedType = intent.type, hasUnsavedChanges = true, error = null) }
+            is ExercisesIntent.EditReviewType -> updateReviewType(intent.type)
+            is ExercisesIntent.EditReviewDistance -> updateReviewDistance(intent.distance)
             is ExercisesIntent.EditReviewTitle -> updateReviewForm { copy(titleInput = intent.title, hasUnsavedChanges = true, error = null) }
             is ExercisesIntent.EditReviewNotes -> updateReviewForm { copy(notesInput = intent.notes, hasUnsavedChanges = true, error = null) }
             is ExercisesIntent.EditReviewPlausibilityAcceptance -> updateReviewForm {
@@ -498,7 +510,7 @@ class ExercisesViewModel internal constructor(
             exitWorkoutPreparation()
             return
         }
-        if (workoutType == WorkoutType.UNKNOWN) return
+        if (workoutType == WorkoutType.UNKNOWN || workoutType == WorkoutType.CYCLING) return
         val current = workoutPreparation.value
         val typeChanged = current.workoutType != workoutType
         if (!preparationVisible || typeChanged) {
@@ -1505,6 +1517,16 @@ class ExercisesViewModel internal constructor(
             operationError.value = ExerciseOperationError(ExerciseOperationErrorCategory.INVALID_TYPE, "Selecione um tipo válido para concluir a revisão.")
             return
         }
+        val manualDistanceMeters = when {
+            selectedType != WorkoutType.CYCLING || form.manualDistanceInput.isBlank() -> null
+            else -> parseManualDistanceMeters(form.manualDistanceInput) ?: run {
+                reviewError(
+                    ExerciseOperationErrorCategory.INVALID_DISTANCE,
+                    "Informe uma distância válida em km ou deixe o campo vazio.",
+                )
+                return
+            }
+        }
         if (form.acceptPlausibility) {
             val snapshot = activity.derivationSnapshot
             when {
@@ -1538,6 +1560,7 @@ class ExercisesViewModel internal constructor(
                         title = form.titleInput,
                         notes = form.notesInput,
                         reviewedAt = Instant.now(),
+                        manualDistanceMeters = manualDistanceMeters,
                         acceptPlausibility = form.acceptPlausibility,
                     ),
                 )
@@ -1959,11 +1982,12 @@ class ExercisesViewModel internal constructor(
             return
         }
         if (reviewFormState.value.loadedActivityId != activity.id || !reviewFormState.value.hasUnsavedChanges) {
-            reviewFormState.value = ExerciseReviewFormState(
-                loadedActivityId = activity.id,
-                selectedType = activity.confirmedType ?: activity.suggestedType,
-                titleInput = activity.title.orEmpty(),
-                notesInput = activity.notes.orEmpty(),
+                reviewFormState.value = ExerciseReviewFormState(
+                    loadedActivityId = activity.id,
+                    selectedType = activity.confirmedType ?: activity.suggestedType,
+                    manualDistanceInput = activity.manualDistanceInputForReview(),
+                    titleInput = activity.title.orEmpty(),
+                    notesInput = activity.notes.orEmpty(),
                 acceptPlausibility = activity.derivationSnapshot?.plausibility?.policy ==
                     br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED,
             )
@@ -1999,6 +2023,27 @@ class ExercisesViewModel internal constructor(
         )
     }
 
+    private fun updateReviewType(type: WorkoutType) {
+        updateReviewForm {
+            copy(
+                selectedType = type,
+                manualDistanceInput = manualDistanceInput.takeIf { type == WorkoutType.CYCLING }.orEmpty(),
+                hasUnsavedChanges = true,
+                error = null,
+            )
+        }
+    }
+
+    private fun updateReviewDistance(distance: String) {
+        updateReviewForm {
+            copy(
+                manualDistanceInput = distance,
+                hasUnsavedChanges = true,
+                error = null,
+            )
+        }
+    }
+
     private fun updateReviewForm(transform: ExerciseReviewFormState.() -> ExerciseReviewFormState) {
         reviewFormState.value = reviewFormState.value.transform()
     }
@@ -2021,6 +2066,15 @@ class ExercisesViewModel internal constructor(
         val kilometers = normalized.toDoubleOrNull() ?: return null
         if (!kilometers.isFinite() || kilometers <= 0.0) return null
         return kilometers * 1_000.0
+    }
+
+    private fun parseManualDistanceMeters(input: String): Double? {
+        val normalized = input.trim().replace(',', '.')
+        if (normalized.isEmpty()) return null
+        val kilometers = normalized.toDoubleOrNull() ?: return null
+        if (!kilometers.isFinite() || kilometers <= 0.0) return null
+        val meters = kilometers * 1_000.0
+        return meters.takeIf { it.isFinite() && it > 0.0 }
     }
 
     private fun previewDistanceMeters(activity: WorkoutActivity?, input: String): Double? =

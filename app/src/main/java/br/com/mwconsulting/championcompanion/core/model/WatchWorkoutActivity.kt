@@ -24,6 +24,7 @@ enum class WorkoutType {
     RUNNING,
     FREE_WORKOUT,
     TREADMILL,
+    CYCLING,
     UNKNOWN,
 }
 
@@ -55,6 +56,8 @@ data class WorkoutDistanceMetrics(
     val originalMeters: DomainValue<Double>,
     val estimatedMeters: DomainValue<Double>,
     val calibratedMeters: DomainValue<Double>,
+    /** Entrada opcional da revisão de bicicleta, armazenada em metros. */
+    val manualDistanceMeters: DomainValue<Double> = DomainValue.Absent(AbsenceReason.NOT_APPLICABLE),
 )
 
 data class WorkoutMetrics(
@@ -306,7 +309,12 @@ data class WorkoutActivity private constructor(
             derivationSnapshot
         }
 
-        return confirmReview(input.confirmedType, input.reviewedAt, snapshotForReview).mapSuccess { reviewed ->
+        return confirmReview(
+            type = input.confirmedType,
+            reviewedAt = input.reviewedAt,
+            manualDistanceMeters = input.manualDistanceMeters,
+            derivationSnapshot = snapshotForReview,
+        ).mapSuccess { reviewed ->
             reviewed.copy(title = normalizedTitle, notes = normalizedNotes)
         }
     }
@@ -332,12 +340,26 @@ data class WorkoutActivity private constructor(
     fun confirmReview(
         type: WorkoutType,
         reviewedAt: Instant,
+        manualDistanceMeters: Double? = null,
         derivationSnapshot: WorkoutDerivationSnapshot? = this.derivationSnapshot,
     ): DomainResult<WorkoutActivity> {
         if (workflowState != ActivityWorkflowState.PENDING_REVIEW ||
-            reviewedAt.isBefore(recordedAt) || type == WorkoutType.UNKNOWN
+            reviewedAt.isBefore(recordedAt) || type == WorkoutType.UNKNOWN ||
+            type == WorkoutType.CYCLING && activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4
         ) {
             return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
+
+        val normalizedManualDistance = if (type == WorkoutType.CYCLING) {
+            if (manualDistanceMeters == null) {
+                DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE)
+            } else if (!manualDistanceMeters.isFinite() || manualDistanceMeters <= 0.0) {
+                return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+            } else {
+                DomainValue.Present(manualDistanceMeters)
+            }
+        } else {
+            DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
         }
 
         return DomainResult.Success(copy(
@@ -348,6 +370,11 @@ data class WorkoutActivity private constructor(
                 derivationSnapshot = derivationSnapshot,
             ),
             reviewedAt = reviewedAt,
+            metrics = metrics.copy(
+                distances = metrics.distances.copy(
+                    manualDistanceMeters = normalizedManualDistance,
+                ),
+            ),
             derivationSnapshot = derivationSnapshot,
         ))
     }
@@ -424,6 +451,7 @@ data class WorkoutActivity private constructor(
             metrics = input.metrics.copy(
                 distances = input.metrics.distances.copy(
                     calibratedMeters = metrics.distances.calibratedMeters,
+                    manualDistanceMeters = metrics.distances.manualDistanceMeters,
                 ),
                 calibratedMetrics = metrics.calibratedMetrics,
             ),
@@ -534,7 +562,7 @@ data class WorkoutActivity private constructor(
                 (session.workoutActivityId != null && session.workoutActivityId != id) ||
                 (session.state == AppWorkoutSessionState.FINISHED && session.workoutActivityId != id) ||
                 startedAt == null || endedAt == null ||
-                session.type == WorkoutType.UNKNOWN
+                session.type == WorkoutType.UNKNOWN || session.type == WorkoutType.CYCLING
             ) {
                 return DomainResult.Failure(DomainValidationError.INVALID_STATE)
             }
@@ -589,13 +617,23 @@ data class WorkoutActivity private constructor(
         ): DomainResult<WorkoutActivity> {
             val normalizedTitle = normalizeTitle(title)
             val normalizedNotes = normalizeNotes(notes)
+            val normalizedMetrics = metrics.copy(
+                distances = metrics.distances.copy(
+                    manualDistanceMeters = if (confirmedType == WorkoutType.CYCLING) {
+                        metrics.distances.manualDistanceMeters
+                    } else {
+                        DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
+                    },
+                ),
+            )
             val candidate = WorkoutActivity(
                 id, activityOrigin, associatedDeviceId, appWorkoutSessionId, watchImportContext, recordedAt,
-                metrics, intervals, heartRateSamples, suggestedType, normalizedTitle,
+                normalizedMetrics, intervals, heartRateSamples, suggestedType, normalizedTitle,
                 normalizedNotes, confirmedType, workflowState, reviewedAt, calibrationId, derivationSnapshot,
                 canonicalReadStatusOverride,
             )
             return if (normalizedTitle.isInvalidNormalizedText() || normalizedNotes.isInvalidNormalizedText() ||
+                confirmedType == WorkoutType.CYCLING && activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
                 !candidate.hasValidProvenance() || !isValidCommon(candidate)
             ) {
                 DomainResult.Failure(DomainValidationError.INVALID_STATE)
@@ -687,6 +725,7 @@ data class WorkoutActivity private constructor(
             WorkoutType.WALKING, WorkoutType.RUNNING -> WorkoutActivityOrigin.PHONE_GPS
             WorkoutType.TREADMILL -> WorkoutActivityOrigin.PHONE_TREADMILL
             WorkoutType.FREE_WORKOUT -> WorkoutActivityOrigin.PHONE_FREE_WORKOUT
+            WorkoutType.CYCLING -> error("CYCLING não pertence ao fluxo phone")
             WorkoutType.UNKNOWN -> error("Tipo UNKNOWN validado antes da conversão")
         }
 
@@ -725,6 +764,7 @@ data class WorkoutActivity private constructor(
                 isNonNegative(metrics.distances.originalMeters) &&
                 isNonNegative(metrics.distances.estimatedMeters) &&
                 isNonNegative(metrics.distances.calibratedMeters) &&
+                isPositive(metrics.distances.manualDistanceMeters) &&
                 isNonNegative(metrics.averagePaceSecondsPerKilometer) &&
                 isNonNegative(metrics.averageSpeedMetersPerSecond) &&
                 isValidBpm(metrics.averageBpm) && isValidBpm(metrics.minimumBpm) &&
@@ -732,6 +772,9 @@ data class WorkoutActivity private constructor(
 
         private fun isNonNegative(value: DomainValue<Double>): Boolean =
             value !is DomainValue.Present || (value.value.isFinite() && value.value >= 0.0)
+
+        private fun isPositive(value: DomainValue<Double>): Boolean =
+            value !is DomainValue.Present || (value.value.isFinite() && value.value > 0.0)
 
         private fun isValidBpm(value: DomainValue<Int>): Boolean =
             value !is DomainValue.Present || value.value in 30..220
