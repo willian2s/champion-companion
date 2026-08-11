@@ -1,11 +1,11 @@
 # 022 — Suporte a treinos de bicicleta
 
-- **Status geral:** `pending`
+- **Status geral:** `in_progress`
 - **Spec:** [022-cycling-workouts.md](../../specs/022-cycling-workouts.md)
 - **ADR:** [ADR-021](../../decisions/adr-021-cycling-distance-and-health-projection.md)
 - **Base:** `main`
 - **Branch:** `feat/022-cycling-workouts`
-- **Progresso:** `0/5`
+- **Progresso:** `1/5`
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ usados como distância, velocidade, pace ou cadência de ciclismo.
 
 ## Checklist
 
-- [ ] [022-01-audit-cycling-consumers-and-freeze-contracts.md](022-01-audit-cycling-consumers-and-freeze-contracts.md)
+- [x] [022-01-audit-cycling-consumers-and-freeze-contracts.md](022-01-audit-cycling-consumers-and-freeze-contracts.md)
 - [ ] [022-02-add-cycling-type-manual-distance-and-persistence.md](022-02-add-cycling-type-manual-distance-and-persistence.md)
 - [ ] [022-03-adapt-cycling-local-metrics-and-ui.md](022-03-adapt-cycling-local-metrics-and-ui.md)
 - [ ] [022-04-add-cycling-health-connect-projections.md](022-04-add-cycling-health-connect-projections.md)
@@ -49,6 +49,8 @@ usados como distância, velocidade, pace ou cadência de ciclismo.
 - distância manual gera no máximo um `DistanceRecord` total;
 - distância manual usa provenance `manualEntry`, não `autoRecorded` do relógio;
 - BPM e calorias do relógio continuam elegíveis;
+- ao salvar revisão com tipo diferente de `CYCLING`, distância manual é limpa no
+  mesmo write;
 - sem GPS, rota, mapa, FTMS, RPM ou potência;
 - sem edição/reconciliação nova de atividade já `SYNCED`.
 
@@ -87,3 +89,10 @@ A spec só pode ser marcada `completed` quando:
 distância manual;
 - nenhuma projeção granular falsa de distância/velocidade é criada;
 - build e validação física possuem evidência factual.
+
+## Observações
+
+- `022-01` concluída com relatório sanitizado em
+  `docs/integration/022-01-cycling-consumer-audit.md`.
+- Revisão independente aprovada em 2026-08-11.
+- Próxima subtarefa elegível: `022-02`.
