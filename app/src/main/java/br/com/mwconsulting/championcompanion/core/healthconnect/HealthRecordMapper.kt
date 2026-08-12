@@ -310,11 +310,19 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
             ?: return invalid("Payload congelado sem offset inicial válido.")
         val endOffset = payload.endZoneOffsetSeconds.toZoneOffsetOrNull()
             ?: return invalid("Payload congelado sem offset final válido.")
-        val metadata = Metadata.autoRecorded(
-            device = watchDevice(),
-            clientRecordId = identity.clientRecordId,
-            clientRecordVersion = identity.clientRecordVersion,
-        )
+        val metadata = if (child == HealthProjectionChildKey.ManualDistance) {
+            Metadata.manualEntry(
+                device = phoneDevice(),
+                clientRecordId = identity.clientRecordId,
+                clientRecordVersion = identity.clientRecordVersion,
+            )
+        } else {
+            Metadata.autoRecorded(
+                device = watchDevice(),
+                clientRecordId = identity.clientRecordId,
+                clientRecordVersion = identity.clientRecordVersion,
+            )
+        }
 
         return when (child) {
             HealthProjectionChildKey.ExerciseSession -> {
@@ -349,6 +357,31 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     distance <= 0.0 || distance > MAX_HEALTH_CONNECT_DISTANCE_METERS
                 ) {
                     invalid("Payload de distância granular inválido.")
+                } else {
+                    HealthRecordMappingResult.Success(
+                        HealthConnectMappedRecord(
+                            recordType = HealthSyncRecordType.DISTANCE,
+                            permission = HealthConnectWritePermission.DISTANCE,
+                            record = DistanceRecord(
+                                start,
+                                startOffset,
+                                end,
+                                endOffset,
+                                Length.meters(distance),
+                                metadata,
+                            ),
+                        ),
+                    )
+                }
+            }
+
+            HealthProjectionChildKey.ManualDistance -> {
+                val distance = payload.distanceMeters
+                if (operation.key.recordType != HealthSyncRecordType.DISTANCE ||
+                    !start.isBefore(end) || distance == null || !distance.isFinite() ||
+                    distance <= 0.0 || distance > MAX_HEALTH_CONNECT_DISTANCE_METERS
+                ) {
+                    invalid("Payload de distância manual inválido.")
                 } else {
                     HealthRecordMappingResult.Success(
                         HealthConnectMappedRecord(
@@ -505,22 +538,28 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
             return emptyList()
         }
         val children = mutableListOf<HealthProjectionChildKey>(HealthProjectionChildKey.ExerciseSession)
-        val snapshot = activity.derivationSnapshot
-        if (snapshot?.isEligibleForHealthProjection == true) {
-            val series = snapshot.canonicalSeries
-            if (series != null) {
-                series.intervals
-                    .filter { interval ->
-                        interval.canonicalIntervalDistanceMeters.isFinite() &&
-                            interval.canonicalIntervalDistanceMeters > 0.0
+        if (activity.confirmedType == WorkoutType.CYCLING) {
+            activity.positiveManualDistanceMeters()?.let {
+                children += HealthProjectionChildKey.ManualDistance
+            }
+        } else {
+            val snapshot = activity.derivationSnapshot
+            if (snapshot?.isEligibleForHealthProjection == true) {
+                val series = snapshot.canonicalSeries
+                if (series != null) {
+                    series.intervals
+                        .filter { interval ->
+                            interval.canonicalIntervalDistanceMeters.isFinite() &&
+                                interval.canonicalIntervalDistanceMeters > 0.0
+                        }
+                        .forEach { interval ->
+                            HealthProjectionChildKey.DistanceInterval.create(interval.index)
+                                .valueOrNull()
+                                ?.let(children::add)
+                        }
+                    if (series.speedSamples.isNotEmpty()) {
+                        children += HealthProjectionChildKey.SpeedSeries
                     }
-                    .forEach { interval ->
-                        HealthProjectionChildKey.DistanceInterval.create(interval.index)
-                            .valueOrNull()
-                            ?.let(children::add)
-                    }
-                if (series.speedSamples.isNotEmpty()) {
-                    children += HealthProjectionChildKey.SpeedSeries
                 }
             }
         }
@@ -594,6 +633,20 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     child = child,
                     start = interval.effectiveWindow.start,
                     end = interval.effectiveWindow.end,
+                    zoneId = zoneId,
+                ).copy(distanceMeters = distance)
+            }
+
+            HealthProjectionChildKey.ManualDistance -> {
+                if (activity.confirmedType != WorkoutType.CYCLING) return null
+                val distance = activity.positiveManualDistanceMeters()
+                    ?.takeIf { it <= MAX_HEALTH_CONNECT_DISTANCE_METERS }
+                    ?: return null
+                frozenProjectionPayload(
+                    key = key,
+                    child = child,
+                    start = session.start,
+                    end = session.end,
                     zoneId = zoneId,
                 ).copy(distanceMeters = distance)
             }
@@ -839,6 +892,10 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         metrics.distances.estimatedMeters.presentOrNull(),
     ).firstOrNull { it != null && it.isFinite() && it > 0.0 }
 
+    private fun WorkoutActivity.positiveManualDistanceMeters(): Double? =
+        metrics.distances.manualDistanceMeters.presentOrNull()
+            ?.takeIf { it.isFinite() && it > 0.0 }
+
     private fun WorkoutActivity.positiveCaloriesKilocalories(): Double? =
         metrics.caloriesKilocalories.presentOrNull()?.takeIf { it.isFinite() && it > 0.0 }
 
@@ -854,6 +911,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         WorkoutType.RUNNING -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING
         WorkoutType.TREADMILL -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL
         WorkoutType.FREE_WORKOUT -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+        WorkoutType.CYCLING -> ExerciseSessionRecord.EXERCISE_TYPE_BIKING
         else -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
     }
 

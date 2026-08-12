@@ -1,6 +1,6 @@
 # 022-04 — Adicionar projeções Health Connect de bicicleta
 
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depende de:** `022-03`
 - **Desbloqueia:** `022-05`
 
@@ -123,6 +123,31 @@ A velocidade média local não é projeção Health Connect nesta spec.
 - validar frozen payload e identity por inspeção local;
 - gate físico final em `022-05`.
 
+## Execução
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthRecordMapper.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HealthProjectionContracts.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- **Decisões:**
+  - `CYCLING` usa `EXERCISE_TYPE_BIKING`, sem distinção de bicicleta estacionária;
+  - `ManualDistance` usa chave estável `manual-distance`, manifesto e identidade determinística existentes;
+  - distância manual cria um único `DistanceRecord` na janela oficial, com payload congelado v1 e `Metadata.manualEntry` local;
+  - cycling exclui `DistanceInterval` e `SpeedSeries`, mas mantém sessão, BPM e calorias elegíveis quando presentes;
+  - reconciliação pode remover distância legada conhecida sem exigir uma série substituta para cycling sem distância;
+  - operações antigas e regras de walking/running/treadmill permanecem preservadas.
+- **Desvios:** nenhum. Schema do payload permaneceu na versão 1; nenhum teste automatizado novo foi criado ou executado.
+- **Comandos executados:**
+  - `git diff --check`
+  - `./gradlew app:compileDebugKotlin`
+  - `./gradlew lint assembleDebug assembleRelease`
+- **Resultados e evidências:** `git diff --check`, compilação Kotlin, lint, `assembleDebug` e `assembleRelease` passaram. Inspeção local confirmou chave estável, identidade baseada em `stableValue`, manifesto, janela oficial, payload congelado e seleção de metadata por filho. Revisão independente aprovou a subtarefa em 2026-08-11.
+- **Testes/lint/typecheck/build:** nenhum teste automatizado executado, conforme regras do repositório; lint e builds completos passaram.
+- **Riscos residuais:** validação física com Health Connect, banco existente e cenários de cycling com e sem distância permanece em `022-05`. Não foi feito readback remoto.
+
 ## Fora do escopo
 
 - readback do Health Connect;
@@ -134,14 +159,14 @@ A velocidade média local não é projeção Health Connect nesta spec.
 
 ## Critérios de aceite
 
-- [ ] `CYCLING` mapeia para `EXERCISE_TYPE_BIKING`;
-- [ ] `ManualDistance` possui chave estável própria;
-- [ ] distância manual gera exatamente um `DistanceRecord` total;
-- [ ] metadata da distância é manual/local;
-- [ ] BPM/calorias mantêm provenance do relógio;
-- [ ] `DistanceInterval` e `SpeedSeries` não são elegíveis para cycling;
-- [ ] cycling sem distância sincroniza sem operação DISTANCE pendente;
-- [ ] retry usa payload congelado;
-- [ ] operações antigas continuam legíveis;
-- [ ] build/lint passam;
-- [ ] revisão independente aprova a mudança.
+- [x] `CYCLING` mapeia para `EXERCISE_TYPE_BIKING`;
+- [x] `ManualDistance` possui chave estável própria;
+- [x] distância manual gera exatamente um `DistanceRecord` total;
+- [x] metadata da distância é manual/local;
+- [x] BPM/calorias mantêm provenance do relógio;
+- [x] `DistanceInterval` e `SpeedSeries` não são elegíveis para cycling;
+- [x] cycling sem distância sincroniza sem operação DISTANCE pendente;
+- [x] retry usa payload congelado;
+- [x] operações antigas continuam legíveis;
+- [x] build/lint passam;
+- [x] revisão independente aprova a mudança.

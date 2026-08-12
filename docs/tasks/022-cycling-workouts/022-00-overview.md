@@ -5,7 +5,7 @@
 - **ADR:** [ADR-021](../../decisions/adr-021-cycling-distance-and-health-projection.md)
 - **Base:** `main`
 - **Branch:** `feat/022-cycling-workouts`
-- **Progresso:** `3/5`
+- **Progresso:** `4/5`
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ usados como distância, velocidade, pace ou cadência de ciclismo.
 - [x] [022-01-audit-cycling-consumers-and-freeze-contracts.md](022-01-audit-cycling-consumers-and-freeze-contracts.md)
 - [x] [022-02-add-cycling-type-manual-distance-and-persistence.md](022-02-add-cycling-type-manual-distance-and-persistence.md)
 - [x] [022-03-adapt-cycling-local-metrics-and-ui.md](022-03-adapt-cycling-local-metrics-and-ui.md)
-- [ ] [022-04-add-cycling-health-connect-projections.md](022-04-add-cycling-health-connect-projections.md)
+- [x] [022-04-add-cycling-health-connect-projections.md](022-04-add-cycling-health-connect-projections.md)
 - [ ] [022-05-validate-cycling-workflow-and-close.md](022-05-validate-cycling-workflow-and-close.md)
 
 ## Dependências
@@ -99,7 +99,9 @@ distância manual;
   v11→v12 e formulário de revisão; build/lint aprovados em 2026-08-11.
 - `022-03` concluída com revisão independente aprovada com ressalva não
   bloqueadora: calibração histórica permanece visível somente como diagnóstico.
-- Riscos pendentes: inspeção manual de cycling com e sem distância; `022-04`
-  deve implementar mapping e projeções Health Connect; upgrade físico v11→v12
-  permanece em `022-05`.
-- Próxima subtarefa elegível: `022-04`; não iniciada neste trabalho.
+- `022-04` concluída com mapping genérico de biking, projeção total manual e
+  reconciliação sem `DistanceInterval`/`SpeedSeries` para cycling; lint, builds e
+  revisão independente aprovados em 2026-08-11.
+- Riscos pendentes: inspeção manual de cycling com e sem distância, upgrade físico
+  v11→v12 e validação final do fluxo Health Connect permanecem em `022-05`.
+- Próxima subtarefa elegível: `022-05`; não iniciada neste trabalho.

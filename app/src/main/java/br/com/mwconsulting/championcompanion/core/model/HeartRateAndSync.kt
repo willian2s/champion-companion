@@ -846,6 +846,7 @@ data class HealthSyncOperation private constructor(
             null -> key.recordType != HealthSyncRecordType.SPEED
             HealthProjectionChildKey.ExerciseSession -> key.recordType == HealthSyncRecordType.EXERCISE_SESSION
             is HealthProjectionChildKey.DistanceInterval -> key.recordType == HealthSyncRecordType.DISTANCE
+            HealthProjectionChildKey.ManualDistance -> key.recordType == HealthSyncRecordType.DISTANCE
             HealthProjectionChildKey.SpeedSeries -> key.recordType == HealthSyncRecordType.SPEED
             HealthProjectionChildKey.HeartRateSeries -> key.recordType == HealthSyncRecordType.HEART_RATE
             HealthProjectionChildKey.TotalCaloriesBurned ->

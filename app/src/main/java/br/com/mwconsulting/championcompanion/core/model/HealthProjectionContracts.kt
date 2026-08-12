@@ -31,6 +31,11 @@ sealed interface HealthProjectionChildKey {
         }
     }
 
+    data object ManualDistance : HealthProjectionChildKey {
+        override val stableValue: String = "manual-distance"
+        override val recordTypeName: String = HealthSyncRecordType.DISTANCE.name
+    }
+
     data object SpeedSeries : HealthProjectionChildKey {
         override val stableValue: String = "speed-series"
         override val recordTypeName: String = HealthSyncRecordType.SPEED.name
@@ -59,6 +64,7 @@ sealed interface HealthProjectionChildKey {
          */
         fun fromStableValue(value: String): HealthProjectionChildKey? = when {
             value == ExerciseSession.stableValue -> ExerciseSession
+            value == ManualDistance.stableValue -> ManualDistance
             value == SpeedSeries.stableValue -> SpeedSeries
             value == HeartRateSeries.stableValue -> HeartRateSeries
             value == TotalCaloriesBurned.stableValue -> TotalCaloriesBurned
