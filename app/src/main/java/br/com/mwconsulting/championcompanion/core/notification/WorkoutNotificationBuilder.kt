@@ -112,6 +112,7 @@ class WorkoutNotificationBuilder @Inject constructor(
         WorkoutType.RUNNING -> "Corrida"
         WorkoutType.FREE_WORKOUT -> "Treino livre"
         WorkoutType.TREADMILL -> "Esteira"
+        WorkoutType.CYCLING -> "Bicicleta"
         WorkoutType.UNKNOWN -> "Treino"
     }
 

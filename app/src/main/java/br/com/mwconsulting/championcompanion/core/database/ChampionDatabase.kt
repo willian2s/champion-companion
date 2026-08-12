@@ -190,6 +190,8 @@ data class WorkoutActivityEntity(
     val recordedAtEpochMillis: Long = importedAtEpochMillis ?: startedAtEpochMillis,
     val endedAtEpochMillis: Long = startedAtEpochMillis + durationNanos / 1_000_000L,
     val stepsAvailable: Boolean = true,
+    /** Entrada manual opcional de distância de bicicleta, em metros. */
+    val manualDistanceMeters: Double? = null,
 )
 
 @Entity(
@@ -697,7 +699,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 11,
+    version = 12,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),

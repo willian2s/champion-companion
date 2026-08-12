@@ -115,6 +115,7 @@ sealed interface ExerciseDetailState {
 data class ExerciseReviewFormState(
     val loadedActivityId: WorkoutActivityId? = null,
     val selectedType: WorkoutType? = null,
+    val manualDistanceInput: String = "",
     val titleInput: String = "",
     val notesInput: String = "",
     val acceptPlausibility: Boolean = false,
@@ -173,6 +174,7 @@ sealed interface ExercisesIntent {
     data class OpenActivity(val activityId: WorkoutActivityId) : ExercisesIntent
     data object CloseActivity : ExercisesIntent
     data class EditReviewType(val type: WorkoutType) : ExercisesIntent
+    data class EditReviewDistance(val distance: String) : ExercisesIntent
     data class EditReviewTitle(val title: String) : ExercisesIntent
     data class EditReviewNotes(val notes: String) : ExercisesIntent
     data class EditReviewPlausibilityAcceptance(val accepted: Boolean) : ExercisesIntent

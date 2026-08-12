@@ -491,7 +491,7 @@ data class AppWorkoutSession private constructor(
         ): DomainResult<AppWorkoutSession> =
             if (PhoneWorkoutPolicy.blocksNewSession()) {
                 invalidState()
-            } else if (type == WorkoutType.UNKNOWN) {
+            } else if (type == WorkoutType.UNKNOWN || type == WorkoutType.CYCLING) {
                 invalidState()
             } else {
                 DomainResult.Success(AppWorkoutSession(
@@ -626,7 +626,7 @@ data class AppWorkoutSession private constructor(
         private fun <T> DomainValue<T>.presentValue(): T? = (this as? DomainValue.Present)?.value
 
         private fun AppWorkoutSession.hasValidPersistedState(): Boolean {
-            if (type == WorkoutType.UNKNOWN || revision < 0 || runtimeGeneration < 0 ||
+            if (type == WorkoutType.UNKNOWN || type == WorkoutType.CYCLING || revision < 0 || runtimeGeneration < 0 ||
                 lastTransitionAt.isBefore(createdAt) ||
                 activeDuration.isNegative || pausedDuration.isNegative || !areValid(aggregates) ||
                 (startedAt != null && startedAt.isBefore(createdAt)) ||

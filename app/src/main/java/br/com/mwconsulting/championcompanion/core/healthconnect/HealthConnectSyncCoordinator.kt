@@ -25,6 +25,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -597,10 +598,11 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             )
         }
         val snapshot = activity.derivationSnapshot
-        if (snapshot?.requiresExplicitPlausibilityAcceptance == true) {
+        val usesCanonicalWorkoutProjection = activity.confirmedType != WorkoutType.CYCLING
+        if (usesCanonicalWorkoutProjection && snapshot?.requiresExplicitPlausibilityAcceptance == true) {
             return PreparedActivityOperations.PlausibilityAcceptanceRequired
         }
-        if (snapshot?.hasPlausibilityIndicators == true) {
+        if (usesCanonicalWorkoutProjection && snapshot?.hasPlausibilityIndicators == true) {
             return PreparedActivityOperations.PlausibilityBlocked(snapshot.plausibility.indicators)
         }
         val eligibleChildren = healthRecordMapper.findEligibleWorkoutProjectionChildren(activity)
@@ -646,9 +648,11 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             activity.reviewedAt?.toEpochMilli() ?: Long.MIN_VALUE,
         )
         val operations = mutableListOf<HealthSyncOperation>()
-        val hasReplacementDistanceSeries = nextManifest.children.any { child ->
-            child is HealthProjectionChildKey.DistanceInterval
-        }
+        val canReconcileLegacyDistance = activity.confirmedType == WorkoutType.CYCLING ||
+            nextManifest.children.any { child ->
+                child is HealthProjectionChildKey.DistanceInterval ||
+                    child == HealthProjectionChildKey.ManualDistance
+            }
         val legacyStatus = when (
             val result = healthSyncRepository.inspectLegacyWorkoutDistanceProjection(
                 activityId = activity.id,
@@ -665,7 +669,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             )
         }
         if (legacyStatus == HealthLegacyDistanceProjectionStatus.KNOWN_PENDING_DELETE &&
-            !hasReplacementDistanceSeries
+            !canReconcileLegacyDistance
         ) {
             return PreparedActivityOperations.Failed(
                 error = SafeSyncError.INVALID_LOCAL_DATA,
@@ -673,7 +677,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             )
         }
         if (legacyStatus == HealthLegacyDistanceProjectionStatus.KNOWN_PENDING_DELETE &&
-            hasReplacementDistanceSeries
+            canReconcileLegacyDistance
         ) {
             when (val prepared = healthSyncRepository.prepareLegacyWorkoutDistanceDeletion(activity.id)) {
                 is RepositoryResult.Success -> operations += prepared.value
@@ -754,7 +758,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
 
         val processable = operations.filter { operation ->
             operation.isPending && when {
-                operation.isLegacyWorkoutDistanceDelete() -> hasReplacementDistanceSeries
+                operation.isLegacyWorkoutDistanceDelete() -> canReconcileLegacyDistance
                 operation.isProjectionChild -> true
                 else -> false
             }
@@ -836,6 +840,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             else -> return
         }
         if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+            activity.confirmedType != WorkoutType.CYCLING &&
             activity.derivationSnapshot?.isEligibleForHealthProjection != true
         ) {
             if (activity.workflowState != ActivityWorkflowState.SYNCED) {
@@ -926,6 +931,7 @@ private suspend fun filterProcessableOperations(
             continue
         }
         if (operation.action == HealthSyncOperationAction.INSERT &&
+            activity.confirmedType != WorkoutType.CYCLING &&
             activity.derivationSnapshot?.isEligibleForHealthProjection != true
         ) {
             continue

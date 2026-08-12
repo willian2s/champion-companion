@@ -985,6 +985,9 @@ class RoomRepositories @Inject constructor(
                 title = existing.title,
                 notes = existing.notes,
                 reviewedAt = reviewedAt,
+                manualDistanceMeters = (existing.metrics.distances.manualDistanceMeters as? DomainValue.Present)
+                    ?.value
+                    ?.takeIf { type == WorkoutType.CYCLING },
             ),
         )
     }
@@ -3756,6 +3759,11 @@ private fun isWorkoutActivityEligibleForDistance(
     if (activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
         return activity.finalPositiveDistanceMeters() != null
     }
+    if (activity.confirmedType == WorkoutType.CYCLING) {
+        return operation.key.projectionChildKey == HealthProjectionChildKey.ManualDistance &&
+            activity.metrics.distances.manualDistanceMeters.presentDoubleOrNull()
+                ?.let { it.isFinite() && it > 0.0 } == true
+    }
     val child = operation.key.projectionChildKey as? HealthProjectionChildKey.DistanceInterval
         ?: return false
     return activity.derivationSnapshot?.isEligibleForHealthProjection == true &&
@@ -3778,6 +3786,7 @@ private fun isWorkoutActivityEligibleForSpeed(
     operation: HealthSyncOperation,
 ): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
     activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+    activity.confirmedType != WorkoutType.CYCLING &&
     activity.derivationSnapshot?.isEligibleForHealthProjection == true &&
     operation.key.projectionChildKey == HealthProjectionChildKey.SpeedSeries &&
     operation.frozenPayload != null

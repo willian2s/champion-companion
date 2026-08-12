@@ -489,6 +489,13 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
     }
 }
 
+/** Migration aditiva: armazena distância manual opcional de bicicleta em metros. */
+val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute("ALTER TABLE workout_activities ADD COLUMN manualDistanceMeters REAL")
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

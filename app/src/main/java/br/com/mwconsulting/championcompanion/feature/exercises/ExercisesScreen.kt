@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
@@ -63,6 +64,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
@@ -203,6 +205,7 @@ fun ExercisesScreen(
                     onNavigateBack = onNavigateBack,
                     onDismissError = dismissOperationError,
                     onReviewTypeChange = { viewModel.onIntent(ExercisesIntent.EditReviewType(it)) },
+                    onReviewDistanceChange = { viewModel.onIntent(ExercisesIntent.EditReviewDistance(it)) },
                     onReviewTitleChange = { viewModel.onIntent(ExercisesIntent.EditReviewTitle(it)) },
                     onReviewNotesChange = { viewModel.onIntent(ExercisesIntent.EditReviewNotes(it)) },
                     onReviewPlausibilityAcceptanceChange = {
@@ -804,7 +807,8 @@ private fun WorkoutActivityCard(
                 text = "Duração ${activity.metrics.duration.toDurationLabel()} • ${activity.displayDistanceLabel()}",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (activity.isWatchWorkout && activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE &&
+            if (activity.isWatchWorkout && !activity.isCycling &&
+                activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE &&
                 activity.canonicalReadStatus != WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
             ) {
                 Text(
@@ -813,7 +817,7 @@ private fun WorkoutActivityCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (activity.isWatchWorkout && activity.requiresWatchWorkoutReprocessing) {
+            if (activity.isWatchWorkout && !activity.isCycling && activity.requiresWatchWorkoutReprocessing) {
                 Text(
                     "Reprocessamento explícito necessário",
                     style = MaterialTheme.typography.bodySmall,
@@ -837,6 +841,7 @@ private fun ExerciseDetailShell(
     onNavigateBack: (() -> Unit)?,
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
@@ -901,6 +906,7 @@ private fun ExerciseDetailShell(
                             canDiscardSelectedActivity = state.canDiscardSelectedActivity,
                             onDismissError = onDismissError,
                             onReviewTypeChange = onReviewTypeChange,
+                            onReviewDistanceChange = onReviewDistanceChange,
                             onReviewTitleChange = onReviewTitleChange,
                             onReviewNotesChange = onReviewNotesChange,
                             onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
@@ -1002,6 +1008,7 @@ private fun WorkoutActivityDetailContent(
     canDiscardSelectedActivity: Boolean,
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
@@ -1038,7 +1045,7 @@ private fun WorkoutActivityDetailContent(
             }
         }
         ActivityCanonicalStatusSection(activity)
-        if (activity.isWatchWorkout && activity.requiresWatchWorkoutReprocessing) {
+        if (activity.isWatchWorkout && !activity.isCycling && activity.requiresWatchWorkoutReprocessing) {
             WatchWorkoutReprocessSection(
                 activity = activity,
                 isReprocessing = isReprocessing,
@@ -1058,14 +1065,18 @@ private fun WorkoutActivityDetailContent(
                 activity = activity,
                 formState = reviewFormState,
                 onReviewTypeChange = onReviewTypeChange,
+                onReviewDistanceChange = onReviewDistanceChange,
                 onReviewTitleChange = onReviewTitleChange,
                 onReviewNotesChange = onReviewNotesChange,
                 onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
                 onSubmitReview = onSubmitReview,
             )
 
-            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout ->
+            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout && !activity.isCycling ->
                 WatchWorkoutPendingDerivationSection(activity)
+
+            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isCycling ->
+                CyclingCalibrationBlockedSection()
 
             activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION -> CalibrationFormSection(
                 activity = activity,
@@ -1136,6 +1147,7 @@ private data class CanonicalActivityMetricReadModel(
 )
 
 private fun WorkoutActivity.canonicalMetricReadModel(): CanonicalActivityMetricReadModel? {
+    if (isCycling) return null
     val series = canonicalSeries ?: return null
     val lastInterval = series.intervals.lastOrNull() ?: return null
     return CanonicalActivityMetricReadModel(
@@ -1148,7 +1160,7 @@ private fun WorkoutActivity.canonicalMetricReadModel(): CanonicalActivityMetricR
 
 @Composable
 private fun ActivityCanonicalStatusSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout) return
+    if (!activity.isWatchWorkout || activity.isCycling) return
     val status = activity.canonicalReadStatus
     val snapshot = activity.derivationSnapshot
     val isWarning = status == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ||
@@ -1203,7 +1215,7 @@ private fun ActivityCanonicalStatusSection(activity: WorkoutActivity) {
 
 @Composable
 private fun ActivityCanonicalChartSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout) return
+    if (!activity.isWatchWorkout || activity.isCycling) return
     val series = activity.canonicalSeries
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1510,6 +1522,7 @@ private fun WorkoutHeartRateChart(samples: List<WorkoutHeartRateSample>) {
 
 @Composable
 private fun ActivityIntervalsSection(activity: WorkoutActivity) {
+    if (activity.isCycling) return
     if (activity.isWatchWorkout) {
         WatchCanonicalIntervalsSection(activity)
         return
@@ -1670,7 +1683,7 @@ private fun CanonicalIntervalCard(interval: DerivedWorkoutInterval) {
 
 @Composable
 private fun ActivitySplitsSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout) return
+    if (!activity.isWatchWorkout || activity.isCycling) return
     val snapshot = activity.derivationSnapshot
     val splits = snapshot?.splits.orEmpty()
     Card(
@@ -1821,6 +1834,7 @@ private fun ReviewFormSection(
     activity: WorkoutActivity,
     formState: ExerciseReviewFormState,
     onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
@@ -1840,7 +1854,9 @@ private fun ReviewFormSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            WorkoutType.entries.filter { it != WorkoutType.UNKNOWN }.forEach { type ->
+            WorkoutType.entries.filter { type ->
+                type != WorkoutType.UNKNOWN && (activity.isWatchWorkout || type != WorkoutType.CYCLING)
+            }.forEach { type ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1858,6 +1874,20 @@ private fun ReviewFormSection(
                         }
                     }
                 }
+            }
+            if (activity.isWatchWorkout && formState.selectedType == WorkoutType.CYCLING) {
+                OutlinedTextField(
+                    value = formState.manualDistanceInput,
+                    onValueChange = onReviewDistanceChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Distância") },
+                    supportingText = { Text("Opcional") },
+                    suffix = { Text("km") },
+                    singleLine = true,
+                    isError = formState.error?.category == ExerciseOperationErrorCategory.INVALID_DISTANCE,
+                    enabled = !formState.isSaving,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
             }
             OutlinedTextField(
                 value = formState.titleInput,
@@ -1882,7 +1912,8 @@ private fun ReviewFormSection(
                     color = MaterialTheme.colorScheme.error,
                 )
 
-                activity.derivationSnapshot?.requiresExplicitPlausibilityAcceptance == true -> Row(
+                activity.derivationSnapshot?.requiresExplicitPlausibilityAcceptance == true &&
+                    formState.selectedType != WorkoutType.CYCLING -> Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -2006,6 +2037,27 @@ private fun WatchWorkoutPendingDerivationSection(activity: WorkoutActivity) {
 }
 
 @Composable
+private fun CyclingCalibrationBlockedSection() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Calibração indisponível para bicicleta", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Bicicleta não usa calibração de esteira. A atividade permanece sem distância funcional até revisão válida.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+        }
+    }
+}
+
+@Composable
 private fun CalibrationFormSection(
     activity: WorkoutActivity,
     latestCalibration: TreadmillCalibrationSnapshot?,
@@ -2111,6 +2163,7 @@ private fun ReadOnlyWorkflowSection(
                 )
             }
             if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+                activity.confirmedType != WorkoutType.CYCLING &&
                 activity.workflowState in setOf(
                     ActivityWorkflowState.READY_TO_SYNC,
                     ActivityWorkflowState.SYNC_FAILED,
@@ -2161,6 +2214,16 @@ private data class DetailMetricItem(
 
 private fun WorkoutActivity.detailMetricItems(): List<DetailMetricItem> {
     if (isWatchWorkout) {
+        if (isCycling) {
+            return listOf(
+                DetailMetricItem("Distância", cyclingManualDistanceMetersOrNull().toDistanceLabel()),
+                DetailMetricItem("Velocidade média", cyclingAverageSpeedMetersPerSecond().toSpeedLabel()),
+                DetailMetricItem("Calorias", metrics.caloriesKilocalories.toKcalLabel()),
+                DetailMetricItem("BPM médio", metrics.averageBpm.toBpmLabel()),
+                DetailMetricItem("BPM mínimo", metrics.minimumBpm.toBpmLabel()),
+                DetailMetricItem("BPM máximo", metrics.maximumBpm.toBpmLabel()),
+            )
+        }
         val canonical = canonicalMetricReadModel()
         return listOf(
             DetailMetricItem("Distância estimada acumulada", canonical?.totalDistanceMeters.toDistanceLabel()),
@@ -2227,10 +2290,30 @@ private fun numberLabel(value: Long): String =
 private val WorkoutActivity.isWatchWorkout: Boolean
     get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4
 
-private fun WorkoutActivity.displayDistanceLabel(): String = if (isWatchWorkout) {
-    "Distância estimada ${canonicalMetricReadModel()?.totalDistanceMeters.toDistanceLabel()}"
-} else {
-    "Distância ${metrics.distances.toDistanceLabel()}"
+private val WorkoutActivity.isCycling: Boolean
+    get() = confirmedType == WorkoutType.CYCLING
+
+private fun WorkoutActivity.cyclingManualDistanceMetersOrNull(): Double? {
+    if (!isCycling) return null
+    return when (val distance = metrics.distances.manualDistanceMeters) {
+        is DomainValue.Present -> distance.value.takeIf { it.isFinite() && it > 0.0 }
+        is DomainValue.Absent -> null
+    }
+}
+
+private fun WorkoutActivity.cyclingAverageSpeedMetersPerSecond(): Double? {
+    val distance = cyclingManualDistanceMetersOrNull() ?: return null
+    val duration = metrics.duration
+    if (duration.isNegative || duration.isZero) return null
+    val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
+    if (!durationSeconds.isFinite() || durationSeconds <= 0.0) return null
+    return (distance / durationSeconds).takeIf { it.isFinite() && it > 0.0 }
+}
+
+private fun WorkoutActivity.displayDistanceLabel(): String = when {
+    isCycling -> "Distância ${cyclingManualDistanceMetersOrNull().toDistanceLabel()}"
+    isWatchWorkout -> "Distância estimada ${canonicalMetricReadModel()?.totalDistanceMeters.toDistanceLabel()}"
+    else -> "Distância ${metrics.distances.toDistanceLabel()}"
 }
 
 private fun WorkoutActivity.canonicalStatusAccessibleDescription(): String =
@@ -2371,12 +2454,20 @@ private fun WorkoutDistanceMetrics.toImportedDistanceLabel(): String = when {
 }
 
 private fun WorkoutActivity.displayAveragePaceLabel(): String =
-    (metrics.calibratedMetrics?.averagePaceSecondsPerKilometer?.valueOrNull()
-        ?: metrics.averagePaceSecondsPerKilometer.valueOrNull()).toPaceLabel()
+    if (isCycling) {
+        "indisponível"
+    } else {
+        (metrics.calibratedMetrics?.averagePaceSecondsPerKilometer?.valueOrNull()
+            ?: metrics.averagePaceSecondsPerKilometer.valueOrNull()).toPaceLabel()
+    }
 
 private fun WorkoutActivity.displayAverageSpeedLabel(): String =
-    (metrics.calibratedMetrics?.averageSpeedMetersPerSecond?.valueOrNull()
-        ?: metrics.averageSpeedMetersPerSecond.valueOrNull()).toSpeedLabel()
+    if (isCycling) {
+        cyclingAverageSpeedMetersPerSecond().toSpeedLabel()
+    } else {
+        (metrics.calibratedMetrics?.averageSpeedMetersPerSecond?.valueOrNull()
+            ?: metrics.averageSpeedMetersPerSecond.valueOrNull()).toSpeedLabel()
+    }
 
 private fun <T> DomainValue<T>.valueOrNull(): T? = (this as? DomainValue.Present)?.value
 
@@ -2427,6 +2518,7 @@ private fun WorkoutType.toFallbackTitle(): String = when (this) {
     WorkoutType.RUNNING -> "Corrida"
     WorkoutType.FREE_WORKOUT -> "Treino livre"
     WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Treino do relógio"
 }
 
@@ -2464,6 +2556,7 @@ private fun WorkoutType.toListIcon(): ImageVector = when (this) {
     WorkoutType.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
     WorkoutType.FREE_WORKOUT -> Icons.Filled.FitnessCenter
     WorkoutType.TREADMILL -> Icons.AutoMirrored.Filled.DirectionsWalk
+    WorkoutType.CYCLING -> Icons.Filled.FitnessCenter
     WorkoutType.UNKNOWN -> Icons.Filled.FitnessCenter
 }
 
@@ -2589,6 +2682,7 @@ private fun WorkoutType.toLabel(): String = when (this) {
     WorkoutType.RUNNING -> "Corrida"
     WorkoutType.FREE_WORKOUT -> "Treino livre"
     WorkoutType.TREADMILL -> "Esteira"
+    WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Tipo indefinido"
 }
 

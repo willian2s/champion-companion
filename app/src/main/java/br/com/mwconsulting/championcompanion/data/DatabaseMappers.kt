@@ -339,26 +339,35 @@ internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSu
         emptySet()
     }
     val canonicalReadStatus = if (mappedOrigin == DataOrigin.WATCH_D3_D4) {
-        when {
-            canonicalDerivationVersion == null -> WorkoutCanonicalReadStatus.NOT_MATERIALIZED
-            enum<TemporalSeriesEligibility>(canonicalTemporalEligibility) != TemporalSeriesEligibility.ELIGIBLE ||
-                canonicalDistanceMeters == null -> WorkoutCanonicalReadStatus.SERIES_INELIGIBLE
-            mappedPlausibilityIndicators.isNotEmpty() -> WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED
-            else -> WorkoutCanonicalReadStatus.AVAILABLE
+        if (mappedConfirmedType == WorkoutType.CYCLING) {
+            WorkoutCanonicalReadStatus.NOT_APPLICABLE
+        } else {
+            when {
+                canonicalDerivationVersion == null -> WorkoutCanonicalReadStatus.NOT_MATERIALIZED
+                enum<TemporalSeriesEligibility>(canonicalTemporalEligibility) != TemporalSeriesEligibility.ELIGIBLE ||
+                    canonicalDistanceMeters == null -> WorkoutCanonicalReadStatus.SERIES_INELIGIBLE
+                mappedPlausibilityIndicators.isNotEmpty() -> WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED
+                else -> WorkoutCanonicalReadStatus.AVAILABLE
+            }
         }
     } else {
         WorkoutCanonicalReadStatus.NOT_APPLICABLE
     }
-    val mappedDistance = if (mappedOrigin == DataOrigin.WATCH_D3_D4) {
-        when (canonicalReadStatus) {
+    val mappedDistance = when {
+        mappedConfirmedType == WorkoutType.CYCLING -> manualDistanceMeters?.takeIf {
+            it.isFinite() && it > 0.0
+        }
+            .domainValue()
+
+        mappedOrigin == DataOrigin.WATCH_D3_D4 -> when (canonicalReadStatus) {
             WorkoutCanonicalReadStatus.AVAILABLE,
             WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED,
             -> canonicalDistanceMeters.domainValue()
 
             else -> DomainValue.Absent(AbsenceReason.NOT_YET_RESOLVED)
         }
-    } else {
-        (calibratedDistanceMeters ?: originalDistanceMeters ?: estimatedDistanceMeters).domainValue()
+
+        else -> (calibratedDistanceMeters ?: originalDistanceMeters ?: estimatedDistanceMeters).domainValue()
     }
 
     return CalendarWorkoutSummary(
@@ -464,6 +473,8 @@ internal fun WorkoutActivity.toEntity(): WorkoutActivityEntity {
         recordedAtEpochMillis = recordedAt.toEpochMilli(),
         endedAtEpochMillis = metrics.endedAt.toEpochMilli(),
         stepsAvailable = metrics.stepsAvailable,
+        manualDistanceMeters = metrics.distances.manualDistanceMeters.valueOrNull()
+            ?.takeIf { confirmedType == WorkoutType.CYCLING && it.isFinite() && it > 0.0 },
     )
 }
 
@@ -937,6 +948,11 @@ internal fun WorkoutActivityEntity.toDomain(
     }
     val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
     val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    val mappedManualDistance = if (mappedConfirmedType == WorkoutType.CYCLING) {
+        manualDistanceMeters.domainValue()
+    } else {
+        DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
+    }
     return WorkoutActivity.restore(
         id = activityId,
         activityOrigin = mappedOrigin,
@@ -953,6 +969,7 @@ internal fun WorkoutActivityEntity.toDomain(
                 originalDistanceMeters.domainValue(),
                 estimatedDistanceMeters.domainValue(),
                 calibratedDistanceMeters.domainValue(),
+                mappedManualDistance,
             ),
             averagePaceSecondsPerKilometer = importedAveragePaceSecondsPerKilometer.domainValue(),
             averageSpeedMetersPerSecond = importedAverageSpeedMetersPerSecond.domainValue(),
