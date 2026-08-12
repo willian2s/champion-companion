@@ -246,3 +246,28 @@ para demonstrar benefício real.
 - ADR-021 mantém a política de bicicleta, que não usa passos para distância;
 - esta ADR adiciona somente calibração e seleção contextual de comprimento do
   passo para corrida/caminhada.
+
+## Complemento da auditoria `023-01`
+
+A auditoria de integração em
+`docs/integration/023-01-personal-metrics-and-calibration-audit.md` detalha os
+contratos executáveis desta decisão. Ficam adicionalmente congelados:
+
+- `step_length_calibrations` usa FK para `user_profiles`, não exige FK rígida
+  para `workout_activities` e garante `UNIQUE(activityId)`; correção atualiza a
+  evidência e remoção a exclui do cálculo futuro;
+- a evidência e o snapshot diretamente calibrado são persistidos na mesma
+  transação local, sem enqueue ou efeito remoto;
+- rederivação da própria atividade usa whitelist fail-closed: somente
+  `PENDING_CALIBRATION` e `READY_TO_SYNC`, e `SYNC_FAILED` sem filhos aceitos ou
+  efeitos remotos parciais; `PENDING_REVIEW`, `SYNCING`, `SYNCED` e `DISCARDED`
+  são bloqueados;
+- a identidade de `HealthProjectionOrigin` permanece compatível com o código
+  vigente: `originId = activity.id` e `originVersion` é a versão do snapshot;
+- provenance de distância/velocidade diretamente calibrada será
+  `metricProvenance: String?` opcional no payload congelado, com valores
+  `WATCH_DERIVED` e `EXTERNAL_REFERENCE_CALIBRATION`. Payload v1 sem campo
+  significa derivação automática; valor desconhecido falha fechado;
+  `ManualDistance` continua exclusivo de `CYCLING`;
+- `DailySummary` permanece na semântica `BASE` vigente, sem usar perfis
+  aprendidos nem reescrever resumos históricos.

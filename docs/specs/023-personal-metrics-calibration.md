@@ -5,7 +5,7 @@
 - **Status:** `pending`
 - **Base:** `main` após merge da Spec 022
 - **Branch:** `feat/023-personal-metrics-calibration`
-- **Progresso planejado:** `0/7`
+- **Progresso planejado:** `1/7`
 - **Decisão principal:** ADR-022
 
 ## Contexto
@@ -30,6 +30,20 @@ Na `main` atual:
 
 Esta spec executa a Fase 16 revisada e não assume relação geral entre ticker e
 número de fase.
+
+## Resultado da auditoria `023-01`
+
+A auditoria do estado real foi concluída sem alteração de código. Os contratos
+de ligação da evidência ao perfil/atividade, unicidade por atividade, agregação
+determinística, seleção após `confirmedType`, guards de workflow, atividade
+sincronizada, provenance Health Connect, enqueue de altura/peso e consumers estão
+congelados em:
+
+`docs/integration/023-01-personal-metrics-and-calibration-audit.md`.
+
+`023-02` pode implementar schema/domínio conforme esse documento. Persistência
+de calibração usa migration aditiva v12 -> v13; snapshots v2, parser `d4-v3`,
+DataStore e contratos Health Connect existentes permanecem compatíveis.
 
 ## Objetivo
 

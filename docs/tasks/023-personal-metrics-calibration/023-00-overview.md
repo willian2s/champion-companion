@@ -3,7 +3,7 @@
 - **Fase:** 16
 - **Spec:** `docs/specs/023-personal-metrics-calibration.md`
 - **Status:** `pending`
-- **Progresso:** `0/7`
+- **Progresso:** `1/7`
 - **Branch:** `feat/023-personal-metrics-calibration`
 
 ## Objetivo
@@ -57,13 +57,20 @@ corrida/caminhada por distância externa de referência.
 
 ## Checklist
 
-- [ ] `023-01` auditoria concluída e contratos congelados
-- [ ] `023-02` calibrações persistidas e perfis aprendidos disponíveis
-- [ ] `023-03` altura/meta de passos editáveis
-- [ ] `023-04` peso manual/histórico funcional
-- [ ] `023-05` calibração de corrida/caminhada funcional
-- [ ] `023-06` derivação contextual e projeções integradas
-- [ ] `023-07` validação física e fechamento documental concluídos
+- [x] `023-01-audit-personal-metrics-and-freeze-phase-boundaries.md` — auditoria concluída e contratos congelados
+- [ ] `023-02-persist-step-length-calibrations-and-learned-profiles.md` — calibrações persistidas e perfis aprendidos disponíveis
+- [ ] `023-03-complete-profile-height-and-daily-steps-goal.md` — altura/meta de passos editáveis
+- [ ] `023-04-implement-manual-weight-and-local-history.md` — peso manual/histórico funcional
+- [ ] `023-05-implement-reference-distance-calibration.md` — calibração de corrida/caminhada funcional
+- [ ] `023-06-integrate-contextual-step-length-and-health-projections.md` — derivação contextual e projeções integradas
+- [ ] `023-07-validate-and-close-phase-16.md` — validação física e fechamento documental concluídos
+
+## Observações
+
+- `023-01` concluída. Auditoria e decisões congeladas em
+  `docs/integration/023-01-personal-metrics-and-calibration-audit.md`.
+- Sem bloqueios para `023-02`; riscos residuais estão registrados na subtarefa e
+  no documento de integração.
 
 ## Estado esperado ao final
 

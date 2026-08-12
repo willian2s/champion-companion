@@ -1,6 +1,6 @@
 # 023-01 — Auditar métricas pessoais e congelar fronteiras da Fase 16
 
-- **Status:** `pending`
+- **Status:** `completed`
 - **Spec:** `023-personal-metrics-calibration`
 
 ## Objetivo
@@ -65,17 +65,43 @@ implementação.
 
 ## Checklist
 
-- [ ] perfil atual auditado
-- [ ] peso/meta de passos auditados
-- [ ] derivação e workflow auditados
-- [ ] Health Connect auditado
-- [ ] consumers listados
-- [ ] guards de sync congelados
-- [ ] provenance decidida
-- [ ] documento de integração criado
-- [ ] spec/overview atualizados com resultado da auditoria
+- [x] perfil atual auditado
+- [x] peso/meta de passos auditados
+- [x] derivação e workflow auditados
+- [x] Health Connect auditado
+- [x] consumers listados
+- [x] guards de sync congelados
+- [x] provenance decidida
+- [x] documento de integração criado
+- [x] spec/overview atualizados com resultado da auditoria
 
 ## Aceite
 
 A task termina somente quando `023-02` puder implementar schema/domínio sem
 decisões arquiteturais abertas.
+
+## Resultado da execução
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  - `docs/integration/023-01-personal-metrics-and-calibration-audit.md`;
+  - esta subtarefa;
+  - `docs/tasks/023-personal-metrics-calibration/023-00-overview.md`;
+  - `docs/specs/023-personal-metrics-calibration.md`.
+- **Decisões e desvios:** contratos congelados conforme Spec 023 e ADR-022. A
+  calibração não usará FK rígida para atividade; atividades sincronizadas ou com
+  efeitos remotos parciais não serão evidência nesta fase; provenance direta
+  exigirá campo opcional retrocompatível no payload Health Connect v2; a
+  identidade vigente permanece `originId = activity.id`. `DailySummary` mantém
+  semântica BASE atual, sem perfis aprendidos. Nenhuma alteração de código foi
+  feita.
+- **Comandos executados:** buscas e leituras direcionadas do código/documentação;
+  `git diff --check`.
+- **Resultados e evidências:** documento de integração registra mapa de arquivos,
+  linhas auditadas, nove decisões de integração, consumers preservados, guards de
+  sync e riscos. `git diff --check` passou.
+- **Riscos residuais:** mutation de altura/peso, migration/domínio de calibração,
+  resolver contextual e payload v2 permanecem para subtarefas seguintes. Todos
+  os entrypoints de rederivação deverão usar whitelist comum; o guard de
+  `SYNC_FAILED` deverá inspecionar operações filhas antes de liberar
+  rederivação.
