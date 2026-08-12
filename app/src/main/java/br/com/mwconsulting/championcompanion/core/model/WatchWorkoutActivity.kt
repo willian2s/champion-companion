@@ -298,6 +298,9 @@ data class WorkoutActivity private constructor(
         if (input.activityId != id || input.confirmedType == WorkoutType.UNKNOWN) {
             return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
         }
+        if (input.confirmedType == WorkoutType.CYCLING && input.acceptPlausibility) {
+            return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        }
 
         val snapshotForReview = if (input.acceptPlausibility) {
             when (val accepted = derivationSnapshot?.acceptExplicitPlausibility()) {
@@ -321,7 +324,8 @@ data class WorkoutActivity private constructor(
 
     /** Aceite explícito para atividade revisada, sem recalcular a série. */
     fun acceptPlausibility(): DomainResult<WorkoutActivity> {
-        if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+        if (confirmedType == WorkoutType.CYCLING ||
+            activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
             workflowState !in setOf(
                 ActivityWorkflowState.PENDING_REVIEW,
                 ActivityWorkflowState.READY_TO_SYNC,

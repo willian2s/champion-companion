@@ -346,13 +346,13 @@ private fun WorkoutDayCard(
             Text(workout.title ?: workout.displayType(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text("Tipo: ${workout.displayType()} • Início: ${workout.startedAt.formatCalendarTime(zoneId, locale)}")
             Text(
-                if (workout.isWatchWorkout) {
+                if (workout.isWatchWorkout && !workout.isCycling) {
                     "Duração: ${workout.duration.toCalendarLabel()} • Distância estimada: ${workout.distanceMeters.toDistanceLabel()}"
                 } else {
                     "Duração: ${workout.duration.toCalendarLabel()} • Distância: ${workout.distanceMeters.toDistanceLabel()}"
                 },
             )
-            if (workout.isWatchWorkout) {
+            if (workout.isWatchWorkout && !workout.isCycling) {
                 Text(
                     text = workout.canonicalStatusMessage(),
                     style = MaterialTheme.typography.bodySmall,
@@ -508,23 +508,34 @@ private fun CalendarWorkoutSummary.displayType(): String = (confirmedType ?: sug
 private val CalendarWorkoutSummary.isWatchWorkout: Boolean
     get() = origin == DataOrigin.WATCH_D3_D4
 
-private fun CalendarWorkoutSummary.accessibleDescription(): String =
-    "${title ?: displayType()}. ${canonicalStatusMessage()} Distância ${distanceMeters.toDistanceLabel()}."
+private val CalendarWorkoutSummary.isCycling: Boolean
+    get() = confirmedType == WorkoutType.CYCLING
 
-private fun CalendarWorkoutSummary.canonicalStatusMessage(): String = when (canonicalReadStatus) {
-    WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Distância segue contrato legado da atividade phone."
-    WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
-        "Sem comprimento do passo. Configure Perfil e reprocese a atividade por ação explícita."
-    WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
-        "Derivação canônica não materializada. Configure comprimento do passo e reprocese por ação explícita."
-    WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
-        "Série canônica inelegível. Distância original, calibrada e agregada não são usadas como substitutas."
-    WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ->
-        "Série estimada contém valores implausíveis e não deve ser tratada como confiável."
-    WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
-        "Série canônica disponível; splits ainda não materializados."
-    WorkoutCanonicalReadStatus.AVAILABLE ->
-        "Distância e métricas funcionais vêm da série canônica persistida."
+private fun CalendarWorkoutSummary.accessibleDescription(): String =
+    if (isCycling) {
+        "${title ?: displayType()}. Distância manual ${distanceMeters.toDistanceLabel()}."
+    } else {
+        "${title ?: displayType()}. ${canonicalStatusMessage()} Distância ${distanceMeters.toDistanceLabel()}."
+    }
+
+private fun CalendarWorkoutSummary.canonicalStatusMessage(): String = if (isCycling) {
+    "Distância manual opcional; série derivada preservada somente para diagnóstico."
+} else {
+    when (canonicalReadStatus) {
+        WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Distância segue contrato legado da atividade phone."
+        WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
+            "Sem comprimento do passo. Configure Perfil e reprocese a atividade por ação explícita."
+        WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
+            "Derivação canônica não materializada. Configure comprimento do passo e reprocese por ação explícita."
+        WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
+            "Série canônica inelegível. Distância original, calibrada e agregada não são usadas como substitutas."
+        WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ->
+            "Série estimada contém valores implausíveis e não deve ser tratada como confiável."
+        WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
+            "Série canônica disponível; splits ainda não materializados."
+        WorkoutCanonicalReadStatus.AVAILABLE ->
+            "Distância e métricas funcionais vêm da série canônica persistida."
+    }
 }
 
 private fun StepLengthSource.toCalendarLabel(): String = when (this) {

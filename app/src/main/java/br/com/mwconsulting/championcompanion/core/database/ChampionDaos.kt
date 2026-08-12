@@ -234,7 +234,7 @@ interface WorkoutActivityDao {
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
-            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
+            "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
             "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
             "derivation.derivationVersion AS canonicalDerivationVersion, " +
             "derivation.stepLengthSource AS canonicalStepLengthSource, " +
@@ -257,7 +257,7 @@ interface WorkoutActivityDao {
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
-            "activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
+            "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
             "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
             "derivation.derivationVersion AS canonicalDerivationVersion, " +
             "derivation.stepLengthSource AS canonicalStepLengthSource, " +
@@ -350,6 +350,7 @@ data class CalendarWorkoutSummaryRecord(
     val originalDistanceMeters: Double?,
     val estimatedDistanceMeters: Double?,
     val calibratedDistanceMeters: Double?,
+    val manualDistanceMeters: Double?,
     val caloriesKilocalories: Double?,
     val averageBpm: Int?,
     val workflowState: String,

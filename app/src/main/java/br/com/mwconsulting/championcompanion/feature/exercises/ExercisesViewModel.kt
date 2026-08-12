@@ -1988,8 +1988,9 @@ class ExercisesViewModel internal constructor(
                     manualDistanceInput = activity.manualDistanceInputForReview(),
                     titleInput = activity.title.orEmpty(),
                     notesInput = activity.notes.orEmpty(),
-                acceptPlausibility = activity.derivationSnapshot?.plausibility?.policy ==
-                    br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED,
+                    acceptPlausibility = (activity.confirmedType ?: activity.suggestedType) != WorkoutType.CYCLING &&
+                        activity.derivationSnapshot?.plausibility?.policy ==
+                        br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy.EXPLICITLY_ACCEPTED,
             )
         }
         if (calibrationFormState.value.loadedActivityId != activity.id || !calibrationFormState.value.isSaving) {
@@ -2028,6 +2029,7 @@ class ExercisesViewModel internal constructor(
             copy(
                 selectedType = type,
                 manualDistanceInput = manualDistanceInput.takeIf { type == WorkoutType.CYCLING }.orEmpty(),
+                acceptPlausibility = acceptPlausibility.takeIf { type != WorkoutType.CYCLING } ?: false,
                 hasUnsavedChanges = true,
                 error = null,
             )

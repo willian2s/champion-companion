@@ -1,6 +1,6 @@
 # 022-03 — Adaptar métricas e UI locais para bicicleta
 
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depende de:** `022-02`
 - **Desbloqueia:** `022-04`
 
@@ -100,6 +100,54 @@ promovidos visualmente como deslocamento da bicicleta.
 - inspeção manual de atividade cycling com e sem distância;
 - confirmar que running/walking/treadmill mantêm apresentação vigente.
 
+## Execução
+
+- **Status:** `completed` — revisão independente aprovada com ressalvas não
+  bloqueadoras.
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/CalendarHistory.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarDayScreen.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
+- **Decisões:**
+  - calendário transporta `manualDistanceMeters` no read model e usa esse valor
+    somente para `CYCLING`, aceitando apenas valores positivos e finitos;
+  - detalhe/lista calculam velocidade média ciclística de forma determinística
+    com distância manual e duração oficial;
+  - série/gráfico, intervalos, splits, pace, cadência de passos e estados de
+    reprocessamento por passos ficam ocultos para `CYCLING`, enquanto snapshots
+    permanecem persistidos;
+  - `DailySummary` e históricos gerais de distância não foram alterados.
+  - estado inconsistente `CYCLING + PENDING_CALIBRATION` falha fechado com
+    mensagem explícita, sem abrir formulário de calibração de esteira.
+  - aceite explícito de plausibilidade da série por passos é ocultado, limpo e
+    rejeitado para `CYCLING` na UI, ViewModel e domínio.
+- **Desvios:** nenhum requisito alterado. Nenhum parser, derivação, snapshot,
+  Health Connect ou teste novo foi modificado.
+- **Comandos executados:**
+  - `git diff --check`
+  - `./gradlew app:compileDebugKotlin`
+  - `./gradlew lint assembleDebug assembleRelease` (primeira execução excedeu o
+    timeout da ferramenta após concluir os assemblies; execução subsequente passou)
+  - `./gradlew lint assembleDebug assembleRelease`
+- **Resultados e evidências:** `git diff --check` passou; compilação Kotlin,
+  lint, `assembleDebug` e `assembleRelease` passaram após correção. DAO e
+  mapper transportam distância manual; UI de atividade e calendário falham
+  fechados sem distância e não leem série por passos para `CYCLING`. Aceite de
+  plausibilidade por passos também falha fechado. Revisão independente anterior
+  encontrou esse bloqueio; correção aplicada e nova revisão aprovou a mudança
+  com ressalva não bloqueadora. Nenhum teste automatizado foi executado,
+  conforme regras do repositório.
+- **Revisão independente:** aprovada com ressalva não bloqueadora em 2026-08-11;
+  calibração histórica permanece visível somente como diagnóstico, sem consumo
+  por métricas de `CYCLING`.
+- **Riscos residuais:** inspeção manual em dispositivo ainda pendente. `022-04`
+  continua responsável por projeções Health Connect e `022-05` por upgrade
+  físico e validação final.
+
 ## Fora do escopo
 
 - Health Connect;
@@ -110,12 +158,12 @@ promovidos visualmente como deslocamento da bicicleta.
 
 ## Critérios de aceite
 
-- [ ] nenhum consumer local usa distância canônica por passos para `CYCLING`;
-- [ ] velocidade média só existe com distância manual válida;
-- [ ] pace, cadência de passos e splits de passos não aparecem como métricas de bicicleta;
-- [ ] BPM/calorias/duração continuam disponíveis;
-- [ ] snapshots raw/derived continuam preservados;
-- [ ] calendário/históricos respeitam ausência de distância;
-- [ ] outros tipos mantêm comportamento existente;
-- [ ] build/lint passam;
-- [ ] revisão independente aprova a mudança.
+- [x] nenhum consumer local usa distância canônica por passos para `CYCLING`;
+- [x] velocidade média só existe com distância manual válida;
+- [x] pace, cadência de passos e splits de passos não aparecem como métricas de bicicleta;
+- [x] BPM/calorias/duração continuam disponíveis;
+- [x] snapshots raw/derived continuam preservados;
+- [x] calendário/históricos respeitam ausência de distância;
+- [x] outros tipos mantêm comportamento existente;
+- [x] build/lint passam;
+- [x] revisão independente aprova a mudança.
