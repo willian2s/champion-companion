@@ -1,0 +1,90 @@
+# 023 — Overview: Perfil, métricas pessoais e calibração
+
+- **Fase:** 16
+- **Spec:** `docs/specs/023-personal-metrics-calibration.md`
+- **Status:** `pending`
+- **Progresso:** `0/7`
+- **Branch:** `feat/023-personal-metrics-calibration`
+
+## Objetivo
+
+Concluir a Fase 16 com um perfil pessoal enxuto e funcional, incluindo altura,
+meta diária de passos, peso e calibração progressiva do comprimento do passo de
+corrida/caminhada por distância externa de referência.
+
+## Sequência
+
+```text
+023-01 Auditoria e contratos
+   ↓
+023-02 Persistência de calibrações / perfis aprendidos
+   ↓
+023-03 Altura e meta de passos no Perfil
+   ↓
+023-04 Peso manual e histórico
+   ↓
+023-05 Calibração por distância de referência
+   ↓
+023-06 Derivação contextual + consumidores + Health Connect
+   ↓
+023-07 Validação física e fechamento
+```
+
+## Dependências normativas
+
+- `docs/specs/_inputs/phase-16-personal-metrics-direction.md`
+- `docs/decisions/adr-022-contextual-step-length-calibration.md`
+- ADR-017 — direção watch-first;
+- ADR-018 — raw/measured/derived/projection;
+- ADR-019 — timeline D4 normalizada;
+- ADR-021 — bicicleta e distância manual;
+- `docs/specs/014-watch-workout-derived-metrics.md`;
+- `docs/specs/022-cycling-workouts.md`.
+
+## Guard rails
+
+- não adicionar GPS, rota, mapa ou coleta de localização;
+- não criar integração com Adidas/Strava;
+- não reescrever snapshots históricos automaticamente;
+- não alterar atividade sincronizada silenciosamente;
+- não misturar calibração de corrida e caminhada;
+- não aplicar perfil aprendido a `CYCLING`;
+- não transformar `TREADMILL` em corrida por suposição;
+- não recriar fila Health Connect para altura/peso;
+- não adicionar nome, nascimento, sexo, meta de peso, unidades ou zonas de FC;
+- não criar testes novos nem executar suites sem pedido explícito;
+- mudanças de Room devem preservar dados e schemas existentes.
+
+## Checklist
+
+- [ ] `023-01` auditoria concluída e contratos congelados
+- [ ] `023-02` calibrações persistidas e perfis aprendidos disponíveis
+- [ ] `023-03` altura/meta de passos editáveis
+- [ ] `023-04` peso manual/histórico funcional
+- [ ] `023-05` calibração de corrida/caminhada funcional
+- [ ] `023-06` derivação contextual e projeções integradas
+- [ ] `023-07` validação física e fechamento documental concluídos
+
+## Estado esperado ao final
+
+```text
+Perfil
+├── altura editável
+├── meta diária de passos
+├── peso + histórico
+├── comprimento do passo base
+├── corrida: perfil aprendido
+└── caminhada: perfil aprendido
+
+Treino RUNNING/WALKING
+├── D3/D4 + decodedSteps
+├── distância estimada pelo perfil vigente
+├── distância externa opcional para calibração
+├── snapshot imutável por atividade
+└── Health Connect explícito
+```
+
+## Fechamento
+
+A Fase 16 só deve ser marcada como concluída em `023-07`, depois de evidência em
+banco preservado e dispositivo real. Concluir tasks isoladas não conclui a fase.
