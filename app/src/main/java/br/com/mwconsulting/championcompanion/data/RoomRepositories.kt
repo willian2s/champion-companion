@@ -97,6 +97,7 @@ import br.com.mwconsulting.championcompanion.core.model.ParserVersion
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
+import br.com.mwconsulting.championcompanion.core.model.SaveManualWeightMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
@@ -177,6 +178,9 @@ private class WatchWorkoutDerivationPreflightException :
 
 private class HeightUpdateAborted :
     IllegalStateException("Height update could not be reconciled")
+
+private class ManualWeightSaveAborted :
+    IllegalStateException("Manual weight save could not be reconciled")
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -1098,6 +1102,69 @@ class RoomRepositories @Inject constructor(
         val weight = database.userProfileDao().findWeightById(measurementId.value.toString())?.toDomain()
             ?: return@withContext RepositoryResult.NotFound
         RepositoryResult.Success(weight)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeWeightHistory(): Flow<List<WeightMeasurement>> =
+        database.userProfileDao().observeCurrent().transformLatest { profile ->
+            if (profile == null) {
+                emit(emptyList())
+            } else {
+                database.userProfileDao()
+                    .observeWeights(profile.id)
+                    .map { entities -> entities.mapNotNull { it.toDomain() } }
+                    .collect { emit(it) }
+            }
+        }.flowOn(ioDispatcher)
+
+    override suspend fun listWeightHistory(): RepositoryResult<List<WeightMeasurement>> = try {
+        read {
+            val profile = database.userProfileDao().findCurrent()
+                ?: return@read RepositoryResult.Success(emptyList())
+            RepositoryResult.Success(
+                database.userProfileDao().findWeights(profile.id).mapNotNull { it.toDomain() },
+            )
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
+    }
+
+    override suspend fun saveManualWeightMeasurement(
+        input: SaveManualWeightMeasurementInput,
+    ): RepositoryResult<WeightMeasurement> = try {
+        write {
+            if (!input.valueKilograms.isFinite() || input.valueKilograms <= 0.0) {
+                return@write RepositoryResult.UnexpectedState
+            }
+            val profileEntity = database.userProfileDao().findCurrent()
+                ?: return@write RepositoryResult.NotFound
+            val profile = profileEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+            val measurement = WeightMeasurement.create(
+                id = WeightMeasurementId(ids.next()),
+                value = input.valueKilograms,
+                unit = WeightUnit.KILOGRAMS,
+                measuredAt = input.measuredAt,
+                origin = DataOrigin.MANUAL_ENTRY,
+            ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+            database.userProfileDao().insert(measurement.toEntity(profile.id))
+            when (ensureOperationInternal(
+                HealthSyncOperationKey(
+                    aggregate = HealthSyncAggregate.WeightMeasurement(measurement.id),
+                    recordType = HealthSyncRecordType.WEIGHT,
+                ),
+            )) {
+                is RepositoryResult.Success -> RepositoryResult.Success(measurement)
+                else -> throw ManualWeightSaveAborted()
+            }
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: ManualWeightSaveAborted) {
+        RepositoryResult.UnexpectedState
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
     }
 
     override fun observeWeightsBetween(range: CalendarInstantRange) =
@@ -3452,6 +3519,11 @@ class RoomRepositories @Inject constructor(
         "KILOGRAMS" -> value.takeIf { it.isFinite() && it > 0.0 }
         "POUNDS" -> (value * 0.45359237).takeIf { value.isFinite() && value > 0.0 }
         else -> null
+    }
+
+    private fun WeightMeasurement.toKilogramsOrNull(): Double? = when (unit) {
+        WeightUnit.KILOGRAMS -> value.takeIf { it.isFinite() && it > 0.0 }
+        WeightUnit.POUNDS -> (value * 0.45359237).takeIf { it.isFinite() && it > 0.0 }
     }
 
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =

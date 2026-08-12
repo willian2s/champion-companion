@@ -1,6 +1,6 @@
 # 023-04 — Implementar peso manual e histórico local
 
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `023-03`
 
 ## Objetivo
@@ -65,15 +65,40 @@ Após persistência local bem-sucedida:
 
 ## Checklist
 
-- [ ] API de save manual criada
-- [ ] histórico observável criado
-- [ ] último peso deriva de persistência real
-- [ ] UI permite registrar kg
-- [ ] histórico aparece após restart
-- [ ] falha HC preserva sucesso local
-- [ ] fila existente é reutilizada
-- [ ] tela não promete gráfico ausente
-- [ ] spec/overview atualizados
+- [x] API de save manual criada
+- [x] histórico observável criado
+- [x] último peso deriva de persistência real
+- [x] UI permite registrar kg
+- [x] histórico aparece após restart — implementação persistente concluída; validação física permanece pendente em `023-07`
+- [x] falha HC preserva sucesso local
+- [x] fila existente é reutilizada
+- [x] tela não promete gráfico ausente
+- [x] spec/overview atualizados
+
+## Evidências
+
+- `RoomRepositories` valida valor positivo/finito, resolve perfil atual, cria
+  `WeightMeasurement` em `KILOGRAMS`/`MANUAL_ENTRY`, persiste medição e garante
+  operação `HealthSyncAggregate.WeightMeasurement` na transação local.
+- `observeWeightHistory` acompanha perfil atual e retorna histórico descendente;
+  `listWeightHistory` fornece leitura pontual equivalente.
+- `HealthViewModel` observa histórico, combina estado, trata intents do editor,
+  salva localmente e aciona `triggerHealthConnectSyncIfEnabled` após sucesso.
+- `WeightDetailScreen` oferece formulário kg, CTA, estados vazio/erro/sucesso e
+  histórico cronológico, sem gráfico ou placeholder.
+- Revisão independente corrigida: `saveManualWeightMeasurement` lança exceção
+  dedicada quando o enqueue falha, permitindo rollback da medição na transação;
+  falha remota posterior não remove persistência local. Histórico converte
+  `POUNDS` para kg antes de renderizar, e `HealthViewModel` protege o reset de
+  `isSavingWeight` com `finally`, preservando sucesso local se o trigger de
+  Health Connect falhar.
+- Validações: `./gradlew app:compileDebugKotlin` passou; `./gradlew app:lintDebug`
+  passou; `git diff --check` passou.
+
+## Pendências e riscos
+
+- Persistência após restart e Health Connect indisponível ainda exigem validação
+  física da `023-07`; nenhuma suite de testes foi criada ou executada.
 
 ## Aceite
 

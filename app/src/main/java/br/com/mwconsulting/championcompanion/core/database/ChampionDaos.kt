@@ -81,19 +81,19 @@ interface UserProfileDao {
     @Query("SELECT * FROM user_profiles ORDER BY updatedAtEpochMillis DESC LIMIT 1")
     suspend fun findCurrent(): UserProfileEntity?
 
-    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC LIMIT 1")
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC, id DESC LIMIT 1")
     fun observeLatestWeight(profileId: String): Flow<WeightMeasurementEntity?>
 
-    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC LIMIT 1")
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC, id DESC LIMIT 1")
     suspend fun findLatestWeight(profileId: String): WeightMeasurementEntity?
 
     @Query("SELECT * FROM weight_measurements WHERE id = :id LIMIT 1")
     suspend fun findWeightById(id: String): WeightMeasurementEntity?
 
-    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC")
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC, id DESC")
     fun observeWeights(profileId: String): Flow<List<WeightMeasurementEntity>>
 
-    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis")
+    @Query("SELECT * FROM weight_measurements WHERE profileId = :profileId ORDER BY measuredAtEpochMillis DESC, id DESC")
     suspend fun findWeights(profileId: String): List<WeightMeasurementEntity>
 
     @Query("SELECT * FROM weight_measurements WHERE measuredAtEpochMillis >= :fromEpochMillis AND measuredAtEpochMillis < :untilEpochMillis ORDER BY measuredAtEpochMillis DESC, id DESC")

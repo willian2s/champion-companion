@@ -23,6 +23,7 @@ import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepositor
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
+import br.com.mwconsulting.championcompanion.core.model.SaveManualWeightMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
@@ -42,6 +43,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private const val RECENT_MANUAL_MEASUREMENTS_LIMIT = 10
@@ -73,6 +77,11 @@ class HealthViewModel internal constructor(
     private val history = MutableStateFlow(HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY))
     private val latestD1ImportMetadata = MutableStateFlow<D1HeartRateImportMetadata?>(null)
     private val personalMetrics = MutableStateFlow(PersonalMetricsSnapshot())
+    private val weightHistory = MutableStateFlow<HealthWeightHistoryState>(HealthWeightHistoryState.Loading)
+    private val weightInput = MutableStateFlow("")
+    private val isWeightEditorOpen = MutableStateFlow(false)
+    private val isSavingWeight = MutableStateFlow(false)
+    private val weightMessage = MutableStateFlow<HealthWeightMessage?>(null)
     private val observedDate = MutableStateFlow(LocalDate.now())
     private val todaySummary = MutableStateFlow<DailySummary?>(null)
     private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
@@ -128,6 +137,12 @@ class HealthViewModel internal constructor(
             personalMetricsRepository.observeSnapshot().collect { snapshot ->
                 personalMetrics.value = snapshot
             }
+        }
+        scope.launch {
+            personalMetricsRepository.observeWeightHistory()
+                .map { HealthWeightHistoryState.Available(it) as HealthWeightHistoryState }
+                .catch { emit(HealthWeightHistoryState.Unavailable) }
+                .collect { weightHistory.value = it }
         }
         scope.launch {
             observedDate.flatMapLatest { date ->
@@ -191,7 +206,16 @@ class HealthViewModel internal constructor(
                     associatedDevice = partialData.associatedDevice,
                 )
             }
-            combine(
+            val weightState = combine(
+                weightHistory,
+                weightInput,
+                isWeightEditorOpen,
+                isSavingWeight,
+                weightMessage,
+            ) { weights, input, editorOpen, saving, message ->
+                WeightUiState(weights, input, editorOpen, saving, message)
+            }
+            val baseState = combine(
                 coreState,
                 personalMetrics,
                 todaySummary,
@@ -212,6 +236,15 @@ class HealthViewModel internal constructor(
                     hasAssociatedDevice = core.associatedDevice != null,
                     associatedDeviceName = core.associatedDevice?.name,
                     healthConnectSync = sync,
+                )
+            }
+            combine(baseState, weightState) { base, weight ->
+                base.copy(
+                    weightHistory = weight.history,
+                    weightInput = weight.input,
+                    isWeightEditorOpen = weight.editorOpen,
+                    isSavingWeight = weight.saving,
+                    weightMessage = weight.message,
                 )
             }.collect { mutableState.value = it }
         }
@@ -264,6 +297,11 @@ class HealthViewModel internal constructor(
             }
             is HealthIntent.SelectHistoryPeriod -> selectHistoryPeriod(intent.period)
             HealthIntent.OpenDevice -> Unit
+            HealthIntent.OpenWeightEditor -> openWeightEditor()
+            is HealthIntent.WeightChanged -> weightInput.value = intent.value
+            HealthIntent.SaveWeight -> saveWeight()
+            HealthIntent.CancelWeight -> cancelWeight()
+            HealthIntent.DismissWeightMessage -> weightMessage.value = null
         }
     }
 
@@ -328,6 +366,52 @@ class HealthViewModel internal constructor(
 
     private fun selectHistoryPeriod(period: HeartRateHistoryPeriod) {
         selectedHistoryPeriod.value = period
+    }
+
+    private fun openWeightEditor() {
+        weightMessage.value = null
+        weightInput.value = ""
+        isWeightEditorOpen.value = true
+    }
+
+    private fun cancelWeight() {
+        isWeightEditorOpen.value = false
+        weightInput.value = ""
+        weightMessage.value = null
+    }
+
+    private fun saveWeight() {
+        if (isSavingWeight.value) return
+        val kilograms = weightInput.value.replace(',', '.').trim().toDoubleOrNull()
+        if (kilograms == null || !kilograms.isFinite() || kilograms <= 0.0) {
+            weightMessage.value = HealthWeightMessage.INVALID_VALUE
+            return
+        }
+        isSavingWeight.value = true
+        weightMessage.value = null
+        scope.launch {
+            try {
+                when (personalMetricsRepository.saveManualWeightMeasurement(
+                    SaveManualWeightMeasurementInput(valueKilograms = kilograms),
+                )) {
+                    is RepositoryResult.Success -> {
+                        isWeightEditorOpen.value = false
+                        weightInput.value = ""
+                        weightMessage.value = HealthWeightMessage.SAVED
+                        try {
+                            triggerHealthConnectSyncIfEnabled()
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (_: Exception) {
+                            // Persistência local já foi confirmada; sync remoto pode tentar novamente.
+                        }
+                    }
+                    else -> weightMessage.value = HealthWeightMessage.SAVE_FAILED
+                }
+            } finally {
+                isSavingWeight.value = false
+            }
+        }
     }
 
     private fun startD1Import() {
@@ -597,6 +681,14 @@ class HealthViewModel internal constructor(
         val latestMeasurement: HeartRateMeasurement?,
         val recentMeasurements: List<HeartRateMeasurement>,
         val associatedDevice: Device?,
+    )
+
+    private data class WeightUiState(
+        val history: HealthWeightHistoryState,
+        val input: String,
+        val editorOpen: Boolean,
+        val saving: Boolean,
+        val message: HealthWeightMessage?,
     )
 
     private fun HealthSyncSummary.toHealthConnectSyncUiModel() = HealthConnectSyncUiModel(

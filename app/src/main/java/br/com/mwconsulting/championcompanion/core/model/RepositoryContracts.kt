@@ -125,6 +125,14 @@ interface PersonalMetricsRepository {
     /** Pesos cujo measuredAt pertence ao intervalo semiaberto informado. */
     fun observeWeightsBetween(range: CalendarInstantRange): Flow<List<CalendarWeightMeasurementSummary>> =
         flowOf(emptyList())
+    /** Histórico persistido, da medição mais recente para a mais antiga. */
+    fun observeWeightHistory(): Flow<List<WeightMeasurement>> = flowOf(emptyList())
+    /** Lista pontual do mesmo histórico observado, para consumidores não reativos. */
+    suspend fun listWeightHistory(): RepositoryResult<List<WeightMeasurement>> =
+        RepositoryResult.UnexpectedState
+    suspend fun saveManualWeightMeasurement(
+        input: SaveManualWeightMeasurementInput,
+    ): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
     suspend fun updateHeight(input: UpdateHeightInput): RepositoryResult<UserProfile> =
         RepositoryResult.UnexpectedState
     suspend fun updateStepLength(input: UpdateStepLengthInput): RepositoryResult<UserProfile> =
@@ -176,6 +184,11 @@ data class UpdateStepLengthInput(
 data class UpdateHeightInput(
     val heightCentimeters: Double?,
     val updatedAt: Instant,
+)
+
+data class SaveManualWeightMeasurementInput(
+    val valueKilograms: Double,
+    val measuredAt: Instant = Instant.now(),
 )
 
 data class PersonalMetricsSnapshot(

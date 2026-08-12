@@ -310,6 +310,15 @@ internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasureme
     ).successOrNull()
 }
 
+internal fun WeightMeasurement.toEntity(profileId: UserProfileId) = WeightMeasurementEntity(
+    id = id.value.toString(),
+    profileId = profileId.value.toString(),
+    value = value,
+    unit = unit.name,
+    measuredAtEpochMillis = measuredAt.toEpochMilli(),
+    origin = origin.name,
+)
+
 internal fun WeightMeasurementEntity.toCalendarSummary(): CalendarWeightMeasurementSummary? =
     toDomain()?.let { measurement ->
         CalendarWeightMeasurementSummary(
