@@ -129,7 +129,41 @@ interface PersonalMetricsRepository {
         RepositoryResult.UnexpectedState
     suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
     suspend fun findWeightById(measurementId: WeightMeasurementId): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
+
+    fun observeStepLengthCalibrations(workoutType: WorkoutType): Flow<List<StepLengthCalibrationSummary>> =
+        flowOf(emptyList())
+
+    fun observeLearnedStepLengthProfiles(): Flow<List<LearnedStepLengthProfile>> = flowOf(emptyList())
+
+    suspend fun saveStepLengthCalibration(
+        input: SaveStepLengthCalibrationInput,
+    ): RepositoryResult<StepLengthCalibration> = RepositoryResult.UnexpectedState
+
+    suspend fun removeStepLengthCalibration(activityId: WorkoutActivityId): RepositoryResult<Unit> =
+        RepositoryResult.UnexpectedState
+
+    /**
+     * Resolve perfil para cálculos baseados em passos. [WorkoutType.CYCLING]
+     * retorna [RepositoryResult.NotFound], pois bicicleta nunca usa distância
+     * derivada de passos.
+     */
+    suspend fun resolveEffectiveStepLength(workoutType: WorkoutType): RepositoryResult<StepLengthProfile> =
+        RepositoryResult.UnexpectedState
 }
+
+data class SaveStepLengthCalibrationInput(
+    val profileId: UserProfileId,
+    val activityId: WorkoutActivityId,
+    val workoutType: WorkoutType,
+    val referenceDistanceMeters: Double,
+    /**
+     * Valor informado pelo consumidor é somente uma pré-condição de contrato;
+     * repository valida contra soma canônica persistida da série D4.
+     */
+    val decodedSteps: Long,
+    val acceptedAt: Instant,
+    val updatedAt: Instant = acceptedAt,
+)
 
 data class UpdateStepLengthInput(
     val stepLengthMeters: Double,

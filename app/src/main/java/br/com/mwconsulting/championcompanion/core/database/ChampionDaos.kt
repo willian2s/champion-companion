@@ -110,6 +110,26 @@ interface UserProfileDao {
 }
 
 @Dao
+interface StepLengthCalibrationDao {
+    @Query(
+        "SELECT * FROM step_length_calibrations " +
+            "WHERE profileId = :profileId AND workoutType = :workoutType " +
+            "AND referenceDistanceMeters > 0 AND decodedSteps > 0 " +
+            "ORDER BY updatedAtEpochMillis DESC, id DESC",
+    )
+    fun observeByProfileAndWorkoutType(profileId: String, workoutType: String): Flow<List<StepLengthCalibrationEntity>>
+
+    @Query("SELECT * FROM step_length_calibrations WHERE activityId = :activityId LIMIT 1")
+    suspend fun findByActivityId(activityId: String): StepLengthCalibrationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(calibration: StepLengthCalibrationEntity)
+
+    @Query("DELETE FROM step_length_calibrations WHERE activityId = :activityId")
+    suspend fun deleteByActivityId(activityId: String): Int
+}
+
+@Dao
 interface DailySummaryDao {
     @Query("SELECT * FROM daily_summaries ORDER BY id")
     fun observeAll(): Flow<List<DailySummaryEntity>>

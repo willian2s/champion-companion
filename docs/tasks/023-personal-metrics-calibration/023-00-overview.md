@@ -3,7 +3,7 @@
 - **Fase:** 16
 - **Spec:** `docs/specs/023-personal-metrics-calibration.md`
 - **Status:** `pending`
-- **Progresso:** `1/7`
+- **Progresso:** `2/7`
 - **Branch:** `feat/023-personal-metrics-calibration`
 
 ## Objetivo
@@ -58,7 +58,7 @@ corrida/caminhada por distância externa de referência.
 ## Checklist
 
 - [x] `023-01-audit-personal-metrics-and-freeze-phase-boundaries.md` — auditoria concluída e contratos congelados
-- [ ] `023-02-persist-step-length-calibrations-and-learned-profiles.md` — calibrações persistidas e perfis aprendidos disponíveis
+- [x] `023-02-persist-step-length-calibrations-and-learned-profiles.md` — calibrações persistidas e perfis aprendidos disponíveis
 - [ ] `023-03-complete-profile-height-and-daily-steps-goal.md` — altura/meta de passos editáveis
 - [ ] `023-04-implement-manual-weight-and-local-history.md` — peso manual/histórico funcional
 - [ ] `023-05-implement-reference-distance-calibration.md` — calibração de corrida/caminhada funcional
@@ -71,6 +71,17 @@ corrida/caminhada por distância externa de referência.
   `docs/integration/023-01-personal-metrics-and-calibration-audit.md`.
 - Sem bloqueios para `023-02`; riscos residuais estão registrados na subtarefa e
   no documento de integração.
+- `023-02` corrigida após revisão independente: fonte canônica D4, perfil atual,
+  guards fail-closed de filhos HC e bloqueio de `CYCLING` validados. Room v13 e
+  schema exportado permanecem.
+- Revisão final corrigida: metadata de filhos validada por mapper estrito e
+  agregação exclui evidências inválidas antes da fórmula. Evidências atuais:
+  clean compileDebugKotlin, lintDebug e `git diff --check` passaram.
+- Bloqueador final corrigido: operações legacy `WATCH_D3_D4` são rejeitadas
+  fail-closed sem criar reconciliação. Risco de migration: linhas legacy
+  preservadas continuam bloqueando calibração até decisão futura explícita.
+- `exportRoomSchema` não existe neste projeto.
+- Próxima subtarefa elegível: `023-03`.
 
 ## Estado esperado ao final
 

@@ -1,6 +1,6 @@
 # 023-02 — Persistir calibrações e expor perfis aprendidos
 
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `023-01`
 
 ## Objetivo
@@ -92,17 +92,52 @@ Requisitos:
 
 ## Checklist
 
-- [ ] entidade/DAO definidos
-- [ ] migration 12->13 implementada
-- [ ] schema 13 exportado
-- [ ] domínio de evidência implementado
-- [ ] perfil RUNNING agregado deterministicamente
-- [ ] perfil WALKING agregado deterministicamente
-- [ ] uma evidência por activityId garantida
-- [ ] substituição sem dupla contagem
-- [ ] remoção recalcula leitura futura
-- [ ] perfil BASE preservado
-- [ ] spec/overview atualizados
+- [x] entidade/DAO definidos
+- [x] migration 12->13 implementada
+- [x] schema 13 exportado
+- [x] domínio de evidência implementado
+- [x] perfil RUNNING agregado deterministicamente
+- [x] perfil WALKING agregado deterministicamente
+- [x] uma evidência por activityId garantida
+- [x] substituição sem dupla contagem
+- [x] remoção recalcula leitura futura
+- [x] perfil BASE preservado
+- [x] subtarefa/overview atualizados
+
+## Evidências
+
+- Entidade `StepLengthCalibrationEntity` usa FK somente para `user_profiles` com
+  `ON DELETE CASCADE`, `UNIQUE(activityId)` e índice `(profileId, workoutType)`.
+- `MIGRATION_12_13` é aditiva, não insere calibrações e foi registrada no módulo
+  de banco; versão Room atualizada para 13.
+- `LearnedStepLengthProfile` é calculado em DAO/repository por `Σ distância /
+  Σ passos`, com `sampleCount`, totais e `updatedAt` máximo.
+- `saveStepLengthCalibration` aceita somente o perfil atual; deriva a soma de
+  `decodedSteps` dos fatos D4 persistidos e rejeita denominador divergente,
+  série ausente/inelegível, workflow não autorizado ou projeção filha com
+  efeito remoto. Estados permitidos: `PENDING_CALIBRATION`, `READY_TO_SYNC` e
+  `SYNC_FAILED` sem filhos inseguros.
+- A inspeção de operações filhas falha fechada para estados `SYNCING`/
+  `SYNCED`, checkpoint `AFTER_REMOTE_EFFECT`, metadata inválida ou qualquer
+  filho desconhecido. `CYCLING` retorna `NotFound` no resolver e não recebe
+  semântica de distância por passos.
+- A inspeção reutiliza `HealthSyncOperationEntity.toDomainStrict()` e valida
+  identidade, versão, ação/tipo do filho, payload congelado, origem e coerência
+  de reconciliação antes de permitir `SYNC_FAILED`.
+- Operações legacy de atividades `WATCH_D3_D4` (`projectionChildKey =
+  '__legacy__'`) agora são sempre inconsistentes para calibração e bloqueiam
+  fail-closed; não foi criada reconciliação nova.
+- A agregação lê somente linhas filtradas pelo DAO (`referenceDistanceMeters >
+  0`, `decodedSteps > 0`) e ainda mapeadas/validadas individualmente pelo
+  domínio; linhas corrompidas não entram em `sampleCount`, totais ou `updatedAt`.
+- Contratos de repository permanecem compatíveis por métodos default; fakes
+  existentes não precisam implementar APIs novas.
+- Validação: `./gradlew clean app:compileDebugKotlin --no-daemon` passou;
+  `./gradlew app:lintDebug --no-daemon` passou; `git diff --check` passou.
+- `./gradlew exportRoomSchema --no-daemon` falhou porque task não existe no
+  projeto; schema v13 já está presente em `app/schemas/.../13.json`.
+- Risco de migration: operações legacy preservadas por migrations continuam
+  bloqueando calibração até eventual decisão explícita de reconciliação futura.
 
 ## Aceite
 

@@ -496,6 +496,37 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
     }
 }
 
+/** Migration aditiva: persiste evidências de calibração sem reprocessar atividades. */
+val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS step_length_calibrations (
+                id TEXT NOT NULL,
+                profileId TEXT NOT NULL,
+                activityId TEXT NOT NULL,
+                workoutType TEXT NOT NULL,
+                referenceDistanceMeters REAL NOT NULL,
+                decodedSteps INTEGER NOT NULL,
+                acceptedAtEpochMillis INTEGER NOT NULL,
+                updatedAtEpochMillis INTEGER NOT NULL,
+                PRIMARY KEY(id),
+                FOREIGN KEY(profileId) REFERENCES user_profiles(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_step_length_calibrations_activityId " +
+                "ON step_length_calibrations(activityId)",
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_step_length_calibrations_profileId_workoutType " +
+                "ON step_length_calibrations(profileId, workoutType)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(
