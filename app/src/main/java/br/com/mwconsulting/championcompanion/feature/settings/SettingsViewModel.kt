@@ -21,6 +21,7 @@ import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,6 +60,7 @@ class SettingsViewModel @Inject constructor(
                     activities.any { activity ->
                         val snapshot = activity.derivationSnapshot
                         activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+                            activity.confirmedType != WorkoutType.CYCLING &&
                             snapshot?.isEligibleForHealthProjection == true &&
                             snapshot.canonicalSeries?.speedSamples?.isNotEmpty() == true
                     }

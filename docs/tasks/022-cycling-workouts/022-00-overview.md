@@ -1,11 +1,11 @@
 # 022 — Suporte a treinos de bicicleta
 
-- **Status geral:** `in_progress`
+- **Status geral:** `completed`
 - **Spec:** [022-cycling-workouts.md](../../specs/022-cycling-workouts.md)
 - **ADR:** [ADR-021](../../decisions/adr-021-cycling-distance-and-health-projection.md)
 - **Base:** `main`
 - **Branch:** `feat/022-cycling-workouts`
-- **Progresso:** `4/5`
+- **Progresso:** `5/5`
 
 ## Objetivo
 
@@ -19,7 +19,7 @@ usados como distância, velocidade, pace ou cadência de ciclismo.
 - [x] [022-02-add-cycling-type-manual-distance-and-persistence.md](022-02-add-cycling-type-manual-distance-and-persistence.md)
 - [x] [022-03-adapt-cycling-local-metrics-and-ui.md](022-03-adapt-cycling-local-metrics-and-ui.md)
 - [x] [022-04-add-cycling-health-connect-projections.md](022-04-add-cycling-health-connect-projections.md)
-- [ ] [022-05-validate-cycling-workflow-and-close.md](022-05-validate-cycling-workflow-and-close.md)
+- [x] [022-05-validate-cycling-workflow-and-close.md](022-05-validate-cycling-workflow-and-close.md)
 
 ## Dependências
 
@@ -56,7 +56,7 @@ usados como distância, velocidade, pace ou cadência de ciclismo.
 
 ## Persistência planejada
 
-Room atual: `v11`.
+Room atual: `v12`.
 
 Mudança esperada:
 
@@ -102,6 +102,6 @@ distância manual;
 - `022-04` concluída com mapping genérico de biking, projeção total manual e
   reconciliação sem `DistanceInterval`/`SpeedSeries` para cycling; lint, builds e
   revisão independente aprovados em 2026-08-11.
-- Riscos pendentes: inspeção manual de cycling com e sem distância, upgrade físico
-  v11→v12 e validação final do fluxo Health Connect permanecem em `022-05`.
-- Próxima subtarefa elegível: `022-05`; não iniciada neste trabalho.
+- `022-05` concluída em 2026-08-12: cycling com e sem distância validado,
+  atividade existente preservada, calendário/detalhe sem efeitos Health Connect,
+  builds e instalação aprovados. A Spec 022 está pronta para encerramento.

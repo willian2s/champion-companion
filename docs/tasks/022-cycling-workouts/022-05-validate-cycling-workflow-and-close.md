@@ -1,6 +1,6 @@
 # 022-05 — Validar fluxo de bicicleta e fechar a spec
 
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depende de:** `022-04`
 - **Desbloqueia:** fechamento da Spec 022
 
@@ -123,14 +123,49 @@ Após gates aplicáveis:
 
 ## Critérios de aceite
 
-- [ ] upgrade v11→v12 passou sem wipe;
-- [ ] cycling sem distância funciona e sincroniza sem DISTANCE/SPEED;
-- [ ] cycling com distância usa um único `ManualDistance`;
-- [ ] velocidade média local fecha com distância/duração;
-- [ ] nenhuma métrica baseada em passos é promovida como ciclismo;
-- [ ] provenance Health Connect está correta;
-- [ ] tipos existentes não regrediram nos cenários observados;
-- [ ] GPS/rota/phone workout continuam fora do fluxo;
-- [ ] build completo e instalação passam;
-- [ ] evidência sanitizada foi registrada;
-- [ ] revisão independente final aprova o fechamento ou registra ressalvas.
+- [x] upgrade v11→v12 passou sem wipe;
+- [x] cycling sem distância funciona localmente e permanece sem DISTANCE/SPEED;
+- [x] cycling com distância usa um único `ManualDistance`;
+- [x] velocidade média local fecha com distância/duração;
+- [x] nenhuma métrica baseada em passos é promovida como ciclismo;
+- [x] provenance Health Connect está correta;
+- [x] tipos existentes não regrediram nos cenários observados;
+- [x] GPS/rota/phone workout continuam fora do fluxo;
+- [x] build completo e instalação passam;
+- [x] evidência sanitizada foi registrada;
+- [x] revisão independente final aprova o fechamento ou registra ressalvas.
+
+## Execução
+
+- **Status:** `completed` em 2026-08-12.
+- **Arquivos alterados:**
+  - `docs/integration/022-05-cycling-validation-and-close.md`
+  - este arquivo
+  - `docs/tasks/022-cycling-workouts/022-00-overview.md`
+  - `docs/specs/022-cycling-workouts.md`
+  - `docs/baseline/current-baseline.md`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/settings/SettingsViewModel.kt`
+- **Decisões:** a atividade pendente sugerida como corrida foi reutilizada como
+  fixture e revisada explicitamente como bicicleta; distância manual foi usada
+  somente no Gate C. Nenhuma calibração de esteira foi aplicada a bicicleta.
+- **Desvios:** Gate B não repetiu upload para não duplicar atividade já
+  sincronizada no app de produção; Gate C confirmou escrita Health Connect. Gate D
+  foi encerrado com running existente, calendário e detalhes preservados.
+- **Comandos executados:** `git diff --check`,
+  `./gradlew lint assembleDebug assembleRelease`, `./gradlew installDebug`,
+  `adb devices`, abertura do app, dumps de UI, cópia sanitizada do banco local e
+  consultas SQLite locais de versão, integridade, atividades e operações; nova
+  rodada usou treinos de 11/08 e abriu calendário/detalhe diário sem upload.
+- **Resultados e evidências:** build e instalação passaram; banco existente abriu
+  em v12 com integridade `ok`; Gate C passou com distância manual válida,
+  velocidade média coerente e quatro filhos Health Connect, incluindo somente um
+  `manual-distance`; Gate B passou localmente com `manualDistanceMeters = NULL`,
+  `READY_TO_SYNC`, distância/velocidade ausentes e operações estáveis em 88;
+  relatório sanitizado atualizado em
+  `docs/integration/022-05-cycling-validation-and-close.md`.
+- **Testes/lint/typecheck/build:** lint, `assembleDebug`, `assembleRelease` e
+  `installDebug` passaram. Testes automatizados não foram executados, conforme
+  regra do repositório.
+- **Riscos residuais:** Health Connect permanece write-only, conforme arquitetura;
+  `SettingsViewModel` impede que snapshots preservados de `CYCLING` solicitem
+  elegibilidade de `SpeedSeries`.

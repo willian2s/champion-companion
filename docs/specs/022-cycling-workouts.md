@@ -1,10 +1,10 @@
 # 022 — Suporte a treinos de bicicleta
 
 - **Ticker:** `022`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Base:** `main`
 - **Branch:** `feat/022-cycling-workouts`
-- **Progresso planejado:** `0/5`
+- **Progresso planejado:** `5/5`
 
 ## Contexto
 
@@ -379,6 +379,13 @@ Validação final deve incluir:
 - sincronizar cenário com distância e conferir uma única projeção total de distância;
 - confirmar ausência de `DistanceInterval`, `SpeedSeries` e rota para bicicleta;
 - confirmar que navegação/calendário não cria efeitos remotos.
+
+## Estado de validação final
+
+Em 2026-08-12, o upgrade físico v11→v12, os cenários de bicicleta com e sem
+distância, a regressão de atividade existente e os efeitos de navegação passaram.
+A Spec 022 foi encerrada com evidência sanitizada em
+`docs/integration/022-05-cycling-validation-and-close.md`.
 
 ## Relação com decisões existentes
 

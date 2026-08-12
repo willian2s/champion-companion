@@ -108,7 +108,7 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v11`; as migrations efetivas da Fase 014 e da Spec/Task `021` são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas) e `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v12`; as migrations efetivas da Fase 014, da Spec/Task `021` e da Spec/Task `022` são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas), `MIGRATION_10_11` (schema 11, índice de origem de amostras D4) e `MIGRATION_11_12` (schema 12, distância manual de bicicleta), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
 ## Registro factual final da Fase 014
 
