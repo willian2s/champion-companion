@@ -1,12 +1,13 @@
 # Direção autoritativa após a Fase 15
 
 - **Status:** vigente
-- **Data da decisão:** 2026-08-08
+- **Data da decisão original:** 2026-08-08
+- **Última revisão:** 2026-08-12
 - **Escopo:** direção macro do produto após a conclusão da Fase 15
 
 Este documento substitui como direção futura as antigas seções de Fases 16–25 de `champion-companion-roadmap.md` quando houver divergência. O roadmap histórico continua preservado para contexto das decisões anteriores.
 
-Nenhuma fase nova é planejada por este documento. Ele apenas registra quais fases continuam fazendo sentido, quais foram removidas e quais premissas devem orientar o planejamento posterior.
+As fases posteriores são planejadas somente quando houver auditoria do estado real e decisão explícita. A Fase 16 já passou por essa auditoria e possui plano executável na Spec `023-personal-metrics-calibration`.
 
 ## Regra de governança: fases e tickers são independentes
 
@@ -16,6 +17,7 @@ Número de fase e ticker de spec/task não possuem relação obrigatória.
 - **Ticker** identifica uma spec/task executável, corretiva, evolutiva ou documental.
 - Coincidências como Fase 014 + ticker `014` são conveniência histórica, não regra.
 - O trabalho `021` de normalização D4 e integridade do calendário não executou nem substituiu a Fase 21 histórica.
+- A Fase 16 será executada pela Spec `023` por escolha desta entrega; isso não cria regra `fase == ticker`.
 - Um trabalho futuro pode receber qualquer ticker disponível sem alterar a sequência das fases.
 - Fases removidas não são renumeradas e seus números não são reciclados.
 
@@ -25,7 +27,8 @@ Número de fase e ticker de spec/task não possuem relação obrigatória.
 - Fase 13: `closed` / `partially_delivered` / `product_reorientation`.
 - Fase 14: concluída; direção watch-first, derivação D3/D4 e sincronização granular consolidada.
 - Fase 15: concluída; calendário e histórico local consolidados.
-- Specs/tasks corretivas posteriores, incluindo `016`, `017`, `018` e `021`, não alteram essa sequência de fases.
+- Specs/tasks independentes posteriores, incluindo `016`, `017`, `018`, `021` e `022`, não alteram essa sequência de fases.
+- Spec `022` de bicicleta está concluída e não representa a antiga Fase 22 removida.
 
 ## Direção de produto vigente
 
@@ -45,25 +48,46 @@ Health Connect
 
 Treinos iniciados pelo celular, GPS, localização de sessão, rota, mapa e `ExerciseRoute` não fazem parte da direção futura. Infraestrutura histórica existente da Fase 13 permanece preservada até trabalho explícito de limpeza; essa preservação não autoriza nova implementação ou expansão.
 
-## Fase 16 — Perfil, metas e métricas pessoais
+## Fase 16 — Perfil, métricas pessoais e calibração
 
-**Decisão:** manter, mas revisar antes do planejamento.
+**Decisão:** planejada.
 
-A antiga Fase 16 continua funcionalmente relevante, porém parte do escopo já foi entregue por trabalhos posteriores, principalmente `stepLengthMeters` persistido/editável e sugestão baseada em altura.
+- **Status:** `pending`.
+- **Spec executável:** `docs/specs/023-personal-metrics-calibration.md`.
+- **Branch planejada:** `feat/023-personal-metrics-calibration`.
+- **ADR principal:** ADR-022.
 
-O planejamento futuro deve começar por auditoria do estado atual e manter somente dados com uso real no aplicativo. Itens candidatos:
+A auditoria confirmou que parte da antiga Fase 16 já foi entregue: altura e comprimento de passo base já existem, há sugestão baseada em altura, peso possui persistência/leitura parcial e a meta diária de passos já vive no DataStore. Portanto, a fase não recria esses contratos do zero.
 
-- altura, quando necessária para sugestão de passada;
-- peso e histórico de peso;
-- meta de peso, somente se houver uso real;
-- meta diária de passos;
-- comprimento de passo pessoal;
-- unidades;
-- zonas de frequência cardíaca, somente se forem consumidas por UI/cálculos.
+Escopo vigente:
 
-Nome, nascimento, sexo e outros dados pessoais não devem ser adicionados apenas porque existiam no roadmap antigo. Devem existir somente se houver requisito funcional explícito.
+- tornar altura editável no Perfil;
+- tornar meta diária de passos editável;
+- permitir cadastro manual e histórico local de peso;
+- preservar comprimento de passo base manual/sugerido;
+- adicionar calibração por distância externa de referência para corrida/caminhada;
+- manter perfis aprendidos separados para `RUNNING` e `WALKING`;
+- calcular perfil aprendido por `Σ distância / Σ passos`;
+- usar perfis aprendidos em novos treinos compatíveis, com fallback para BASE;
+- permitir que atividade elegível usada como referência seja rederivada explicitamente antes da sincronização;
+- preservar snapshots históricos e fail-closed para atividades com conflito remoto;
+- manter `TREADMILL` e resumo diário usando BASE nesta fase;
+- manter `CYCLING` fora da derivação por passos conforme Spec 022.
 
-Alterações de perfil não podem reescrever silenciosamente snapshots históricos de treinos já derivados.
+Não fazem parte da Fase 16:
+
+- nome;
+- nascimento;
+- sexo;
+- meta de peso;
+- unidades configuráveis/imperial;
+- zonas de frequência cardíaca;
+- GPS, rota, mapa ou coleta de localização;
+- integração direta com Adidas/Strava;
+- ML/regressão de passada por pace/cadência;
+- reconciliação pós-sync genérica.
+
+Alterações de perfil/calibração nunca reescrevem silenciosamente snapshots históricos.
 
 ## Fase 17 — Backup e restauração local
 
@@ -165,11 +189,15 @@ Não existe requisito de matriz multi-device ou multi-fabricante. O aplicativo �
 
 Validações físicas continuam sendo usadas quando uma task específica precisar comprovar BLE, Health Connect, migration ou comportamento Android; não constituem uma fase futura separada.
 
+A Spec `022` concluída de bicicleta é independente desta fase removida.
+
 ## Fase 23 — Paridade funcional
 
 **Decisão:** removida.
 
 MotionLog deixou de ser meta formal de paridade. Ele permanece somente como referência histórica quando útil. O Champion Companion pode divergir quando a direção atual for melhor ou quando funcionalidades antigas tiverem sido deliberadamente abandonadas, como treinos iniciados pelo celular/GPS.
+
+O ticker `023` usado para executar a Fase 16 é independente desta fase removida.
 
 ## Fase 24 — Beta e uso paralelo
 
@@ -194,8 +222,10 @@ Fases concluídas
 14 — completed
 15 — completed
 
+Planejada
+16 — Perfil, métricas pessoais e calibração / Spec 023 pending
+
 Direção futura a revisar antes de planejar
-16 — Perfil, metas e métricas pessoais
 17 — Backup e restauração local
 19 — Diagnóstico e manutenção
 20 — Segurança, permissões e dados locais
@@ -206,6 +236,6 @@ Removidas do roadmap ativo
 
 A remoção de uma fase não implica remoção automática de código legado. Limpeza técnica deve ser solicitada e planejada separadamente.
 
-## Próximo passo documental
+## Próximo passo
 
-Antes de planejar qualquer nova fase, usar este documento para auditar o estado real do código e evitar reimplementar funcionalidades já entregues por specs/tasks independentes.
+Executar `023-01` para registrar a auditoria detalhada da implementação e congelar os pontos exatos de integração antes da migration e das mudanças de domínio.
