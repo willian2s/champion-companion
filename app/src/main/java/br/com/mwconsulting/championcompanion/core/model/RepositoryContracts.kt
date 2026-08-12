@@ -125,6 +125,8 @@ interface PersonalMetricsRepository {
     /** Pesos cujo measuredAt pertence ao intervalo semiaberto informado. */
     fun observeWeightsBetween(range: CalendarInstantRange): Flow<List<CalendarWeightMeasurementSummary>> =
         flowOf(emptyList())
+    suspend fun updateHeight(input: UpdateHeightInput): RepositoryResult<UserProfile> =
+        RepositoryResult.UnexpectedState
     suspend fun updateStepLength(input: UpdateStepLengthInput): RepositoryResult<UserProfile> =
         RepositoryResult.UnexpectedState
     suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
@@ -168,6 +170,11 @@ data class SaveStepLengthCalibrationInput(
 data class UpdateStepLengthInput(
     val stepLengthMeters: Double,
     val source: StepLengthSource,
+    val updatedAt: Instant,
+)
+
+data class UpdateHeightInput(
+    val heightCentimeters: Double?,
     val updatedAt: Instant,
 )
 
@@ -759,6 +766,12 @@ interface HealthSyncRepository {
         HealthSyncQueueObservation(operations = operations)
     }
     suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
+    /** Inicia somente se a versão ainda corresponder à operação observada. */
+    suspend fun markStartedIfCurrent(
+        operationId: HealthSyncOperationId,
+        expectedClientRecordVersion: Long?,
+        at: Instant,
+    ): RepositoryResult<Unit> = markStarted(operationId, at)
     suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
     suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError, at: Instant): RepositoryResult<Unit>
     suspend fun resetInterrupted(at: Instant): RepositoryResult<Int>

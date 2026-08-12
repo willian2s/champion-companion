@@ -30,7 +30,9 @@ import br.com.mwconsulting.championcompanion.R
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
+import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -67,7 +69,15 @@ fun ProfileScreen(
             if (state.isLoading) {
                 CircularProgressIndicator()
             }
+            PersonalMetricsEditorCard(
+                state = state,
+                onHeightChange = { viewModel.onIntent(ProfileIntent.HeightChanged(it)) },
+                onSaveHeight = { viewModel.onIntent(ProfileIntent.SaveHeight) },
+                onDailyStepsGoalChange = { viewModel.onIntent(ProfileIntent.DailyStepsGoalChanged(it)) },
+                onSaveDailyStepsGoal = { viewModel.onIntent(ProfileIntent.SaveDailyStepsGoal) },
+            )
             CurrentStepLengthCard(state)
+            LearnedStepLengthProfilesCard(state.learnedStepLengthProfiles)
             StepLengthEditorCard(
                 state = state,
                 onValueChange = { viewModel.onIntent(ProfileIntent.StepLengthChanged(it)) },
@@ -89,6 +99,169 @@ fun ProfileScreen(
                     message = message,
                     onDismiss = { viewModel.onIntent(ProfileIntent.DismissMessage) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LearnedStepLengthProfilesCard(
+    profilesState: LearnedStepLengthProfilesState,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = stringResource(R.string.profile_learned_profiles_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = stringResource(R.string.profile_learned_profiles_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            when (profilesState) {
+                LearnedStepLengthProfilesState.Loading -> Text(
+                    text = stringResource(R.string.profile_learned_profiles_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                LearnedStepLengthProfilesState.Unavailable -> Text(
+                    text = stringResource(R.string.profile_learned_profiles_unavailable),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+
+                is LearnedStepLengthProfilesState.Available -> {
+                    val profilesByType = profilesState.profiles.associateBy { it.workoutType }
+                    if (profilesState.profiles.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.profile_learned_profiles_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        listOf(WorkoutType.RUNNING, WorkoutType.WALKING).forEach { workoutType ->
+                            LearnedStepLengthProfileEntry(profilesByType[workoutType], workoutType)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LearnedStepLengthProfileEntry(
+    profile: LearnedStepLengthProfile?,
+    workoutType: WorkoutType,
+) {
+    val label = when (workoutType) {
+        WorkoutType.RUNNING -> stringResource(R.string.profile_learned_running)
+        WorkoutType.WALKING -> stringResource(R.string.profile_learned_walking)
+        else -> return
+    }
+    Text(text = label, style = MaterialTheme.typography.titleMedium)
+    if (profile == null) {
+        Text(
+            text = stringResource(R.string.profile_learned_context_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        Text(
+            text = stringResource(
+                R.string.profile_learned_step_length_value,
+                formatStepLengthMeters(profile.stepLengthMeters),
+            ),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = stringResource(R.string.profile_learned_sample_count, profile.sampleCount),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(
+                R.string.profile_learned_reference_distance,
+                formatStepLengthMeters(profile.totalReferenceDistanceMeters),
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PersonalMetricsEditorCard(
+    state: ProfileUiState,
+    onHeightChange: (String) -> Unit,
+    onSaveHeight: () -> Unit,
+    onDailyStepsGoalChange: (String) -> Unit,
+    onSaveDailyStepsGoal: () -> Unit,
+) {
+    val heightIsInvalid = state.message == ProfileMessage.INVALID_HEIGHT
+    val goalIsInvalid = state.message == ProfileMessage.INVALID_DAILY_STEPS_GOAL
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text(
+                text = stringResource(R.string.profile_personal_metrics_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            OutlinedTextField(
+                value = state.heightInput,
+                onValueChange = onHeightChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.profile_height_label)) },
+                supportingText = {
+                    Text(stringResource(R.string.profile_height_supporting_text))
+                },
+                suffix = { Text(stringResource(R.string.profile_height_unit)) },
+                singleLine = true,
+                isError = heightIsInvalid,
+                enabled = !state.isLoading && !state.isSaving,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            )
+            Button(
+                onClick = onSaveHeight,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.profile_save_height))
+            }
+            OutlinedTextField(
+                value = state.dailyStepsGoalInput,
+                onValueChange = onDailyStepsGoalChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.profile_daily_steps_goal_label)) },
+                supportingText = {
+                    Text(stringResource(R.string.profile_daily_steps_goal_supporting_text))
+                },
+                suffix = { Text(stringResource(R.string.profile_daily_steps_goal_unit)) },
+                singleLine = true,
+                isError = goalIsInvalid,
+                enabled = !state.isLoading && !state.isSaving,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            Button(
+                onClick = onSaveDailyStepsGoal,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.profile_save_daily_steps_goal))
             }
         }
     }
@@ -328,20 +501,32 @@ private fun StepLengthSource.toLabelResource(): Int = when (this) {
 }
 
 private fun ProfileMessage.toMessageResource(): Int = when (this) {
+    ProfileMessage.HEIGHT_SAVED -> R.string.profile_message_height_saved
     ProfileMessage.MANUAL_SAVED -> R.string.profile_message_manual_saved
     ProfileMessage.HEIGHT_SUGGESTION_SAVED -> R.string.profile_message_suggestion_saved
+    ProfileMessage.DAILY_STEPS_GOAL_SAVED -> R.string.profile_message_daily_steps_goal_saved
+    ProfileMessage.HEIGHT_SAVE_FAILED -> R.string.profile_message_height_save_failed
+    ProfileMessage.DAILY_STEPS_GOAL_SAVE_FAILED -> R.string.profile_message_daily_steps_goal_save_failed
+    ProfileMessage.INVALID_HEIGHT -> R.string.profile_message_invalid_height
     ProfileMessage.INVALID_STEP_LENGTH -> R.string.profile_message_invalid_step_length
+    ProfileMessage.INVALID_DAILY_STEPS_GOAL -> R.string.profile_message_invalid_daily_steps_goal
     ProfileMessage.PROFILE_UNAVAILABLE -> R.string.profile_message_profile_unavailable
     ProfileMessage.SAVE_FAILED -> R.string.profile_message_save_failed
     ProfileMessage.SUGGESTION_UNAVAILABLE -> R.string.profile_message_suggestion_unavailable
 }
 
 private fun ProfileMessage.isError(): Boolean = when (this) {
+    ProfileMessage.HEIGHT_SAVED,
     ProfileMessage.MANUAL_SAVED,
     ProfileMessage.HEIGHT_SUGGESTION_SAVED,
+    ProfileMessage.DAILY_STEPS_GOAL_SAVED,
     -> false
 
+    ProfileMessage.HEIGHT_SAVE_FAILED,
+    ProfileMessage.DAILY_STEPS_GOAL_SAVE_FAILED,
+    ProfileMessage.INVALID_HEIGHT,
     ProfileMessage.INVALID_STEP_LENGTH,
+    ProfileMessage.INVALID_DAILY_STEPS_GOAL,
     ProfileMessage.PROFILE_UNAVAILABLE,
     ProfileMessage.SAVE_FAILED,
     ProfileMessage.SUGGESTION_UNAVAILABLE,

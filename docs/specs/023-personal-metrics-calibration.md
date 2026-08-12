@@ -5,7 +5,7 @@
 - **Status:** `pending`
 - **Base:** `main` após merge da Spec 022
 - **Branch:** `feat/023-personal-metrics-calibration`
-- **Progresso planejado:** `1/7`
+- **Progresso planejado:** `3/7`
 - **Decisão principal:** ADR-022
 
 ## Contexto

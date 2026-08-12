@@ -104,6 +104,7 @@ import br.com.mwconsulting.championcompanion.core.model.TEMPORAL_ORDER_VALIDATED
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
+import br.com.mwconsulting.championcompanion.core.model.UpdateHeightInput
 import br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthInput
 import br.com.mwconsulting.championcompanion.core.model.UserProfileId
 import br.com.mwconsulting.championcompanion.core.model.UserProfile
@@ -173,6 +174,9 @@ private const val INCREMENTAL_STEPS_CLIENT_RECORD_VERSION = 1L
 
 private class WatchWorkoutDerivationPreflightException :
     IllegalStateException("Watch workout derivation preflight failed")
+
+private class HeightUpdateAborted :
+    IllegalStateException("Height update could not be reconciled")
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -1271,6 +1275,127 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.StorageUnavailable
     }
 
+    override suspend fun updateHeight(input: UpdateHeightInput): RepositoryResult<UserProfile> = try {
+        write {
+            val profileEntity = database.userProfileDao().findCurrent()
+            val currentProfile = profileEntity?.toDomain()
+                ?: if (profileEntity == null) null else return@write RepositoryResult.UnexpectedState
+            val existingHeightEntity = currentProfile?.let { profile ->
+                database.healthSyncOperationDao().findByNaturalKey(
+                    aggregateId = profile.id.value.toString(),
+                    aggregateType = HealthSyncAggregateType.USER_PROFILE_HEIGHT.name,
+                    recordType = HealthSyncRecordType.HEIGHT.name,
+                )
+            }
+            if (existingHeightEntity?.state == SyncOperationState.SYNCING.name) {
+                return@write RepositoryResult.Conflict
+            }
+            if (existingHeightEntity != null && existingHeightEntity.toDomain() == null) {
+                return@write RepositoryResult.UnexpectedState
+            }
+            val updatedProfile = UserProfile.create(
+                id = currentProfile?.id ?: UserProfileId(ids.next()),
+                heightCentimeters = input.heightCentimeters,
+                updatedAt = monotonicProfileUpdatedAt(
+                    requested = input.updatedAt,
+                    existing = currentProfile?.updatedAt,
+                ),
+                // Altura é independente do passo base. Preserva perfil, origem,
+                // valor e instante existentes sem reconstrução.
+                stepLengthProfile = currentProfile?.stepLengthProfile,
+            ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+            val updatedEntity = updatedProfile.toEntity()
+            if (currentProfile == null) {
+                database.userProfileDao().insert(updatedEntity)
+            } else if (database.userProfileDao().update(updatedEntity) != 1) {
+                return@write RepositoryResult.Conflict
+            }
+            val persistedProfile = database.userProfileDao().findById(updatedEntity.id)?.toDomain()
+                ?: return@write RepositoryResult.UnexpectedState
+            val reconciled = ensureHeightHealthSync(persistedProfile)
+            val requiresReconciledOperation = persistedProfile.heightCentimeters != null || existingHeightEntity != null
+            if (requiresReconciledOperation && reconciled == null) {
+                // Profile and retry metadata commit together. Preparation
+                // failure rolls back local mutation instead of reporting success.
+                throw HeightUpdateAborted()
+            }
+            RepositoryResult.Success(persistedProfile)
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: HeightUpdateAborted) {
+        RepositoryResult.UnexpectedState
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
+    }
+
+    /**
+     * Mantém identidade única de altura também quando valor local é removido.
+     * Sem altura, não há INSERT novo; operação existente vira DELETE usando o
+     * mesmo clientRecordId, sem criar outra fila.
+     */
+    private suspend fun ensureHeightHealthSync(profile: UserProfile): ReconciledOperation? {
+        val key = HealthSyncOperationKey(
+            aggregate = HealthSyncAggregate.UserProfileHeight(profile.id),
+            recordType = HealthSyncRecordType.HEIGHT,
+        )
+        val syncDao = database.healthSyncOperationDao()
+        val existingEntity = syncDao.findByNaturalKey(
+            aggregateId = profile.id.value.toString(),
+            aggregateType = HealthSyncAggregateType.USER_PROFILE_HEIGHT.name,
+            recordType = HealthSyncRecordType.HEIGHT.name,
+        )
+        val existing = existingEntity?.toDomain()
+        if (existingEntity != null && existing == null) return null
+        if (existing?.state == SyncOperationState.SYNCING) return null
+
+        if (profile.heightCentimeters == null) {
+            val requestedVersion = profile.updatedAt.toEpochMilli().coerceAtLeast(0L)
+            // Sem altura anterior enfileirada, não há identidade remota própria
+            // que possa ser removida com segurança; não criar tombstone cego.
+            if (existing == null) return null
+            val operationVersion = maxOf(requestedVersion, existing.clientRecordVersion ?: 0L)
+            val next = existing.prepareAggregateDeletion(
+                clientRecordId = existing.clientRecordId ?: stableClientRecordId(key),
+                clientRecordVersion = operationVersion,
+                updatedAt = maxInstant(existing.updatedAt, profile.updatedAt),
+            ).valueOrNull() ?: return null
+            if (next != existing && syncDao.update(next.toEntity()) != 1) return null
+            return ReconciledOperation(next, repaired = next != existing)
+        }
+
+        if (existing?.action == HealthSyncOperationAction.DELETE) {
+            val currentVersion = existing.clientRecordVersion ?: -1L
+            if (currentVersion == Long.MAX_VALUE) return null
+            val next = existing.freezeProjection(
+                action = HealthSyncOperationAction.INSERT,
+                frozenPayload = null,
+                clientRecordId = existing.clientRecordId ?: stableClientRecordId(key),
+                clientRecordVersion = maxOf(profile.updatedAt.toEpochMilli().coerceAtLeast(0L), currentVersion + 1L),
+                projectionOrigin = null,
+                updatedAt = maxInstant(existing.updatedAt, profile.updatedAt),
+            ).valueOrNull() ?: return null
+            if (next != existing && syncDao.update(next.toEntity()) != 1) return null
+            return ReconciledOperation(next, repaired = next != existing)
+        }
+
+        return ensureReconciledOperation(key)
+    }
+
+    private fun maxInstant(first: Instant?, second: Instant?): Instant? = listOfNotNull(first, second).maxOrNull()
+
+    private fun monotonicProfileUpdatedAt(requested: Instant, existing: Instant?): Instant {
+        val requestedEpochMillis = requested.toEpochMilli()
+        val existingEpochMillis = existing?.toEpochMilli()
+        val persistedEpochMillis = when {
+            existingEpochMillis == null -> requestedEpochMillis
+            requestedEpochMillis > existingEpochMillis -> requestedEpochMillis
+            existingEpochMillis == Long.MAX_VALUE -> existingEpochMillis
+            else -> existingEpochMillis + 1L
+        }
+        return Instant.ofEpochMilli(persistedEpochMillis)
+    }
+
     override fun observeRecoverable(): Flow<List<AppWorkoutSession>> = database.appWorkoutSessionDao().observeRecoverable()
         .map { it.mapNotNull { entity -> entity.toDomain() } }
         .flowOn(ioDispatcher)
@@ -1781,6 +1906,46 @@ class RoomRepositories @Inject constructor(
         if (operation.action != HealthSyncOperationAction.DELETE) {
             return@withContext RepositoryResult.UnexpectedState
         }
+        val profileAggregate = operation.key.aggregate as? HealthSyncAggregate.UserProfileHeight
+        if (profileAggregate != null) {
+            if (operation.key.recordType != HealthSyncRecordType.HEIGHT ||
+                operation.key.projectionChildKey != null ||
+                operation.clientRecordVersion == null ||
+                operation.clientRecordVersion < 0L
+            ) {
+                return@withContext RepositoryResult.UnexpectedState
+            }
+            val profile = database.userProfileDao().findById(profileAggregate.profileId.value.toString())
+                ?: return@withContext RepositoryResult.NotFound
+            if (profile.heightCentimeters != null) {
+                return@withContext RepositoryResult.UnexpectedState
+            }
+            val expectedClientRecordId = stableClientRecordId(operation.key)
+            if (operation.clientRecordId != expectedClientRecordId) {
+                return@withContext RepositoryResult.UnexpectedState
+            }
+            val entity = database.healthSyncOperationDao().findById(operation.id.value.toString())
+                ?: return@withContext RepositoryResult.NotFound
+            if (entity.aggregateId != profileAggregate.profileId.value.toString() ||
+                entity.aggregateType != HealthSyncAggregateType.USER_PROFILE_HEIGHT.name ||
+                entity.recordType != HealthSyncRecordType.HEIGHT.name ||
+                entity.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY ||
+                entity.action != HealthSyncOperationAction.DELETE.name ||
+                entity.clientRecordId != expectedClientRecordId
+            ) {
+                return@withContext RepositoryResult.UnexpectedState
+            }
+            val persisted = entity.toDomainStrict().valueOrNull()
+                ?: return@withContext RepositoryResult.UnexpectedState
+            if (persisted.key != operation.key ||
+                persisted.action != HealthSyncOperationAction.DELETE ||
+                persisted.clientRecordId != expectedClientRecordId ||
+                persisted.clientRecordVersion != operation.clientRecordVersion
+            ) {
+                return@withContext RepositoryResult.UnexpectedState
+            }
+            return@withContext RepositoryResult.Success(Unit)
+        }
         val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
             ?: return@withContext RepositoryResult.UnexpectedState
         val activity = database.workoutActivityDao().findById(aggregate.activityId.value.toString())
@@ -2082,6 +2247,29 @@ class RoomRepositories @Inject constructor(
                 reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT.name,
             )
         }
+
+    override suspend fun markStartedIfCurrent(
+        operationId: HealthSyncOperationId,
+        expectedClientRecordVersion: Long?,
+        at: Instant,
+    ): RepositoryResult<Unit> = transitionSync(operationId) { operation ->
+        if (operation.clientRecordVersion != expectedClientRecordVersion) {
+            null
+        } else if (operation.state != SyncOperationState.PENDING.name &&
+            operation.state != SyncOperationState.FAILED.name
+        ) {
+            null
+        } else {
+            operation.copy(
+                state = SyncOperationState.SYNCING.name,
+                attemptCount = operation.attemptCount + 1,
+                lastAttemptAtEpochMillis = at.toEpochMilli(),
+                lastError = null,
+                updatedAtEpochMillis = at.toEpochMilli(),
+                reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT.name,
+            )
+        }
+    }
 
     override suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =
         transitionSync(operationId) { operation ->
@@ -3563,13 +3751,8 @@ class RoomRepositories @Inject constructor(
                     if (result.repaired) repairedCount += 1
                 }
             }
-            if (profile.heightCentimeters?.takeIf { it.isFinite() && it > 0.0 } != null && profileId != null) {
-                val result = ensureReconciledOperation(
-                    HealthSyncOperationKey(
-                        aggregate = HealthSyncAggregate.UserProfileHeight(UserProfileId(profileId)),
-                        recordType = HealthSyncRecordType.HEIGHT,
-                    ),
-                )
+            if (profileId != null) {
+                val result = profile.toDomain()?.let { ensureHeightHealthSync(it) }
                 if (result != null) {
                     ensuredCount += 1
                     heightCount += 1
@@ -3724,6 +3907,8 @@ class RoomRepositories @Inject constructor(
         existing: HealthSyncOperationEntity,
         metadata: ResolvedSyncMetadata,
     ): HealthSyncOperationEntity {
+        if (existing.state == SyncOperationState.SYNCING.name) return existing
+
         val repairedVersion = when {
             existing.clientRecordVersion == null -> metadata.clientRecordVersion
             metadata.clientRecordVersion == null -> existing.clientRecordVersion
@@ -3734,8 +3919,7 @@ class RoomRepositories @Inject constructor(
         val shouldResetForNewVersion =
             existing.clientRecordVersion != null &&
                 metadata.clientRecordVersion != null &&
-                metadata.clientRecordVersion > existing.clientRecordVersion &&
-                existing.state != SyncOperationState.SYNCING.name
+                metadata.clientRecordVersion > existing.clientRecordVersion
         val repairedClientRecordId = when {
             metadata.clientRecordId == null -> existing.clientRecordId
             existing.state == SyncOperationState.SYNCED.name -> existing.clientRecordId
