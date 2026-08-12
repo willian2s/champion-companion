@@ -5,11 +5,13 @@
 - Leia `docs/baseline/current-baseline.md` antes de mudar código, dependências ou arquitetura.
 - Para direção macro após a Fase 15, leia `docs/roadmap/post-phase-15-direction.md`.
 - Se tocar escopo funcional, confira spec correspondente em `docs/specs/` e ADRs em `docs/decisions/`.
+- Ao executar a Fase 16, leia `docs/specs/023-personal-metrics-calibration.md`, `docs/specs/_inputs/phase-16-personal-metrics-direction.md` e ADR-022.
 
 ## Fases e tickers
 
 - Número de fase do roadmap e ticker de spec/task são conceitos independentes.
 - Coincidência numérica não implica relação semântica. Exemplo: a Spec/Task `021` não representa a Fase 21.
+- A Spec `023` executa a Fase 16 por escolha desta entrega; isso não cria regra `ticker == fase`.
 - Fases representam evolução macro do produto; tickers identificam unidades de trabalho executáveis.
 - Fases removidas não são renumeradas nem têm seus números reciclados.
 - Correção posterior de funcionalidade concluída não reabre uma fase por padrão.
@@ -49,8 +51,10 @@
 ## Room, DataStore, DI
 
 - Banco usa Room 3 com `AndroidSQLiteDriver()` em produção; suites instrumentadas existentes também usam esse driver.
+- Schema atual antes da Fase 16: Room v12. A Spec 023 planeja migration aditiva v12 -> v13; não antecipe outra versão sem necessidade.
 - Schemas exportados ficam em `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/`. Se mudar entidades/DAOs/versão, atualize schema exportado correspondente.
 - DataStore de preferências usa nome fixo `champion_preferences` em `core/preferences/PreferencesModule.kt`.
+- `dailyStepsGoal` continua em DataStore na Fase 16; não mova para Room.
 - Hilt está no app inteiro: `ChampionCompanionApplication` tem `@HiltAndroidApp`; módulos principais ficam em `core/database`, `core/logging`, `core/preferences`, `data`.
 
 ## Guard rails
@@ -59,6 +63,9 @@
 - Treinos iniciados pelo celular, GPS, localização de sessão, rota, mapa e `ExerciseRoute` não fazem parte da direção futura do produto.
 - Infraestrutura, migrations, schemas, dados e evidências históricas da Fase 13 permanecem preservados até trabalho explícito de limpeza. Preservação não autoriza expansão funcional.
 - Não introduza localização em novos fluxos, nem use código legado da Fase 13 como justificativa para reativar treino phone.
+- Na Fase 16, distância de referência é entrada manual externa; não coletar GPS nem criar integração Adidas/Strava.
+- Perfis aprendidos de `RUNNING` e `WALKING` são independentes. Não aplicar perfil contextual a `CYCLING`, `TREADMILL` ou resumo diário além do que a Spec 023 autoriza.
+- Mudança de perfil/calibração não pode reescrever snapshots históricos nem atividades sincronizadas silenciosamente.
 - `Phase003PrivacyGuardTest` preserva o bloqueio de termos de localização/rota em áreas sensíveis; não contorne ou renomeie termos para burlar o guard.
 - `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
@@ -76,9 +83,10 @@
 - Distância canônica de `WATCH_D3_D4` usa somente passos válidos × `stepLengthMeters`. Distância original do relógio permanece diagnóstica e não é fallback.
 - `stepLengthMeters` representa um passo individual e fica congelado por snapshot de atividade.
 - Parser efetivo de novas importações é `d4-v3`; `d4-v1` e `d4-v2` permanecem legados identificáveis.
-- Derivação temporal efetiva usa `watch-d3-d4-v2`, com duração oficial da atividade como fonte temporal e samples D4 normalizados dentro dessa janela.
+- Derivação temporal efetiva antes da Fase 16 usa `watch-d3-d4-v2`; a Spec 023 planeja nova derivation version contextual sem alterar o parser.
 - A Spec/Task `021` corrigiu duração D4, normalização temporal e candidate semântico do calendário. Esse ticker não representa a Fase 21.
-- Health Connect continua write-only, local-first e explícito; projeções filhas, IDs estáveis, versões monotônicas, retry e reconciliação seguem ADR-018/ADR-019.
+- A Spec `022` está concluída: `WorkoutType.CYCLING` usa distância manual opcional e nunca distância/velocidade por passos. O ticker não representa a Fase 22.
+- Health Connect continua write-only, local-first e explícito; projeções filhas, IDs estáveis, versões monotônicas, retry e reconciliação seguem ADR-018/ADR-019/ADR-021.
 
 ## Direção pós-Fase 15
 
@@ -86,7 +94,7 @@ A fonte autoritativa é `docs/roadmap/post-phase-15-direction.md`.
 
 Resumo vigente:
 
-- Fase 16: manter e auditar antes do planejamento;
+- Fase 16: planejada pela Spec `023-personal-metrics-calibration`, status `pending`;
 - Fase 17: manter, simplificar e auditar antes do planejamento;
 - Fase 18: removida do roadmap ativo;
 - Fase 19: manter e auditar antes do planejamento;
