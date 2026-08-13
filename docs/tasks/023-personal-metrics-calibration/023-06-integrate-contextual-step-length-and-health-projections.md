@@ -182,6 +182,15 @@ snapshot, permanecendo imutável quando calibrações futuras alterarem o perfil
   `ManualDistance` preservam ausência de provenance. Schema/progresso da spec
   alinhados em `4/7`.
 - **Riscos e bloqueios:** validação física de payload v2, retry e Health Connect
-  permanece bloqueada para `023-07`; `023-05` continua `in_progress`. Resolver
+  permanece bloqueada para `023-07`; `023-05` está concluída. Resolver
   contextual, consumers, Perfil e fechamento integral de `023-06` permanecem
   fora deste recorte e não autorizam marcar a subtarefa como concluída.
+- **Correção operacional:** o detalhe de Exercícios agora expõe exclusão
+  permanente somente após prévia fail-closed do repository. A ação usa intent
+  confirmável, dialog irreversível com data/tipo, fecha o detalhe após sucesso
+  e recarrega a lista pela observação existente. Esta correção não conclui a
+  integração contextual nem a validação física.
+- **Validação da correção:** `./gradlew :app:compileDebugKotlin --no-daemon`,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `git diff --check` passaram. Nenhum teste automatizado foi criado ou
+  executado; validação física permanece bloqueada para `023-07`.

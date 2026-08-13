@@ -172,3 +172,28 @@ perfil aprendido de corrida.
   assembleRelease --no-daemon` e `git diff --check` passaram.
 - **Escopo residual:** validação física de banco preservado, retry e provider
   Health Connect pertence à `023-07`; não bloqueia aceite local desta subtask.
+- **Correção pós-uso:** atividades `PENDING_REVIEW` agora exibem o campo de
+  distância de referência junto da seleção corrida/caminhada. O valor fica no
+  formulário até a revisão ser salva; depois o bloco completo de preview e
+  aceite permanece disponível quando a atividade estiver elegível.
+- **Revisão da correção:** trocar tipo para fora de corrida/caminhada limpa a
+  distância contextual pendente, evitando reaproveitamento em esteira ou
+  bicicleta.
+- **Correção de métricas:** calibração de referência rederiva distância,
+  acumulado, velocidade, pace, speed series e splits. Calculador agora também
+  materializa último split parcial, inclusive atividades abaixo de 1 km; BPM,
+  raw D4, timestamps e calorias permanecem preservados.
+- **Correção de preservação:** amostras de BPM agora são usadas com seus fatos
+  persistidos durante splits e snapshot; normalização temporal legada não é mais
+  gravada durante calibração.
+- **Exclusão local:** todas as atividades não sincronizadas que não possuam
+  sessão/rota phone ou efeito remoto Health Connect iniciado agora podem ser
+  excluídas permanentemente pelo detalhe. `SYNCING`, `SYNCED`, operações com
+  efeito remoto e agregados com sessão permanecem bloqueados. Derived intervals
+  e splits são removidos explicitamente antes dos snapshots para compatibilidade
+  com bancos preservados.
+- **Guard de origem:** exclusão aceita somente origens conhecidas locais
+  (`WATCH_D3_D4`, `PHONE_TREADMILL`, `PHONE_FREE_WORKOUT`); import D3/D4 é
+  opcional, mas quando presente precisa ter origem compatível.
+- **Preview alinhada:** pace e velocidade usam duração coberta pela série
+  canônica quando disponível, igual à derivação aplicada.

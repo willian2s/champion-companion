@@ -110,6 +110,10 @@ Regras:
 - usar `workflowState = DISCARDED`;
 - não apagar atividade, import record, intervalos, amostras, calibração nem diagnóstico;
 - descarte impede sync futuro enquanto estado permanecer descartado.
+- exclusão permanente é ação local explícita separada do descarte e pode remover
+  atividade não sincronizada somente quando preflight comprovar origem conhecida,
+  ausência de sessão phone e ausência de efeito remoto Health Connect iniciado;
+  `SYNCING`, `SYNCED` e agregados inseguros permanecem bloqueados.
 
 ### 7. Tratamento de PARTIAL
 

@@ -187,6 +187,9 @@ private class ManualWeightSaveAborted :
 private class ReferenceCalibrationAborted :
     IllegalStateException("Reference calibration could not be applied")
 
+private class ActivityDeletionAborted :
+    IllegalStateException("Watch activity deletion could not be completed")
+
 @Singleton
 class RoomRepositories @Inject constructor(
     private val database: ChampionDatabase,
@@ -1039,6 +1042,86 @@ class RoomRepositories @Inject constructor(
             1 -> RepositoryResult.Success(Unit)
             else -> if (database.workoutActivityDao().findById(activityId.value.toString()) == null) RepositoryResult.NotFound else RepositoryResult.UnexpectedState
         }
+    }
+
+    override suspend fun isActivityDeletionAllowed(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Boolean> = try {
+        read {
+            val activity = database.workoutActivityDao().findById(activityId.value.toString())
+                ?: return@read RepositoryResult.NotFound
+            RepositoryResult.Success(isSafeLocalWatchActivityDeletionCandidate(activity))
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
+    }
+
+    override suspend fun deleteActivityCascade(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Unit> = try {
+        writeTransaction {
+            val activityIdValue = activityId.value.toString()
+            val activity = database.workoutActivityDao().findById(activityIdValue)
+                ?: return@writeTransaction RepositoryResult.NotFound
+            if (!isSafeLocalWatchActivityDeletionCandidate(activity)) {
+                return@writeTransaction RepositoryResult.UnexpectedState
+            }
+
+            val importRecord = database.watchWorkoutImportDao().findByActivityId(activityIdValue)
+            if (database.watchWorkoutImportDao().countByActivityId(activityIdValue) > 1) {
+                return@writeTransaction RepositoryResult.UnexpectedState
+            }
+            if (importRecord != null && importRecord.activityId != activityIdValue) {
+                return@writeTransaction RepositoryResult.UnexpectedState
+            }
+
+            // Diagnostic payload may be shared by reimports/activities. Delete it
+            // only when this activity/import is its sole local reference.
+            val diagnosticPayloadIds = buildSet {
+                activity.diagnosticPayloadId?.let(::add)
+                importRecord?.diagnosticPayloadId?.let(::add)
+            }
+            diagnosticPayloadIds.forEach { payloadId ->
+                if (database.diagnosticPayloadDao().countActivityReferencesExcluding(payloadId, activityIdValue) != 0 ||
+                    database.diagnosticPayloadDao().countImportReferencesExcluding(payloadId, activityIdValue) != 0
+                ) {
+                    return@writeTransaction RepositoryResult.UnexpectedState
+                }
+            }
+
+            // No remote child is allowed here. Delete local queue rows only after
+            // the preflight above proves every operation is local and pending-free.
+            database.healthSyncOperationDao().deleteByAggregate(
+                aggregateId = activityIdValue,
+                aggregateType = HealthSyncAggregateType.WORKOUT_ACTIVITY.name,
+            )
+            database.stepLengthCalibrationDao().deleteByActivityId(activityIdValue)
+            database.treadmillCalibrationDao().deleteByActivityId(activityIdValue)
+            database.workoutDerivationDao().deleteDerivedIntervalsForActivity(activityIdValue)
+            database.workoutDerivationDao().deleteSplitsForActivity(activityIdValue)
+            database.workoutDerivationDao().deleteSnapshotsForActivity(activityIdValue)
+            database.workoutDetailDao().deleteIntervalsForActivity(activityIdValue)
+            database.workoutDetailDao().deleteHeartRateSamplesForActivity(activityIdValue)
+            database.heartRateDao().deleteByWorkoutActivityId(activityIdValue)
+            database.watchWorkoutImportDao().deleteByActivityId(activityIdValue)
+            diagnosticPayloadIds.forEach { payloadId ->
+                database.diagnosticPayloadDao().deleteByIds(listOf(payloadId))
+            }
+
+            // Activity is parent of most local children and is intentionally last.
+            if (database.workoutActivityDao().deleteById(activityIdValue) != 1) {
+                throw ActivityDeletionAborted()
+            }
+            RepositoryResult.Success(Unit)
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: ActivityDeletionAborted) {
+        RepositoryResult.UnexpectedState
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
     }
 
     override suspend fun register(calibration: TreadmillCalibration): RepositoryResult<Unit> = write {
@@ -2908,17 +2991,6 @@ class RoomRepositories @Inject constructor(
         }
         val totalDuration = runCatching { Duration.ofNanos(activity.durationNanos) }.getOrNull()
             ?: return RepositoryResult.UnexpectedState
-        val normalizedHeartRateEntities = normalizeWatchHeartRateSamplesForDerivation(
-            parserVersion = importRecord.parserVersion,
-            activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
-            totalDuration = totalDuration,
-            rawIntervals = rawIntervals,
-            samples = samples,
-        ) ?: return RepositoryResult.UnexpectedState
-        val normalizedHeartRateSamples = normalizedHeartRateEntities.map { it.toDomain() }
-        if (normalizedHeartRateSamples.any { it == null }) return RepositoryResult.UnexpectedState
-        val normalizedHeartRateDomains = normalizedHeartRateSamples.filterNotNull()
-        val heartRateChanged = normalizedHeartRateEntities != samples
         val measuredIntervals = measuredIntervalsForDerivation(
             activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
             rawIntervals = rawIntervals,
@@ -2942,7 +3014,7 @@ class RoomRepositories @Inject constructor(
 
         val splits = if (snapshot.isEligibleForFunctionalSplits) {
             val canonicalSeries = snapshot.canonicalSeries ?: return RepositoryResult.UnexpectedState
-            WorkoutSplitCalculator.calculateOrNull(canonicalSeries, normalizedHeartRateDomains)
+            WorkoutSplitCalculator.calculateOrNull(canonicalSeries, persistedHeartRateDomains)
                 ?: return RepositoryResult.UnexpectedState
         } else {
             emptyList()
@@ -2955,7 +3027,7 @@ class RoomRepositories @Inject constructor(
             existingSnapshot.derivationMethod == snapshot.derivationMethod &&
             existingSnapshot.derivationVersion == snapshot.derivationVersion &&
             !missingSplitProjection &&
-            !heartRateChanged
+            true
         ) {
             promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
             return RepositoryResult.Success(existingSnapshot)
@@ -2996,14 +3068,11 @@ class RoomRepositories @Inject constructor(
             rawIntervals = resolvedDerivationIntervals,
             derivedIntervals = intervalEntities,
             splits = splitEntities,
-            heartRateSamples = normalizedHeartRateDomains,
+            heartRateSamples = persistedHeartRateDomains,
         ) ?: return RepositoryResult.UnexpectedState
 
-        if (heartRateChanged && normalizedHeartRateEntities.isNotEmpty() &&
-            database.workoutDetailDao().updateHeartRateSamples(normalizedHeartRateEntities) != normalizedHeartRateEntities.size
-        ) {
-            return RepositoryResult.UnexpectedState
-        }
+        // Normalized timestamps are derivation-only. Persisted BPM facts and
+        // timestamps remain unchanged by calibration.
         if (resolvedRawIntervals != rawIntervals) {
             database.workoutDetailDao().deleteIntervalsForActivity(activity.id)
             database.workoutDetailDao().insertIntervals(resolvedRawIntervals)
@@ -3178,6 +3247,61 @@ class RoomRepositories @Inject constructor(
             )
 
             !isSameWorkoutAggregate || !isAllowedState || !hasNoRemoteEffect || !childMetadataIsConsistent
+        }
+    }
+
+    /**
+     * Destructive deletion is deliberately narrower than logical discard. It
+     * accepts only one persisted Watch D3/D4 aggregate in a local state and
+     * only queue rows whose remote effect is provably not started.
+     */
+    private suspend fun isSafeLocalWatchActivityDeletionCandidate(
+        activity: WorkoutActivityEntity,
+    ): Boolean {
+        val activityId = activity.id
+        val knownOrigin = runCatching { WorkoutActivityOrigin.valueOf(activity.origin) }.getOrNull()
+            ?: return false
+        if (knownOrigin !in setOf(
+                WorkoutActivityOrigin.WATCH_D3_D4,
+                WorkoutActivityOrigin.PHONE_TREADMILL,
+                WorkoutActivityOrigin.PHONE_FREE_WORKOUT,
+            )
+        ) return false
+        if (database.workoutActivityDao().countById(activityId) != 1 ||
+            activity.workflowState !in setOf(
+                ActivityWorkflowState.PENDING_REVIEW.name,
+                ActivityWorkflowState.PENDING_CALIBRATION.name,
+                ActivityWorkflowState.READY_TO_SYNC.name,
+                ActivityWorkflowState.SYNC_FAILED.name,
+                ActivityWorkflowState.DISCARDED.name,
+            ) ||
+            activity.appWorkoutSessionId != null
+        ) return false
+
+        val importRecord = database.watchWorkoutImportDao().findByActivityId(activityId)
+        if (database.watchWorkoutImportDao().countByActivityId(activityId) > 1 ||
+            database.appWorkoutSessionDao().findByWorkoutActivityId(activityId) != null
+        ) return false
+        if (importRecord != null && importRecord.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) return false
+
+        val diagnosticPayloadIds = buildSet {
+            activity.diagnosticPayloadId?.let(::add)
+            importRecord?.diagnosticPayloadId?.let(::add)
+        }
+        if (diagnosticPayloadIds.any { database.diagnosticPayloadDao().findById(it) == null }) return false
+
+        return database.healthSyncOperationDao().findByAggregate(
+            aggregateId = activityId,
+            aggregateType = HealthSyncAggregateType.WORKOUT_ACTIVITY.name,
+        ).all { operationEntity ->
+            val operation = operationEntity.toDomainStrict().valueOrNull() ?: return@all false
+            operation.key.aggregate.type == HealthSyncAggregateType.WORKOUT_ACTIVITY &&
+                operation.key.aggregate.id.toString() == activityId &&
+                operation.action == HealthSyncOperationAction.INSERT &&
+                operation.state in setOf(SyncOperationState.PENDING, SyncOperationState.FAILED) &&
+                operation.syncedAt == null &&
+                operation.reconciliationState == HealthProjectionReconciliationState.EXPECTED &&
+                operation.reconciliationCheckpoint == HealthProjectionReconciliationCheckpoint.NOT_STARTED
         }
     }
 

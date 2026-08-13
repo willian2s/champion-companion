@@ -416,6 +416,16 @@ interface WorkoutActivityRepository {
     suspend fun markSyncFailed(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = RepositoryResult.UnexpectedState
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
+    /**
+     * Exclui permanentemente uma única atividade Watch D3/D4 e seus filhos
+     * locais, sem preparar nem executar efeito remoto.
+     */
+    suspend fun deleteActivityCascade(activityId: WorkoutActivityId): RepositoryResult<Unit> =
+        RepositoryResult.UnexpectedState
+
+    /** Prévia fail-closed usada para ocultar a ação quando há risco remoto/local. */
+    suspend fun isActivityDeletionAllowed(activityId: WorkoutActivityId): RepositoryResult<Boolean> =
+        RepositoryResult.Success(false)
     suspend fun findPhoneCorrelationCandidates(
         fromInclusive: Instant,
         untilExclusive: Instant,

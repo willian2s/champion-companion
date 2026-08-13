@@ -37,6 +37,8 @@ data class ExercisesUiState(
     val pendingActivities: List<WorkoutActivity> = emptyList(),
     val hasUnsavedDetailChanges: Boolean = false,
     val canDiscardSelectedActivity: Boolean = false,
+    val canDeleteSelectedActivity: Boolean = false,
+    val isDeletingSelectedActivity: Boolean = false,
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
@@ -190,6 +192,7 @@ sealed interface ExercisesIntent {
     data object AcceptSelectedPlausibility : ExercisesIntent
     data object SyncSelectedActivity : ExercisesIntent
     data object DiscardSelectedActivity : ExercisesIntent
+    data object DeleteSelectedActivity : ExercisesIntent
     data object ConfirmExitDetail : ExercisesIntent
     data object DismissOperationError : ExercisesIntent
     data object StartImport : ExercisesIntent

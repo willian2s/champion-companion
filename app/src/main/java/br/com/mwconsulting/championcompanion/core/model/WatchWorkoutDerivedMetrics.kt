@@ -1220,22 +1220,23 @@ object WorkoutSplitCalculator {
      * Calcula projeção de splits ou sinaliza falha estrutural sem omitir apenas
      * fronteiras inválidas.
      *
-     * Lista vazia continua sendo resultado válido para série abaixo de 1 km;
-     * [null] representa incapacidade de materializar todos os splits esperados.
+     * O último split pode ser parcial. [null] representa incapacidade de
+     * materializar todas as fronteiras esperadas.
      */
     fun calculateOrNull(
         series: CanonicalWorkoutSeries,
         heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
     ): List<WorkoutSplit>? {
-        val completeSplitCount = completeSplitCount(series) ?: return null
-        if (completeSplitCount <= 0) return emptyList()
+        val splitBoundaries = splitBoundaries(series) ?: return null
+        if (splitBoundaries.isEmpty()) return emptyList()
         val sessionWindow = WorkoutIntervalWindow.create(
             series.intervals.first().effectiveWindow.start,
             series.intervals.last().effectiveWindow.end,
         ).valueOrNull() ?: return null
-        return (1..completeSplitCount).map { number ->
+        return splitBoundaries.mapIndexed { index, boundary ->
+            val number = index + 1
             val startDistance = (number - 1) * SPLIT_DISTANCE_METERS
-            val endDistance = number * SPLIT_DISTANCE_METERS
+            val endDistance = boundary
             val start = boundaryAtDistance(series, startDistance) ?: return null
             val end = boundaryAtDistance(series, endDistance) ?: return null
             val window = WorkoutIntervalWindow.create(start, end).valueOrNull() ?: return null
@@ -1243,33 +1244,42 @@ object WorkoutSplitCalculator {
             val duration = window.duration
             val durationSeconds = duration.secondsAsDouble()
             val splitSteps = portions.sumOf { it.steps }
+            val splitDistance = endDistance - startDistance
             val bpm = weightedBpm(heartRateSamples, window, sessionWindow)
             WorkoutSplit(
                 number = number,
                 targetDistanceMeters = endDistance,
                 window = window,
-                distanceMeters = endDistance - startDistance,
+                distanceMeters = splitDistance,
                 duration = duration,
                 averageCadenceStepsPerMinute = if (splitSteps == 0.0) 0.0 else splitSteps / (durationSeconds / 60.0),
                 averageSpeedMetersPerSecond = if (durationSeconds > 0.0) {
-                    (endDistance - startDistance) / durationSeconds
+                    splitDistance / durationSeconds
                 } else {
                     0.0
                 },
-                averagePaceSecondsPerKilometer = if (durationSeconds > 0.0) durationSeconds else null,
+                averagePaceSecondsPerKilometer = if (durationSeconds > 0.0 && splitDistance > 0.0) {
+                    durationSeconds * 1_000.0 / splitDistance
+                } else {
+                    null
+                },
                 averageBpm = bpm.first,
                 bpmCoveredDuration = bpm.second,
             )
         }
     }
 
-    private fun completeSplitCount(series: CanonicalWorkoutSeries): Int? {
-        val count = floor(series.canonicalDistanceMeters / SPLIT_DISTANCE_METERS)
-        return if (count.isFinite() && count >= 0.0 && count <= Int.MAX_VALUE.toDouble()) {
-            count.toInt()
-        } else {
-            null
+    private fun splitBoundaries(series: CanonicalWorkoutSeries): List<Double>? {
+        val distance = series.canonicalDistanceMeters
+        if (!distance.isFinite() || distance <= 0.0) return emptyList()
+        val completeCount = floor(distance / SPLIT_DISTANCE_METERS)
+        if (!completeCount.isFinite() || completeCount < 0.0 || completeCount >= Int.MAX_VALUE.toDouble()) {
+            return null
         }
+        val boundaries = (1..completeCount.toInt()).map { it * SPLIT_DISTANCE_METERS }.toMutableList()
+        val remainder = distance - completeCount * SPLIT_DISTANCE_METERS
+        if (remainder > 1e-6) boundaries += distance
+        return boundaries
     }
 
     private data class DistancePortion(

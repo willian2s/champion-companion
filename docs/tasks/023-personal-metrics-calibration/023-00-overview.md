@@ -98,6 +98,18 @@ corrida/caminhada por distância externa de referência.
   validação física permanece em `023-07`.
 - `023-05` concluída após guards fail-closed, CTA seguro, preview finita e
   labels alinhados. Validação física Health Connect permanece em `023-07`.
+- Correção de uso: revisão de corrida/caminhada agora oferece distância de
+  referência já no estado `PENDING_REVIEW`, preservando valor até aceite.
+- Splits recalculados agora exibem trecho final parcial e atividades abaixo de
+  1 km, sem descartar distância residual.
+- Calibração preserva timestamps/BPM persistidos e alinha preview à duração
+  canônica da série.
+- Exclusão permanente passou a cobrir atividades locais elegíveis não
+  sincronizadas, mantendo bloqueios para sync, efeitos remotos e sessões phone.
+- Guard de exclusão rejeita origens desconhecidas e valida import compatível.
+- Exclusão permanente de atividade agora possui CTA fail-closed no detalhe,
+  confirmação irreversível com data/tipo e fechamento após sucesso; integração
+  contextual e validação física continuam pendentes.
 
 ## Estado esperado ao final
 

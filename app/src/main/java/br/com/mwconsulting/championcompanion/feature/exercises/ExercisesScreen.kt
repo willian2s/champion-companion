@@ -146,6 +146,12 @@ fun ExercisesScreen(
         viewModel.onIntent(ExercisesIntent.Load)
     }
 
+    LaunchedEffect(viewModel, onNavigateBack) {
+        viewModel.activityDeleted.collect {
+            onNavigateBack?.invoke()
+        }
+    }
+
     LaunchedEffect(openedActivityId) {
         if (openedActivityId == null) {
             viewModel.onIntent(ExercisesIntent.CloseActivity)
@@ -219,6 +225,7 @@ fun ExercisesScreen(
                     onAcceptPlausibility = { viewModel.onIntent(ExercisesIntent.AcceptSelectedPlausibility) },
                     onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
                     onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
+                    onDeleteActivity = { viewModel.onIntent(ExercisesIntent.DeleteSelectedActivity) },
                 )
             }
         }
@@ -854,8 +861,10 @@ private fun ExerciseDetailShell(
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
     onDiscardActivity: () -> Unit,
+    onDeleteActivity: () -> Unit,
 ) {
     var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
+    var showDeleteConfirmation by remember(activityId) { mutableStateOf(false) }
     var showReprocessConfirmation by remember(activityId) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -921,6 +930,9 @@ private fun ExerciseDetailShell(
                             onAcceptPlausibility = onAcceptPlausibility,
                             onSyncActivity = onSyncActivity,
                             onRequestDiscard = { showDiscardConfirmation = true },
+                            canDeleteSelectedActivity = state.canDeleteSelectedActivity,
+                            isDeletingSelectedActivity = state.isDeletingSelectedActivity,
+                            onRequestDelete = { showDeleteConfirmation = true },
                         )
                     }
                 }
@@ -947,6 +959,38 @@ private fun ExerciseDetailShell(
                 }
             },
         )
+    }
+
+    if (showDeleteConfirmation && state.canDeleteSelectedActivity) {
+        state.selectedActivity?.let { activity ->
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Excluir treino permanentemente?") },
+                text = {
+                    Text(
+                        "Treino de ${activity.metrics.startedAt.formatDateTime()}, tipo ${activity.displayType().toLabel()}. " +
+                            "Esta exclusão é irreversível e removerá o treino e seus dados locais. " +
+                            "Disponível somente para atividade não sincronizada, sem sessão de treino e sem efeito remoto iniciado.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDeleteActivity()
+                        },
+                        enabled = !state.isDeletingSelectedActivity,
+                    ) {
+                        Text("Excluir treino permanentemente")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancelar")
+                    }
+                },
+            )
+        } ?: run { showDeleteConfirmation = false }
     }
 
     if (showReprocessConfirmation) {
@@ -1024,6 +1068,9 @@ private fun WorkoutActivityDetailContent(
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
     onRequestDiscard: () -> Unit,
+    canDeleteSelectedActivity: Boolean,
+    isDeletingSelectedActivity: Boolean,
+    onRequestDelete: () -> Unit,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
@@ -1076,12 +1123,14 @@ private fun WorkoutActivityDetailContent(
             activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> ReviewFormSection(
                 activity = activity,
                 formState = reviewFormState,
+                calibrationFormState = calibrationFormState,
                 onReviewTypeChange = onReviewTypeChange,
                 onReviewDistanceChange = onReviewDistanceChange,
                 onReviewTitleChange = onReviewTitleChange,
                 onReviewNotesChange = onReviewNotesChange,
                 onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
                 onSubmitReview = onSubmitReview,
+                onCalibrationDistanceChange = onCalibrationDistanceChange,
             )
 
             activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout && !activity.isCycling ->
@@ -1115,6 +1164,15 @@ private fun WorkoutActivityDetailContent(
         if (canDiscardSelectedActivity) {
             TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
                 Text("Descartar treino")
+            }
+        }
+        if (canDeleteSelectedActivity) {
+            TextButton(
+                onClick = onRequestDelete,
+                enabled = !isDeletingSelectedActivity,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text("Excluir treino permanentemente", color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -1706,7 +1764,7 @@ private fun ActivitySplitsSection(activity: WorkoutActivity) {
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
-            Text("Splits e BPM por quilômetro", style = MaterialTheme.typography.titleLarge)
+            Text("Splits e BPM", style = MaterialTheme.typography.titleLarge)
             when (activity.canonicalReadStatus) {
                 WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH,
                 WorkoutCanonicalReadStatus.NOT_MATERIALIZED,
@@ -1727,7 +1785,7 @@ private fun ActivitySplitsSection(activity: WorkoutActivity) {
                 WorkoutCanonicalReadStatus.AVAILABLE -> {
                     if (splits.isEmpty()) {
                         Text(
-                            text = "Distância canônica abaixo de 1 km: nenhum split completo para exibir.",
+                            text = "Nenhum split materializado para exibir.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1845,12 +1903,14 @@ private fun PartialParserNotice(activity: WorkoutActivity) {
 private fun ReviewFormSection(
     activity: WorkoutActivity,
     formState: ExerciseReviewFormState,
+    calibrationFormState: ExerciseCalibrationFormState,
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
     onSubmitReview: () -> Unit,
+    onCalibrationDistanceChange: (String) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1898,6 +1958,20 @@ private fun ReviewFormSection(
                     singleLine = true,
                     isError = formState.error?.category == ExerciseOperationErrorCategory.INVALID_DISTANCE,
                     enabled = !formState.isSaving,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
+            if (activity.isWatchWorkout && formState.selectedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                OutlinedTextField(
+                    value = calibrationFormState.reportedDistanceInput,
+                    onValueChange = onCalibrationDistanceChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Distância de referência") },
+                    supportingText = {
+                        Text("Opcional agora; após salvar revisão, será usada para calibrar corrida/caminhada. Informe fonte externa; o app não coleta GPS.")
+                    },
+                    suffix = { Text("km") },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }

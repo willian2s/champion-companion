@@ -167,6 +167,9 @@ interface HeartRateDao {
     @Query("SELECT * FROM heart_rate_measurements WHERE id = :id")
     suspend fun findById(id: String): HeartRateMeasurementEntity?
 
+    @Query("SELECT * FROM heart_rate_measurements WHERE workoutActivityId = :activityId")
+    suspend fun findByWorkoutActivityId(activityId: String): List<HeartRateMeasurementEntity>
+
     @Query("SELECT * FROM heart_rate_measurements WHERE deduplicationKey = :deduplicationKey")
     suspend fun findByDeduplicationKey(deduplicationKey: String): HeartRateMeasurementEntity?
 
@@ -194,6 +197,9 @@ interface HeartRateDao {
 
     @Query("DELETE FROM heart_rate_measurements WHERE appWorkoutSessionId = :sessionId AND workoutActivityId IS NULL")
     suspend fun deleteTransientForSession(sessionId: String): Int
+
+    @Query("DELETE FROM heart_rate_measurements WHERE workoutActivityId = :activityId")
+    suspend fun deleteByWorkoutActivityId(activityId: String): Int
 }
 
 @Dao
@@ -249,6 +255,9 @@ interface WorkoutActivityDao {
 
     @Query("SELECT * FROM workout_activities WHERE id = :id")
     suspend fun findById(id: String): WorkoutActivityEntity?
+
+    @Query("SELECT COUNT(*) FROM workout_activities WHERE id = :id")
+    suspend fun countById(id: String): Int
 
     @Query("SELECT * FROM workout_activities WHERE appWorkoutSessionId = :sessionId LIMIT 1")
     suspend fun findBySessionId(sessionId: String): WorkoutActivityEntity?
@@ -318,6 +327,9 @@ interface WorkoutActivityDao {
 
     @Update
     suspend fun update(activity: WorkoutActivityEntity): Int
+
+    @Query("DELETE FROM workout_activities WHERE id = :id")
+    suspend fun deleteById(id: String): Int
 
     @Query("UPDATE workout_activities SET workflowState = :nextState WHERE id = :id AND workflowState IN (:expectedStates)")
     suspend fun transitionState(id: String, expectedStates: List<String>, nextState: String): Int
@@ -420,6 +432,9 @@ interface WatchWorkoutImportDao {
     @Query("SELECT * FROM watch_workout_imports WHERE activityId = :activityId")
     suspend fun findByActivityId(activityId: String): WatchWorkoutImportEntity?
 
+    @Query("SELECT COUNT(*) FROM watch_workout_imports WHERE activityId = :activityId")
+    suspend fun countByActivityId(activityId: String): Int
+
     @Query("SELECT * FROM watch_workout_imports WHERE deviceId = :deviceId AND origin = :origin AND crc = :crc")
     suspend fun findByNaturalKey(deviceId: String, origin: String, crc: Int): WatchWorkoutImportEntity?
 
@@ -431,6 +446,9 @@ interface WatchWorkoutImportDao {
 
     @Update
     suspend fun update(importRecord: WatchWorkoutImportEntity): Int
+
+    @Query("DELETE FROM watch_workout_imports WHERE activityId = :activityId")
+    suspend fun deleteByActivityId(activityId: String): Int
 }
 
 data class WatchWorkoutImportLookupRecord(
@@ -529,6 +547,12 @@ interface WorkoutDerivationDao {
     @Query("SELECT * FROM workout_derivation_snapshots WHERE activityId = :activityId ORDER BY derivedAtEpochMillis DESC, id DESC")
     suspend fun findSnapshotsForActivity(activityId: String): List<WorkoutDerivationSnapshotEntity>
 
+    @Query("DELETE FROM workout_derived_intervals WHERE snapshotId IN (SELECT id FROM workout_derivation_snapshots WHERE activityId = :activityId)")
+    suspend fun deleteDerivedIntervalsForActivity(activityId: String): Int
+
+    @Query("DELETE FROM workout_splits WHERE snapshotId IN (SELECT id FROM workout_derivation_snapshots WHERE activityId = :activityId)")
+    suspend fun deleteSplitsForActivity(activityId: String): Int
+
     @Query("SELECT * FROM workout_derived_intervals WHERE snapshotId = :snapshotId ORDER BY intervalIndex")
     suspend fun findDerivedIntervals(snapshotId: String): List<DerivedWorkoutIntervalEntity>
 
@@ -566,6 +590,10 @@ interface WorkoutDerivationDao {
 
     @Query("DELETE FROM workout_derivation_snapshots WHERE id = :id")
     suspend fun deleteSnapshotById(id: String): Int
+
+    /** Filhos derived/splits são removidos por CASCADE antes da atividade. */
+    @Query("DELETE FROM workout_derivation_snapshots WHERE activityId = :activityId")
+    suspend fun deleteSnapshotsForActivity(activityId: String): Int
 }
 
 data class WorkoutHeartRateHistoryRecord(
@@ -587,6 +615,9 @@ interface TreadmillCalibrationDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(calibration: TreadmillCalibrationEntity)
+
+    @Query("DELETE FROM treadmill_calibrations WHERE activityId = :activityId")
+    suspend fun deleteByActivityId(activityId: String): Int
 }
 
 @Dao
@@ -763,6 +794,9 @@ interface HealthSyncOperationDao {
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, projectionChildKey, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
 
+    @Query("DELETE FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType")
+    suspend fun deleteByAggregate(aggregateId: String, aggregateType: String): Int
+
     @Query("SELECT * FROM health_sync_operations WHERE projectionChildKey != '__legacy__' ORDER BY aggregateType, aggregateId, recordType, projectionChildKey, operationSequence, id")
     suspend fun findProjectionOperations(): List<HealthSyncOperationEntity>
 
@@ -828,6 +862,12 @@ interface DiagnosticPayloadDao {
 
     @Query("SELECT * FROM diagnostic_derived_outputs WHERE payloadId = :payloadId ORDER BY outputType, ordinal")
     suspend fun findDerivedOutputs(payloadId: String): List<DiagnosticDerivedOutputEntity>
+
+    @Query("SELECT COUNT(*) FROM workout_activities WHERE diagnosticPayloadId = :payloadId AND id != :activityId")
+    suspend fun countActivityReferencesExcluding(payloadId: String, activityId: String): Int
+
+    @Query("SELECT COUNT(*) FROM watch_workout_imports WHERE diagnosticPayloadId = :payloadId AND activityId != :activityId")
+    suspend fun countImportReferencesExcluding(payloadId: String, activityId: String): Int
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(payload: DiagnosticPayloadEntity)
