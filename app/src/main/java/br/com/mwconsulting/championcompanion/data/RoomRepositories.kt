@@ -2377,11 +2377,33 @@ class RoomRepositories @Inject constructor(
                     mapping.hasSupportedPair && !it.isBlockedWatchWorkoutOperation(candidateIndex)
                 }
             }
+            val activeScopedOperations = validOperations.filterNot { operation ->
+                val activity = (operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity)
+                    ?.let { candidateIndex.workoutActivities[it.activityId.value] }
+                activity?.workflowState in setOf(
+                    ActivityWorkflowState.PENDING_REVIEW,
+                    ActivityWorkflowState.PENDING_CALIBRATION,
+                    ActivityWorkflowState.DISCARDED,
+                )
+            }
+            val invalidActiveOperations = scopedOperations.filter { mapping ->
+                val activity = (mapping.aggregate as? HealthSyncAggregate.WorkoutActivity)
+                    ?.let { candidateIndex.workoutActivities[it.activityId.value] }
+                mapping.aggregate !is HealthSyncAggregate.WorkoutActivity ||
+                    activity?.workflowState !in setOf(
+                        ActivityWorkflowState.PENDING_REVIEW,
+                        ActivityWorkflowState.PENDING_CALIBRATION,
+                        ActivityWorkflowState.DISCARDED,
+                    )
+            }
             HealthSyncQueueObservation(
-                operations = validOperations,
-                hasInvalidOperation = scopedOperations.any { !it.isValid },
-                hasUnresolvedAggregate = validOperations.any { operation ->
-                    !isSemanticallyResolved(operation, candidateIndex)
+                operations = activeScopedOperations,
+                hasInvalidOperation = invalidActiveOperations.any { !it.isValid },
+                hasUnresolvedAggregate = activeScopedOperations.any { operation ->
+                    val activity = (operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity)
+                        ?.let { candidateIndex.workoutActivities[it.activityId.value] }
+                    activity?.workflowState != ActivityWorkflowState.SYNCED &&
+                        !isSemanticallyResolved(operation, candidateIndex)
                 },
             )
         }.flowOn(ioDispatcher)
