@@ -278,7 +278,10 @@ data class WorkoutActivity private constructor(
     val requiresWatchWorkoutReprocessing: Boolean
         get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 && (
             derivationSnapshot == null ||
-                derivationSnapshot.derivationVersion != WATCH_WORKOUT_DERIVATION_VERSION ||
+                derivationSnapshot.derivationVersion !in setOf(
+                    WATCH_WORKOUT_DERIVATION_VERSION,
+                    WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+                ) ||
                 canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
             )
 

@@ -27,10 +27,13 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutatio
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
+import br.com.mwconsulting.championcompanion.core.model.ApplyReferenceDistanceCalibrationInput
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
@@ -54,6 +57,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
+import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
+import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
@@ -175,6 +180,7 @@ class ExercisesViewModel internal constructor(
     private val deviceRepository: DeviceRepository,
     private val workoutActivityRepository: WorkoutActivityRepository,
     private val treadmillCalibrationRepository: TreadmillCalibrationRepository,
+    private val personalMetricsRepository: PersonalMetricsRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
     private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
@@ -199,6 +205,9 @@ class ExercisesViewModel internal constructor(
     private val selectedActivityId = MutableStateFlow<WorkoutActivityId?>(null)
     private val selectedActivity = MutableStateFlow<WorkoutActivity?>(null)
     private val latestCalibration = MutableStateFlow<TreadmillCalibrationSnapshot?>(null)
+    private val personalMetricsSnapshot = MutableStateFlow(PersonalMetricsSnapshot())
+    private val calibrationHistory = MutableStateFlow<List<StepLengthCalibrationSummary>>(emptyList())
+    private val learnedProfiles = MutableStateFlow<List<LearnedStepLengthProfile>>(emptyList())
     private val detailState = MutableStateFlow<ExerciseDetailState>(ExerciseDetailState.Loading)
     private val reviewFormState = MutableStateFlow(ExerciseReviewFormState())
     private val calibrationFormState = MutableStateFlow(ExerciseCalibrationFormState())
@@ -307,6 +316,31 @@ class ExercisesViewModel internal constructor(
                     else -> ExerciseDetailState.Ready(activity.id, latestCalibration.value)
                 }
                 syncFormsWithSelectedActivity(activity)
+            }
+        }
+        scope.launch {
+            personalMetricsRepository.observeSnapshot().collect {
+                personalMetricsSnapshot.value = it
+                refreshCalibrationPreview()
+            }
+        }
+        scope.launch {
+            personalMetricsRepository.observeLearnedStepLengthProfiles().collect {
+                learnedProfiles.value = it
+                refreshCalibrationPreview()
+            }
+        }
+        scope.launch {
+            selectedActivity.flatMapLatest { activity ->
+                val type = activity?.confirmedType
+                if (type == WorkoutType.RUNNING || type == WorkoutType.WALKING) {
+                    personalMetricsRepository.observeStepLengthCalibrations(type)
+                } else {
+                    flowOf(emptyList())
+                }
+            }.collect {
+                calibrationHistory.value = it
+                refreshCalibrationPreview()
             }
         }
         scope.launch {
@@ -421,6 +455,7 @@ class ExercisesViewModel internal constructor(
         deviceRepository: DeviceRepository,
         workoutActivityRepository: WorkoutActivityRepository,
         treadmillCalibrationRepository: TreadmillCalibrationRepository,
+        personalMetricsRepository: PersonalMetricsRepository,
         appPreferencesRepository: AppPreferencesRepository,
         healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
@@ -435,6 +470,7 @@ class ExercisesViewModel internal constructor(
         deviceRepository = deviceRepository,
         workoutActivityRepository = workoutActivityRepository,
         treadmillCalibrationRepository = treadmillCalibrationRepository,
+        personalMetricsRepository = personalMetricsRepository,
         appPreferencesRepository = appPreferencesRepository,
         healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         watchWorkoutImportCoordinator = watchWorkoutImportCoordinator,
@@ -1708,13 +1744,23 @@ class ExercisesViewModel internal constructor(
         calibrationFormState.value = form.copy(isSaving = true, validationError = null)
         scope.launch {
             when (
-                val result = treadmillCalibrationRepository.calibrateImportedActivity(
-                    CalibrateImportedActivityInput(
-                        activityId = activity.id,
-                        reportedMeters = reportedMeters,
-                        appliedAt = Instant.now(),
-                    ),
-                )
+                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                    personalMetricsRepository.applyReferenceDistanceCalibration(
+                        ApplyReferenceDistanceCalibrationInput(
+                            activityId = activity.id,
+                            referenceDistanceMeters = reportedMeters,
+                            acceptedAt = Instant.now(),
+                        ),
+                    )
+                } else {
+                    treadmillCalibrationRepository.calibrateImportedActivity(
+                        CalibrateImportedActivityInput(
+                            activityId = activity.id,
+                            reportedMeters = reportedMeters,
+                            appliedAt = Instant.now(),
+                        ),
+                    )
+                }
             ) {
                 is RepositoryResult.Success -> {
                     calibrationFormState.value = calibrationFormState.value.copy(
@@ -2007,6 +2053,10 @@ class ExercisesViewModel internal constructor(
                 previewDistanceMeters = previewDistanceMeters(activity, input),
                 previewAveragePaceSecondsPerKilometer = previewAveragePace(activity, input),
                 previewAverageSpeedMetersPerSecond = previewAverageSpeed(activity, input),
+                eligibleSteps = eligibleSteps(activity),
+                observedStepLengthMeters = previewObservedStepLength(activity, input),
+                currentProfileStepLengthMeters = currentEffectiveProfile(activity),
+                futureProfileStepLengthMeters = previewFutureProfile(activity, input),
                 completedAt = previous.completedAt.takeIf { preserveCompleted },
             )
         }
@@ -2019,6 +2069,10 @@ class ExercisesViewModel internal constructor(
             previewDistanceMeters = previewDistanceMeters(activity, distance),
             previewAveragePaceSecondsPerKilometer = previewAveragePace(activity, distance),
             previewAverageSpeedMetersPerSecond = previewAverageSpeed(activity, distance),
+            eligibleSteps = eligibleSteps(activity),
+            observedStepLengthMeters = previewObservedStepLength(activity, distance),
+            currentProfileStepLengthMeters = currentEffectiveProfile(activity),
+            futureProfileStepLengthMeters = previewFutureProfile(activity, distance),
             completedAt = null,
             validationError = null,
         )
@@ -2067,7 +2121,7 @@ class ExercisesViewModel internal constructor(
         if (normalized.isEmpty()) return null
         val kilometers = normalized.toDoubleOrNull() ?: return null
         if (!kilometers.isFinite() || kilometers <= 0.0) return null
-        return kilometers * 1_000.0
+        return (kilometers * 1_000.0).takeIf { it.isFinite() && it > 0.0 }
     }
 
     private fun parseManualDistanceMeters(input: String): Double? {
@@ -2084,16 +2138,66 @@ class ExercisesViewModel internal constructor(
 
     private fun previewAveragePace(activity: WorkoutActivity?, input: String): Double? {
         val reportedMeters = parseDistanceMeters(input) ?: return null
-        val durationSeconds = activity?.metrics?.duration?.seconds ?: return null
+        val duration = activity?.metrics?.duration ?: return null
+        val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
         if (durationSeconds <= 0L) return null
         return durationSeconds.toDouble() * 1_000.0 / reportedMeters
     }
 
     private fun previewAverageSpeed(activity: WorkoutActivity?, input: String): Double? {
         val reportedMeters = parseDistanceMeters(input) ?: return null
-        val durationSeconds = activity?.metrics?.duration?.seconds ?: return null
+        val duration = activity?.metrics?.duration ?: return null
+        val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
         if (durationSeconds <= 0L) return null
         return reportedMeters / durationSeconds.toDouble()
+    }
+
+    private fun eligibleSteps(activity: WorkoutActivity?): Long? = activity
+        ?.takeIf { it.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) }
+        ?.derivationSnapshot?.canonicalSeries?.intervals
+        ?.map { it.decodedSteps }
+        ?.fold(0L) { total, steps ->
+            try { Math.addExact(total, steps) } catch (_: ArithmeticException) { Long.MIN_VALUE }
+        }
+        ?.takeIf { it > 0L }
+
+    private fun previewObservedStepLength(activity: WorkoutActivity?, input: String): Double? {
+        val steps = eligibleSteps(activity) ?: return null
+        val meters = parseDistanceMeters(input) ?: return null
+        return (meters / steps.toDouble()).takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    private fun previewFutureProfile(activity: WorkoutActivity?, input: String): Double? {
+        val observed = previewObservedStepLength(activity, input) ?: return null
+        val type = activity?.confirmedType ?: return null
+        if (type != WorkoutType.RUNNING && type != WorkoutType.WALKING) return null
+        val existing = calibrationHistory.value.filter { it.workoutType == type && it.activityId != activity.id }
+        val steps = eligibleSteps(activity) ?: return null
+        val totalSteps = existing.fold(steps) { total, calibration ->
+            try { Math.addExact(total, calibration.decodedSteps) } catch (_: ArithmeticException) { Long.MIN_VALUE }
+        }.takeIf { it > 0L } ?: return null
+        val totalDistance = existing.fold(0.0) { total, calibration ->
+            (total + calibration.referenceDistanceMeters).takeIf { it.isFinite() } ?: return null
+        } + (parseDistanceMeters(input) ?: return null)
+        return (totalDistance / totalSteps.toDouble()).takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    private fun currentEffectiveProfile(activity: WorkoutActivity?): Double? {
+        val type = activity?.confirmedType
+        val learned = learnedProfiles.value.firstOrNull { it.workoutType == type }
+        return learned?.stepLengthMeters ?: personalMetricsSnapshot.value.stepLengthProfile?.stepLengthMeters
+    }
+
+    private fun refreshCalibrationPreview() {
+        selectedActivity.value?.let { activity ->
+            val current = calibrationFormState.value
+            calibrationFormState.value = current.copy(
+                eligibleSteps = eligibleSteps(activity),
+                observedStepLengthMeters = previewObservedStepLength(activity, current.reportedDistanceInput),
+                currentProfileStepLengthMeters = currentEffectiveProfile(activity),
+                futureProfileStepLengthMeters = previewFutureProfile(activity, current.reportedDistanceInput),
+            )
+        }
     }
 
     private fun logWorkflowDbSnapshot(

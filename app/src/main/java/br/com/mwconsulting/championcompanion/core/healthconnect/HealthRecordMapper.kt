@@ -21,6 +21,7 @@ import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
@@ -30,10 +31,13 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenInstant
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenProjectionPayload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenSpeedSample
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
+import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightUnit
@@ -301,6 +305,12 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
             payload.projectionChildKey != child.stableValue
         ) {
             return invalid("Payload congelado não corresponde ao filho persistido.")
+        }
+        if (payload.metricProvenance == HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION &&
+            child !is HealthProjectionChildKey.DistanceInterval &&
+            child != HealthProjectionChildKey.SpeedSeries
+        ) {
+            return invalid("Proveniência externa não é válida para este filho.")
         }
         val start = payload.start.toInstantOrNull()
             ?: return invalid("Payload congelado sem início temporal válido.")
@@ -600,6 +610,12 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
     ): HealthSyncFrozenProjectionPayload? {
         if (child.recordTypeName != key.recordType.name) return null
         val session = activity.sessionWindowOrNull() ?: return null
+        val metricProvenance = activity.metricProvenanceFor(child)
+        if ((child is HealthProjectionChildKey.DistanceInterval || child == HealthProjectionChildKey.SpeedSeries) &&
+            metricProvenance == null
+        ) {
+            return null
+        }
         val zoneId = ZoneId.systemDefault()
         return when (child) {
             HealthProjectionChildKey.ExerciseSession -> {
@@ -613,6 +629,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     start = session.start,
                     end = session.end,
                     zoneId = zoneId,
+                    metricProvenance = metricProvenance,
                 ).copy(
                     exerciseType = exerciseType,
                     title = activity.title,
@@ -634,6 +651,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     start = interval.effectiveWindow.start,
                     end = interval.effectiveWindow.end,
                     zoneId = zoneId,
+                    metricProvenance = metricProvenance,
                 ).copy(distanceMeters = distance)
             }
 
@@ -648,6 +666,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     start = session.start,
                     end = session.end,
                     zoneId = zoneId,
+                    metricProvenance = metricProvenance,
                 ).copy(distanceMeters = distance)
             }
 
@@ -674,6 +693,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     start = session.start,
                     end = session.end,
                     zoneId = zoneId,
+                    metricProvenance = metricProvenance,
                 ).copy(speedSamples = samples)
             }
 
@@ -686,6 +706,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     start = samples.first().sampledAt,
                     end = samples.last().sampledAt,
                     zoneId = zoneId,
+                    metricProvenance = metricProvenance,
                 ).copy(
                     heartRateSamples = samples.map { sample ->
                         HealthSyncFrozenHeartRateSample(
@@ -706,6 +727,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                     start = session.start,
                     end = session.end,
                     zoneId = zoneId,
+                    metricProvenance = metricProvenance,
                 ).copy(caloriesKilocalories = calories)
             }
         }
@@ -717,6 +739,7 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         start: Instant,
         end: Instant,
         zoneId: ZoneId,
+        metricProvenance: String?,
     ): HealthSyncFrozenProjectionPayload = HealthSyncFrozenProjectionPayload(
         recordType = key.recordType.name,
         projectionChildKey = child.stableValue,
@@ -724,18 +747,61 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         end = end.toFrozenInstant(),
         startZoneOffsetSeconds = zoneId.offsetAt(start).totalSeconds,
         endZoneOffsetSeconds = zoneId.offsetAt(end).totalSeconds,
+        metricProvenance = metricProvenance,
     )
 
     private fun decodeFrozenProjection(
         payload: HealthSyncFrozenPayload,
-    ): HealthSyncFrozenProjectionPayload? = if (
-        payload.schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION
-    ) {
-        runCatching {
-            frozenProjectionJson.decodeFromString<HealthSyncFrozenProjectionPayload>(payload.serializedPayload)
-        }.getOrNull()
-    } else {
-        null
+    ): HealthSyncFrozenProjectionPayload? {
+        val decoded = when (payload.schemaVersion) {
+            HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION,
+            HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION,
+            -> runCatching {
+                frozenProjectionJson.decodeFromString<HealthSyncFrozenProjectionPayload>(payload.serializedPayload)
+            }.getOrNull()
+
+            else -> null
+        } ?: return null
+
+        if (payload.schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION) {
+            if (decoded.metricProvenance != null) return null
+            val child = HealthProjectionChildKey.fromStableValue(decoded.projectionChildKey) ?: return null
+            return if (child is HealthProjectionChildKey.DistanceInterval ||
+                child == HealthProjectionChildKey.SpeedSeries
+            ) {
+                decoded.copy(metricProvenance = HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED)
+            } else {
+                decoded
+            }
+        }
+
+        val child = HealthProjectionChildKey.fromStableValue(decoded.projectionChildKey) ?: return null
+        val requiresMetricProvenance = child is HealthProjectionChildKey.DistanceInterval ||
+            child == HealthProjectionChildKey.SpeedSeries
+        if (requiresMetricProvenance && decoded.metricProvenance == null) return null
+        if (!requiresMetricProvenance && decoded.metricProvenance != null) return null
+        if (decoded.metricProvenance == HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION &&
+            !requiresMetricProvenance
+        ) return null
+        return decoded
+    }
+
+    private fun WorkoutActivity.metricProvenanceFor(child: HealthProjectionChildKey): String? {
+        if (child !is HealthProjectionChildKey.DistanceInterval && child != HealthProjectionChildKey.SpeedSeries) {
+            return null
+        }
+        val source = derivationSnapshot?.stepLengthSource
+        return when (source) {
+            StepLengthSource.REFERENCE_DISTANCE_CALIBRATION ->
+                HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION
+
+            StepLengthSource.MANUAL,
+            StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED,
+            StepLengthSource.CONTEXTUAL_LEARNED_PROFILE,
+            -> HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED
+
+            null -> null
+        }
     }
 
     private fun WorkoutActivity.samplesInsideSession(): List<WorkoutHeartRateSample> =

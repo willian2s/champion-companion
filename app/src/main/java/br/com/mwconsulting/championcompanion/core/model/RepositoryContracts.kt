@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
+
 const val DEFAULT_DAILY_STEPS_GOAL = 8_000
 const val DEFAULT_WORKOUT_COUNTDOWN_SECONDS = 5
 
@@ -145,12 +146,24 @@ interface PersonalMetricsRepository {
 
     fun observeLearnedStepLengthProfiles(): Flow<List<LearnedStepLengthProfile>> = flowOf(emptyList())
 
-    suspend fun saveStepLengthCalibration(
-        input: SaveStepLengthCalibrationInput,
+    suspend fun applyReferenceDistanceCalibration(
+        input: ApplyReferenceDistanceCalibrationInput,
+    ): RepositoryResult<ReferenceDistanceCalibrationResult> = RepositoryResult.UnexpectedState
+
+    /**
+     * Corrige somente evidência histórica para cálculos futuros. Não rederiva a
+     * atividade nem prepara operação Health Connect.
+     */
+    suspend fun updateStepLengthCalibrationEvidence(
+        input: UpdateStepLengthCalibrationEvidenceInput,
     ): RepositoryResult<StepLengthCalibration> = RepositoryResult.UnexpectedState
 
     suspend fun removeStepLengthCalibration(activityId: WorkoutActivityId): RepositoryResult<Unit> =
         RepositoryResult.UnexpectedState
+
+    suspend fun findReferenceDistanceCalibrationSteps(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Long> = RepositoryResult.UnexpectedState
 
     /**
      * Resolve perfil para cálculos baseados em passos. [WorkoutType.CYCLING]
@@ -161,18 +174,23 @@ interface PersonalMetricsRepository {
         RepositoryResult.UnexpectedState
 }
 
-data class SaveStepLengthCalibrationInput(
-    val profileId: UserProfileId,
+data class ApplyReferenceDistanceCalibrationInput(
     val activityId: WorkoutActivityId,
-    val workoutType: WorkoutType,
     val referenceDistanceMeters: Double,
-    /**
-     * Valor informado pelo consumidor é somente uma pré-condição de contrato;
-     * repository valida contra soma canônica persistida da série D4.
-     */
+    val acceptedAt: Instant = Instant.now(),
+)
+
+data class ReferenceDistanceCalibrationResult(
+    val calibration: StepLengthCalibration,
+    val snapshot: WorkoutDerivationSnapshot,
+)
+
+data class UpdateStepLengthCalibrationEvidenceInput(
+    val activityId: WorkoutActivityId,
+    val referenceDistanceMeters: Double,
+    /** Protege correção contra uma evidência que mudou desde a abertura da UI. */
     val decodedSteps: Long,
-    val acceptedAt: Instant,
-    val updatedAt: Instant = acceptedAt,
+    val updatedAt: Instant = Instant.now(),
 )
 
 data class UpdateStepLengthInput(
@@ -192,6 +210,7 @@ data class SaveManualWeightMeasurementInput(
 )
 
 data class PersonalMetricsSnapshot(
+    val profileId: UserProfileId? = null,
     val heightCentimeters: Double? = null,
     val weightKilograms: Double? = null,
     val latestWeightMeasuredAt: Instant? = null,

@@ -3,6 +3,8 @@ package br.com.mwconsulting.championcompanion.feature.profile
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL
 import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
+import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import java.time.Instant
 
@@ -22,6 +24,9 @@ data class ProfileUiState(
     val stepLengthSource: StepLengthSource? = null,
     val stepLengthUpdatedAt: Instant? = null,
     val learnedStepLengthProfiles: LearnedStepLengthProfilesState = LearnedStepLengthProfilesState.Loading,
+    val calibrationHistory: List<StepLengthCalibrationSummary> = emptyList(),
+    val correctionActivityId: WorkoutActivityId? = null,
+    val correctionDistanceInput: String = "",
     val stepLengthInput: String = "",
     val heightSuggestionMeters: Double? = null,
     val isConfirmingHeightSuggestion: Boolean = false,
@@ -56,6 +61,11 @@ sealed interface ProfileIntent {
     data object ConfirmHeightSuggestion : ProfileIntent
     data object CancelHeightSuggestion : ProfileIntent
     data object DismissMessage : ProfileIntent
+    data class RemoveCalibration(val activityId: br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId) : ProfileIntent
+    data class StartCalibrationCorrection(val calibration: StepLengthCalibrationSummary) : ProfileIntent
+    data class CalibrationCorrectionChanged(val value: String) : ProfileIntent
+    data object SaveCalibrationCorrection : ProfileIntent
+    data object CancelCalibrationCorrection : ProfileIntent
 }
 
 interface ProfileFeatureContract : UiStateStore<ProfileUiState> {

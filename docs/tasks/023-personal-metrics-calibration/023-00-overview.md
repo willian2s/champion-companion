@@ -86,9 +86,18 @@ corrida/caminhada por distância externa de referência.
 - Validação concluída com compileDebugKotlin, lintDebug, lint, assembleDebug,
   assembleRelease e `git diff --check`. Persistência/restart e Health Connect
   real permanecem validação física de `023-07`.
-- Próxima subtarefa elegível: `023-05`.
+- `023-06` selecionada explicitamente para implementar provenance do frozen
+  payload Health Connect; item permanece desmarcado enquanto estiver em curso.
+- Recorte autorizado de `023-06` implementou frozen payload Health Connect v2,
+  `metricProvenance` e decoder compatível com v1; item permanece desmarcado por
+  não concluir integração contextual, consumers ou validação física.
 - `023-04` implementada; validação física de restart e Health Connect permanece
   bloqueada para `023-07`.
+- `023-05` revisada e corrigida: preview canônica, provenance contextual,
+  persistência transacional, guards e correção/remoção. Build completo passou;
+  validação física permanece em `023-07`.
+- `023-05` permanece `in_progress`: revisão independente bloqueou fechamento por
+  integração de payload Health Connect e fluxo histórico sincronizado.
 
 ## Estado esperado ao final
 

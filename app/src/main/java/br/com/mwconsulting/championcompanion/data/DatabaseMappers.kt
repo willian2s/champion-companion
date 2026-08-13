@@ -908,7 +908,9 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
             plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
         )
 
-        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION ->
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION,
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+        ->
             WorkoutDerivationSnapshot.derive(
                 intervals = measuredIntervals,
                 totalDuration = totalDuration,

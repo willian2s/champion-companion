@@ -33,6 +33,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -42,6 +43,7 @@ import java.util.Locale
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
+    onOpenActivity: (br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -78,6 +80,16 @@ fun ProfileScreen(
             )
             CurrentStepLengthCard(state)
             LearnedStepLengthProfilesCard(state.learnedStepLengthProfiles)
+            CalibrationHistoryCard(
+                history = state.calibrationHistory,
+                onRemove = { viewModel.onIntent(ProfileIntent.RemoveCalibration(it)) },
+                correctionActivityId = state.correctionActivityId,
+                correctionDistanceInput = state.correctionDistanceInput,
+                onCorrect = { viewModel.onIntent(ProfileIntent.StartCalibrationCorrection(it)) },
+                onCorrectionChange = { viewModel.onIntent(ProfileIntent.CalibrationCorrectionChanged(it)) },
+                onSaveCorrection = { viewModel.onIntent(ProfileIntent.SaveCalibrationCorrection) },
+                onCancelCorrection = { viewModel.onIntent(ProfileIntent.CancelCalibrationCorrection) },
+            )
             StepLengthEditorCard(
                 state = state,
                 onValueChange = { viewModel.onIntent(ProfileIntent.StepLengthChanged(it)) },
@@ -99,6 +111,67 @@ fun ProfileScreen(
                     message = message,
                     onDismiss = { viewModel.onIntent(ProfileIntent.DismissMessage) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationHistoryCard(
+    history: List<br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary>,
+    onRemove: (WorkoutActivityId) -> Unit,
+    correctionActivityId: WorkoutActivityId?,
+    correctionDistanceInput: String,
+    onCorrect: (br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary) -> Unit,
+    onCorrectionChange: (String) -> Unit,
+    onSaveCorrection: () -> Unit,
+    onCancelCorrection: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Histórico de calibrações", style = MaterialTheme.typography.titleLarge)
+            if (history.isEmpty()) {
+                Text("Nenhuma evidência de distância de referência.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                history.forEach { calibration ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(if (calibration.workoutType == WorkoutType.RUNNING) "Corrida" else "Caminhada")
+                            Text(
+                                "${formatReferenceDistance(calibration.referenceDistanceMeters)} • " +
+                                    "${calibration.decodedSteps} passos • " +
+                                    formatStepLengthMeters(calibration.observedStepLengthMeters),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Row {
+                            TextButton(onClick = { onCorrect(calibration) }) { Text("Corrigir") }
+                            TextButton(onClick = { onRemove(calibration.activityId) }) { Text("Remover") }
+                        }
+                    }
+                    if (correctionActivityId == calibration.activityId) {
+                        OutlinedTextField(
+                            value = correctionDistanceInput,
+                            onValueChange = onCorrectionChange,
+                            label = { Text("Nova distância (km)") },
+                            singleLine = true,
+                        )
+                        Row {
+                            Button(onClick = onSaveCorrection) { Text("Salvar correção") }
+                            TextButton(onClick = onCancelCorrection) { Text("Cancelar") }
+                        }
+                    }
+                }
             }
         }
     }
@@ -191,7 +264,7 @@ private fun LearnedStepLengthProfileEntry(
         Text(
             text = stringResource(
                 R.string.profile_learned_reference_distance,
-                formatStepLengthMeters(profile.totalReferenceDistanceMeters),
+                 formatReferenceDistance(profile.totalReferenceDistanceMeters),
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -498,6 +571,7 @@ private fun StepLengthSource.toLabelResource(): Int = when (this) {
     StepLengthSource.MANUAL -> R.string.profile_source_manual
     StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> R.string.profile_source_height_suggestion
     StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> R.string.profile_source_reference_calibration
+    StepLengthSource.CONTEXTUAL_LEARNED_PROFILE -> R.string.profile_source_reference_calibration
 }
 
 private fun ProfileMessage.toMessageResource(): Int = when (this) {
@@ -537,3 +611,6 @@ private fun formatProfileInstant(instant: Instant): String = DateTimeFormatter
     .ofLocalizedDateTime(FormatStyle.SHORT)
     .withLocale(Locale.getDefault())
     .format(instant.atZone(ZoneId.systemDefault()))
+
+private fun formatReferenceDistance(meters: Double): String =
+    String.format(Locale.getDefault(), "%.2f km", meters / 1_000.0)

@@ -107,6 +107,14 @@ class ProfileViewModel @Inject constructor(
                     }
                 }
         }
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                personalMetricsRepository.observeStepLengthCalibrations(br.com.mwconsulting.championcompanion.core.model.WorkoutType.RUNNING),
+                personalMetricsRepository.observeStepLengthCalibrations(br.com.mwconsulting.championcompanion.core.model.WorkoutType.WALKING),
+            ) { running, walking -> (running + walking).sortedByDescending { it.updatedAt } }
+                .catch { mutableState.update { it.copy(calibrationHistory = emptyList()) } }
+                .collect { history -> mutableState.update { it.copy(calibrationHistory = history) } }
+        }
     }
 
     override fun onIntent(intent: ProfileIntent) {
@@ -147,6 +155,52 @@ class ProfileViewModel @Inject constructor(
                 it.copy(isConfirmingHeightSuggestion = false)
             }
             ProfileIntent.DismissMessage -> mutableState.update { it.copy(message = null) }
+            is ProfileIntent.RemoveCalibration -> removeCalibration(intent.activityId)
+            is ProfileIntent.StartCalibrationCorrection -> mutableState.update {
+                it.copy(
+                    correctionActivityId = intent.calibration.activityId,
+                    correctionDistanceInput = (intent.calibration.referenceDistanceMeters / 1_000.0).toString(),
+                )
+            }
+            is ProfileIntent.CalibrationCorrectionChanged -> mutableState.update { it.copy(correctionDistanceInput = intent.value) }
+            ProfileIntent.SaveCalibrationCorrection -> saveCalibrationCorrection()
+            ProfileIntent.CancelCalibrationCorrection -> mutableState.update {
+                it.copy(correctionActivityId = null, correctionDistanceInput = "")
+            }
+        }
+    }
+
+    private fun saveCalibrationCorrection() {
+        val current = mutableState.value
+        val activityId = current.correctionActivityId ?: return
+        val meters = current.correctionDistanceInput.trim().replace(',', '.').toDoubleOrNull()
+            ?.let { it * 1_000.0 }?.takeIf { it.isFinite() && it > 0.0 } ?: run {
+                mutableState.update { it.copy(message = ProfileMessage.INVALID_STEP_LENGTH) }
+                return
+            }
+        val calibration = current.calibrationHistory.firstOrNull { it.activityId == activityId } ?: return
+        viewModelScope.launch {
+            when (personalMetricsRepository.updateStepLengthCalibrationEvidence(
+                br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthCalibrationEvidenceInput(
+                    activityId = activityId,
+                    referenceDistanceMeters = meters,
+                    decodedSteps = calibration.decodedSteps,
+                ),
+            )) {
+                is RepositoryResult.Success -> mutableState.update {
+                    it.copy(correctionActivityId = null, correctionDistanceInput = "")
+                }
+                else -> mutableState.update { it.copy(message = ProfileMessage.SAVE_FAILED) }
+            }
+        }
+    }
+
+    private fun removeCalibration(activityId: br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId) {
+        viewModelScope.launch {
+            when (personalMetricsRepository.removeStepLengthCalibration(activityId)) {
+                is RepositoryResult.Success -> Unit
+                else -> mutableState.update { it.copy(message = ProfileMessage.SAVE_FAILED) }
+            }
         }
     }
 

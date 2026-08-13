@@ -597,7 +597,12 @@ private fun ChampionNavDisplay(
                 exercisesViewModel = exercisesViewModel,
             )
             AppDestination.Device -> DeviceScreen()
-            AppDestination.Profile -> ProfileScreen(viewModel = profileViewModel)
+            AppDestination.Profile -> ProfileScreen(
+                viewModel = profileViewModel,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
+            )
             AppDestination.Settings -> SettingsScreen(viewModel = settingsViewModel)
         }
     }

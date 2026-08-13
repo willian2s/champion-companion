@@ -11,6 +11,9 @@ private const val U16_MASK = 0xFFFFL
 /** Versão da derivação normalizada de série canônica de treinos do relógio. */
 const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v2"
 
+/** Versão usada quando distância externa é aplicada diretamente à atividade. */
+const val WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION = "watch-d3-d4-v3"
+
 /** Versão legada preservada somente para leitura de snapshots já persistidos. */
 internal const val WATCH_WORKOUT_LEGACY_DERIVATION_VERSION = "watch-d3-d4-v1"
 
@@ -19,6 +22,7 @@ enum class StepLengthSource {
     MANUAL,
     HEIGHT_SUGGESTION_ACCEPTED,
     REFERENCE_DISTANCE_CALIBRATION,
+    CONTEXTUAL_LEARNED_PROFILE,
 }
 
 /** Estado seguro da leitura canônica para consumidores locais. */

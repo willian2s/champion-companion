@@ -1057,6 +1057,14 @@ private fun WorkoutActivityDetailContent(
         ActivityHeartRateChartSection(activity)
         ActivityIntervalsSection(activity)
         ActivitySplitsSection(activity)
+        if (activity.isReferenceDistanceCalibrationEligible()) {
+            ReferenceDistanceCalibrationSection(
+                activity = activity,
+                formState = calibrationFormState,
+                onDistanceChange = onCalibrationDistanceChange,
+                onSubmit = onSubmitCalibration,
+            )
+        }
         if (activity.parserValidity == ParserValidity.PARTIAL) {
             PartialParserNotice(activity)
         }
@@ -2118,6 +2126,71 @@ private fun CalibrationFormSection(
     }
 }
 
+private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
+    activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+        confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+        workflowState in setOf(
+            ActivityWorkflowState.PENDING_CALIBRATION,
+            ActivityWorkflowState.READY_TO_SYNC,
+        ActivityWorkflowState.SYNC_FAILED,
+        ) &&
+        parserValidity == ParserValidity.VALID &&
+        derivationSnapshot?.canonicalSeriesEligible == true &&
+        intervals.any { it.decodedSteps != null && it.decodedSteps > 0L }
+
+@Composable
+private fun ReferenceDistanceCalibrationSection(
+    activity: WorkoutActivity,
+    formState: ExerciseCalibrationFormState,
+    onDistanceChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = ChampionShapeLarge) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Calibrar com distância de referência", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Informe distância externa (GPS ou percurso conhecido). O Champion Companion não coletou GPS.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            MetricCard("Distância atual estimada", activity.canonicalDistanceMeters.toDistanceLabel())
+            MetricCard("Distância após calibração", formState.previewDistanceMeters.toDistanceLabel())
+            MetricCard("Ritmo após calibração", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel())
+            MetricCard("Velocidade após calibração", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel())
+            OutlinedTextField(
+                value = formState.reportedDistanceInput,
+                onValueChange = onDistanceChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Distância de referência (km)") },
+                singleLine = true,
+                enabled = !formState.isSaving,
+            )
+            MetricCard("Passos elegíveis", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível")
+            MetricCard("Passada observada", formState.observedStepLengthMeters.toStepLengthLabel())
+            MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel())
+            MetricCard("Perfil futuro", formState.futureProfileStepLengthMeters.toStepLengthLabel())
+            Text(
+                "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            formState.validationError?.let {
+                Text(it.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            PrimaryActionButton(
+                label = if (formState.isSaving) "Aplicando calibração" else "Aplicar calibração",
+                onClick = onSubmit,
+                enabled = formState.reportedDistanceInput.isNotBlank(),
+                isLoading = formState.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ReadOnlyWorkflowSection(
     activity: WorkoutActivity,
@@ -2367,6 +2440,7 @@ private fun StepLengthSource.toLabel(): String = when (this) {
     StepLengthSource.MANUAL -> "entrada manual"
     StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> "sugestão aceita pela altura"
     StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> "calibração de distância"
+    StepLengthSource.CONTEXTUAL_LEARNED_PROFILE -> "perfil contextual aprendido"
 }
 
 private fun WorkoutPlausibilityIndicator.toLabel(): String = when (this) {
@@ -2435,6 +2509,9 @@ private fun DomainValue<Double>.toDistanceLabel(): String = when (this) {
 
 private fun Double?.toDistanceLabel(): String =
     if (this == null) "indisponível" else String.format(Locale.forLanguageTag("pt-BR"), "%.2f km", this / 1_000.0)
+
+private fun Double?.toStepLengthLabel(): String =
+    if (this == null) "indisponível" else String.format(Locale.forLanguageTag("pt-BR"), "%.3f m", this)
 
 private fun Double?.toPaceLabel(): String {
     val seconds = this ?: return "indisponível"

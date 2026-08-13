@@ -125,6 +125,9 @@ interface StepLengthCalibrationDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(calibration: StepLengthCalibrationEntity)
 
+    @Update
+    suspend fun update(calibration: StepLengthCalibrationEntity): Int
+
     @Query("DELETE FROM step_length_calibrations WHERE activityId = :activityId")
     suspend fun deleteByActivityId(activityId: String): Int
 }

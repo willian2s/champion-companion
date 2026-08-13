@@ -1,6 +1,6 @@
 # 023-05 — Implementar calibração por distância de referência
 
-- **Status:** `pending`
+- **Status:** `in_progress`
 - **Depends on:** `023-04`
 
 ## Objetivo
@@ -117,21 +117,54 @@ rederivação histórica já aplicada à atividade.
 
 ## Checklist
 
-- [ ] elegibilidade por tipo/origem implementada
-- [ ] distância externa validada
-- [ ] preview observada calculada
-- [ ] preview do perfil futuro calculada
-- [ ] evidência salva sem duplicação
-- [ ] snapshot calibrado usa source correto
-- [ ] distância da atividade fecha na referência
-- [ ] BPM/raw preservados
-- [ ] sem sync automático
-- [ ] guards de atividade sincronizada respeitados
-- [ ] correção/remoção de evidência disponível
-- [ ] spec/overview atualizados
+- [x] elegibilidade por tipo/origem implementada
+- [x] distância externa validada
+- [x] preview observada calculada
+- [x] preview do perfil futuro calculada
+- [x] evidência salva sem duplicação
+- [x] snapshot calibrado usa source correto
+- [x] distância da atividade fecha na referência
+- [x] BPM/raw preservados
+- [x] sem sync automático
+- [x] guards de atividade sincronizada respeitados
+- [x] correção/remoção de evidência disponível
+- [x] spec/overview atualizados
 
 ## Aceite
 
 Uma corrida de referência deve produzir um snapshot cujo total canônico seja a
 distância informada e, ao mesmo tempo, aparecer como uma única evidência no
 perfil aprendido de corrida.
+
+## Resultado da execução
+
+- **Status:** `in_progress`
+- **Arquivos alterados:** contratos de métricas, repository Room, derivação e
+  mapeadores de snapshot, detalhe/ViewModel de Exercícios e Perfil.
+- **Decisões e desvios:** calibração externa usa operação transacional própria,
+  preserva calibração de esteira, bloqueia estados/projeções remotas inseguros e
+  não dispara sincronização. Histórico de evidências permite remoção; correção
+  usa substituição idempotente pela mesma atividade. Perfil futuro é calculado
+  pela soma ponderada de distância e passos persistidos.
+- **Comandos executados:** `./gradlew :app:compileDebugKotlin --no-daemon`,
+  `./gradlew :app:lintDebug --no-daemon`, `git diff --check`.
+- **Resultados e evidências:** compile Kotlin, lint debug e verificação de diff
+  passaram. Snapshot usa `watch-d3-d4-v3` e
+  `REFERENCE_DISTANCE_CALIBRATION`; raw, timestamps, BPM e calorias permanecem
+  fora da mutation.
+- **Riscos residuais:** validação física em banco preservado, fechamento
+  numérico e ausência de sync automático permanecem para `023-07`. Não foram
+  criados nem executados testes automatizados.
+- **Revisão posterior:** API de persistência isolada foi removida; perfil
+  contextual aprendido recebeu provenance própria; preview passou a usar série
+  canônica, duração fracionária e proteção contra overflow; histórico ganhou
+  correção explícita e guards de remoção foram reforçados.
+- **Validação final:** `./gradlew lint assembleDebug assembleRelease --no-daemon`
+  passou; `git diff --check` passou.
+- **Revisão final:** correção de evidência futura não rederiva atividade; filhos
+  Health Connect pendentes/failed bloqueiam mutação para evitar payload obsoleto;
+  perfil contextual usa `watch-d3-d4-v3`. Nova validação após essas correções
+  ainda é necessária.
+- **Bloqueio atual:** revisão independente exige validação física de payloads
+  Health Connect v2 e fluxo histórico sincronizado, escopo previsto para
+  `023-06`/`023-07`; subtarefa permanece `in_progress` até decisão integrada.
