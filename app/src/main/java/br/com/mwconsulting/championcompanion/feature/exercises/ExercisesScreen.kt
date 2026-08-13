@@ -214,6 +214,7 @@ fun ExercisesScreen(
                     onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
                     onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
                     onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
+                    referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
                     onReprocessActivity = { viewModel.onIntent(ExercisesIntent.ReprocessSelectedActivity) },
                     onAcceptPlausibility = { viewModel.onIntent(ExercisesIntent.AcceptSelectedPlausibility) },
                     onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
@@ -848,6 +849,7 @@ private fun ExerciseDetailShell(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    referenceDistanceCalibrationAllowed: Boolean,
     onReprocessActivity: () -> Unit,
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
@@ -901,6 +903,7 @@ private fun ExerciseDetailShell(
                             latestCalibration = detailState.latestCalibration,
                             reviewFormState = state.reviewFormState,
                             calibrationFormState = state.calibrationFormState,
+                            referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
                             operationError = state.operationError,
                             isReprocessing = state.isReprocessing,
                             canDiscardSelectedActivity = state.canDiscardSelectedActivity,
@@ -1003,6 +1006,7 @@ private fun WorkoutActivityDetailContent(
     latestCalibration: TreadmillCalibrationSnapshot?,
     reviewFormState: ExerciseReviewFormState,
     calibrationFormState: ExerciseCalibrationFormState,
+    referenceDistanceCalibrationAllowed: Boolean,
     operationError: ExerciseOperationError?,
     isReprocessing: Boolean,
     canDiscardSelectedActivity: Boolean,
@@ -1057,7 +1061,7 @@ private fun WorkoutActivityDetailContent(
         ActivityHeartRateChartSection(activity)
         ActivityIntervalsSection(activity)
         ActivitySplitsSection(activity)
-        if (activity.isReferenceDistanceCalibrationEligible()) {
+        if (activity.isReferenceDistanceCalibrationEligible() && referenceDistanceCalibrationAllowed) {
             ReferenceDistanceCalibrationSection(
                 activity = activity,
                 formState = calibrationFormState,
@@ -2152,7 +2156,7 @@ private fun ReferenceDistanceCalibrationSection(
         ) {
             Text("Calibrar com distância de referência", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Informe distância externa (GPS ou percurso conhecido). O Champion Companion não coletou GPS.",
+                "Informe distância externa a partir de fonte conhecida. O Champion Companion não coleta GPS.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2168,10 +2172,10 @@ private fun ReferenceDistanceCalibrationSection(
                 singleLine = true,
                 enabled = !formState.isSaving,
             )
-            MetricCard("Passos elegíveis", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível")
-            MetricCard("Passada observada", formState.observedStepLengthMeters.toStepLengthLabel())
+            MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível")
+            MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel())
             MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel())
-            MetricCard("Perfil futuro", formState.futureProfileStepLengthMeters.toStepLengthLabel())
+            MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel())
             Text(
                 "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada.",
                 style = MaterialTheme.typography.bodySmall,

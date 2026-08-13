@@ -30,6 +30,7 @@ data class ExercisesUiState(
     val detailState: ExerciseDetailState = ExerciseDetailState.Loading,
     val reviewFormState: ExerciseReviewFormState = ExerciseReviewFormState(),
     val calibrationFormState: ExerciseCalibrationFormState = ExerciseCalibrationFormState(),
+    val referenceDistanceCalibrationAllowed: Boolean = false,
     val operationError: ExerciseOperationError? = null,
     val isReprocessing: Boolean = false,
     val isAcceptingPlausibility: Boolean = false,

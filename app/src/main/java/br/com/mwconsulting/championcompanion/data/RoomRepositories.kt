@@ -1298,11 +1298,9 @@ class RoomRepositories @Inject constructor(
         write {
             val activity = database.workoutActivityDao().findById(activityId.value.toString())
                 ?: return@write RepositoryResult.NotFound
-            if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
-                activity.workflowState == ActivityWorkflowState.DISCARDED.name
-            ) return@write RepositoryResult.UnexpectedState
-            database.stepLengthCalibrationDao().deleteByActivityId(activityId.value.toString())
-            RepositoryResult.Success(Unit)
+            if (!canMutateReferenceDistanceCalibration(activity)) return@write RepositoryResult.UnexpectedState
+            val deleted = database.stepLengthCalibrationDao().deleteByActivityId(activityId.value.toString())
+            if (deleted == 0) RepositoryResult.NotFound else RepositoryResult.Success(Unit)
         }
     } catch (cancellation: CancellationException) {
         throw cancellation
@@ -1316,9 +1314,7 @@ class RoomRepositories @Inject constructor(
         write {
             val activity = database.workoutActivityDao().findById(input.activityId.value.toString())
                 ?: return@write RepositoryResult.NotFound
-            if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
-                activity.workflowState == ActivityWorkflowState.DISCARDED.name
-            ) return@write RepositoryResult.UnexpectedState
+            if (!canMutateReferenceDistanceCalibration(activity)) return@write RepositoryResult.UnexpectedState
             val existingEntity = database.stepLengthCalibrationDao().findByActivityId(activity.id)
                 ?: return@write RepositoryResult.NotFound
             val existing = existingEntity.toDomain() ?: return@write RepositoryResult.UnexpectedState
@@ -1390,6 +1386,18 @@ class RoomRepositories @Inject constructor(
             canonicalDecodedStepsForCalibration(activity, importRecord, intervals)
                 ?.let { RepositoryResult.Success(it) }
                 ?: RepositoryResult.UnexpectedState
+        }
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
+    }
+
+    override suspend fun isReferenceDistanceCalibrationAllowed(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Boolean> = try {
+        read {
+            val activity = database.workoutActivityDao().findById(activityId.value.toString())
+                ?: return@read RepositoryResult.NotFound
+            RepositoryResult.Success(canMutateReferenceDistanceCalibration(activity))
         }
     } catch (_: Exception) {
         RepositoryResult.StorageUnavailable

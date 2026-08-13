@@ -87,7 +87,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val COUNTDOWN_TICK_MILLIS = 1_000L
@@ -207,6 +209,7 @@ class ExercisesViewModel internal constructor(
     private val latestCalibration = MutableStateFlow<TreadmillCalibrationSnapshot?>(null)
     private val personalMetricsSnapshot = MutableStateFlow(PersonalMetricsSnapshot())
     private val calibrationHistory = MutableStateFlow<List<StepLengthCalibrationSummary>>(emptyList())
+    private val referenceDistanceCalibrationAllowed = MutableStateFlow(false)
     private val learnedProfiles = MutableStateFlow<List<LearnedStepLengthProfile>>(emptyList())
     private val detailState = MutableStateFlow<ExerciseDetailState>(ExerciseDetailState.Loading)
     private val reviewFormState = MutableStateFlow(ExerciseReviewFormState())
@@ -344,6 +347,14 @@ class ExercisesViewModel internal constructor(
             }
         }
         scope.launch {
+            selectedActivity.flatMapLatest { activity ->
+                activity?.let { flow<RepositoryResult<Boolean>> { emit(personalMetricsRepository.isReferenceDistanceCalibrationAllowed(it.id)) } }
+                    ?: flowOf<RepositoryResult<Boolean>>(RepositoryResult.UnexpectedState)
+            }.collect { result ->
+                referenceDistanceCalibrationAllowed.value = result is RepositoryResult.Success && result.value
+            }
+        }
+        scope.launch {
             selectedActivityId.flatMapLatest { activityId ->
                 if (activityId == null) flowOf(null) else treadmillCalibrationRepository.observeLatestCalibration(activityId)
             }.collect { calibration ->
@@ -394,6 +405,7 @@ class ExercisesViewModel internal constructor(
                 detailState,
                 reviewFormState,
                 calibrationFormState,
+                referenceDistanceCalibrationAllowed,
                 operationError,
                 isReprocessing,
                 isAcceptingPlausibility,
@@ -410,12 +422,13 @@ class ExercisesViewModel internal constructor(
                 val currentDetailState = values[6] as ExerciseDetailState
                 val reviewForm = values[7] as ExerciseReviewFormState
                 val calibrationForm = values[8] as ExerciseCalibrationFormState
-                val error = values[9] as ExerciseOperationError?
-                val reprocessing = values[10] as Boolean
-                val acceptingPlausibility = values[11] as Boolean
-                val goal = values[12] as Int
-                val device = values[13] as Device?
-                val preparation = values[14] as WorkoutPreparationUiState
+                val referenceDistanceAllowed = values[9] as Boolean
+                val error = values[10] as ExerciseOperationError?
+                val reprocessing = values[11] as Boolean
+                val acceptingPlausibility = values[12] as Boolean
+                val goal = values[13] as Int
+                val device = values[14] as Device?
+                val preparation = values[15] as WorkoutPreparationUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -426,6 +439,7 @@ class ExercisesViewModel internal constructor(
                     detailState = currentDetailState,
                     reviewFormState = reviewForm,
                     calibrationFormState = calibrationForm,
+                    referenceDistanceCalibrationAllowed = referenceDistanceAllowed,
                     operationError = error,
                     isReprocessing = reprocessing,
                     isAcceptingPlausibility = acceptingPlausibility,
@@ -2140,16 +2154,16 @@ class ExercisesViewModel internal constructor(
         val reportedMeters = parseDistanceMeters(input) ?: return null
         val duration = activity?.metrics?.duration ?: return null
         val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
-        if (durationSeconds <= 0L) return null
-        return durationSeconds.toDouble() * 1_000.0 / reportedMeters
+        if (!durationSeconds.isFinite() || durationSeconds <= 0.0) return null
+        return (durationSeconds * 1_000.0 / reportedMeters).takeIf { it.isFinite() && it > 0.0 }
     }
 
     private fun previewAverageSpeed(activity: WorkoutActivity?, input: String): Double? {
         val reportedMeters = parseDistanceMeters(input) ?: return null
         val duration = activity?.metrics?.duration ?: return null
         val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
-        if (durationSeconds <= 0L) return null
-        return reportedMeters / durationSeconds.toDouble()
+        if (!durationSeconds.isFinite() || durationSeconds <= 0.0) return null
+        return (reportedMeters / durationSeconds).takeIf { it.isFinite() && it > 0.0 }
     }
 
     private fun eligibleSteps(activity: WorkoutActivity?): Long? = activity

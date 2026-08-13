@@ -1,6 +1,6 @@
 # 023-05 — Implementar calibração por distância de referência
 
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Depends on:** `023-04`
 
 ## Objetivo
@@ -138,7 +138,7 @@ perfil aprendido de corrida.
 
 ## Resultado da execução
 
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Arquivos alterados:** contratos de métricas, repository Room, derivação e
   mapeadores de snapshot, detalhe/ViewModel de Exercícios e Perfil.
 - **Decisões e desvios:** calibração externa usa operação transacional própria,
@@ -161,10 +161,14 @@ perfil aprendido de corrida.
   correção explícita e guards de remoção foram reforçados.
 - **Validação final:** `./gradlew lint assembleDebug assembleRelease --no-daemon`
   passou; `git diff --check` passou.
-- **Revisão final:** correção de evidência futura não rederiva atividade; filhos
+- **Revisão final histórica:** correção de evidência futura não rederiva atividade; filhos
   Health Connect pendentes/failed bloqueiam mutação para evitar payload obsoleto;
   perfil contextual usa `watch-d3-d4-v3`. Nova validação após essas correções
-  ainda é necessária.
-- **Bloqueio atual:** revisão independente exige validação física de payloads
-  Health Connect v2 e fluxo histórico sincronizado, escopo previsto para
-  `023-06`/`023-07`; subtarefa permanece `in_progress` até decisão integrada.
+  foi concluída no escopo local; validação física permanece em `023-07`.
+- **Correções finais:** correção/remoção agora usam guard fail-closed comum;
+  CTA fica oculto quando projeção HC impede mutação; preview valida finitude e
+  positividade; UI explicita fonte externa sem GPS e passos/comprimento/perfil.
+- **Validação final após correções:** `./gradlew lint assembleDebug
+  assembleRelease --no-daemon` e `git diff --check` passaram.
+- **Escopo residual:** validação física de banco preservado, retry e provider
+  Health Connect pertence à `023-07`; não bloqueia aceite local desta subtask.

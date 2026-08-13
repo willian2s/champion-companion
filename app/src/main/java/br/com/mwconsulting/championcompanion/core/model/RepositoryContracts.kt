@@ -165,6 +165,10 @@ interface PersonalMetricsRepository {
         activityId: WorkoutActivityId,
     ): RepositoryResult<Long> = RepositoryResult.UnexpectedState
 
+    suspend fun isReferenceDistanceCalibrationAllowed(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Boolean> = RepositoryResult.UnexpectedState
+
     /**
      * Resolve perfil para cálculos baseados em passos. [WorkoutType.CYCLING]
      * retorna [RepositoryResult.NotFound], pois bicicleta nunca usa distância

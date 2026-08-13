@@ -3,7 +3,7 @@
 - **Fase:** 16
 - **Spec:** `docs/specs/023-personal-metrics-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `4/7`
+- **Progresso:** `5/7`
 - **Branch:** `feat/023-personal-metrics-calibration`
 
 ## Objetivo
@@ -61,7 +61,7 @@ corrida/caminhada por distância externa de referência.
 - [x] `023-02-persist-step-length-calibrations-and-learned-profiles.md` — calibrações persistidas e perfis aprendidos disponíveis
 - [x] `023-03-complete-profile-height-and-daily-steps-goal.md` — altura/meta de passos editáveis
 - [x] `023-04-implement-manual-weight-and-local-history.md` — peso manual/histórico funcional
-- [ ] `023-05-implement-reference-distance-calibration.md` — calibração de corrida/caminhada funcional
+- [x] `023-05-implement-reference-distance-calibration.md` — calibração de corrida/caminhada funcional
 - [ ] `023-06-integrate-contextual-step-length-and-health-projections.md` — derivação contextual e projeções integradas
 - [ ] `023-07-validate-and-close-phase-16.md` — validação física e fechamento documental concluídos
 
@@ -96,8 +96,8 @@ corrida/caminhada por distância externa de referência.
 - `023-05` revisada e corrigida: preview canônica, provenance contextual,
   persistência transacional, guards e correção/remoção. Build completo passou;
   validação física permanece em `023-07`.
-- `023-05` permanece `in_progress`: revisão independente bloqueou fechamento por
-  integração de payload Health Connect e fluxo histórico sincronizado.
+- `023-05` concluída após guards fail-closed, CTA seguro, preview finita e
+  labels alinhados. Validação física Health Connect permanece em `023-07`.
 
 ## Estado esperado ao final
 
