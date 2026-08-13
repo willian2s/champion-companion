@@ -2854,12 +2854,15 @@ private fun Instant.formatTime(): String =
         .format(this)
 
 private fun Duration.toDurationLabel(): String {
-    val totalMinutes = toMinutes()
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return when {
-        hours > 0 && minutes > 0 -> "${hours} h ${minutes} min"
-        hours > 0 -> "${hours} h"
-        else -> "${minutes} min"
+    val negative = isNegative
+    val totalSeconds = if (seconds == Long.MIN_VALUE) Long.MAX_VALUE else kotlin.math.abs(seconds)
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    val label = if (hours > 0) {
+        "%02d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
     }
+    return if (negative) "-$label" else label
 }
