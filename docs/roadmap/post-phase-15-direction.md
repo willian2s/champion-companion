@@ -50,12 +50,17 @@ Treinos iniciados pelo celular, GPS, localização de sessão, rota, mapa e `Exe
 
 ## Fase 16 — Perfil, métricas pessoais e calibração
 
-**Decisão:** planejada.
+**Decisão:** concluída pela Spec 023.
 
-- **Status:** `pending`.
+- **Status:** `completed`.
 - **Spec executável:** `docs/specs/023-personal-metrics-calibration.md`.
 - **Branch planejada:** `feat/023-personal-metrics-calibration`.
 - **ADR principal:** ADR-022.
+
+- **Validação:** concluída em dispositivo real e banco preservado; evidência em
+  `docs/integration/023-07-phase-16-physical-validation.md`.
+- **Limitação registrada:** migration foi exercitada em fixture v12
+  reconstruída, pois não há arquivo histórico v12 original.
 
 A auditoria confirmou que parte da antiga Fase 16 já foi entregue: altura e comprimento de passo base já existem, há sugestão baseada em altura, peso possui persistência/leitura parcial e a meta diária de passos já vive no DataStore. Portanto, a fase não recria esses contratos do zero.
 
@@ -221,9 +226,7 @@ Fases concluídas
 13 — closed / partially_delivered
 14 — completed
 15 — completed
-
-Planejada
-16 — Perfil, métricas pessoais e calibração / Spec 023 pending
+16 — Perfil, métricas pessoais e calibração / Spec 023 completed
 
 Direção futura a revisar antes de planejar
 17 — Backup e restauração local
@@ -238,4 +241,6 @@ A remoção de uma fase não implica remoção automática de código legado. Li
 
 ## Próximo passo
 
-Executar `023-01` para registrar a auditoria detalhada da implementação e congelar os pontos exatos de integração antes da migration e das mudanças de domínio.
+Antes de planejar Fase 17, auditar estado real, simplificar escopo e registrar
+decisão explícita. Não reexecutar `023-01`: auditoria, implementação e validação
+da Fase 16 já estão encerradas pela Spec 023.

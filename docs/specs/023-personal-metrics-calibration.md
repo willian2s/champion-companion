@@ -2,10 +2,10 @@
 
 - **Ticker:** `023`
 - **Fase:** 16
-- **Status:** `pending`
+- **Status:** `completed`
 - **Base:** `main` após merge da Spec 022
 - **Branch:** `feat/023-personal-metrics-calibration`
-- **Progresso planejado:** `6/7`
+- **Progresso:** `7/7`
 - **Decisão principal:** ADR-022
 
 ## Contexto

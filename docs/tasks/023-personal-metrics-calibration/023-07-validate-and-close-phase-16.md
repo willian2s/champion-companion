@@ -1,6 +1,6 @@
 # 023-07 — Validar e encerrar a Fase 16
 
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Depends on:** `023-06`
 
 ## Objetivo
@@ -136,18 +136,18 @@ Após aceite:
 ## Checklist
 
 - [x] build/lint/install concluídos
-- [ ] migration/banco preservados
+- [x] migration/banco preservados
 - [x] altura/meta validadas
 - [x] peso/histórico validados
 - [x] corrida calibrada validada
 - [x] segunda corrida confirma aprendizado ponderado
 - [x] caminhada independente validada
 - [x] correção/remoção validada
-- [ ] guards de sync validados
+- [x] guards de sync validados
 - [x] regressão CYCLING/TREADMILL/DailySummary conferida
 - [x] evidência física documentada
-- [ ] baseline/roadmap atualizados
-- [ ] spec e overview em `completed`
+- [x] baseline/roadmap atualizados
+- [x] spec e overview em `completed`
 
 ## Aceite final da Fase 16
 
@@ -157,11 +157,14 @@ pelos snapshots que congelaram.
 
 ## Resultado da execução
 
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Arquivos alterados:**
   - `docs/integration/023-07-phase-16-physical-validation.md`;
   - esta subtarefa;
-  - `docs/tasks/023-personal-metrics-calibration/023-00-overview.md`.
+  - `docs/tasks/023-personal-metrics-calibration/023-00-overview.md`;
+  - `docs/specs/023-personal-metrics-calibration.md`;
+  - `docs/baseline/current-baseline.md`;
+  - `docs/roadmap/post-phase-15-direction.md`.
 - **Decisões e desvios:** foram registradas duas corridas informadas pelo usuário:
   `2,90 km` em 12/08 e `3,00 km` em 14/08. A corrida de 14/08 não foi
   sincronizada e recebeu exclusão permanente autorizada pela UI. Importação
@@ -217,11 +220,11 @@ pelos snapshots que congelaram.
   com 4 operações HC `WEIGHT` `SYNCED` após retry da falha temporária no teste
   sem permissão, sem readback. Evidência física parcial registrada em
   `docs/integration/023-07-phase-16-physical-validation.md`.
-- **Riscos residuais:** preservação completa do banco/migration, guard
+- **Riscos residuais da rodada inicial:** preservação completa do banco/migration, guard
   `SYNCING`/efeito parcial, migration completa e regressões Health Connect
   indisponível/desabilitado ainda não foram confirmados integralmente nesta
-  rodada. Corrida reimportada de 14/08 permanece pendente e sem sync.
-  A Fase 16 não pode ser encerrada.
+  rodada. Corrida reimportada de 14/08 permanece pendente e sem sync. Esta
+  seção histórica registra o estado anterior à continuação final.
 
 ### Continuação da validação
 
@@ -231,23 +234,21 @@ pelos snapshots que congelaram.
   SQLite locais sobre a cópia; inspeção estática de `MIGRATION_12_13` e do
   schema exportado.
 - **Resultados adicionais:** Galaxy S22 `SM-S901E`, Android 16/API 36
-  confirmado. Consultas locais repetidas retornaram `user_version=13`,
-  `integrity_check=ok`, zero linhas em `foreign_key_check`, 11 atividades, 16
-  snapshots (11 ativos), 2 calibrações, 4 pesos, 1 distância manual de
-  bicicleta (`3.460 m`) e 220 operações Health Connect. Não há calibração
-  duplicada por atividade, snapshot ativo duplicado ou órfão. Payload calibrado
-  RUNNING preserva versão congelada 2, provenance externa e
-  `watch-d3-d4-v3`.
-- **Guard confirmado:** atividade `SYNCED` não oferece reprocessamento/calibração
-  na UI. `SYNCING` e efeito remoto parcial não foram exercitados por ausência de
-  fixture segura; Health Connect indisponível/desabilitado também permanece
-  `N/A`. Nenhum readback remoto foi executado, conforme contrato write-only.
-- **Migration:** inspeção estática confirma migration aditiva que cria tabela e
-  índices, sem inserts. Sem cópia física v12 anterior, não é possível provar
-  retrospectivamente ausência de snapshots/operações HC durante upgrade.
-- **Decisão:** nenhuma alteração de código ou fechamento documental foi feito.
-  Status permanece `in_progress`, checklist permanece parcial e o overview
-  permanece em `6/7`.
+  confirmado. A migration em fixture reconstruída v12 -> v13 retornou
+  `user_version=13`, integridade válida, tabela de calibrações vazia e
+  preservação de 11 atividades, 16 snapshots, 220 operações HC e distância
+  manual. Fallback WALKING foi reprocessado pela UI sem calibrações e usou
+  `MANUAL`, `0,882 m`, `watch-d3-d4-v3`, `121,716 m` e zero HC; fallback RUNNING
+   usou `MANUAL`, `0,882 m`, `watch-d3-d4-v3`, `3.135,510 m` e zero HC.
+- **Guards adicionais:** fixture `SYNCING` exibiu `Sincronizando 1` e detalhe
+  sem CTA de reprocessamento. Fixture `FAILED/SENT/AFTER_REMOTE_EFFECT` não
+  exibiu calibração/correção. Integração HC desligada pela UI desabilitou
+  `Sincronizar agora` e foi religada depois. Nenhum provider foi acionado pelas
+  fixtures e nenhum readback foi executado.
+- **Decisão:** gates físicos restantes foram validados e o fechamento documental
+  foi aplicado em baseline, roadmap, spec e overview.
+  A única ressalva técnica é a migration exercitada em fixture reconstruída,
+  pois não existe arquivo histórico v12 original.
 - **Detalhamento documental:** fechamento canônico, fórmula ponderada,
   correção/remoção, persistência de altura/meta e comportamento de pace,
   velocidade e splits foram validados na rodada física; evidência resumida fica

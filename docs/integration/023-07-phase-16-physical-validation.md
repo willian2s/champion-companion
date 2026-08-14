@@ -122,9 +122,8 @@
   deixou calibração residual. O treino de 13/08 não criou operação Health
   Connect.
 - Persistência de Perfil e resumo de Exercícios após reinício foi observada;
-  persistência completa dos fluxos ainda não exercitados, guards completos e
-  regressões não exercitadas permanecem `N/A`; TREADMILL, CYCLING,
-  Daily Summary e parser `d4-v3` foram observados nesta rodada.
+  TREADMILL, CYCLING, Daily Summary e parser `d4-v3` foram observados nesta
+  rodada; fixtures finais cobriram guards e fallback BASE.
 - O fechamento canônico, pace, velocidade e splits foram validados na rodada;
   esta síntese não reproduz cada valor intermediário. A correção/remoção foi
   validada com preservação dos snapshots históricos. Altura/meta foram
@@ -132,23 +131,26 @@
 
 ## Limites e riscos residuais
 
-- Não marcar a Fase 16 como concluída com esta evidência parcial.
+- Registro anterior: não marcar a Fase 16 com a evidência parcial então
+  disponível. A continuação final validou os gates restantes.
 - Corridas elegíveis, passos D4, fechamento canônico e fórmula ponderada foram
   confirmados nesta rodada.
 - Formulário de revisão/calibração foi localizado após rolagem completa do
   detalhe. As duas corridas foram revisadas como `RUNNING` e calibradas pela UI.
-- Nenhuma mutação foi feita por SQL ou por ação remota. A corrida de 12/08 foi
-  enviada somente depois de tocar em `Sincronizar com Health Connect`; a corrida
-  14/08 foi removida pela UI após confirmação irreversível.
+- Nos cenários de usuário, nenhuma mutação foi feita por SQL ou por ação remota.
+  A corrida de 12/08 foi enviada somente depois de tocar em `Sincronizar com
+  Health Connect`; a corrida 14/08 foi removida pela UI após confirmação
+  irreversível. Fixtures finais usaram cópias temporárias locais e foram
+  removidas antes da restauração.
 - O treino livre reimportado em 13/08 foi classificado como `WALKING` e calibrado
   com `950 m`; nenhuma sincronização automática foi iniciada.
 - O novo treino de 14/08 às 09:36 usou o perfil WALKING aprendido após
   reprocessamento explícito; nenhuma sincronização automática foi iniciada.
 
-- Health Connect indisponível/desabilitado e guards físicos de `SYNCING`/efeito
-  remoto parcial não foram exercitados por ausência de fixture/alteração segura
-  do provider. A confirmação de migration sem estado v12 preservado também não
-  é possível retrospectivamente.
+- Não houve readback de Health Connect, conforme contrato write-only. Os guards
+  físicos de `SYNCING`/efeito remoto parcial foram exercitados em fixtures
+  locais; a migration foi validada em fixture v12 reconstruída, sem arquivo
+  histórico v12 original.
 
 ## Perfil, peso e regressões observados
 
@@ -178,9 +180,9 @@
   nenhuma reescrita silenciosa foi feita.
 - A inspeção após novo lançamento confirmou as mesmas invariantes locais e
   permissões WRITE do Health Connect concedidas. Guard físico de `SYNCED` foi
-  observado pela ausência de ação de reprocessamento; não havia fixture segura
-  para `SYNCING` ou efeito remoto parcial. Nenhuma leitura de records remotos foi
-  executada.
+  observado pela ausência de ação de reprocessamento. O registro inicial não
+  tinha fixture para `SYNCING`/efeito remoto parcial; ambas foram exercitadas na
+  continuação final. Nenhuma leitura de records remotos foi executada.
 - TREADMILL foi validado com BASE/manual. Usuário confirmou Daily Summary
   completo; confirmação registrada como evidência física.
 - Inventário HC atual: `1` operação de altura `SYNCED`, `4` operações de peso
@@ -190,7 +192,38 @@
 
 ## Estado de encerramento
 
-- A subtarefa permanece `in_progress` e o overview permanece em `6/7`.
-- A Fase 16 não foi marcada como concluída: migration sobre banco v12 original,
-  cenário físico `SYNCING`/efeito remoto parcial e Health Connect
-  indisponível/desabilitado continuam sem evidência observada.
+- Antes desta continuação, a subtarefa permanecia `in_progress` e o overview em
+  `6/7`. Os gates físicos restantes foram exercitados na seção seguinte; o
+  fechamento documental foi aplicado em spec, baseline, roadmap e overview. A
+  migration foi validada por fixture reconstruída, não por arquivo histórico v12
+  original; limitação permanece explícita.
+
+## Continuação final da validação
+
+- O banco original foi preservado localmente, e cada fixture temporária foi
+  removida antes da restauração. A restauração final confirmou novamente
+  `user_version=13`, `integrity_check=ok`, `foreign_key_check` vazio, `11`
+  atividades, `16` snapshots (`11` ativos), `2` calibrações, `4` pesos, `1`
+  distância manual e `220` operações Health Connect.
+- A migration foi exercitada em fixture local derivada do banco preservado:
+  tabela/índices de calibração foram removidos, `user_version` foi reduzido para
+  `12`, e o app foi iniciado para executar `12 -> 13`. Após o upgrade, o banco
+  retornou `user_version=13`, integridade válida, tabela criada com `0` linhas,
+  `11` atividades, `16` snapshots, `220` operações HC e distância manual
+  preservadas. Desvio: não havia arquivo histórico v12 original; fixture foi
+  reconstruída a partir do v13 preservado e o limite permanece registrado.
+- Fallback WALKING foi exercitado em fixture sem calibrações: reprocessamento
+  explícito pela UI usou `MANUAL`, `0,882 m`, `watch-d3-d4-v3`, distância
+  canônica `121,716 m` para `138` passos e zero operações HC. Fallback RUNNING
+  também foi exercitado sem calibrações: reprocessamento explícito usou
+  `MANUAL`, `0,882 m`, `watch-d3-d4-v3`, distância canônica `3.135,510 m` e zero
+  operações HC.
+- Guard `SYNCING` foi exercitado em fixture local: resumo exibiu
+  `Sincronizando 1` e o detalhe exibiu `Sincronização em andamento no Health
+  Connect` sem CTA de reprocessamento. Guard de efeito remoto parcial foi
+  exercitado com operação local `FAILED/SENT/AFTER_REMOTE_EFFECT`; o detalhe
+  não exibiu calibração/correção para mutação local. Nenhuma fixture acionou
+  provider ou efeito remoto real.
+- A integração Health Connect foi desligada pela UI: `Sincronizar agora` ficou
+  desabilitado; depois foi ligada novamente. Nenhuma operação adicional foi
+  criada. Estado original foi restaurado e reconfirmado no banco.

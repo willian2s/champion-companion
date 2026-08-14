@@ -2,8 +2,8 @@
 
 - **Fase:** 16
 - **Spec:** `docs/specs/023-personal-metrics-calibration.md`
-- **Status:** `in_progress`
-- **Progresso:** `6/7`
+- **Status:** `completed`
+- **Progresso:** `7/7`
 - **Branch:** `feat/023-personal-metrics-calibration`
 
 ## Objetivo
@@ -63,7 +63,7 @@ corrida/caminhada por distância externa de referência.
 - [x] `023-04-implement-manual-weight-and-local-history.md` — peso manual/histórico funcional
 - [x] `023-05-implement-reference-distance-calibration.md` — calibração de corrida/caminhada funcional
 - [x] `023-06-integrate-contextual-step-length-and-health-projections.md` — derivação contextual e projeções integradas
-- [ ] `023-07-validate-and-close-phase-16.md` — validação física e fechamento documental concluídos
+- [x] `023-07-validate-and-close-phase-16.md` — validação física e fechamento documental concluídos
 
 ## Observações
 
@@ -116,7 +116,8 @@ corrida/caminhada por distância externa de referência.
   permanece explícito e write-only.
 - Validação física de payload v2, retry e Health Connect real permanece escopo de
   `023-07`; nenhum efeito remoto é criado durante calibração ou rederivação.
-- `023-07` em andamento: build, lint e instalação no Galaxy S22 passaram. Foram
+- Registro da rodada inicial de `023-07`: build, lint e instalação no Galaxy S22
+  passaram. Foram
   informadas corridas de `2,90 km` em 12/08 e `3,00 km` em 14/08; a segunda não
   deve ser sincronizada com Health Connect. Importação explícita encontrou as
   duas corridas e um treino livre; ambas as corridas foram calibradas e fecharam
@@ -131,9 +132,8 @@ corrida/caminhada por distância externa de referência.
   a operação. Novo treino WALKING de 14/08 usou
   `CONTEXTUAL_LEARNED_PROFILE` após reprocessamento explícito, sem operação HC.
   TREADMILL validado com BASE/manual sem operação HC; CYCLING, Daily Summary e
-  consumidores da meta conferidos. HC indisponível/desabilitado, guards,
-  regressões restantes e demais gates ainda pendentes; corrida
-  reimportada de 14/08 permanece pendente sem sync; progresso permanece `6/7`.
+  consumidores da meta conferidos. A corrida reimportada de 14/08 permanece
+  pendente sem sync; os gates restantes foram exercitados na continuação final.
 - Continuação da inspeção confirmou, por cópia somente leitura do banco, 11
   atividades, 16 snapshots (11 ativos), 2 calibrações, 4 pesos, 1 distância
   manual de bicicleta, 220 operações HC e zero órfãos nas consultas de
@@ -141,9 +141,16 @@ corrida/caminhada por distância externa de referência.
   snapshot ativo. Payload
   calibrado RUNNING preserva frozen payload v2, provenance externa e
   `watch-d3-d4-v3`; a migration `12 -> 13` é aditiva no código. Guard físico de
-  `SYNCED` foi observado. Sem fixture segura, `SYNCING`, efeito remoto parcial,
-  Health Connect indisponível/desabilitado e prova física sobre banco v12
-  anterior permanecem `N/A`; status continua `in_progress` e progresso `6/7`.
+  `SYNCED` foi observado. Este registro antecede a continuação final e mantém
+  os limites então conhecidos.
+- Validação final concluída: migration `12 -> 13` exercitada em fixture
+  reconstruída, fallback BASE de RUNNING/WALKING reprocessado pela UI, guards
+  `SYNCING` e efeito remoto parcial exercitados sem provider real, e integração
+  Health Connect desligada/religada sem criar operações. Cada fixture foi
+  removida antes da restauração do banco original; estado final confirmou Room
+  v13, `11` atividades, `16` snapshots, `2` calibrações e `220` operações HC.
+  A limitação da ausência de arquivo histórico v12 está registrada na evidência.
+  `023-07` concluída; progresso `7/7`.
 
 ## Estado esperado ao final
 
