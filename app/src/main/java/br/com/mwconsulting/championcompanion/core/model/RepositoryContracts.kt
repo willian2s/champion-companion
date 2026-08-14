@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
+
 const val DEFAULT_DAILY_STEPS_GOAL = 8_000
 const val DEFAULT_WORKOUT_COUNTDOWN_SECONDS = 5
 
@@ -125,11 +126,76 @@ interface PersonalMetricsRepository {
     /** Pesos cujo measuredAt pertence ao intervalo semiaberto informado. */
     fun observeWeightsBetween(range: CalendarInstantRange): Flow<List<CalendarWeightMeasurementSummary>> =
         flowOf(emptyList())
+    /** Histórico persistido, da medição mais recente para a mais antiga. */
+    fun observeWeightHistory(): Flow<List<WeightMeasurement>> = flowOf(emptyList())
+    /** Lista pontual do mesmo histórico observado, para consumidores não reativos. */
+    suspend fun listWeightHistory(): RepositoryResult<List<WeightMeasurement>> =
+        RepositoryResult.UnexpectedState
+    suspend fun saveManualWeightMeasurement(
+        input: SaveManualWeightMeasurementInput,
+    ): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
+    suspend fun updateHeight(input: UpdateHeightInput): RepositoryResult<UserProfile> =
+        RepositoryResult.UnexpectedState
     suspend fun updateStepLength(input: UpdateStepLengthInput): RepositoryResult<UserProfile> =
         RepositoryResult.UnexpectedState
     suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
     suspend fun findWeightById(measurementId: WeightMeasurementId): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
+
+    fun observeStepLengthCalibrations(workoutType: WorkoutType): Flow<List<StepLengthCalibrationSummary>> =
+        flowOf(emptyList())
+
+    fun observeLearnedStepLengthProfiles(): Flow<List<LearnedStepLengthProfile>> = flowOf(emptyList())
+
+    suspend fun applyReferenceDistanceCalibration(
+        input: ApplyReferenceDistanceCalibrationInput,
+    ): RepositoryResult<ReferenceDistanceCalibrationResult> = RepositoryResult.UnexpectedState
+
+    /**
+     * Corrige somente evidência histórica para cálculos futuros. Não rederiva a
+     * atividade nem prepara operação Health Connect.
+     */
+    suspend fun updateStepLengthCalibrationEvidence(
+        input: UpdateStepLengthCalibrationEvidenceInput,
+    ): RepositoryResult<StepLengthCalibration> = RepositoryResult.UnexpectedState
+
+    suspend fun removeStepLengthCalibration(activityId: WorkoutActivityId): RepositoryResult<Unit> =
+        RepositoryResult.UnexpectedState
+
+    suspend fun findReferenceDistanceCalibrationSteps(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Long> = RepositoryResult.UnexpectedState
+
+    suspend fun isReferenceDistanceCalibrationAllowed(
+        activityId: WorkoutActivityId,
+    ): RepositoryResult<Boolean> = RepositoryResult.UnexpectedState
+
+    /**
+     * Resolve perfil para cálculos baseados em passos. [WorkoutType.CYCLING]
+     * retorna [RepositoryResult.NotFound], pois bicicleta nunca usa distância
+     * derivada de passos.
+     */
+    suspend fun resolveEffectiveStepLength(workoutType: WorkoutType): RepositoryResult<StepLengthProfile> =
+        RepositoryResult.UnexpectedState
 }
+
+data class ApplyReferenceDistanceCalibrationInput(
+    val activityId: WorkoutActivityId,
+    val referenceDistanceMeters: Double,
+    val acceptedAt: Instant = Instant.now(),
+)
+
+data class ReferenceDistanceCalibrationResult(
+    val calibration: StepLengthCalibration,
+    val snapshot: WorkoutDerivationSnapshot,
+)
+
+data class UpdateStepLengthCalibrationEvidenceInput(
+    val activityId: WorkoutActivityId,
+    val referenceDistanceMeters: Double,
+    /** Protege correção contra uma evidência que mudou desde a abertura da UI. */
+    val decodedSteps: Long,
+    val updatedAt: Instant = Instant.now(),
+)
 
 data class UpdateStepLengthInput(
     val stepLengthMeters: Double,
@@ -137,7 +203,18 @@ data class UpdateStepLengthInput(
     val updatedAt: Instant,
 )
 
+data class UpdateHeightInput(
+    val heightCentimeters: Double?,
+    val updatedAt: Instant,
+)
+
+data class SaveManualWeightMeasurementInput(
+    val valueKilograms: Double,
+    val measuredAt: Instant = Instant.now(),
+)
+
 data class PersonalMetricsSnapshot(
+    val profileId: UserProfileId? = null,
     val heightCentimeters: Double? = null,
     val weightKilograms: Double? = null,
     val latestWeightMeasuredAt: Instant? = null,
@@ -339,6 +416,16 @@ interface WorkoutActivityRepository {
     suspend fun markSyncFailed(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     suspend fun resetInterruptedSyncing(): RepositoryResult<Int> = RepositoryResult.UnexpectedState
     suspend fun discard(activityId: WorkoutActivityId): RepositoryResult<Unit>
+    /**
+     * Exclui permanentemente uma única atividade Watch D3/D4 e seus filhos
+     * locais, sem preparar nem executar efeito remoto.
+     */
+    suspend fun deleteActivityCascade(activityId: WorkoutActivityId): RepositoryResult<Unit> =
+        RepositoryResult.UnexpectedState
+
+    /** Prévia fail-closed usada para ocultar a ação quando há risco remoto/local. */
+    suspend fun isActivityDeletionAllowed(activityId: WorkoutActivityId): RepositoryResult<Boolean> =
+        RepositoryResult.Success(false)
     suspend fun findPhoneCorrelationCandidates(
         fromInclusive: Instant,
         untilExclusive: Instant,
@@ -725,6 +812,12 @@ interface HealthSyncRepository {
         HealthSyncQueueObservation(operations = operations)
     }
     suspend fun markStarted(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
+    /** Inicia somente se a versão ainda corresponder à operação observada. */
+    suspend fun markStartedIfCurrent(
+        operationId: HealthSyncOperationId,
+        expectedClientRecordVersion: Long?,
+        at: Instant,
+    ): RepositoryResult<Unit> = markStarted(operationId, at)
     suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit>
     suspend fun markFailed(operationId: HealthSyncOperationId, error: SafeSyncError, at: Instant): RepositoryResult<Unit>
     suspend fun resetInterrupted(at: Instant): RepositoryResult<Int>

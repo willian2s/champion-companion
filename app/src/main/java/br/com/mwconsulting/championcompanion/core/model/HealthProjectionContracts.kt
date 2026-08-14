@@ -119,12 +119,25 @@ data class HealthSyncFrozenPayload(
     val serializedPayload: String,
 ) {
     init {
-        require(schemaVersion > 0)
+        require(
+            schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION ||
+                schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION,
+        )
         require(serializedPayload.isNotBlank())
     }
 }
 
-const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 1
+const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION: Int = 1
+const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 2
+
+const val HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED: String = "WATCH_DERIVED"
+const val HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION: String =
+    "EXTERNAL_REFERENCE_CALIBRATION"
+
+private val HEALTH_SYNC_ALLOWED_METRIC_PROVENANCES = setOf(
+    HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED,
+    HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION,
+)
 
 /** Instante lossless usado pelo payload remoto congelado. */
 @Serializable
@@ -176,6 +189,8 @@ data class HealthSyncFrozenProjectionPayload(
     val caloriesKilocalories: Double? = null,
     val speedSamples: List<HealthSyncFrozenSpeedSample> = emptyList(),
     val heartRateSamples: List<HealthSyncFrozenHeartRateSample> = emptyList(),
+    /** Ausente em payloads legados e em filhos sem métrica de distância/velocidade. */
+    val metricProvenance: String? = null,
 ) {
     init {
         require(recordType.isNotBlank())
@@ -184,6 +199,7 @@ data class HealthSyncFrozenProjectionPayload(
         require(endZoneOffsetSeconds in -64_800..64_800)
         require(distanceMeters?.let { it.isFinite() && it >= 0.0 } != false)
         require(caloriesKilocalories?.let { it.isFinite() && it >= 0.0 } != false)
+        require(metricProvenance == null || metricProvenance in HEALTH_SYNC_ALLOWED_METRIC_PROVENANCES)
     }
 }
 

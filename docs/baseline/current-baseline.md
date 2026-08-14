@@ -35,12 +35,32 @@ A direção autoritativa após a Fase 15 está em `docs/roadmap/post-phase-15-di
 
 Estado futuro vigente:
 
-- Fase 16: manter e auditar antes do planejamento;
+- Fase 16: `completed`, executada pela Spec 023, com perfil pessoal, calibração
+  contextual RUNNING/WALKING, fallback BASE, snapshots preservados e sync
+  Health Connect explícito/write-only;
 - Fase 17: manter, simplificar e auditar antes do planejamento;
 - Fase 18: removida do roadmap ativo;
 - Fase 19: manter e auditar antes do planejamento;
 - Fase 20: manter e reescrever sem GPS/rota/distribuição pública;
 - Fases 21, 22, 23, 24 e 25: removidas do roadmap ativo.
+
+### Fase 16 concluída
+
+- A Spec 023 adicionou altura/meta editáveis, histórico local de peso, calibração
+  por distância externa e perfis aprendidos independentes para corrida e
+  caminhada.
+- Novos treinos RUNNING/WALKING usam perfil aprendido quando disponível e BASE
+  como fallback; TREADMILL e Daily Summary continuam BASE; CYCLING não usa
+  passos para distância.
+- Room está na versão `13`; migration `12 -> 13` cria tabela/índices de
+  calibração sem inserir snapshots ou operações Health Connect. Derivação
+  contextual efetiva é `watch-d3-d4-v3`, parser permanece `d4-v3`, e payload
+  congelado v2 mantém provenance compatível.
+- Calibração/reprocessamento não inicia sincronização automática; atividades
+  históricas permanecem reproduzíveis por snapshots e guards remotos são
+  fail-closed. Evidência física: `docs/integration/023-07-phase-16-physical-validation.md`.
+- Validação de migration usou fixture v12 reconstruída por ausência de arquivo
+  histórico v12 original; limitação permanece registrada na evidência.
 
 O Champion Companion é um aplicativo pessoal, sem objetivo de distribuição pública, beta formal, matriz multi-device ou gate de lançamento comercial. Validação física, testes e builds continuam sendo usados quando uma task específica exigir evidência.
 
@@ -108,7 +128,7 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v12`; as migrations efetivas da Fase 014, da Spec/Task `021` e da Spec/Task `022` são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas), `MIGRATION_10_11` (schema 11, índice de origem de amostras D4) e `MIGRATION_11_12` (schema 12, distância manual de bicicleta), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v13`; as migrations efetivas da Fase 014, da Spec/Task `021`, da Spec/Task `022` e da Spec 023 são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas), `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), `MIGRATION_11_12` (schema 12, distância manual de bicicleta) e `MIGRATION_12_13` (schema 13, calibrações de comprimento do passo), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
 ## Registro factual final da Fase 014
 

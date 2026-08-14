@@ -146,6 +146,12 @@ fun ExercisesScreen(
         viewModel.onIntent(ExercisesIntent.Load)
     }
 
+    LaunchedEffect(viewModel, onNavigateBack) {
+        viewModel.activityDeleted.collect {
+            onNavigateBack?.invoke()
+        }
+    }
+
     LaunchedEffect(openedActivityId) {
         if (openedActivityId == null) {
             viewModel.onIntent(ExercisesIntent.CloseActivity)
@@ -214,10 +220,12 @@ fun ExercisesScreen(
                     onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
                     onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
                     onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
+                    referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
                     onReprocessActivity = { viewModel.onIntent(ExercisesIntent.ReprocessSelectedActivity) },
                     onAcceptPlausibility = { viewModel.onIntent(ExercisesIntent.AcceptSelectedPlausibility) },
                     onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
                     onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
+                    onDeleteActivity = { viewModel.onIntent(ExercisesIntent.DeleteSelectedActivity) },
                 )
             }
         }
@@ -848,12 +856,15 @@ private fun ExerciseDetailShell(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
+    referenceDistanceCalibrationAllowed: Boolean,
     onReprocessActivity: () -> Unit,
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
     onDiscardActivity: () -> Unit,
+    onDeleteActivity: () -> Unit,
 ) {
     var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
+    var showDeleteConfirmation by remember(activityId) { mutableStateOf(false) }
     var showReprocessConfirmation by remember(activityId) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -901,6 +912,7 @@ private fun ExerciseDetailShell(
                             latestCalibration = detailState.latestCalibration,
                             reviewFormState = state.reviewFormState,
                             calibrationFormState = state.calibrationFormState,
+                            referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
                             operationError = state.operationError,
                             isReprocessing = state.isReprocessing,
                             canDiscardSelectedActivity = state.canDiscardSelectedActivity,
@@ -918,6 +930,9 @@ private fun ExerciseDetailShell(
                             onAcceptPlausibility = onAcceptPlausibility,
                             onSyncActivity = onSyncActivity,
                             onRequestDiscard = { showDiscardConfirmation = true },
+                            canDeleteSelectedActivity = state.canDeleteSelectedActivity,
+                            isDeletingSelectedActivity = state.isDeletingSelectedActivity,
+                            onRequestDelete = { showDeleteConfirmation = true },
                         )
                     }
                 }
@@ -944,6 +959,38 @@ private fun ExerciseDetailShell(
                 }
             },
         )
+    }
+
+    if (showDeleteConfirmation && state.canDeleteSelectedActivity) {
+        state.selectedActivity?.let { activity ->
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Excluir treino permanentemente?") },
+                text = {
+                    Text(
+                        "Treino de ${activity.metrics.startedAt.formatDateTime()}, tipo ${activity.displayType().toLabel()}. " +
+                            "Esta exclusão é irreversível e removerá o treino e seus dados locais. " +
+                            "Disponível somente para atividade não sincronizada, sem sessão de treino e sem efeito remoto iniciado.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDeleteActivity()
+                        },
+                        enabled = !state.isDeletingSelectedActivity,
+                    ) {
+                        Text("Excluir treino permanentemente")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancelar")
+                    }
+                },
+            )
+        } ?: run { showDeleteConfirmation = false }
     }
 
     if (showReprocessConfirmation) {
@@ -1003,6 +1050,7 @@ private fun WorkoutActivityDetailContent(
     latestCalibration: TreadmillCalibrationSnapshot?,
     reviewFormState: ExerciseReviewFormState,
     calibrationFormState: ExerciseCalibrationFormState,
+    referenceDistanceCalibrationAllowed: Boolean,
     operationError: ExerciseOperationError?,
     isReprocessing: Boolean,
     canDiscardSelectedActivity: Boolean,
@@ -1020,6 +1068,9 @@ private fun WorkoutActivityDetailContent(
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
     onRequestDiscard: () -> Unit,
+    canDeleteSelectedActivity: Boolean,
+    isDeletingSelectedActivity: Boolean,
+    onRequestDelete: () -> Unit,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
@@ -1057,6 +1108,14 @@ private fun WorkoutActivityDetailContent(
         ActivityHeartRateChartSection(activity)
         ActivityIntervalsSection(activity)
         ActivitySplitsSection(activity)
+        if (activity.isReferenceDistanceCalibrationEligible() && referenceDistanceCalibrationAllowed) {
+            ReferenceDistanceCalibrationSection(
+                activity = activity,
+                formState = calibrationFormState,
+                onDistanceChange = onCalibrationDistanceChange,
+                onSubmit = onSubmitCalibration,
+            )
+        }
         if (activity.parserValidity == ParserValidity.PARTIAL) {
             PartialParserNotice(activity)
         }
@@ -1064,12 +1123,14 @@ private fun WorkoutActivityDetailContent(
             activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> ReviewFormSection(
                 activity = activity,
                 formState = reviewFormState,
+                calibrationFormState = calibrationFormState,
                 onReviewTypeChange = onReviewTypeChange,
                 onReviewDistanceChange = onReviewDistanceChange,
                 onReviewTitleChange = onReviewTitleChange,
                 onReviewNotesChange = onReviewNotesChange,
                 onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
                 onSubmitReview = onSubmitReview,
+                onCalibrationDistanceChange = onCalibrationDistanceChange,
             )
 
             activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout && !activity.isCycling ->
@@ -1103,6 +1164,15 @@ private fun WorkoutActivityDetailContent(
         if (canDiscardSelectedActivity) {
             TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
                 Text("Descartar treino")
+            }
+        }
+        if (canDeleteSelectedActivity) {
+            TextButton(
+                onClick = onRequestDelete,
+                enabled = !isDeletingSelectedActivity,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text("Excluir treino permanentemente", color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -1694,7 +1764,7 @@ private fun ActivitySplitsSection(activity: WorkoutActivity) {
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
-            Text("Splits e BPM por quilômetro", style = MaterialTheme.typography.titleLarge)
+            Text("Splits e BPM", style = MaterialTheme.typography.titleLarge)
             when (activity.canonicalReadStatus) {
                 WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH,
                 WorkoutCanonicalReadStatus.NOT_MATERIALIZED,
@@ -1715,7 +1785,7 @@ private fun ActivitySplitsSection(activity: WorkoutActivity) {
                 WorkoutCanonicalReadStatus.AVAILABLE -> {
                     if (splits.isEmpty()) {
                         Text(
-                            text = "Distância canônica abaixo de 1 km: nenhum split completo para exibir.",
+                            text = "Nenhum split materializado para exibir.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1833,12 +1903,14 @@ private fun PartialParserNotice(activity: WorkoutActivity) {
 private fun ReviewFormSection(
     activity: WorkoutActivity,
     formState: ExerciseReviewFormState,
+    calibrationFormState: ExerciseCalibrationFormState,
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewDistanceChange: (String) -> Unit,
     onReviewTitleChange: (String) -> Unit,
     onReviewNotesChange: (String) -> Unit,
     onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
     onSubmitReview: () -> Unit,
+    onCalibrationDistanceChange: (String) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1886,6 +1958,20 @@ private fun ReviewFormSection(
                     singleLine = true,
                     isError = formState.error?.category == ExerciseOperationErrorCategory.INVALID_DISTANCE,
                     enabled = !formState.isSaving,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
+            if (activity.isWatchWorkout && formState.selectedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                OutlinedTextField(
+                    value = calibrationFormState.reportedDistanceInput,
+                    onValueChange = onCalibrationDistanceChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Distância de referência") },
+                    supportingText = {
+                        Text("Opcional agora; após salvar revisão, será usada para calibrar corrida/caminhada. Informe fonte externa; o app não coleta GPS.")
+                    },
+                    suffix = { Text("km") },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
@@ -2110,6 +2196,71 @@ private fun CalibrationFormSection(
             PrimaryActionButton(
                 label = if (formState.isSaving) "Salvando calibração" else "Aplicar calibração",
                 onClick = onSubmitCalibration,
+                enabled = formState.reportedDistanceInput.isNotBlank(),
+                isLoading = formState.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
+    activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+        confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+        workflowState in setOf(
+            ActivityWorkflowState.PENDING_CALIBRATION,
+            ActivityWorkflowState.READY_TO_SYNC,
+        ActivityWorkflowState.SYNC_FAILED,
+        ) &&
+        parserValidity == ParserValidity.VALID &&
+        derivationSnapshot?.canonicalSeriesEligible == true &&
+        intervals.any { it.decodedSteps != null && it.decodedSteps > 0L }
+
+@Composable
+private fun ReferenceDistanceCalibrationSection(
+    activity: WorkoutActivity,
+    formState: ExerciseCalibrationFormState,
+    onDistanceChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = ChampionShapeLarge) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Calibrar com distância de referência", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Informe distância externa a partir de fonte conhecida. O Champion Companion não coleta GPS.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            MetricCard("Distância atual estimada", activity.canonicalDistanceMeters.toDistanceLabel())
+            MetricCard("Distância após calibração", formState.previewDistanceMeters.toDistanceLabel())
+            MetricCard("Ritmo após calibração", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel())
+            MetricCard("Velocidade após calibração", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel())
+            OutlinedTextField(
+                value = formState.reportedDistanceInput,
+                onValueChange = onDistanceChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Distância de referência (km)") },
+                singleLine = true,
+                enabled = !formState.isSaving,
+            )
+            MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível")
+            MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel())
+            MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel())
+            MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel())
+            Text(
+                "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            formState.validationError?.let {
+                Text(it.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            PrimaryActionButton(
+                label = if (formState.isSaving) "Aplicando calibração" else "Aplicar calibração",
+                onClick = onSubmit,
                 enabled = formState.reportedDistanceInput.isNotBlank(),
                 isLoading = formState.isSaving,
                 modifier = Modifier.fillMaxWidth(),
@@ -2367,6 +2518,7 @@ private fun StepLengthSource.toLabel(): String = when (this) {
     StepLengthSource.MANUAL -> "entrada manual"
     StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> "sugestão aceita pela altura"
     StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> "calibração de distância"
+    StepLengthSource.CONTEXTUAL_LEARNED_PROFILE -> "perfil contextual aprendido"
 }
 
 private fun WorkoutPlausibilityIndicator.toLabel(): String = when (this) {
@@ -2435,6 +2587,9 @@ private fun DomainValue<Double>.toDistanceLabel(): String = when (this) {
 
 private fun Double?.toDistanceLabel(): String =
     if (this == null) "indisponível" else String.format(Locale.forLanguageTag("pt-BR"), "%.2f km", this / 1_000.0)
+
+private fun Double?.toStepLengthLabel(): String =
+    if (this == null) "indisponível" else String.format(Locale.forLanguageTag("pt-BR"), "%.3f m", this)
 
 private fun Double?.toPaceLabel(): String {
     val seconds = this ?: return "indisponível"
@@ -2699,12 +2854,15 @@ private fun Instant.formatTime(): String =
         .format(this)
 
 private fun Duration.toDurationLabel(): String {
-    val totalMinutes = toMinutes()
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return when {
-        hours > 0 && minutes > 0 -> "${hours} h ${minutes} min"
-        hours > 0 -> "${hours} h"
-        else -> "${minutes} min"
+    val negative = isNegative
+    val totalSeconds = if (seconds == Long.MIN_VALUE) Long.MAX_VALUE else kotlin.math.abs(seconds)
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    val label = if (hours > 0) {
+        "%02d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
     }
+    return if (negative) "-$label" else label
 }

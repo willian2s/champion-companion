@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -24,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,6 +53,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -71,6 +74,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryOrigin
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -246,7 +250,7 @@ fun WeightDetailScreen(
     val state by healthViewModel.state.collectAsState()
     MetricDetailScaffold(
         title = "Peso",
-        description = "Esta tela usa apenas último peso persistido já disponível. Cadastro, edição e histórico completo ficam para fase futura.",
+        description = "Registre medições em quilogramas. Os dados locais permanecem disponíveis mesmo quando Health Connect estiver indisponível.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
     ) {
@@ -262,16 +266,145 @@ fun WeightDetailScreen(
                 )
             }
         }
-        HealthMetricChartSection(
-            title = "Gráfico",
-            message = "Gráfico de peso fica para fase futura de histórico e perfil.",
+        PrimaryActionButton(
+            label = "Adicionar medição",
+            onClick = { healthViewModel.onIntent(HealthIntent.OpenWeightEditor) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.isSavingWeight,
         )
+        if (state.isWeightEditorOpen) {
+            WeightEditor(
+                state = state,
+                onValueChange = { healthViewModel.onIntent(HealthIntent.WeightChanged(it)) },
+                onSave = { healthViewModel.onIntent(HealthIntent.SaveWeight) },
+                onCancel = { healthViewModel.onIntent(HealthIntent.CancelWeight) },
+            )
+        }
+        state.weightMessage?.let { message ->
+            WeightMessageCard(message = message) {
+                healthViewModel.onIntent(HealthIntent.DismissWeightMessage)
+            }
+        }
         HealthMetricHistorySection(
             title = "Histórico",
-            emptyMessage = "Histórico completo de peso ainda não faz parte desta fase.",
-        )
+            emptyMessage = "Ainda não há medições de peso salvas.",
+        ) {
+            when (val history = state.weightHistory) {
+                HealthWeightHistoryState.Loading -> Text("Carregando histórico…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                HealthWeightHistoryState.Unavailable -> ErrorState(
+                    title = "Histórico indisponível",
+                    message = "Não foi possível ler o histórico local agora.",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                is HealthWeightHistoryState.Available -> WeightHistoryList(history.measurements)
+            }
+        }
     }
 }
+
+@Composable
+private fun WeightEditor(
+    state: HealthUiState,
+    onValueChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    HealthCard(title = "Nova medição", modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = state.weightInput,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
+            label = { Text("Peso") },
+            suffix = { Text("kg") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        )
+        Text(
+            text = "Data e hora atuais serão usadas automaticamente.",
+            modifier = Modifier.padding(top = ChampionSpacing.small),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        PrimaryActionButton(
+            label = if (state.isSavingWeight) "Salvando…" else "Salvar medição",
+            onClick = onSave,
+            modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
+            enabled = !state.isSavingWeight,
+        )
+        TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth(), enabled = !state.isSavingWeight) {
+            Text("Cancelar")
+        }
+    }
+}
+
+@Composable
+private fun WeightMessageCard(message: HealthWeightMessage, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = when (message) {
+                HealthWeightMessage.SAVED -> MaterialTheme.colorScheme.secondaryContainer
+                else -> MaterialTheme.colorScheme.errorContainer
+            },
+        ),
+    ) {
+        Column(modifier = Modifier.padding(ChampionSpacing.large)) {
+            Text(
+                text = when (message) {
+                    HealthWeightMessage.SAVED -> "Medição salva localmente com sucesso."
+                    HealthWeightMessage.INVALID_VALUE -> "Informe um peso positivo válido em quilogramas."
+                    HealthWeightMessage.SAVE_FAILED -> "Não foi possível salvar medição local. Tente novamente."
+                },
+                color = when (message) {
+                    HealthWeightMessage.SAVED -> MaterialTheme.colorScheme.onSecondaryContainer
+                    else -> MaterialTheme.colorScheme.onErrorContainer
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Fechar aviso") }
+        }
+    }
+}
+
+@Composable
+private fun WeightHistoryList(measurements: List<WeightMeasurement>) {
+    if (measurements.isEmpty()) {
+        HealthMetricEmptyState(message = "Ainda não há medições de peso salvas.")
+        return
+    }
+    Column(
+        modifier = Modifier.padding(top = ChampionSpacing.medium),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+    ) {
+        measurements.forEach { measurement ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(formatDateTime(measurement.measuredAt), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = measurement.origin.toHealthOriginLabel(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text(
+                    text = measurement.toKilogramsOrNull()?.let { "${decimalFormat().format(it)} kg" }
+                        ?: "Peso indisponível",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+private fun WeightMeasurement.toKilogramsOrNull(): Double? = when (unit) {
+    br.com.mwconsulting.championcompanion.core.model.WeightUnit.KILOGRAMS -> value
+    br.com.mwconsulting.championcompanion.core.model.WeightUnit.POUNDS -> value * 0.45359237
+}.takeIf { it.isFinite() && it > 0.0 }
 
 @Composable
 internal fun MetricDetailScaffold(

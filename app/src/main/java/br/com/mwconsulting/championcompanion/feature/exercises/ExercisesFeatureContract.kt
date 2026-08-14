@@ -30,12 +30,15 @@ data class ExercisesUiState(
     val detailState: ExerciseDetailState = ExerciseDetailState.Loading,
     val reviewFormState: ExerciseReviewFormState = ExerciseReviewFormState(),
     val calibrationFormState: ExerciseCalibrationFormState = ExerciseCalibrationFormState(),
+    val referenceDistanceCalibrationAllowed: Boolean = false,
     val operationError: ExerciseOperationError? = null,
     val isReprocessing: Boolean = false,
     val isAcceptingPlausibility: Boolean = false,
     val pendingActivities: List<WorkoutActivity> = emptyList(),
     val hasUnsavedDetailChanges: Boolean = false,
     val canDiscardSelectedActivity: Boolean = false,
+    val canDeleteSelectedActivity: Boolean = false,
+    val isDeletingSelectedActivity: Boolean = false,
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
@@ -131,6 +134,10 @@ data class ExerciseCalibrationFormState(
     val previewDistanceMeters: Double? = null,
     val previewAveragePaceSecondsPerKilometer: Double? = null,
     val previewAverageSpeedMetersPerSecond: Double? = null,
+    val eligibleSteps: Long? = null,
+    val observedStepLengthMeters: Double? = null,
+    val currentProfileStepLengthMeters: Double? = null,
+    val futureProfileStepLengthMeters: Double? = null,
     val isSaving: Boolean = false,
     val completedAt: Instant? = null,
     val validationError: ExerciseOperationError? = null,
@@ -185,6 +192,7 @@ sealed interface ExercisesIntent {
     data object AcceptSelectedPlausibility : ExercisesIntent
     data object SyncSelectedActivity : ExercisesIntent
     data object DiscardSelectedActivity : ExercisesIntent
+    data object DeleteSelectedActivity : ExercisesIntent
     data object ConfirmExitDetail : ExercisesIntent
     data object DismissOperationError : ExercisesIntent
     data object StartImport : ExercisesIntent

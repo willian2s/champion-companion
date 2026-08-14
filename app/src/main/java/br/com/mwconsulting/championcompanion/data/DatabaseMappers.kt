@@ -20,6 +20,7 @@ import br.com.mwconsulting.championcompanion.core.database.TreadmillCalibrationE
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportLookupRecord
 import br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity
+import br.com.mwconsulting.championcompanion.core.database.StepLengthCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationRecord
@@ -87,6 +88,10 @@ import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutCorrelationC
 import br.com.mwconsulting.championcompanion.core.model.SafeDiagnosticError
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
+import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibration
+import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationId
+import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary
+import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.TEMPORAL_ORDER_VALIDATED_MARKER
@@ -305,6 +310,15 @@ internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasureme
     ).successOrNull()
 }
 
+internal fun WeightMeasurement.toEntity(profileId: UserProfileId) = WeightMeasurementEntity(
+    id = id.value.toString(),
+    profileId = profileId.value.toString(),
+    value = value,
+    unit = unit.name,
+    measuredAtEpochMillis = measuredAt.toEpochMilli(),
+    origin = origin.name,
+)
+
 internal fun WeightMeasurementEntity.toCalendarSummary(): CalendarWeightMeasurementSummary? =
     toDomain()?.let { measurement ->
         CalendarWeightMeasurementSummary(
@@ -414,6 +428,76 @@ internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEnti
         heightCentimeters = heightCentimeters,
         stepLengthProfile = stepLengthProfile,
     ).successOrNull()
+}
+
+internal fun StepLengthCalibration.toEntity() = StepLengthCalibrationEntity(
+    id = id.value.toString(),
+    profileId = profileId.value.toString(),
+    activityId = activityId.value.toString(),
+    workoutType = workoutType.name,
+    referenceDistanceMeters = referenceDistanceMeters,
+    decodedSteps = decodedSteps,
+    acceptedAtEpochMillis = acceptedAt.toEpochMilli(),
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
+internal fun StepLengthCalibrationEntity.toDomain(): StepLengthCalibration? {
+    val type = enum<WorkoutType>(workoutType) ?: return null
+    return StepLengthCalibration.create(
+        id = uuid(id)?.let(::StepLengthCalibrationId) ?: return null,
+        profileId = uuid(profileId)?.let(::UserProfileId) ?: return null,
+        activityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null,
+        workoutType = type,
+        referenceDistanceMeters = referenceDistanceMeters,
+        decodedSteps = decodedSteps,
+        acceptedAt = Instant.ofEpochMilli(acceptedAtEpochMillis),
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+    ).successOrNull()
+}
+
+internal fun StepLengthCalibration.toSummary() = StepLengthCalibrationSummary(
+    id = id,
+    profileId = profileId,
+    activityId = activityId,
+    workoutType = workoutType,
+    referenceDistanceMeters = referenceDistanceMeters,
+    decodedSteps = decodedSteps,
+    observedStepLengthMeters = observedStepLengthMeters,
+    acceptedAt = acceptedAt,
+    updatedAt = updatedAt,
+)
+
+/** Agrega somente evidências que passam validação individual de domínio. */
+internal fun List<StepLengthCalibrationEntity>.toLearnedStepLengthProfile(
+    workoutType: WorkoutType,
+): LearnedStepLengthProfile? {
+    if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null
+    val validCalibrations = mapNotNull { it.toDomain() }
+        .filter { it.workoutType == workoutType }
+    if (validCalibrations.isEmpty()) return null
+
+    val totalReferenceDistanceMeters = validCalibrations.sumOf { it.referenceDistanceMeters }
+    val totalDecodedSteps = try {
+        validCalibrations.fold(0L) { total, calibration ->
+            Math.addExact(total, calibration.decodedSteps)
+        }
+    } catch (_: ArithmeticException) {
+        return null
+    }
+    val updatedAt = validCalibrations.maxOfOrNull { it.updatedAt } ?: return null
+    val learnedStepLengthMeters = totalReferenceDistanceMeters / totalDecodedSteps.toDouble()
+    if (!totalReferenceDistanceMeters.isFinite() || totalReferenceDistanceMeters <= 0.0 ||
+        totalDecodedSteps <= 0L || !learnedStepLengthMeters.isFinite() || learnedStepLengthMeters <= 0.0
+    ) return null
+
+    return LearnedStepLengthProfile(
+        workoutType = workoutType,
+        stepLengthMeters = learnedStepLengthMeters,
+        sampleCount = validCalibrations.size,
+        totalReferenceDistanceMeters = totalReferenceDistanceMeters,
+        totalDecodedSteps = totalDecodedSteps,
+        updatedAt = updatedAt,
+    )
 }
 
 internal fun HeartRateMeasurement.toEntity() = HeartRateMeasurementEntity(
@@ -824,7 +908,9 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
             plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
         )
 
-        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION ->
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION,
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+        ->
             WorkoutDerivationSnapshot.derive(
                 intervals = measuredIntervals,
                 totalDuration = totalDuration,

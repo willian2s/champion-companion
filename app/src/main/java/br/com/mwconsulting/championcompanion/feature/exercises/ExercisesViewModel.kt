@@ -27,10 +27,13 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutatio
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
+import br.com.mwconsulting.championcompanion.core.model.ApplyReferenceDistanceCalibrationInput
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
+import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
@@ -54,6 +57,9 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
+import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
+import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary
+import br.com.mwconsulting.championcompanion.core.model.StepLengthResolutionPolicy
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
@@ -82,7 +88,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val COUNTDOWN_TICK_MILLIS = 1_000L
@@ -175,6 +183,7 @@ class ExercisesViewModel internal constructor(
     private val deviceRepository: DeviceRepository,
     private val workoutActivityRepository: WorkoutActivityRepository,
     private val treadmillCalibrationRepository: TreadmillCalibrationRepository,
+    private val personalMetricsRepository: PersonalMetricsRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
     private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
@@ -199,6 +208,13 @@ class ExercisesViewModel internal constructor(
     private val selectedActivityId = MutableStateFlow<WorkoutActivityId?>(null)
     private val selectedActivity = MutableStateFlow<WorkoutActivity?>(null)
     private val latestCalibration = MutableStateFlow<TreadmillCalibrationSnapshot?>(null)
+    private val personalMetricsSnapshot = MutableStateFlow(PersonalMetricsSnapshot())
+    private val calibrationHistory = MutableStateFlow<List<StepLengthCalibrationSummary>>(emptyList())
+    private val referenceDistanceCalibrationAllowed = MutableStateFlow(false)
+    private val activityDeletionAllowed = MutableStateFlow(false)
+    private val deletionAllowedActivityId = MutableStateFlow<WorkoutActivityId?>(null)
+    private val isDeletingSelectedActivity = MutableStateFlow(false)
+    private val learnedProfiles = MutableStateFlow<List<LearnedStepLengthProfile>>(emptyList())
     private val detailState = MutableStateFlow<ExerciseDetailState>(ExerciseDetailState.Loading)
     private val reviewFormState = MutableStateFlow(ExerciseReviewFormState())
     private val calibrationFormState = MutableStateFlow(ExerciseCalibrationFormState())
@@ -254,10 +270,14 @@ class ExercisesViewModel internal constructor(
     private val _workoutRecoveryRequired = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val workoutRecoveryRequired: SharedFlow<String> = _workoutRecoveryRequired.asSharedFlow()
 
+    private val _activityDeleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val activityDeleted: SharedFlow<Unit> = _activityDeleted.asSharedFlow()
+
     private var durationTimerJob: Job? = null
     private var activeSessionObserverJob: Job? = null
     private var recoverySessionObserverJob: Job? = null
     private var finishAcknowledgementJob: Job? = null
+    private var deletionEligibilityJob: Job? = null
     private var displaySessionRevision: Long? = null
     private var displaySessionState: AppWorkoutSessionState? = null
     private var displayRuntimeGeneration: Long? = null
@@ -300,6 +320,9 @@ class ExercisesViewModel internal constructor(
             selectedActivityId.flatMapLatest { activityId ->
                 if (activityId == null) flowOf(null) else workoutActivityRepository.observeActivity(activityId)
             }.distinctUntilChanged().collect { activity ->
+                deletionEligibilityJob?.cancel()
+                activityDeletionAllowed.value = false
+                deletionAllowedActivityId.value = null
                 selectedActivity.value = activity
                 detailState.value = when {
                     selectedActivityId.value == null -> ExerciseDetailState.Loading
@@ -307,6 +330,50 @@ class ExercisesViewModel internal constructor(
                     else -> ExerciseDetailState.Ready(activity.id, latestCalibration.value)
                 }
                 syncFormsWithSelectedActivity(activity)
+                if (activity != null) {
+                    val activityId = activity.id
+                    deletionEligibilityJob = scope.launch {
+                        val result = workoutActivityRepository.isActivityDeletionAllowed(activityId)
+                        if (selectedActivity.value?.id == activityId) {
+                            val allowed = result is RepositoryResult.Success && result.value
+                            activityDeletionAllowed.value = allowed
+                            deletionAllowedActivityId.value = activityId.takeIf { allowed }
+                        }
+                    }
+                }
+            }
+        }
+        scope.launch {
+            personalMetricsRepository.observeSnapshot().collect {
+                personalMetricsSnapshot.value = it
+                refreshCalibrationPreview()
+            }
+        }
+        scope.launch {
+            personalMetricsRepository.observeLearnedStepLengthProfiles().collect {
+                learnedProfiles.value = it
+                refreshCalibrationPreview()
+            }
+        }
+        scope.launch {
+            selectedActivity.flatMapLatest { activity ->
+                val type = activity?.confirmedType
+                if (type == WorkoutType.RUNNING || type == WorkoutType.WALKING) {
+                    personalMetricsRepository.observeStepLengthCalibrations(type)
+                } else {
+                    flowOf(emptyList())
+                }
+            }.collect {
+                calibrationHistory.value = it
+                refreshCalibrationPreview()
+            }
+        }
+        scope.launch {
+            selectedActivity.flatMapLatest { activity ->
+                activity?.let { flow<RepositoryResult<Boolean>> { emit(personalMetricsRepository.isReferenceDistanceCalibrationAllowed(it.id)) } }
+                    ?: flowOf<RepositoryResult<Boolean>>(RepositoryResult.UnexpectedState)
+            }.collect { result ->
+                referenceDistanceCalibrationAllowed.value = result is RepositoryResult.Success && result.value
             }
         }
         scope.launch {
@@ -360,6 +427,10 @@ class ExercisesViewModel internal constructor(
                 detailState,
                 reviewFormState,
                 calibrationFormState,
+                referenceDistanceCalibrationAllowed,
+                activityDeletionAllowed,
+                deletionAllowedActivityId,
+                isDeletingSelectedActivity,
                 operationError,
                 isReprocessing,
                 isAcceptingPlausibility,
@@ -376,12 +447,16 @@ class ExercisesViewModel internal constructor(
                 val currentDetailState = values[6] as ExerciseDetailState
                 val reviewForm = values[7] as ExerciseReviewFormState
                 val calibrationForm = values[8] as ExerciseCalibrationFormState
-                val error = values[9] as ExerciseOperationError?
-                val reprocessing = values[10] as Boolean
-                val acceptingPlausibility = values[11] as Boolean
-                val goal = values[12] as Int
-                val device = values[13] as Device?
-                val preparation = values[14] as WorkoutPreparationUiState
+                val referenceDistanceAllowed = values[9] as Boolean
+                val deletionAllowed = values[10] as Boolean
+                val deletionActivityId = values[11] as WorkoutActivityId?
+                val deleting = values[12] as Boolean
+                val error = values[13] as ExerciseOperationError?
+                val reprocessing = values[14] as Boolean
+                val acceptingPlausibility = values[15] as Boolean
+                val goal = values[16] as Int
+                val device = values[17] as Device?
+                val preparation = values[18] as WorkoutPreparationUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -392,6 +467,9 @@ class ExercisesViewModel internal constructor(
                     detailState = currentDetailState,
                     reviewFormState = reviewForm,
                     calibrationFormState = calibrationForm,
+                    referenceDistanceCalibrationAllowed = referenceDistanceAllowed,
+                    canDeleteSelectedActivity = activity != null && deletionAllowed && deletionActivityId == activity.id && !deleting,
+                    isDeletingSelectedActivity = deleting,
                     operationError = error,
                     isReprocessing = reprocessing,
                     isAcceptingPlausibility = acceptingPlausibility,
@@ -421,6 +499,7 @@ class ExercisesViewModel internal constructor(
         deviceRepository: DeviceRepository,
         workoutActivityRepository: WorkoutActivityRepository,
         treadmillCalibrationRepository: TreadmillCalibrationRepository,
+        personalMetricsRepository: PersonalMetricsRepository,
         appPreferencesRepository: AppPreferencesRepository,
         healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
@@ -435,6 +514,7 @@ class ExercisesViewModel internal constructor(
         deviceRepository = deviceRepository,
         workoutActivityRepository = workoutActivityRepository,
         treadmillCalibrationRepository = treadmillCalibrationRepository,
+        personalMetricsRepository = personalMetricsRepository,
         appPreferencesRepository = appPreferencesRepository,
         healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         watchWorkoutImportCoordinator = watchWorkoutImportCoordinator,
@@ -455,7 +535,10 @@ class ExercisesViewModel internal constructor(
         when (intent) {
             ExercisesIntent.Load -> Unit
             is ExercisesIntent.SelectFilter -> selectedFilter.value = intent.filter
-            is ExercisesIntent.OpenActivity -> selectedActivityId.value = intent.activityId
+            is ExercisesIntent.OpenActivity -> {
+                isDeletingSelectedActivity.value = false
+                selectedActivityId.value = intent.activityId
+            }
             ExercisesIntent.CloseActivity -> closeSelectedActivity()
             is ExercisesIntent.EditReviewType -> updateReviewType(intent.type)
             is ExercisesIntent.EditReviewDistance -> updateReviewDistance(intent.distance)
@@ -471,6 +554,7 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.AcceptSelectedPlausibility -> acceptSelectedPlausibility()
             ExercisesIntent.SyncSelectedActivity -> syncSelectedActivity()
             ExercisesIntent.DiscardSelectedActivity -> discardSelectedActivity()
+            ExercisesIntent.DeleteSelectedActivity -> deleteSelectedActivity()
             ExercisesIntent.ConfirmExitDetail -> closeSelectedActivity()
             ExercisesIntent.DismissOperationError -> operationError.value = null
             ExercisesIntent.StartImport -> startImport()
@@ -1503,11 +1587,52 @@ class ExercisesViewModel internal constructor(
         selectedActivityId.value = null
         selectedActivity.value = null
         latestCalibration.value = null
+        activityDeletionAllowed.value = false
+        deletionAllowedActivityId.value = null
+        deletionEligibilityJob?.cancel()
+        isDeletingSelectedActivity.value = false
         detailState.value = ExerciseDetailState.Loading
         reviewFormState.value = ExerciseReviewFormState()
         calibrationFormState.value = ExerciseCalibrationFormState()
         operationError.value = null
         isReprocessing.value = false
+    }
+
+    private fun deleteSelectedActivity() {
+        val activity = selectedActivity.value ?: return
+        if (isDeletingSelectedActivity.value || !activityDeletionAllowed.value || deletionAllowedActivityId.value != activity.id) return
+
+        isDeletingSelectedActivity.value = true
+        scope.launch {
+            when (val result = workoutActivityRepository.deleteActivityCascade(activity.id)) {
+                is RepositoryResult.Success -> {
+                    operationError.value = null
+                    activityList.value = activityList.value.filterNot { it.id == activity.id }
+                    isDeletingSelectedActivity.value = false
+                    closeSelectedActivity()
+                    _activityDeleted.emit(Unit)
+                }
+                RepositoryResult.NotFound -> {
+                    isDeletingSelectedActivity.value = false
+                    operationError.value = ExerciseOperationError(ExerciseOperationErrorCategory.NOT_FOUND, "Atividade não encontrada para exclusão permanente.")
+                }
+                RepositoryResult.StorageUnavailable -> {
+                    isDeletingSelectedActivity.value = false
+                    operationError.value = ExerciseOperationError(ExerciseOperationErrorCategory.STORAGE, "Não foi possível excluir permanentemente a atividade.")
+                }
+                RepositoryResult.Conflict,
+                RepositoryResult.UnexpectedState,
+                -> {
+                    isDeletingSelectedActivity.value = false
+                    activityDeletionAllowed.value = false
+                    deletionAllowedActivityId.value = null
+                    operationError.value = ExerciseOperationError(
+                        ExerciseOperationErrorCategory.INVALID_STATE,
+                        "A exclusão permanente não está mais disponível com segurança. Nenhum dado foi removido.",
+                    )
+                }
+            }
+        }
     }
 
     private fun submitReview() {
@@ -1708,13 +1833,23 @@ class ExercisesViewModel internal constructor(
         calibrationFormState.value = form.copy(isSaving = true, validationError = null)
         scope.launch {
             when (
-                val result = treadmillCalibrationRepository.calibrateImportedActivity(
-                    CalibrateImportedActivityInput(
-                        activityId = activity.id,
-                        reportedMeters = reportedMeters,
-                        appliedAt = Instant.now(),
-                    ),
-                )
+                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                    personalMetricsRepository.applyReferenceDistanceCalibration(
+                        ApplyReferenceDistanceCalibrationInput(
+                            activityId = activity.id,
+                            referenceDistanceMeters = reportedMeters,
+                            acceptedAt = Instant.now(),
+                        ),
+                    )
+                } else {
+                    treadmillCalibrationRepository.calibrateImportedActivity(
+                        CalibrateImportedActivityInput(
+                            activityId = activity.id,
+                            reportedMeters = reportedMeters,
+                            appliedAt = Instant.now(),
+                        ),
+                    )
+                }
             ) {
                 is RepositoryResult.Success -> {
                     calibrationFormState.value = calibrationFormState.value.copy(
@@ -2007,6 +2142,10 @@ class ExercisesViewModel internal constructor(
                 previewDistanceMeters = previewDistanceMeters(activity, input),
                 previewAveragePaceSecondsPerKilometer = previewAveragePace(activity, input),
                 previewAverageSpeedMetersPerSecond = previewAverageSpeed(activity, input),
+                eligibleSteps = eligibleSteps(activity),
+                observedStepLengthMeters = previewObservedStepLength(activity, input),
+                currentProfileStepLengthMeters = currentEffectiveProfile(activity),
+                futureProfileStepLengthMeters = previewFutureProfile(activity, input),
                 completedAt = previous.completedAt.takeIf { preserveCompleted },
             )
         }
@@ -2019,12 +2158,26 @@ class ExercisesViewModel internal constructor(
             previewDistanceMeters = previewDistanceMeters(activity, distance),
             previewAveragePaceSecondsPerKilometer = previewAveragePace(activity, distance),
             previewAverageSpeedMetersPerSecond = previewAverageSpeed(activity, distance),
+            eligibleSteps = eligibleSteps(activity),
+            observedStepLengthMeters = previewObservedStepLength(activity, distance),
+            currentProfileStepLengthMeters = currentEffectiveProfile(activity),
+            futureProfileStepLengthMeters = previewFutureProfile(activity, distance),
             completedAt = null,
             validationError = null,
         )
     }
 
     private fun updateReviewType(type: WorkoutType) {
+        if (type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+            calibrationFormState.value = calibrationFormState.value.copy(
+                reportedDistanceInput = "",
+                previewDistanceMeters = null,
+                previewAveragePaceSecondsPerKilometer = null,
+                previewAverageSpeedMetersPerSecond = null,
+                observedStepLengthMeters = null,
+                futureProfileStepLengthMeters = null,
+            )
+        }
         updateReviewForm {
             copy(
                 selectedType = type,
@@ -2067,7 +2220,7 @@ class ExercisesViewModel internal constructor(
         if (normalized.isEmpty()) return null
         val kilometers = normalized.toDoubleOrNull() ?: return null
         if (!kilometers.isFinite() || kilometers <= 0.0) return null
-        return kilometers * 1_000.0
+        return (kilometers * 1_000.0).takeIf { it.isFinite() && it > 0.0 }
     }
 
     private fun parseManualDistanceMeters(input: String): Double? {
@@ -2084,16 +2237,73 @@ class ExercisesViewModel internal constructor(
 
     private fun previewAveragePace(activity: WorkoutActivity?, input: String): Double? {
         val reportedMeters = parseDistanceMeters(input) ?: return null
-        val durationSeconds = activity?.metrics?.duration?.seconds ?: return null
-        if (durationSeconds <= 0L) return null
-        return durationSeconds.toDouble() * 1_000.0 / reportedMeters
+        val duration = activity?.derivationSnapshot?.canonicalSeries?.coveredDuration
+            ?: activity?.metrics?.duration
+            ?: return null
+        val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
+        if (!durationSeconds.isFinite() || durationSeconds <= 0.0) return null
+        return (durationSeconds * 1_000.0 / reportedMeters).takeIf { it.isFinite() && it > 0.0 }
     }
 
     private fun previewAverageSpeed(activity: WorkoutActivity?, input: String): Double? {
         val reportedMeters = parseDistanceMeters(input) ?: return null
-        val durationSeconds = activity?.metrics?.duration?.seconds ?: return null
-        if (durationSeconds <= 0L) return null
-        return reportedMeters / durationSeconds.toDouble()
+        val duration = activity?.derivationSnapshot?.canonicalSeries?.coveredDuration
+            ?: activity?.metrics?.duration
+            ?: return null
+        val durationSeconds = duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
+        if (!durationSeconds.isFinite() || durationSeconds <= 0.0) return null
+        return (reportedMeters / durationSeconds).takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    private fun eligibleSteps(activity: WorkoutActivity?): Long? = activity
+        ?.takeIf { it.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) }
+        ?.derivationSnapshot?.canonicalSeries?.intervals
+        ?.map { it.decodedSteps }
+        ?.fold(0L) { total, steps ->
+            try { Math.addExact(total, steps) } catch (_: ArithmeticException) { Long.MIN_VALUE }
+        }
+        ?.takeIf { it > 0L }
+
+    private fun previewObservedStepLength(activity: WorkoutActivity?, input: String): Double? {
+        val steps = eligibleSteps(activity) ?: return null
+        val meters = parseDistanceMeters(input) ?: return null
+        return (meters / steps.toDouble()).takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    private fun previewFutureProfile(activity: WorkoutActivity?, input: String): Double? {
+        val observed = previewObservedStepLength(activity, input) ?: return null
+        val type = activity?.confirmedType ?: return null
+        if (type != WorkoutType.RUNNING && type != WorkoutType.WALKING) return null
+        val existing = calibrationHistory.value.filter { it.workoutType == type && it.activityId != activity.id }
+        val steps = eligibleSteps(activity) ?: return null
+        val totalSteps = existing.fold(steps) { total, calibration ->
+            try { Math.addExact(total, calibration.decodedSteps) } catch (_: ArithmeticException) { Long.MIN_VALUE }
+        }.takeIf { it > 0L } ?: return null
+        val totalDistance = existing.fold(0.0) { total, calibration ->
+            (total + calibration.referenceDistanceMeters).takeIf { it.isFinite() } ?: return null
+        } + (parseDistanceMeters(input) ?: return null)
+        return (totalDistance / totalSteps.toDouble()).takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    private fun currentEffectiveProfile(activity: WorkoutActivity?): Double? {
+        val type = activity?.confirmedType ?: WorkoutType.UNKNOWN
+        return StepLengthResolutionPolicy.resolve(
+            workoutType = type,
+            baseProfile = personalMetricsSnapshot.value.stepLengthProfile,
+            learnedProfiles = learnedProfiles.value,
+        )?.stepLengthMeters
+    }
+
+    private fun refreshCalibrationPreview() {
+        selectedActivity.value?.let { activity ->
+            val current = calibrationFormState.value
+            calibrationFormState.value = current.copy(
+                eligibleSteps = eligibleSteps(activity),
+                observedStepLengthMeters = previewObservedStepLength(activity, current.reportedDistanceInput),
+                currentProfileStepLengthMeters = currentEffectiveProfile(activity),
+                futureProfileStepLengthMeters = previewFutureProfile(activity, current.reportedDistanceInput),
+            )
+        }
     }
 
     private fun logWorkflowDbSnapshot(

@@ -542,6 +542,7 @@ private fun StepLengthSource.toCalendarLabel(): String = when (this) {
     StepLengthSource.MANUAL -> "entrada manual"
     StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> "sugestão aceita pela altura"
     StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> "calibração de distância"
+    StepLengthSource.CONTEXTUAL_LEARNED_PROFILE -> "perfil contextual aprendido"
 }
 
 private fun WorkoutType.toCalendarLabel(): String = when (this) {

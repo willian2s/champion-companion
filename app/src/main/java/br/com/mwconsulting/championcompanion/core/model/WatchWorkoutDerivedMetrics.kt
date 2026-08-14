@@ -11,6 +11,9 @@ private const val U16_MASK = 0xFFFFL
 /** Versão da derivação normalizada de série canônica de treinos do relógio. */
 const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v2"
 
+/** Versão usada pela derivação contextual e pela calibração externa da atividade. */
+const val WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION = "watch-d3-d4-v3"
+
 /** Versão legada preservada somente para leitura de snapshots já persistidos. */
 internal const val WATCH_WORKOUT_LEGACY_DERIVATION_VERSION = "watch-d3-d4-v1"
 
@@ -19,6 +22,7 @@ enum class StepLengthSource {
     MANUAL,
     HEIGHT_SUGGESTION_ACCEPTED,
     REFERENCE_DISTANCE_CALIBRATION,
+    CONTEXTUAL_LEARNED_PROFILE,
 }
 
 /** Estado seguro da leitura canônica para consumidores locais. */
@@ -75,6 +79,42 @@ object StepLengthSuggestionPolicy {
 /** Adapters de nomenclatura para consumidores que ainda usam perfil pessoal. */
 typealias PersonalStepLength = StepLengthProfile
 typealias StepLengthSnapshot = StepLengthProfile
+
+/**
+ * Única política semântica para resolver o perfil de passo de um treino.
+ *
+ * A ausência de perfil aprendido sempre retorna ao perfil base. Bicicleta não
+ * possui resolução por passos; resumo diário não chama esta política e mantém
+ * [DailySummaryPolicy].
+ */
+object StepLengthResolutionPolicy {
+    fun resolve(
+        workoutType: WorkoutType,
+        baseProfile: StepLengthProfile?,
+        learnedProfiles: Iterable<LearnedStepLengthProfile> = emptyList(),
+    ): StepLengthProfile? {
+        if (workoutType == WorkoutType.CYCLING) return null
+
+        val learned = when (workoutType) {
+            WorkoutType.RUNNING,
+            WorkoutType.WALKING,
+            -> learnedProfiles.firstOrNull { it.workoutType == workoutType }
+
+            WorkoutType.TREADMILL,
+            WorkoutType.FREE_WORKOUT,
+            WorkoutType.UNKNOWN,
+            WorkoutType.CYCLING,
+            -> null
+        }
+        return learned?.let {
+            StepLengthProfile.create(
+                stepLengthMeters = it.stepLengthMeters,
+                source = StepLengthSource.CONTEXTUAL_LEARNED_PROFILE,
+                updatedAt = it.updatedAt,
+            ).valueOrNull()
+        } ?: baseProfile
+    }
+}
 
 /** Janela temporal semiaberta [start, end). */
 @ConsistentCopyVisibility
@@ -1216,22 +1256,23 @@ object WorkoutSplitCalculator {
      * Calcula projeção de splits ou sinaliza falha estrutural sem omitir apenas
      * fronteiras inválidas.
      *
-     * Lista vazia continua sendo resultado válido para série abaixo de 1 km;
-     * [null] representa incapacidade de materializar todos os splits esperados.
+     * O último split pode ser parcial. [null] representa incapacidade de
+     * materializar todas as fronteiras esperadas.
      */
     fun calculateOrNull(
         series: CanonicalWorkoutSeries,
         heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
     ): List<WorkoutSplit>? {
-        val completeSplitCount = completeSplitCount(series) ?: return null
-        if (completeSplitCount <= 0) return emptyList()
+        val splitBoundaries = splitBoundaries(series) ?: return null
+        if (splitBoundaries.isEmpty()) return emptyList()
         val sessionWindow = WorkoutIntervalWindow.create(
             series.intervals.first().effectiveWindow.start,
             series.intervals.last().effectiveWindow.end,
         ).valueOrNull() ?: return null
-        return (1..completeSplitCount).map { number ->
+        return splitBoundaries.mapIndexed { index, boundary ->
+            val number = index + 1
             val startDistance = (number - 1) * SPLIT_DISTANCE_METERS
-            val endDistance = number * SPLIT_DISTANCE_METERS
+            val endDistance = boundary
             val start = boundaryAtDistance(series, startDistance) ?: return null
             val end = boundaryAtDistance(series, endDistance) ?: return null
             val window = WorkoutIntervalWindow.create(start, end).valueOrNull() ?: return null
@@ -1239,33 +1280,42 @@ object WorkoutSplitCalculator {
             val duration = window.duration
             val durationSeconds = duration.secondsAsDouble()
             val splitSteps = portions.sumOf { it.steps }
+            val splitDistance = endDistance - startDistance
             val bpm = weightedBpm(heartRateSamples, window, sessionWindow)
             WorkoutSplit(
                 number = number,
                 targetDistanceMeters = endDistance,
                 window = window,
-                distanceMeters = endDistance - startDistance,
+                distanceMeters = splitDistance,
                 duration = duration,
                 averageCadenceStepsPerMinute = if (splitSteps == 0.0) 0.0 else splitSteps / (durationSeconds / 60.0),
                 averageSpeedMetersPerSecond = if (durationSeconds > 0.0) {
-                    (endDistance - startDistance) / durationSeconds
+                    splitDistance / durationSeconds
                 } else {
                     0.0
                 },
-                averagePaceSecondsPerKilometer = if (durationSeconds > 0.0) durationSeconds else null,
+                averagePaceSecondsPerKilometer = if (durationSeconds > 0.0 && splitDistance > 0.0) {
+                    durationSeconds * 1_000.0 / splitDistance
+                } else {
+                    null
+                },
                 averageBpm = bpm.first,
                 bpmCoveredDuration = bpm.second,
             )
         }
     }
 
-    private fun completeSplitCount(series: CanonicalWorkoutSeries): Int? {
-        val count = floor(series.canonicalDistanceMeters / SPLIT_DISTANCE_METERS)
-        return if (count.isFinite() && count >= 0.0 && count <= Int.MAX_VALUE.toDouble()) {
-            count.toInt()
-        } else {
-            null
+    private fun splitBoundaries(series: CanonicalWorkoutSeries): List<Double>? {
+        val distance = series.canonicalDistanceMeters
+        if (!distance.isFinite() || distance <= 0.0) return emptyList()
+        val completeCount = floor(distance / SPLIT_DISTANCE_METERS)
+        if (!completeCount.isFinite() || completeCount < 0.0 || completeCount >= Int.MAX_VALUE.toDouble()) {
+            return null
         }
+        val boundaries = (1..completeCount.toInt()).map { it * SPLIT_DISTANCE_METERS }.toMutableList()
+        val remainder = distance - completeCount * SPLIT_DISTANCE_METERS
+        if (remainder > 1e-6) boundaries += distance
+        return boundaries
     }
 
     private data class DistancePortion(

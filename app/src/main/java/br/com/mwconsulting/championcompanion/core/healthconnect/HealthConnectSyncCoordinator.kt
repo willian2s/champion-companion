@@ -348,7 +348,11 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 failures += operation.failure(legacyBlock.error, legacyBlock.reason)
                 continue
             }
-            when (val started = healthSyncRepository.markStarted(operation.id, now)) {
+            when (val started = healthSyncRepository.markStartedIfCurrent(
+                operationId = operation.id,
+                expectedClientRecordVersion = operation.clientRecordVersion,
+                at = now,
+            )) {
                 is RepositoryResult.Success -> Unit
                 else -> {
                     failures += operation.failure(SafeSyncError.INTERNAL, "Não foi possível marcar operação como `SYNCING`.")

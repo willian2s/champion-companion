@@ -10,6 +10,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.MonotonicTimestamp
+import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
@@ -30,6 +31,11 @@ data class HealthUiState(
     val latestMeasurement: HeartRateMeasurement? = null,
     val recentMeasurements: List<HeartRateMeasurement> = emptyList(),
     val latestWeight: HealthWeightSnapshot? = null,
+    val weightHistory: HealthWeightHistoryState = HealthWeightHistoryState.Loading,
+    val weightInput: String = "",
+    val isWeightEditorOpen: Boolean = false,
+    val isSavingWeight: Boolean = false,
+    val weightMessage: HealthWeightMessage? = null,
     val todaySummary: HealthDailySummarySnapshot? = null,
     val dailyStepsGoal: Int = DEFAULT_DAILY_STEPS_GOAL,
     val hasAssociatedDevice: Boolean = false,
@@ -54,6 +60,18 @@ data class HealthWeightSnapshot(
     val origin: DataOrigin?,
 )
 
+sealed interface HealthWeightHistoryState {
+    data object Loading : HealthWeightHistoryState
+    data class Available(val measurements: List<WeightMeasurement>) : HealthWeightHistoryState
+    data object Unavailable : HealthWeightHistoryState
+}
+
+enum class HealthWeightMessage {
+    SAVED,
+    INVALID_VALUE,
+    SAVE_FAILED,
+}
+
 data class HealthDailySummarySnapshot(
     val steps: Long,
     val estimatedDistanceMeters: Double?,
@@ -77,6 +95,11 @@ sealed interface HealthIntent {
     data object AppMovedToBackground : HealthIntent
     data class SelectHistoryPeriod(val period: HeartRateHistoryPeriod) : HealthIntent
     data object OpenDevice : HealthIntent
+    data object OpenWeightEditor : HealthIntent
+    data class WeightChanged(val value: String) : HealthIntent
+    data object SaveWeight : HealthIntent
+    data object CancelWeight : HealthIntent
+    data object DismissWeightMessage : HealthIntent
 }
 
 sealed interface HealthSurfaceState {
