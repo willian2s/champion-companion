@@ -3,7 +3,7 @@
 - **Fase:** 16
 - **Spec:** `docs/specs/023-personal-metrics-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `5/7`
+- **Progresso:** `6/7`
 - **Branch:** `feat/023-personal-metrics-calibration`
 
 ## Objetivo
@@ -62,7 +62,7 @@ corrida/caminhada por distância externa de referência.
 - [x] `023-03-complete-profile-height-and-daily-steps-goal.md` — altura/meta de passos editáveis
 - [x] `023-04-implement-manual-weight-and-local-history.md` — peso manual/histórico funcional
 - [x] `023-05-implement-reference-distance-calibration.md` — calibração de corrida/caminhada funcional
-- [ ] `023-06-integrate-contextual-step-length-and-health-projections.md` — derivação contextual e projeções integradas
+- [x] `023-06-integrate-contextual-step-length-and-health-projections.md` — derivação contextual e projeções integradas
 - [ ] `023-07-validate-and-close-phase-16.md` — validação física e fechamento documental concluídos
 
 ## Observações
@@ -86,11 +86,11 @@ corrida/caminhada por distância externa de referência.
 - Validação concluída com compileDebugKotlin, lintDebug, lint, assembleDebug,
   assembleRelease e `git diff --check`. Persistência/restart e Health Connect
   real permanecem validação física de `023-07`.
-- `023-06` selecionada explicitamente para implementar provenance do frozen
-  payload Health Connect; item permanece desmarcado enquanto estiver em curso.
-- Recorte autorizado de `023-06` implementou frozen payload Health Connect v2,
-  `metricProvenance` e decoder compatível com v1; item permanece desmarcado por
-  não concluir integração contextual, consumers ou validação física.
+- `023-06` foi selecionada explicitamente para implementar provenance do frozen
+  payload Health Connect e integração contextual.
+- Recorte de `023-06` implementou frozen payload Health Connect v2,
+  `metricProvenance`, decoder compatível com v1, resolução contextual, derivação
+  `v3`, consumers por snapshot e guards fail-closed.
 - `023-04` implementada; validação física de restart e Health Connect permanece
   bloqueada para `023-07`.
 - `023-05` revisada e corrigida: preview canônica, provenance contextual,
@@ -109,7 +109,13 @@ corrida/caminhada por distância externa de referência.
 - Guard de exclusão rejeita origens desconhecidas e valida import compatível.
 - Exclusão permanente de atividade agora possui CTA fail-closed no detalhe,
   confirmação irreversível com data/tipo e fechamento após sucesso; integração
-  contextual e validação física continuam pendentes.
+  contextual concluída; validação física permanece pendente.
+- `023-06` concluída: resolução contextual centralizada, derivação `v3`,
+  consumidores baseados em snapshot e guards fail-closed de projeção, incluindo
+  bloqueio de filhos em retry com payload congelado, integrados; Health Connect
+  permanece explícito e write-only.
+- Validação física de payload v2, retry e Health Connect real permanece escopo de
+  `023-07`; nenhum efeito remoto é criado durante calibração ou rederivação.
 
 ## Estado esperado ao final
 

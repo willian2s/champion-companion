@@ -276,13 +276,20 @@ data class WorkoutActivity private constructor(
         }
     /** Indicação read-only de atividade que ainda precisa da versão atual. */
     val requiresWatchWorkoutReprocessing: Boolean
-        get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 && (
+        get() = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+            workflowState in setOf(
+                ActivityWorkflowState.PENDING_CALIBRATION,
+                ActivityWorkflowState.READY_TO_SYNC,
+                ActivityWorkflowState.SYNC_FAILED,
+            ) && (
             derivationSnapshot == null ||
                 derivationSnapshot.derivationVersion !in setOf(
                     WATCH_WORKOUT_DERIVATION_VERSION,
                     WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
                 ) ||
-                canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
+                canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ||
+                confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+                    derivationSnapshot.derivationVersion != WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION
             )
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {

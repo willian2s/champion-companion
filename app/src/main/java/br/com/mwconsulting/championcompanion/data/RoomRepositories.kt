@@ -100,6 +100,8 @@ import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasu
 import br.com.mwconsulting.championcompanion.core.model.SaveManualWeightMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.StepLengthProfile
+import br.com.mwconsulting.championcompanion.core.model.StepLengthResolutionPolicy
+import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.TEMPORAL_ORDER_VALIDATED_MARKER
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
@@ -1428,34 +1430,37 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun resolveEffectiveStepLength(workoutType: WorkoutType): RepositoryResult<StepLengthProfile> = try {
         read {
-            if (workoutType == WorkoutType.CYCLING) {
-                // Cycling distance is manual/absent by contract; never expose a
-                // step profile to a caller that could semanticize it as cycling distance.
-                return@read RepositoryResult.NotFound
-            }
             val profile = database.userProfileDao().findCurrent()?.toDomain()
-                ?: return@read RepositoryResult.NotFound
-            val base = profile.stepLengthProfile ?: return@read RepositoryResult.NotFound
-            if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
-                return@read RepositoryResult.Success(base)
-            }
-            val learned = database.stepLengthCalibrationDao()
-                .observeByProfileAndWorkoutType(profile.id.value.toString(), workoutType.name)
-                .first()
-                .toLearnedStepLengthProfile(workoutType)
-                ?: return@read RepositoryResult.Success(base)
-            RepositoryResult.Success(
-                StepLengthProfile.create(
-                    learned.stepLengthMeters,
-                    br.com.mwconsulting.championcompanion.core.model.StepLengthSource.CONTEXTUAL_LEARNED_PROFILE,
-                    learned.updatedAt,
-                ).valueOrNull() ?: return@read RepositoryResult.Success(base),
-            )
+            resolveEffectiveStepLengthInternal(workoutType, profile)
+                ?.let { RepositoryResult.Success(it) }
+                ?: RepositoryResult.NotFound
         }
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (_: Exception) {
         RepositoryResult.StorageUnavailable
+    }
+
+    /** Resolve perfil e evidência no mesmo snapshot transacional da derivação. */
+    private suspend fun resolveEffectiveStepLengthInternal(
+        workoutType: WorkoutType,
+        profile: UserProfile?,
+    ): StepLengthProfile? {
+        val learnedProfiles = if (profile != null && workoutType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+            database.stepLengthCalibrationDao()
+                .observeByProfileAndWorkoutType(profile.id.value.toString(), workoutType.name)
+                .first()
+                .toLearnedStepLengthProfile(workoutType)
+                ?.let(::listOf)
+                .orEmpty()
+        } else {
+            emptyList()
+        }
+        return StepLengthResolutionPolicy.resolve(
+            workoutType = workoutType,
+            baseProfile = profile?.stepLengthProfile,
+            learnedProfiles = learnedProfiles,
+        )
     }
 
     override suspend fun findReferenceDistanceCalibrationSteps(
@@ -2721,6 +2726,16 @@ class RoomRepositories @Inject constructor(
                 WatchWorkoutReprocessFailureReason.SYNCED_REQUIRES_FUTURE_PROJECTION,
             )
         }
+        if (activity.workflowState !in setOf(
+                ActivityWorkflowState.PENDING_CALIBRATION.name,
+                ActivityWorkflowState.READY_TO_SYNC.name,
+                ActivityWorkflowState.SYNC_FAILED.name,
+            ) || hasUnsafeWorkoutProjectionChild(activity.id)
+        ) {
+            return WatchWorkoutReprocessResult.Blocked(
+                WatchWorkoutReprocessFailureReason.DERIVATION_INCONSISTENT,
+            )
+        }
 
         val importRecord = database.watchWorkoutImportDao().findByActivityId(activity.id)
             ?: return WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.IMPORT_METADATA_MISSING)
@@ -2751,7 +2766,11 @@ class RoomRepositories @Inject constructor(
             return WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.INDEX_INELIGIBLE)
         }
 
-        if (database.userProfileDao().findCurrent()?.toDomain()?.stepLengthProfile == null) {
+        val currentProfile = database.userProfileDao().findCurrent()?.toDomain()
+        val confirmedType = activity.confirmedType
+            ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
+            ?: WorkoutType.UNKNOWN
+        if (resolveEffectiveStepLengthInternal(confirmedType, currentProfile) == null) {
             return WatchWorkoutReprocessResult.Blocked(
                 WatchWorkoutReprocessFailureReason.STEP_LENGTH_PROFILE_INVALID,
             )
@@ -2940,6 +2959,16 @@ class RoomRepositories @Inject constructor(
         if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) {
             return RepositoryResult.UnexpectedState
         }
+        if (!replaceActive && activity.workflowState in setOf(
+                ActivityWorkflowState.SYNCING.name,
+                ActivityWorkflowState.SYNCED.name,
+                ActivityWorkflowState.DISCARDED.name,
+            )
+        ) {
+            // Derivação sem substituição é reservada à importação local. Não
+            // materialize snapshot novo em atividade com ciclo remoto ou descarte.
+            return RepositoryResult.UnexpectedState
+        }
         if (replaceActive && (activity.workflowState !in setOf(
                 ActivityWorkflowState.PENDING_CALIBRATION.name,
                 ActivityWorkflowState.READY_TO_SYNC.name,
@@ -2984,25 +3013,12 @@ class RoomRepositories @Inject constructor(
             return RepositoryResult.Success(persistedSnapshot)
         }
 
-        val profile = explicitStepLength ?: run {
-            val currentProfile = database.userProfileDao().findCurrent()?.toDomain()
-            val confirmedType = activity.confirmedType?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
-            if (confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
-                val learned = database.stepLengthCalibrationDao()
-                    .observeByProfileAndWorkoutType(currentProfile?.id?.value.toString(), confirmedType!!.name)
-                    .first()
-                    .toLearnedStepLengthProfile(confirmedType)
-                learned?.let {
-                    StepLengthProfile.create(
-                        it.stepLengthMeters,
-                        br.com.mwconsulting.championcompanion.core.model.StepLengthSource.CONTEXTUAL_LEARNED_PROFILE,
-                        it.updatedAt,
-                    ).valueOrNull()
-                } ?: currentProfile?.stepLengthProfile
-            } else {
-                currentProfile?.stepLengthProfile
-            }
-        }
+        val currentProfile = database.userProfileDao().findCurrent()?.toDomain()
+        val confirmedType = activity.confirmedType
+            ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
+            ?: WorkoutType.UNKNOWN
+        val profile = explicitStepLength
+            ?: resolveEffectiveStepLengthInternal(confirmedType, currentProfile)
         if (profile == null) {
             // Perfil ausente nunca transforma distância diagnóstica em fallback.
             if (existingSnapshot != null) {
@@ -3018,7 +3034,11 @@ class RoomRepositories @Inject constructor(
             rawIntervals = rawIntervals,
             parserVersion = importRecord.parserVersion,
         ) ?: return RepositoryResult.UnexpectedState
-        val derivationVersion = if (profile.source == br.com.mwconsulting.championcompanion.core.model.StepLengthSource.CONTEXTUAL_LEARNED_PROFILE) {
+        val derivationVersion = if (
+            profile.source == StepLengthSource.CONTEXTUAL_LEARNED_PROFILE ||
+            profile.source == StepLengthSource.REFERENCE_DISTANCE_CALIBRATION ||
+            confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)
+        ) {
             WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION
         } else {
             explicitDerivationVersion
@@ -3239,17 +3259,20 @@ class RoomRepositories @Inject constructor(
                     SyncOperationState.FAILED,
                 )
             ) {
-                // Frozen child payload can describe an older snapshot even when
-                // no remote effect has been observed. Do not mutate activity
-                // evidence while such retryable child remains local.
+                // Payload congelado pode descrever snapshot anterior mesmo sem
+                // efeito remoto observado. Não mutar evidência enquanto retry
+                // local ainda puder publicar esse payload.
                 return@any true
             }
             val isSameWorkoutAggregate = domain.key.aggregate.type == HealthSyncAggregateType.WORKOUT_ACTIVITY &&
                 domain.key.aggregate.id.toString() == activityId
             val isAllowedState = domain.state in setOf(SyncOperationState.PENDING, SyncOperationState.FAILED)
-            val hasNoRemoteEffect = domain.reconciliationCheckpoint !=
+            val hasNoAcceptedRemoteEffect = domain.reconciliationCheckpoint !=
                 HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT &&
-                domain.reconciliationState == HealthProjectionReconciliationState.EXPECTED &&
+                domain.reconciliationState !in setOf(
+                    HealthProjectionReconciliationState.SENT,
+                    HealthProjectionReconciliationState.OBSOLETE,
+                ) &&
                 domain.syncedAt == null
             val child = domain.key.projectionChildKey
             val isLegacyOperation = operation.projectionChildKey == HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY
@@ -3268,7 +3291,7 @@ class RoomRepositories @Inject constructor(
                     domain.projectionOrigin.originVersion.isNotBlank()
             )
 
-            !isSameWorkoutAggregate || !isAllowedState || !hasNoRemoteEffect || !childMetadataIsConsistent
+            !isSameWorkoutAggregate || !isAllowedState || !hasNoAcceptedRemoteEffect || !childMetadataIsConsistent
         }
     }
 

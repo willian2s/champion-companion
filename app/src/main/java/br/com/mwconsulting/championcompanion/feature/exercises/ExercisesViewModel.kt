@@ -59,6 +59,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary
+import br.com.mwconsulting.championcompanion.core.model.StepLengthResolutionPolicy
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
@@ -2285,9 +2286,12 @@ class ExercisesViewModel internal constructor(
     }
 
     private fun currentEffectiveProfile(activity: WorkoutActivity?): Double? {
-        val type = activity?.confirmedType
-        val learned = learnedProfiles.value.firstOrNull { it.workoutType == type }
-        return learned?.stepLengthMeters ?: personalMetricsSnapshot.value.stepLengthProfile?.stepLengthMeters
+        val type = activity?.confirmedType ?: WorkoutType.UNKNOWN
+        return StepLengthResolutionPolicy.resolve(
+            workoutType = type,
+            baseProfile = personalMetricsSnapshot.value.stepLengthProfile,
+            learnedProfiles = learnedProfiles.value,
+        )?.stepLengthMeters
     }
 
     private fun refreshCalibrationPreview() {

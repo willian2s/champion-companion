@@ -11,7 +11,7 @@ private const val U16_MASK = 0xFFFFL
 /** Versão da derivação normalizada de série canônica de treinos do relógio. */
 const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v2"
 
-/** Versão usada quando distância externa é aplicada diretamente à atividade. */
+/** Versão usada pela derivação contextual e pela calibração externa da atividade. */
 const val WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION = "watch-d3-d4-v3"
 
 /** Versão legada preservada somente para leitura de snapshots já persistidos. */
@@ -79,6 +79,42 @@ object StepLengthSuggestionPolicy {
 /** Adapters de nomenclatura para consumidores que ainda usam perfil pessoal. */
 typealias PersonalStepLength = StepLengthProfile
 typealias StepLengthSnapshot = StepLengthProfile
+
+/**
+ * Única política semântica para resolver o perfil de passo de um treino.
+ *
+ * A ausência de perfil aprendido sempre retorna ao perfil base. Bicicleta não
+ * possui resolução por passos; resumo diário não chama esta política e mantém
+ * [DailySummaryPolicy].
+ */
+object StepLengthResolutionPolicy {
+    fun resolve(
+        workoutType: WorkoutType,
+        baseProfile: StepLengthProfile?,
+        learnedProfiles: Iterable<LearnedStepLengthProfile> = emptyList(),
+    ): StepLengthProfile? {
+        if (workoutType == WorkoutType.CYCLING) return null
+
+        val learned = when (workoutType) {
+            WorkoutType.RUNNING,
+            WorkoutType.WALKING,
+            -> learnedProfiles.firstOrNull { it.workoutType == workoutType }
+
+            WorkoutType.TREADMILL,
+            WorkoutType.FREE_WORKOUT,
+            WorkoutType.UNKNOWN,
+            WorkoutType.CYCLING,
+            -> null
+        }
+        return learned?.let {
+            StepLengthProfile.create(
+                stepLengthMeters = it.stepLengthMeters,
+                source = StepLengthSource.CONTEXTUAL_LEARNED_PROFILE,
+                updatedAt = it.updatedAt,
+            ).valueOrNull()
+        } ?: baseProfile
+    }
+}
 
 /** Janela temporal semiaberta [start, end). */
 @ConsistentCopyVisibility
