@@ -116,6 +116,34 @@ corrida/caminhada por distância externa de referência.
   permanece explícito e write-only.
 - Validação física de payload v2, retry e Health Connect real permanece escopo de
   `023-07`; nenhum efeito remoto é criado durante calibração ou rederivação.
+- `023-07` em andamento: build, lint e instalação no Galaxy S22 passaram. Foram
+  informadas corridas de `2,90 km` em 12/08 e `3,00 km` em 14/08; a segunda não
+  deve ser sincronizada com Health Connect. Importação explícita encontrou as
+  duas corridas e um treino livre; ambas as corridas foram calibradas e fecharam
+  em `2.900 m` e `3.000 m` antes da remoção autorizada da corrida 14/08. Corrida
+  12/08 sincronizada explicitamente com 33 operações HC; corrida 14/08 removida
+  sem operação HC. Treino livre revisado como `WALKING` e corrigido para `950 m`,
+  gerando `950 / 936 = 1,014957 m` sem operação HC. Após remoção, RUNNING ficou
+  em `2.900 / 3.538 = 0,819672 m`; `user_version=13` e `integrity_check=ok`.
+  Altura `175 cm`, meta `1.000 passos` e pesos `95/96 kg` foram persistidos após
+  reinício. Teste sem permissão WRITE_WEIGHT salvou `95 kg` localmente e deixou
+  operação HC falhou temporariamente; permissão foi restaurada e retry sincronizou
+  a operação. Novo treino WALKING de 14/08 usou
+  `CONTEXTUAL_LEARNED_PROFILE` após reprocessamento explícito, sem operação HC.
+  TREADMILL validado com BASE/manual sem operação HC; CYCLING, Daily Summary e
+  consumidores da meta conferidos. HC indisponível/desabilitado, guards,
+  regressões restantes e demais gates ainda pendentes; corrida
+  reimportada de 14/08 permanece pendente sem sync; progresso permanece `6/7`.
+- Continuação da inspeção confirmou, por cópia somente leitura do banco, 11
+  atividades, 16 snapshots (11 ativos), 2 calibrações, 4 pesos, 1 distância
+  manual de bicicleta, 220 operações HC e zero órfãos nas consultas de
+  calibrações/snapshots/operações de treino, sem duplicidade de calibração ou
+  snapshot ativo. Payload
+  calibrado RUNNING preserva frozen payload v2, provenance externa e
+  `watch-d3-d4-v3`; a migration `12 -> 13` é aditiva no código. Guard físico de
+  `SYNCED` foi observado. Sem fixture segura, `SYNCING`, efeito remoto parcial,
+  Health Connect indisponível/desabilitado e prova física sobre banco v12
+  anterior permanecem `N/A`; status continua `in_progress` e progresso `6/7`.
 
 ## Estado esperado ao final
 
