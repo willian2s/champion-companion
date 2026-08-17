@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 1/17 subtarefas concluídas
+- **Progresso:** 2/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 ## Checklist
 
 - [x] [024-01-registrar-baseline-e-direcao-visual.md](024-01-registrar-baseline-e-direcao-visual.md)
-- [ ] [024-02-evoluir-fundacao-visual.md](024-02-evoluir-fundacao-visual.md)
+- [x] [024-02-evoluir-fundacao-visual.md](024-02-evoluir-fundacao-visual.md)
 - [ ] [024-03-refatorar-shell-de-navegacao.md](024-03-refatorar-shell-de-navegacao.md)
 - [ ] [024-04-refatorar-hub-saude-piloto.md](024-04-refatorar-hub-saude-piloto.md)
 - [ ] [024-05-refatorar-home.md](024-05-refatorar-home.md)
@@ -44,5 +44,9 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - Reexecução de `024-01` em 2026-08-17 passou: pacotes, versões, `Activity`
   resolvida de cada pacote, configuração física e hierarquias sanitizadas foram
   confirmados; nenhum bloqueio novo.
-- Detalhe diário, landscape, fonte `1,3x`, estados raros e variações de tema
-  ficaram `N/A` nesta etapa; devem ser cobertos pelas subtarefas apropriadas.
+- `024-02` concluída: fundação opt-in compilada, lintada, instalada e capturada
+  fisicamente em fallback claro/escuro, portrait e landscape com fonte ampliada;
+  nenhum consumidor existente foi migrado implicitamente.
+- Detalhe diário e estados raros ficaram `N/A` em `024-01`; landscape, fonte
+  `1,3x` e fallback claro/escuro foram cobertos na fundação e devem ser
+  repetidos nas subtarefas de superfície.
