@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2340" height="1080" viewBox="0 0 2340 1080">
+  <title>Shell de navegação — landscape — estrutura sanitizada</title>
+  <rect width="2340" height="1080" fill="#101416"/>
+  <rect x="81" y="72" width="2178" height="744" fill="#101416"/>
+  <rect x="153" y="120" width="2034" height="144" rx="24" fill="#1c2022"/>
+  <rect x="153" y="312" width="2034" height="456" rx="24" fill="#1c2022"/>
+  <rect y="816" width="2340" height="264" fill="#1c2022"/>
+  <g fill="#c0c8cc" font-family="sans-serif" font-size="30" text-anchor="middle">
+    <text x="234" y="970">Início</text>
+    <text x="702" y="970">Saúde</text>
+    <text x="1170" y="970">Calendário</text>
+    <text x="1638" y="970">Exercícios</text>
+    <text x="2106" y="970">Mais</text>
+  </g>
+  <rect x="168" y="840" width="132" height="72" rx="36" fill="#004d62"/>
+</svg>

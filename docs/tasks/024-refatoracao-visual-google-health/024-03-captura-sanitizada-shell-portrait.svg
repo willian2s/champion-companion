@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="2340" viewBox="0 0 1080 2340">
+  <title>Shell de navegação — portrait — estrutura sanitizada</title>
+  <rect width="1080" height="2340" fill="#101416"/>
+  <rect x="0" y="81" width="1080" height="1974" fill="#101416"/>
+  <rect x="72" y="153" width="936" height="168" rx="24" fill="#1c2022"/>
+  <rect x="72" y="369" width="936" height="540" rx="24" fill="#1c2022"/>
+  <rect x="72" y="957" width="936" height="432" rx="24" fill="#1c2022"/>
+  <rect x="72" y="1437" width="936" height="312" rx="24" fill="#1c2022"/>
+  <rect x="72" y="1797" width="450" height="258" rx="24" fill="#1c2022"/>
+  <rect x="558" y="1797" width="450" height="258" rx="24" fill="#1c2022"/>
+  <rect y="2055" width="1080" height="285" fill="#1c2022"/>
+  <g fill="#c0c8cc" font-family="sans-serif" font-size="30" text-anchor="middle">
+    <text x="108" y="2240">Início</text>
+    <text x="324" y="2240">Saúde</text>
+    <text x="540" y="2240">Calendário</text>
+    <text x="756" y="2240">Exercícios</text>
+    <text x="972" y="2240">Mais</text>
+  </g>
+  <rect x="42" y="2080" width="132" height="72" rx="36" fill="#004d62"/>
+</svg>

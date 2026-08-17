@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 2/17 subtarefas concluídas
+- **Progresso:** 3/17 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 
 - [x] [024-01-registrar-baseline-e-direcao-visual.md](024-01-registrar-baseline-e-direcao-visual.md)
 - [x] [024-02-evoluir-fundacao-visual.md](024-02-evoluir-fundacao-visual.md)
-- [ ] [024-03-refatorar-shell-de-navegacao.md](024-03-refatorar-shell-de-navegacao.md)
+- [x] [024-03-refatorar-shell-de-navegacao.md](024-03-refatorar-shell-de-navegacao.md)
 - [ ] [024-04-refatorar-hub-saude-piloto.md](024-04-refatorar-hub-saude-piloto.md)
 - [ ] [024-05-refatorar-home.md](024-05-refatorar-home.md)
 - [ ] [024-06-refatorar-frequencia-cardiaca.md](024-06-refatorar-frequencia-cardiaca.md)
@@ -56,3 +56,11 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - Detalhe diário e estados raros ficaram `N/A` em `024-01`; landscape, fonte
   `1,3x`, dynamic/fallback e temas devem ser cobertos nas subtarefas de
   superfície que renderizarem a composição real.
+- `024-03` concluída com shell tonal, cinco entradas preservadas, menu `Mais`,
+  bounds mínimos, smoke ADB de rotas/detalhe/retorno e validação de fonte `1,3x`,
+  landscape e temas claro/escuro; evidências sanitizadas portrait/landscape
+  reais e vetoriais versionadas na pasta da task.
+- Durante `024-03`, primeiro script de smoke precisou ser corrigido para usar
+  bounds dos itens do `DropdownMenu`; nenhum bloqueio funcional foi identificado.
+- Revisão independente de `024-03` passou após inclusão das capturas reais
+  sanitizadas; riscos residuais documentados não bloqueiam aceite.

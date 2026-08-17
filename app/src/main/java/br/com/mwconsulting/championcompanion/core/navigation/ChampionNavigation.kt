@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -25,8 +26,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -356,11 +360,24 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
 
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 0.dp,
+            ) {
                 val navigationBarScope = this
                 val isCalendarSubtree = backStack.contains(AppDestination.Calendar) &&
                     currentDestination != AppDestination.Calendar
+                val navigationItemColors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 primaryItems.forEach { item ->
                     NavigationBarItem(
                         selected = if (item.destination == AppDestination.Health) {
@@ -376,6 +393,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                         onClick = { requestNavigation(item.destination) },
                         icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
+                        colors = navigationItemColors,
                     )
                 }
                 Box(modifier = Modifier.weight(1f)) {
@@ -385,14 +403,19 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                         onClick = { additionalMenuExpanded = true },
                         icon = { Icon(imageVector = Icons.Filled.Menu, contentDescription = "Mais") },
                         label = { Text("Mais") },
+                        colors = navigationItemColors,
                     )
                     DropdownMenu(
                         expanded = additionalMenuExpanded,
                         onDismissRequest = { additionalMenuExpanded = false },
                         modifier = Modifier.align(Alignment.TopEnd),
+                        shape = MaterialTheme.shapes.extraLarge,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        tonalElevation = 3.dp,
                     ) {
                         additionalItems.forEach { item ->
                             DropdownMenuItem(
+                                modifier = Modifier.heightIn(min = 48.dp),
                                 text = { Text(item.label) },
                                 onClick = {
                                     additionalMenuExpanded = false
