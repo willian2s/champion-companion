@@ -6,35 +6,41 @@
 
 ## Objetivo e resultado esperado
 
-Adicionar primitives e componentes opt-in necessários à nova linguagem visual,
-preservando tema e consumidores atuais. Resultado: fundação reutilizável sem
-redesign implícito das telas ainda não migradas.
+Confirmar primitives e invariantes suficientes para iniciar o rollout visual,
+preservando tema e consumidores atuais. Resultado: fundação mínima sem promover
+componentes compartilhados antes de dois usos reais, conforme R2 e ADR-023.
 
 ## Requisitos e critérios cobertos
 
 - R1, R2, R4 e R5.
-- Critérios 3, 8, 10, 11 e 12 da spec.
+- Critérios 3, 10, 11 e 12 da spec.
+- Critério 8 fica `N/A` nesta etapa sem composição visual nova; será validado na
+  superfície que renderizar cada composição real.
 
 ## Escopo incluído
 
-- papéis visuais de página, header, seção, métrica e ação comprovados no
-  baseline;
-- componentes stateless com slots, textos e callbacks;
-- previews existentes ou novos quando úteis, sem testes;
-- iconografia Material genérica em lugar de glyphs textuais quando tocados;
-- acessibilidade, mínimo de toque e adaptação.
+- auditoria dos tokens, tema e componentes vigentes contra a matriz visual;
+- preservação da escala de espaçamento, shapes, tipografia do sistema, dynamic
+  color e paleta fallback existentes;
+- mínimo acionável de `48 dp` como invariante de acessibilidade já atendido pela
+  escala e pelos controles existentes;
+- registro do gate de promoção: componente compartilhado exige uso real em duas
+  superfícies; elemento estritamente pertencente ao shell pode usar a exceção
+  explícita de R2.
 
 ## Escopo excluído
 
 - mudança global especulativa de paleta, tipografia ou shapes;
 - alteração de telas de feature;
+- promoção antecipada de containers de página, cabeçalho, seção, resumo de
+  métrica ou grupo de ações;
 - dependência externa, fonte Google ou ativo Fitbit;
 - novos testes automatizados.
 
 ## Dependências
 
 - `024-01` concluída;
-- ADR visual criada e Spec 002.
+- ADR visual criada e Spec 024.
 
 ## Arquivos e símbolos prováveis
 
@@ -48,14 +54,15 @@ redesign implícito das telas ainda não migradas.
 
 ## Passos de implementação
 
-1. Traduzir somente padrões aprovados na matriz para APIs Compose pequenas.
-2. Manter APIs existentes ou adaptar de forma compatível.
-3. Criar container de página/header/seção apenas onde a invariância estiver
-   comprovada.
-4. Preservar formatação e regras de domínio fora do design system.
-5. Conferir contraste, semântica, toque mínimo e fonte ampliada em preview/app.
+1. Auditar primitives e contratos existentes contra os padrões aprovados.
+2. Manter APIs existentes e rejeitar tokens ou componentes sem consumidor real.
+3. Reservar a exceção de R2 para elementos invariantes do shell implementados em
+   `024-03`.
+4. Manter candidatos visuais locais à primeira superfície; promover somente
+   após segundo uso real equivalente.
+5. Preservar formatação e regras de domínio fora do design system.
 6. Revisar consumidores para garantir ausência de alteração implícita.
-7. Registrar decisões, capturas e resultado dos comandos.
+7. Registrar decisão, desvios e resultado dos comandos.
 
 ## Testes e comandos de validação
 
@@ -69,13 +76,14 @@ adb devices -l
 adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity
 ```
 
-Smoke: componentes em claro/escuro, dynamic/fallback representativo, fonte
-`1,3x` e landscape; confirmar telas antigas sem regressão visual ampla.
+Smoke: confirmar telas antigas sem regressão após a remoção das APIs prematuras.
+Validação visual de componentes ocorrerá nas superfícies que realmente os
+renderizarem.
 
 ## Definição de pronto
 
-- primitives aditivas implementadas e documentadas;
-- nenhum componente depende de estado ou infraestrutura funcional;
+- primitives e invariantes existentes auditadas e documentadas como suficientes;
+- nenhuma API compartilhada nova permanece sem dois consumidores reais;
 - consumidores antigos permanecem equivalentes;
 - sem ativo, fonte ou dependência Google/Fitbit;
 - lint, builds, instalação e smoke ADB registrados;
@@ -85,115 +93,80 @@ Smoke: componentes em claro/escuro, dynamic/fallback representativo, fonte
 
 - mudança em token existente pode causar big-bang oculto;
 - componente universal com muitas flags deve ser rejeitado;
+- preview não conta como consumidor real;
 - dynamic color e tokens semânticos fixos exigem contraste explícito;
 - não executar suites existentes.
 
-## Implementação realizada
+## Resolução do escalonamento — 2026-08-17
 
-- tokens opt-in `ChampionLayout` adicionados para padding de página, ritmo de
-  seção/conteúdo e alvo acionável mínimo de `48 dp`, reutilizando a escala
-  existente sem alterar seus valores;
-- componentes stateless e baseados em slots adicionados para página, cabeçalho,
-  seção, resumo de métrica e grupo de ações;
-- títulos de página, seção e métrica marcados semanticamente como heading;
-- metadados permanecem slots do chamador e valores/unidades continuam
-  pré-formatados fora do design system;
-- previews adicionados para temas claro/escuro, fonte `1,3x`, landscape e
-  conteúdo longo, usando somente dados genéricos;
-- consumidores, tema global, APIs existentes e glyphs de status permaneceram
-  inalterados.
+### Causa confirmada
 
-## Evidências desta execução
+- O commit `97c9757` promoveu `ChampionLayout`, `ChampionPage`,
+  `ChampionPageHeader`, `ChampionSection`, `ChampionMetricSummary` e
+  `ChampionActionGroup` em `core/designsystem`.
+- Auditoria de referências encontrou somente definições e previews, sem uso real
+  em feature ou shell. Preview e surface temporária não satisfazem o gate de duas
+  superfícies de R2 e ADR-023.
+- Slots arbitrários de cabeçalho e ações transferiam ao chamador a garantia de
+  alvo mínimo de `48 dp`; portanto, a API não assegurava integralmente R5.
+- O smoke ADB anterior abriu telas vigentes depois da remoção da surface
+  temporária. Ele comprovou ausência de regressão ampla, mas não renderização da
+  fundação que permaneceu no código.
 
-- `git diff --check`: passou, sem saída;
-- `./gradlew :app:compileDebugKotlin`: passou (`BUILD SUCCESSFUL`);
-- `./gradlew lint assembleDebug assembleRelease`: passou (`BUILD SUCCESSFUL`);
-- `./gradlew installDebug`: passou; APK instalado no Galaxy S22 `SM-S901E`;
-- testes automatizados: não criados, alterados ou executados;
-- smoke ADB sanitizado: passou em portrait escuro, rolagem, retorno, landscape,
-  fonte `1,3x` e landscape claro; configuração original restaurada;
-- configuração final confirmada: `1080x2340`, density `480`, fonte `1.0`,
-  portrait e tema escuro;
-- status atualizado para `completed` após validação física e revisão documental.
+### Decisão
 
-## Execução final — arquivos, decisões e evidências
+Escolhida a opção 2: reduzir a fundação às primitives e invariantes já existentes
+e adiar componentes. Não foi criada exceção na spec nem na ADR, pois isso
+enfraqueceria deliberadamente o guard contra abstração prematura e contrariaria
+a alternativa rejeitada de catálogo antes do piloto.
 
-### Arquivos alterados
+- removidos `ChampionLayout`, `ChampionPage`, `ChampionPageHeader`,
+  `ChampionSection`, `ChampionMetricSummary`, `ChampionActionGroup` e previews
+  exclusivos;
+- removidas capturas que representavam exclusivamente o protótipo descartado,
+  evitando tratá-las como evidência do estado final;
+- preservados `ChampionSpacing`, `ChampionShapes`, `ChampionTypography`, tema,
+  dynamic color, paleta fallback e componentes vigentes com consumidores reais;
+- `ChampionSpacing.massive` continua representando `48 dp`, e
+  `PrimaryActionButton` continua impondo altura mínima de `48 dp`;
+- nenhum arquivo de feature, shell, contrato funcional, dependência ou estado foi
+  alterado.
+
+`024-02` permanece `completed`: resultado válido desta fundação é auditoria e
+limite de promoção, não catálogo novo. `024-03` pode introduzir somente elemento
+invariante do shell; primeira composição de superfície deve permanecer local e
+só pode migrar para `core/designsystem` após segundo uso real equivalente.
+
+### Arquivos da resolução
 
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionTokens.kt`;
-- `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionFoundationComponents.kt`;
-- `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionFoundationPreviews.kt`;
-- `docs/tasks/024-refatoracao-visual-google-health/024-02-captura-sanitizada-fundacao.svg`;
-- `docs/tasks/024-refatoracao-visual-google-health/024-02-captura-fundacao-dark-portrait.png`;
-- `docs/tasks/024-refatoracao-visual-google-health/024-02-captura-fundacao-light-landscape-1-3.png`;
-- `docs/tasks/024-refatoracao-visual-google-health/024-02-evoluir-fundacao-visual.md`;
-- `docs/tasks/024-refatoracao-visual-google-health/024-00-overview.md`.
+- removidos `ChampionFoundationComponents.kt` e
+  `ChampionFoundationPreviews.kt`;
+- removidas três capturas `024-02-captura-*` vinculadas ao protótipo;
+- `024-02-evoluir-fundacao-visual.md`;
+- `024-00-overview.md`.
 
-Nenhuma feature, tema global, consumidor existente, dependência, contrato
-funcional, persistência, BLE ou Health Connect foi alterado.
-
-### Decisões e desvios
-
-- `ChampionLayout` adiciona tokens opt-in para ritmo de página, seção, conteúdo e
-  alvo acionável mínimo de `48 dp`, sem alterar valores existentes.
-- `ChampionPage`, `ChampionPageHeader`, `ChampionSection`,
-  `ChampionMetricSummary` e `ChampionActionGroup` são stateless e baseados em
-  conteúdo, metadata e callbacks fornecidos pelo chamador.
-- Títulos de página, seção e resumo de métrica recebem semântica `heading`; os
-  valores e unidades continuam formatados fora do design system.
-- Header aceita conteúdo inicial e ações; grupo de ações mantém ação primária
-  separada de slots secundários.
-- Previews cobrem claro, escuro, fallback sem dynamic color, fonte `1,3x`,
-  landscape e conteúdo longo com dados genéricos.
-- Glyphs de status existentes não foram alterados para evitar redesign implícito
-  em consumidores ainda não migrados; iconografia Material fica para adoção
-  opt-in nas superfícies migradas.
-- A captura SVG é reconstrução estrutural sanitizada; os dois PNGs são capturas
-  reais da surface temporária de validação, sem dados pessoais, recortadas para
-  remover barras do sistema e depois preservadas como evidência.
-
-### Comandos executados e resultados
+### Validações da resolução
 
 | Comando | Resultado |
 |---|---|
+| Auditoria de referências das seis APIs removidas | Passou; nenhum consumidor real existia |
 | `git diff --check` | Passou; sem erro |
-| `./gradlew :app:compileDebugKotlin` | Passou; `BUILD SUCCESSFUL` |
-| Primeira `./gradlew lint assembleDebug assembleRelease` | Interrompida pelo limite de 120 s, sem erro reportado; repetida com limite de 300 s |
 | `./gradlew lint assembleDebug assembleRelease` | Passou; `BUILD SUCCESSFUL` |
-| `./gradlew installDebug` | Passou; instalado em 1 dispositivo |
-| `./gradlew :app:assembleDebug :app:installDebug` (surface temporária) | Passou; captura física dos componentes executada; surface e wiring removidos depois |
-| `adb devices -l` | Passou; Galaxy S22 `SM-S901E` autorizado |
-| `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` | Passou; MainActivity aberta |
-| Smoke portrait escuro | Passou; abertura, rolagem e retorno; hierarquia sanitizada 77 nós/8 clicáveis/1 rolável |
-| Smoke landscape com fonte `1,3x` | Passou; hierarquia sanitizada 69 nós/8 clicáveis/1 rolável |
-| Smoke landscape claro | Passou; hierarquia sanitizada 69 nós/8 clicáveis/1 rolável |
-| `adb exec-out screencap -p` | Passou; PNGs reais sanitizados para portrait escuro e landscape claro com fonte `1,3x` |
-| Restauração de configuração | Passou; fonte `1.0`, rotação portrait, auto-rotação `0`, tema escuro |
+| `./gradlew installDebug` | Passou; instalado no Galaxy S22 `SM-S901E` |
+| `adb devices -l` e abertura da `MainActivity` | Passou; dispositivo autorizado e activity aberta |
+| Smoke ADB das telas vigentes | Passou; Saúde, Início, rolagem, menu `Mais` e retorno responderam sem disparar ação funcional |
+| Configuração física após smoke | `1080x2340`, density `480`, fonte `1.0`, portrait e tema escuro; nenhuma configuração foi alterada |
 
-Não foram executados testes automatizados, conforme R8 e a definição explícita
-da subtarefa.
+Dump `uiautomator` foi temporário e removido do aparelho. Smoke confirma ausência
+de regressão nas telas vigentes; não constitui renderização de componente novo.
+Nenhum teste automatizado foi criado, alterado ou executado, conforme R8.
 
-### Evidências
+### Riscos e bloqueios restantes
 
-- `024-02-captura-sanitizada-fundacao.svg` registra composição genérica sem
-  métricas, identificadores ou ativos proprietários.
-- `024-02-captura-fundacao-dark-portrait.png` registra renderização real em tema
-  escuro/fallback, portrait e fonte `1.0`.
-- `024-02-captura-fundacao-light-landscape-1-3.png` registra renderização real
-  em tema claro/fallback, landscape e fonte `1,3x`; conteúdo inferior permanece
-  acessível por rolagem.
-- Previews registram cenários claro/escuro, fallback, fonte ampliada, landscape
-  e conteúdo longo.
-- Dumps `uiautomator` foram temporários, usados somente para contagens genéricas
-  e removidos do aparelho. Surface e wiring temporários de captura não ficaram
-  no código final.
-
-### Riscos residuais
-
-- Componentes permanecem opt-in e sem consumidor de feature até `024-03`/`024-04`;
-  aceite visual integrado da linguagem ainda pertence ao piloto Saúde.
-- A captura física usa fallback para manter contraste determinístico; dynamic
-  color continua preservado no tema e requer validação contextual durante adoção
-  pelas superfícies migradas.
-- Ícones de status legados permanecem até migração explícita, evitando mudança
-  implícita nas superfícies não migradas.
+- linguagem visual compartilhada ainda não possui dois usos reais; promoção de
+  componentes continua bloqueada até essa evidência existir;
+- aceite visual integrado continua pertencendo ao hub Saúde em `024-04`;
+- `024-03` não pode usar a exceção de shell para componentes internos de página;
+- dynamic color, fonte `1,3x`, landscape e temas devem ser validados na superfície
+  que renderizar cada composição real.

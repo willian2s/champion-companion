@@ -24,18 +24,6 @@ data class ChampionSpacingValues(
 val ChampionSpacing = ChampionSpacingValues()
 val LocalChampionSpacing = staticCompositionLocalOf { ChampionSpacing }
 
-/** Papéis de layout opt-in para superfícies migradas, sem alterar a escala existente. */
-@Immutable
-data class ChampionLayoutTokens(
-    val pageHorizontalPadding: Dp = ChampionSpacing.extraLarge,
-    val pageVerticalPadding: Dp = ChampionSpacing.large,
-    val sectionSpacing: Dp = ChampionSpacing.extraLarge,
-    val contentSpacing: Dp = ChampionSpacing.medium,
-    val minimumTouchTarget: Dp = ChampionSpacing.massive,
-)
-
-val ChampionLayout = ChampionLayoutTokens()
-
 val ChampionShapeSmall = RoundedCornerShape(8.dp)
 val ChampionShapeMedium = RoundedCornerShape(12.dp)
 val ChampionShapeLarge = RoundedCornerShape(16.dp)

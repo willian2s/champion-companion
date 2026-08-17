@@ -44,9 +44,15 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - Reexecução de `024-01` em 2026-08-17 passou: pacotes, versões, `Activity`
   resolvida de cada pacote, configuração física e hierarquias sanitizadas foram
   confirmados; nenhum bloqueio novo.
-- `024-02` concluída: fundação opt-in compilada, lintada, instalada e capturada
-  fisicamente em fallback claro/escuro, portrait e landscape com fonte ampliada;
-  nenhum consumidor existente foi migrado implicitamente.
+- `024-02` concluída após resolução do conflito entre plano e R2: APIs sem
+  consumidor real e capturas do protótipo foram removidas; primitives, tema e
+  componentes vigentes com uso real permanecem como fundação mínima.
+- Spec 024 e ADR-023 não receberam exceção. Componentes internos de superfície
+  só podem ser promovidos após dois usos reais; `024-03` pode compartilhar apenas
+  invariantes estritos do shell.
+- Resolução de `024-02` passou em `git diff --check`, lint, builds debug/release,
+  instalação e smoke ADB de Saúde, Início e menu `Mais`; testes automatizados não
+  foram executados.
 - Detalhe diário e estados raros ficaram `N/A` em `024-01`; landscape, fonte
-  `1,3x` e fallback claro/escuro foram cobertos na fundação e devem ser
-  repetidos nas subtarefas de superfície.
+  `1,3x`, dynamic/fallback e temas devem ser cobertos nas subtarefas de
+  superfície que renderizarem a composição real.
