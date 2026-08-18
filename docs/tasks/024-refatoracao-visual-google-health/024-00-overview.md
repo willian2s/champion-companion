@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 4/18 subtarefas concluídas
+- **Progresso:** 5/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -16,7 +16,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-02-evoluir-fundacao-visual.md](024-02-evoluir-fundacao-visual.md)
 - [x] [024-03-refatorar-shell-de-navegacao.md](024-03-refatorar-shell-de-navegacao.md)
 - [x] [024-04-definir-estrategia-cromatica-transversal.md](024-04-definir-estrategia-cromatica-transversal.md)
-- [ ] [024-05-refatorar-hub-saude-piloto.md](024-05-refatorar-hub-saude-piloto.md)
+- [x] [024-05-refatorar-hub-saude-piloto.md](024-05-refatorar-hub-saude-piloto.md)
 - [ ] [024-06-refatorar-home.md](024-06-refatorar-home.md)
 - [ ] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
 - [ ] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
@@ -30,6 +30,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
 - [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
+- [ ] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
 
 ## Observações
 
@@ -65,12 +66,28 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   bounds dos itens do `DropdownMenu`; nenhum bloqueio funcional foi identificado.
 - Revisão independente de `024-03` passou após inclusão das capturas reais
   sanitizadas; riscos residuais documentados não bloqueiam aceite.
-- `024-05` está `pending`: piloto Saúde implementado, badges dos cards removidos
-  após feedback do usuário e build/instalação/smoke portrait validados. Estratégia
-  cromática opt-in foi aprovada; falta aplicá-la ao piloto, concluir validações e
-  registrar aceite visual. Checklist permanece desmarcado.
+- `024-05` concluída: piloto Saúde aceito visualmente pelo usuário após aplicação
+  do branding, redução de textos, diferenciação de estados e remoção do card
+  Health Connect. Progresso passa a `5/18`.
 - Plano normalizado: `024-04` agora define estratégia cromática transversal;
   piloto Saúde passou a `024-05`; subtarefas seguintes foram deslocadas até
   `024-18`. Progresso passa a `4/18` após aprovação da estratégia.
 - Revisão independente de `024-04` passou após materialização da matriz de roles,
   dependência direta do piloto e validação da renumeração documental.
+- `024-05` usa header azul-petróleo do Champion, acentos primário/secundário/
+  terciário, `Métricas locais` adaptada por contraste e textos técnicos reduzidos.
+- Card Health Connect foi removido do hub conforme decisão do usuário; status de
+  integração deve ser consultado em Configurações. Nenhuma alteração funcional
+  foi feita em Health Connect, ViewModel, rotas ou persistência.
+- Evidência sanitizada atualizada em `024-05-captura-real-sanitizada-health-portrait.png`;
+  subtarefa concluída e checklist marcado.
+- Revisão independente inicial encontrou contraste claro, distinção de estados do
+  peso e necessidade de repetir smoke após ajustes; correções foram aplicadas e
+  novas validações físicas passaram. Revisão final encontrou inconsistência na
+  semântica da distância; correção aplicada e revisão final passou sem achados
+  importantes. Aceite visual do usuário registrado.
+- Nova solicitação de cor para item selecionado na barra de navegação pertence ao
+  shell compartilhado, fora de `024-05`; requer planejamento de correção próprio
+  antes de implementação e não reabre subtarefa aceita.
+- Planejamento criado em `024-19-colorir-selecao-navegacao.md` para corrigir
+  seleção cromática do shell; implementação ainda não iniciada.
