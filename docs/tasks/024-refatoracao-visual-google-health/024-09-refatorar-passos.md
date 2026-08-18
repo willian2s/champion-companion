@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `09`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -77,3 +77,35 @@ Smoke: alternar 7/30/90 dias, verificar gráfico/estado vazio e voltar.
 - muitos rótulos podem comprimir seletor;
 - screenshot deve ocultar valores pessoais;
 - arquivo compartilhado exige isolamento do ramo de passos.
+
+## Registro de execução
+
+- **Arquivos alterados:** `StepsHistoryShell.kt`, `StepsHistoryChart.kt` e
+  `024-09-captura-real-sanitizada-steps-portrait.png`.
+- **Decisões:** detalhe recebeu header azul-petróleo nominal, resumo diário
+  priorizado e acento terciário nominal para passos, sem alterar contratos ou
+  tema raiz. Gráfico adotou composição inspirada em gráficos de passos do
+  Google Health: barras arredondadas, grade discreta, linha de meta e três
+  rótulos temporais. Lacunas continuam distintas de zero por marca vazada
+  compacta na base, sem fabricar barras ou valores.
+- **Desvios:** nenhum requisito funcional alterado. Marca de lacuna foi
+  compactada para manter legibilidade em 90 dias e fonte ampliada.
+- **Comandos executados:** `git diff --check`; `./gradlew lint assembleDebug
+  assembleRelease`; `./gradlew installDebug`; `adb devices -l`; comando de
+  abertura via `adb shell am start` definido nesta task; smoke ADB com 7D/30D/
+  90D, rolagem, retorno, portrait, fonte `1,3x`, landscape forçado e temas
+  escuro/claro; restauração com `wm size reset`, fonte `1,0x`, portrait e tema
+  escuro.
+- **Resultados e evidências:** lint, builds debug/release e instalação debug
+  passaram no Galaxy S22 `SM-S901E`. Períodos atualizaram resumo, agregados,
+  gráfico e lista; lacunas permaneceram explícitas; fonte ampliada, landscape e
+  tema claro foram observados sem corte da ação principal. Evidência sanitizada:
+  `024-09-captura-real-sanitizada-steps-portrait.png`. Nenhum teste
+  automatizado foi criado ou executado.
+- **Riscos residuais:** gráfico de 90 dias permanece denso por preservar janela
+  diária sem agregação; loading, erro e vazio não foram fabricados e ficaram
+  `N/A` na sessão física.
+- **Revisão independente:** primeira revisão bloqueou a evidência por exposição
+  de série e datas; captura foi substituída por recorte sem barra de status e
+  máscaras opacas. Revisão final aprovou, sem bloqueadores; ressalva opcional de
+  verbosidade TalkBack foi corrigida usando descrição resumida no Canvas.

@@ -9,9 +9,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,8 +25,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -32,7 +39,9 @@ import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.model.CalendarDataSource
@@ -65,23 +74,35 @@ fun StepsDetailScreen(
 
     MetricDetailScaffold(
         title = "Passos",
-        description = "Esta tela reutiliza resumo diário persistido da Fase 07. Não cria nova sincronização nem inicia BLE ao abrir.",
+        description = "Acompanhe passos, meta e tendência dos seus resumos locais.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
+        header = { StepsDetailHeader() },
     ) {
         HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
             if (summary == null) {
                 HealthMetricEmptyState(message = "Nenhum resumo diário persistido foi encontrado para hoje.")
             } else {
                 val progress = DailySummaryPolicy.progress(summary.steps, state.dailyStepsGoal)
-                MetricValueBlock(
+                StepsDailyValue(
                     value = "${stepsNumberFormat().format(summary.steps)} passos",
                     supporting = "Meta ${stepsNumberFormat().format(progress.goal)} • ${(progress.progress * 100f).roundToInt()}%",
                     extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
                 )
                 LinearProgressIndicator(
                     progress = { progress.progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = ChampionSpacing.medium)
+                        .semantics {
+                            contentDescription = "Progresso da meta diária de passos"
+                            stateDescription = "${(progress.progress * 100f).roundToInt()} por cento da meta"
+                            progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(
+                                progress.progress.coerceIn(0f, 1f),
+                                0f..1f,
+                            )
+                        },
+                    color = stepsTertiaryAccent(),
                 )
             }
         }
@@ -90,6 +111,60 @@ fun StepsDetailScreen(
             onIntent = stepsHistoryViewModel::onIntent,
         )
     }
+}
+
+@Composable
+private fun StepsDetailHeader() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = LightColorScheme.primary,
+            contentColor = White,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Passos",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Veja seu progresso diário e a tendência dos resumos locais.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepsDailyValue(
+    value: String,
+    supporting: String,
+    extra: String,
+) {
+    Text(
+        text = value,
+        modifier = Modifier.padding(top = ChampionSpacing.medium),
+        color = stepsTertiaryAccent(),
+        style = MaterialTheme.typography.displaySmall,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+        text = supporting,
+        modifier = Modifier.padding(top = ChampionSpacing.small),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        text = extra,
+        modifier = Modifier.padding(top = ChampionSpacing.small),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
@@ -182,12 +257,19 @@ private fun StepsHistoryPeriodSelector(
                         contentDescription = "Últimos ${period.windowDays} dias"
                         stateDescription = if (period == selected) "Selecionado" else "Não selecionado"
                     }
-                OutlinedButton(onClick = { onSelect(period) }, modifier = modifier) {
+                OutlinedButton(
+                    onClick = { onSelect(period) },
+                    modifier = modifier,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (period == selected) stepsTertiaryAccent() else MaterialTheme.colorScheme.outline,
+                    ),
+                ) {
                     Text(
                         text = label,
                         maxLines = 1,
                         color = if (period == selected) {
-                            MaterialTheme.colorScheme.primary
+                            stepsTertiaryAccent()
                         } else {
                             MaterialTheme.colorScheme.onSurface
                         },
@@ -377,6 +459,13 @@ private fun formatSteps(value: Long): String =
 
 private fun formatAverageSteps(value: Double): String =
     "${NumberFormat.getIntegerInstance(Locale.getDefault()).format(value.roundToInt())} passos"
+
+@Composable
+private fun stepsTertiaryAccent() = if (isSystemInDarkTheme()) {
+    DarkColorScheme.tertiary
+} else {
+    LightColorScheme.tertiary
+}
 
 @Composable
 private fun activityStepsHistoryViewModel(): StepsHistoryViewModel {

@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +21,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.model.CalendarStepsHistorySnapshot
+import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
@@ -37,14 +41,17 @@ internal fun StepsHistoryChart(
         snapshot.stepsGoal.toDouble(),
         snapshot.aggregates.maximumSteps?.toDouble() ?: 0.0,
     ).coerceAtLeast(1.0)
-    val primaryColor = MaterialTheme.colorScheme.primary
+    val stepsColor = if (isSystemInDarkTheme()) DarkColorScheme.tertiary else LightColorScheme.tertiary
     val gapColor = MaterialTheme.colorScheme.outline
-    val goalColor = MaterialTheme.colorScheme.tertiary
-    val chartDescription = entries.joinToString(separator = "; ") { entry ->
-        val date = shortDateFormatter(locale).format(entry.localDate)
-        val value = entry.steps?.let { "$it passos" } ?: "sem dados"
-        "$date: $value"
-    }
+    val goalColor = stepsColor.copy(alpha = 0.72f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+    val numberFormat = NumberFormat.getIntegerInstance(locale)
+    val recordedDayCount = entries.count { it.steps != null }
+    val missingDayCount = entries.size - recordedDayCount
+    val chartDescription = "Gráfico de barras de passos para ${entries.size} dias. " +
+        "Meta atual: ${numberFormat.format(snapshot.stepsGoal)} passos. " +
+        "$recordedDayCount dias registrados e $missingDayCount dias sem dados. " +
+        "Lacunas não representam zero passos. Valores diários estão disponíveis na lista acessível."
 
     Column(modifier = modifier.fillMaxWidth()) {
         Canvas(
@@ -52,7 +59,7 @@ internal fun StepsHistoryChart(
                 .fillMaxWidth()
                 .height(190.dp)
                 .semantics {
-                    contentDescription = "Gráfico de barras de passos. Meta atual: ${snapshot.stepsGoal} passos. $chartDescription"
+                    contentDescription = chartDescription
                 },
         ) {
             val top = 10.dp.toPx()
@@ -61,6 +68,16 @@ internal fun StepsHistoryChart(
             val slotWidth = size.width / entries.size.coerceAtLeast(1)
             val barWidth = (slotWidth * 0.68f).coerceAtLeast(2.dp.toPx())
             val goalY = bottom - ((snapshot.stepsGoal / maxScale).toFloat() * chartHeight)
+
+            listOf(0.25f, 0.5f, 0.75f).forEach { fraction ->
+                val y = bottom - (fraction * chartHeight)
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
 
             drawLine(
                 color = goalColor,
@@ -75,8 +92,8 @@ internal fun StepsHistoryChart(
                 if (entry.steps == null) {
                     drawRoundRect(
                         color = gapColor,
-                        topLeft = Offset(left, top),
-                        size = Size(barWidth, chartHeight),
+                        topLeft = Offset(left, bottom - 8.dp.toPx()),
+                        size = Size(barWidth, 8.dp.toPx()),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
                         style = Stroke(width = 1.dp.toPx()),
                     )
@@ -85,7 +102,7 @@ internal fun StepsHistoryChart(
                         .toFloat()
                         .coerceAtLeast(2.dp.toPx())
                     drawRoundRect(
-                        color = primaryColor,
+                        color = stepsColor,
                         topLeft = Offset(left, bottom - barHeight),
                         size = Size(barWidth, barHeight),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
@@ -109,7 +126,7 @@ internal fun StepsHistoryChart(
             }
         }
         Text(
-            text = "Linha: Meta atual • contorno: sem dados • marca mínima: 0 passos",
+            text = "Barras: passos registrados • linha: meta atual • marca: sem dados",
             modifier = Modifier.padding(top = ChampionSpacing.small),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,

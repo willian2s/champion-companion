@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 8/19 subtarefas concluídas
+- **Progresso:** 9/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -20,7 +20,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-06-refatorar-home.md](024-06-refatorar-home.md)
 - [x] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
 - [x] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
-- [ ] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
+- [x] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
 - [ ] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
 - [ ] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
 - [ ] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
@@ -139,3 +139,17 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   `024-08-captura-real-sanitizada-weight-portrait.png`. Estados de salvamento,
   sucesso, erro, loading e vazio real ficaram `N/A` por não iniciar persistência
   artificial nem fabricar estados transitórios.
+- `024-09` concluída com detalhe de passos priorizando valor diário, meta e
+  tendência; gráfico recebeu barras arredondadas, grade discreta, linha de meta
+  e marca compacta para lacunas, mantendo ausência diferente de zero.
+- `024-09` passou em `git diff --check`, lint, builds debug/release, instalação
+  debug e smoke ADB sanitizado. Foram exercitados 7D/30D/90D, rolagem, retorno,
+  portrait, fonte `1,3x`, landscape forçado e temas claro/escuro; aparelho foi
+  restaurado para fonte `1,0x`, portrait, tamanho físico e tema escuro.
+- Evidência sanitizada registrada em
+  `024-09-captura-real-sanitizada-steps-portrait.png`; nenhum teste automatizado
+  foi criado ou executado. Estados loading, erro e vazio não foram fabricados e
+  ficaram `N/A`.
+- Revisão independente de `024-09` aprovou após correção da evidência sanitizada
+  e redução da descrição do gráfico para resumo acessível; nenhum bloqueador
+  permaneceu.
