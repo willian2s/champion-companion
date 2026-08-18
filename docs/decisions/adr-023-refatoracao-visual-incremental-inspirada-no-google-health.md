@@ -31,6 +31,9 @@ Adotar refatoração visual incremental, aditiva e reversível:
    superfícies, salvo invariantes do shell.
 7. Preservar identidade Champion: nome, conteúdo, ícones Material, tipografia do
    sistema, dynamic color e paleta fallback azul-petróleo.
+8. Tratar variedade cromática no app inteiro como direção final, mas adotar cores
+   opt-in por superfície, usando roles e containers Material 3 sem alterar tema
+   raiz enquanto houver telas não migradas.
 
 ## Guard rails
 
@@ -71,6 +74,21 @@ Adotar refatoração visual incremental, aditiva e reversível:
 - **Cópia integral do Google Health/Fitbit:** viola identidade, privacidade e
   escopo funcional do Champion.
 - **Catálogo completo antes do piloto:** cria abstração sem uso comprovado.
+
+## Emenda — estratégia cromática transversal
+
+- **Data:** 2026-08-18
+
+Após revisão do piloto Saúde, foi identificada necessidade de maior variedade
+cromática no app inteiro. A decisão não autoriza mutação global de
+`ChampionColorScheme` ou `ChampionTheme`: isso redesenharia implicitamente
+superfícies ainda não migradas e contrariaria R2.
+
+A direção cromática será definida em `024-04` e aplicada por superfície a partir
+do piloto `024-05`, com uso intencional de `primary`, `secondary`, `tertiary` e
+respectivos containers. Dynamic color, fallback azul-petróleo, contraste e
+sinais textuais/icônicos permanecem obrigatórios. Nenhuma cor, marca, fonte,
+ativo ou mapeamento proprietário do Google Health/Fitbit será copiado.
 
 ## Relação com outras decisões
 

@@ -1,7 +1,7 @@
-# 024-06 — Refatorar frequência cardíaca
+# 024-07 — Refatorar frequência cardíaca
 
 - **Ticker:** `024`
-- **Número:** `06`
+- **Número:** `07`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -30,7 +30,7 @@ claros sem alterar protocolos, persistência ou confirmação de saída.
 
 ## Dependências
 
-- `024-05` concluída;
+- `024-06` concluída;
 - relógio/estado real disponível somente quando necessário e seguro.
 
 ## Arquivos e símbolos prováveis

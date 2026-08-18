@@ -1,7 +1,7 @@
-# 024-16 — Refatorar Configurações
+# 024-17 — Refatorar Configurações
 
 - **Ticker:** `024`
-- **Número:** `16`
+- **Número:** `17`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -28,7 +28,7 @@ sem sugerir leitura remota ou alterar sync write-only.
 
 ## Dependências
 
-- `024-15` concluída;
+- `024-16` concluída;
 - provider real disponível ou estados `N/A` documentados.
 
 ## Arquivos e símbolos prováveis

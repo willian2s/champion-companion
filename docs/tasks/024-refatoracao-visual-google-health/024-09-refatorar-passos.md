@@ -1,7 +1,7 @@
-# 024-08 — Refatorar passos
+# 024-09 — Refatorar passos
 
 - **Ticker:** `024`
-- **Número:** `08`
+- **Número:** `09`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -26,7 +26,7 @@ preservadas.
 
 ## Dependências
 
-- `024-07` concluída.
+- `024-08` concluída.
 
 ## Arquivos e símbolos prováveis
 

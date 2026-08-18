@@ -5,10 +5,13 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -23,11 +26,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.SyncStatusBadge
+import br.com.mwconsulting.championcompanion.core.designsystem.SyncVisualState
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -67,39 +75,52 @@ fun HealthScreen(
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
             HealthHubHeader()
+            Text(
+                text = "Métricas locais",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
             HealthMetricSummaryCard(
                 title = "Frequência cardíaca",
                 value = state.latestMeasurement?.let { "${it.bpm} BPM" } ?: "Sem medições",
                 supportingText = state.latestMeasurement?.measuredAt?.let(::formatMoment)
-                    ?: "Abra para medir, importar D1 e ver histórico consolidado",
+                    ?: "Nenhuma medição persistida",
                 extraText = state.latestD1ImportMetadata?.lastSuccessAt?.let { "Última importação D1: ${formatMoment(it)}" }
                     ?: state.associatedDeviceName?.let { "Origem: $it" }
-                    ?: "Origem: relógio associado",
+                    ?: "Origem: não disponível",
+                isAvailable = state.latestMeasurement != null,
                 onClick = onOpenHeartRate,
             )
             HealthMetricSummaryCard(
                 title = "Peso",
                 value = state.latestWeight?.let { "${decimalFormat().format(it.kilograms)} kg" } ?: "Sem dados",
-                supportingText = state.latestWeight?.measuredAt?.let(::formatMoment) ?: "Abra para ver valor atual",
-                extraText = state.latestWeight?.origin?.toHealthOriginLabel() ?: "Estado vazio quando nenhum peso existir",
+                supportingText = state.latestWeight?.measuredAt?.let(::formatMoment) ?: "Nenhum peso persistido",
+                extraText = state.latestWeight?.origin?.toHealthOriginLabel() ?: "Origem: não disponível",
+                isAvailable = state.latestWeight != null,
                 onClick = onOpenWeight,
             )
             HealthMetricSummaryCard(
                 title = "Passos",
                 value = state.todaySummary?.let { "${numberFormat().format(it.steps)} passos" } ?: "Sem dados",
-                supportingText = state.todaySummary?.updatedAt?.let(::formatMoment) ?: "Abra para ver progresso diário",
-                extraText = state.todaySummary?.sourceLabel ?: "Resumo diário persistido da Fase 07",
+                supportingText = state.todaySummary?.updatedAt?.let(::formatMoment) ?: "Resumo diário indisponível",
+                extraText = state.todaySummary?.sourceLabel?.let { "Origem: $it" } ?: "Origem: não disponível",
+                isAvailable = state.todaySummary != null,
                 onClick = onOpenSteps,
             )
             HealthMetricSummaryCard(
                 title = "Distância",
                 value = state.todaySummary?.estimatedDistanceMeters?.let { "${decimalFormat().format(it / 1000.0)} km" } ?: "Indisponível",
-                supportingText = state.todaySummary?.updatedAt?.let(::formatMoment) ?: "Abra para ver origem e estado atual",
-                extraText = if (state.todaySummary?.estimatedDistanceMeters != null) {
-                    "Estimativa local"
-                } else {
-                    "Sem dados pessoais suficientes ou sem resumo diário"
-                },
+                supportingText = state.todaySummary?.updatedAt?.let(::formatMoment)
+                    ?: "Sem resumo diário ou dados pessoais suficientes",
+                extraText = state.todaySummary?.let { summary ->
+                    if (summary.estimatedDistanceMeters != null) {
+                        "Origem: ${summary.sourceLabel} • Estimativa local"
+                    } else {
+                        "Origem: não disponível"
+                    }
+                } ?: "Origem: não disponível",
+                isAvailable = state.todaySummary?.estimatedDistanceMeters != null,
                 onClick = onOpenDistance,
             )
             if (state.healthConnectSync.hasVisibleState) {
@@ -111,27 +132,23 @@ fun HealthScreen(
 
 @Composable
 private fun HealthHubHeader() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = ChampionSpacing.small),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Saúde",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "A área Saúde agora resume métricas persistidas e leva para telas específicas. Nenhum card inicia BLE diretamente.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
+        Text(
+            text = "Saúde",
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Resumo local de hoje. Abra uma métrica para ver detalhes.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge,
+        )
     }
 }
 
@@ -141,39 +158,55 @@ private fun HealthMetricSummaryCard(
     value: String,
     supportingText: String,
     extraText: String,
+    isAvailable: Boolean,
     onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 112.dp)
             .clickable(onClick = onClick)
             .semantics {
-                contentDescription = "$title. $value. $supportingText. Toque para abrir detalhes."
+                role = Role.Button
+                contentDescription = "$title. $value. ${if (isAvailable) "Disponível" else "Sem dados"}. $supportingText. $extraText. Toque para abrir detalhes."
             },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = supportingText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = extraText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = value,
+                text = "›",
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = supportingText,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = extraText,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
             )
         }
     }
@@ -184,14 +217,18 @@ private fun HealthConnectHubStatusCard(sync: HealthConnectSyncUiModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
     ) {
         Column(
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
-            Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(ChampionSpacing.small))
+                SyncStatusBadge(state = sync.toVisualState())
+            }
             Text(
                 when {
                     sync.syncingCount > 0 -> "Sincronização secundária em andamento. Os dados locais continuam como mensagem principal."
@@ -216,6 +253,12 @@ private fun HealthConnectHubStatusCard(sync: HealthConnectSyncUiModel) {
             }
         }
     }
+}
+
+private fun HealthConnectSyncUiModel.toVisualState(): SyncVisualState = when {
+    failedCount > 0 -> SyncVisualState.Failure
+    pendingCount > 0 || syncingCount > 0 -> SyncVisualState.Pending
+    else -> SyncVisualState.Success
 }
 
 private fun formatMoment(instant: Instant): String =

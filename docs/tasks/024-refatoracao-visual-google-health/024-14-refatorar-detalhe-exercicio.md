@@ -1,7 +1,7 @@
-# 024-13 — Refatorar detalhe de exercício
+# 024-14 — Refatorar detalhe de exercício
 
 - **Ticker:** `024`
-- **Número:** `13`
+- **Número:** `14`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -29,7 +29,7 @@ alterar derivação, calibração, descarte ou sync.
 
 ## Dependências
 
-- `024-12` concluída;
+- `024-13` concluída;
 - atividade real acessível sem produzir dados artificiais.
 
 ## Arquivos e símbolos prováveis

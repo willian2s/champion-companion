@@ -1,7 +1,7 @@
-# 024-15 — Refatorar Perfil
+# 024-16 — Refatorar Perfil
 
 - **Ticker:** `024`
-- **Número:** `15`
+- **Número:** `16`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -29,7 +29,7 @@ reescrever snapshots ou misturar RUNNING/WALKING.
 
 ## Dependências
 
-- `024-14` concluída.
+- `024-15` concluída.
 
 ## Arquivos e símbolos prováveis
 

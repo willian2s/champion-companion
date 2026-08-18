@@ -1,7 +1,7 @@
-# 024-11 — Refatorar detalhe diário
+# 024-12 — Refatorar detalhe diário
 
 - **Ticker:** `024`
-- **Número:** `11`
+- **Número:** `12`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -28,7 +28,7 @@ com navegação contextual preservada.
 
 ## Dependências
 
-- `024-10` concluída.
+- `024-11` concluída.
 
 ## Arquivos e símbolos prováveis
 

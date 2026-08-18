@@ -166,7 +166,7 @@ Nenhum teste automatizado foi criado, alterado ou executado, conforme R8.
 
 - linguagem visual compartilhada ainda não possui dois usos reais; promoção de
   componentes continua bloqueada até essa evidência existir;
-- aceite visual integrado continua pertencendo ao hub Saúde em `024-04`;
+- aceite visual integrado continua pertencendo ao hub Saúde em `024-05`;
 - `024-03` não pode usar a exceção de shell para componentes internos de página;
 - dynamic color, fonte `1,3x`, landscape e temas devem ser validados na superfície
   que renderizar cada composição real.

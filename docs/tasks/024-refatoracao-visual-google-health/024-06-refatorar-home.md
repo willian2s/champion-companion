@@ -1,7 +1,7 @@
-# 024-05 — Refatorar Home
+# 024-06 — Refatorar Home
 
 - **Ticker:** `024`
-- **Número:** `05`
+- **Número:** `06`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -28,7 +28,7 @@ clareza de refresh, relógio ou atividades pendentes.
 
 ## Dependências
 
-- `024-04` aceita.
+- `024-05` aceita.
 
 ## Arquivos e símbolos prováveis
 

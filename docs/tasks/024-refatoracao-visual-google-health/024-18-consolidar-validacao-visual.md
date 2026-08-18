@@ -1,7 +1,7 @@
-# 024-17 — Consolidar validação visual
+# 024-18 — Consolidar validação visual
 
 - **Ticker:** `024`
-- **Número:** `17`
+- **Número:** `18`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -28,7 +28,7 @@ documentação fechada e evidência física completa.
 
 ## Dependências
 
-- `024-01` a `024-16` concluídas;
+- `024-01` a `024-17` concluídas;
 - aceite individual das treze superfícies;
 - dispositivo ADB disponível.
 
@@ -75,7 +75,7 @@ detalhe; Dispositivo; Perfil; Configurações; menu `Mais`; back/restauração.
 - componentes sem uso foram removidos somente com prova;
 - lint, builds, instalação e smoke aprovados;
 - configurações do aparelho restauradas;
-- spec/ADR/overview refletem fechamento e progresso `17/17`.
+- spec/ADR/overview refletem fechamento e progresso `18/18`.
 
 ## Riscos e cuidados
 

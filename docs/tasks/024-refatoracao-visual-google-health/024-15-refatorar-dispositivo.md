@@ -1,7 +1,7 @@
-# 024-14 — Refatorar Dispositivo
+# 024-15 — Refatorar Dispositivo
 
 - **Ticker:** `024`
-- **Número:** `14`
+- **Número:** `15`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -29,7 +29,7 @@ visíveis sem alterar BLE, permissões ou diagnóstico.
 
 ## Dependências
 
-- `024-13` concluída;
+- `024-14` concluída;
 - Champion C001 pode permanecer desconectado; estados não seguros ficam `N/A`.
 
 ## Arquivos e símbolos prováveis

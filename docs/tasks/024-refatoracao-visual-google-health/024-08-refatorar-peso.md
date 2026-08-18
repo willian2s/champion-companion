@@ -1,7 +1,7 @@
-# 024-07 — Refatorar peso
+# 024-08 — Refatorar peso
 
 - **Ticker:** `024`
-- **Número:** `07`
+- **Número:** `08`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -27,7 +27,7 @@ quilogramas e histórico local.
 
 ## Dependências
 
-- `024-06` concluída.
+- `024-07` concluída.
 
 ## Arquivos e símbolos prováveis
 

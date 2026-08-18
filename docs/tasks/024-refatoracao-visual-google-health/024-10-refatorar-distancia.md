@@ -1,7 +1,7 @@
-# 024-09 — Refatorar distância
+# 024-10 — Refatorar distância
 
 - **Ticker:** `024`
-- **Número:** `09`
+- **Número:** `10`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -26,7 +26,7 @@ fallback ou ampliar coleta.
 
 ## Dependências
 
-- `024-08` concluída.
+- `024-09` concluída.
 
 ## Arquivos e símbolos prováveis
 

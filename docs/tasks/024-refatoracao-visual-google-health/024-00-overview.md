@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 3/17 subtarefas concluídas
+- **Progresso:** 4/18 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,26 +15,27 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-01-registrar-baseline-e-direcao-visual.md](024-01-registrar-baseline-e-direcao-visual.md)
 - [x] [024-02-evoluir-fundacao-visual.md](024-02-evoluir-fundacao-visual.md)
 - [x] [024-03-refatorar-shell-de-navegacao.md](024-03-refatorar-shell-de-navegacao.md)
-- [ ] [024-04-refatorar-hub-saude-piloto.md](024-04-refatorar-hub-saude-piloto.md)
-- [ ] [024-05-refatorar-home.md](024-05-refatorar-home.md)
-- [ ] [024-06-refatorar-frequencia-cardiaca.md](024-06-refatorar-frequencia-cardiaca.md)
-- [ ] [024-07-refatorar-peso.md](024-07-refatorar-peso.md)
-- [ ] [024-08-refatorar-passos.md](024-08-refatorar-passos.md)
-- [ ] [024-09-refatorar-distancia.md](024-09-refatorar-distancia.md)
-- [ ] [024-10-refatorar-calendario.md](024-10-refatorar-calendario.md)
-- [ ] [024-11-refatorar-detalhe-diario.md](024-11-refatorar-detalhe-diario.md)
-- [ ] [024-12-refatorar-lista-exercicios.md](024-12-refatorar-lista-exercicios.md)
-- [ ] [024-13-refatorar-detalhe-exercicio.md](024-13-refatorar-detalhe-exercicio.md)
-- [ ] [024-14-refatorar-dispositivo.md](024-14-refatorar-dispositivo.md)
-- [ ] [024-15-refatorar-perfil.md](024-15-refatorar-perfil.md)
-- [ ] [024-16-refatorar-configuracoes.md](024-16-refatorar-configuracoes.md)
-- [ ] [024-17-consolidar-validacao-visual.md](024-17-consolidar-validacao-visual.md)
+- [x] [024-04-definir-estrategia-cromatica-transversal.md](024-04-definir-estrategia-cromatica-transversal.md)
+- [ ] [024-05-refatorar-hub-saude-piloto.md](024-05-refatorar-hub-saude-piloto.md)
+- [ ] [024-06-refatorar-home.md](024-06-refatorar-home.md)
+- [ ] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
+- [ ] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
+- [ ] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
+- [ ] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
+- [ ] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
+- [ ] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
+- [ ] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
+- [ ] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
+- [ ] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
+- [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
+- [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
+- [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
 
 ## Observações
 
 - Google Health correto usa pacote `com.fitbit.FitbitMobile`; Google Fit e
   Health Connect não são referência visual.
-- `024-04` é piloto e exige aceite visual antes das demais telas.
+- `024-05` é piloto e exige aceite visual antes das demais telas.
 - ADB foi autorizado pelo usuário e esteve operacional nesta execução; nova
   indisponibilidade bloqueia aceite físico das subtarefas correspondentes.
 - ADR duradoura criada em `024-01`:
@@ -64,3 +65,12 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   bounds dos itens do `DropdownMenu`; nenhum bloqueio funcional foi identificado.
 - Revisão independente de `024-03` passou após inclusão das capturas reais
   sanitizadas; riscos residuais documentados não bloqueiam aceite.
+- `024-05` está `pending`: piloto Saúde implementado, badges dos cards removidos
+  após feedback do usuário e build/instalação/smoke portrait validados. Estratégia
+  cromática opt-in foi aprovada; falta aplicá-la ao piloto, concluir validações e
+  registrar aceite visual. Checklist permanece desmarcado.
+- Plano normalizado: `024-04` agora define estratégia cromática transversal;
+  piloto Saúde passou a `024-05`; subtarefas seguintes foram deslocadas até
+  `024-18`. Progresso passa a `4/18` após aprovação da estratégia.
+- Revisão independente de `024-04` passou após materialização da matriz de roles,
+  dependência direta do piloto e validação da renumeração documental.

@@ -1,7 +1,7 @@
-# 024-12 — Refatorar lista de Exercícios
+# 024-13 — Refatorar lista de Exercícios
 
 - **Ticker:** `024`
-- **Número:** `12`
+- **Número:** `13`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -29,7 +29,7 @@ deduplicação, cancelamento ou Health Connect.
 
 ## Dependências
 
-- `024-11` concluída.
+- `024-12` concluída.
 
 ## Arquivos e símbolos prováveis
 

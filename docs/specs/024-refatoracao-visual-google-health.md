@@ -1,7 +1,7 @@
 # 024 — Refatoração visual inspirada no Google Health
 
 - **Ticker:** `024`
-- **Status:** pending
+- **Status:** in_progress
 - **Tipo:** refatoração visual incremental
 
 ## Contexto e objetivo
@@ -57,6 +57,9 @@ Health Connect continua apenas integração write-only já existente.
   migradas sejam redesenhadas implicitamente.
 - Promover abstração compartilhada somente após uso real em pelo menos duas
   superfícies, salvo elementos invariantes do shell.
+- A direção cromática pode abranger o app inteiro como resultado final, mas sua
+  adoção deve ser opt-in por superfície; não alterar tema raiz para redesenhar
+  consumidores ainda não migrados.
 
 ### R3 — Navegação preservada
 
@@ -77,6 +80,9 @@ Cada tela migrada deve oferecer:
 - ações primárias distinguíveis de ações secundárias e destrutivas;
 - origem, unidade, período e estado apresentados quando relevantes;
 - estados vazio, loading, erro e pendência coerentes com o design system.
+- A variedade cromática deve usar roles e containers Material 3 por intenção,
+  preservando contraste, identidade Champion e sinais textuais/icônicos além da
+  cor.
 
 ### R5 — Usabilidade e acessibilidade
 
@@ -190,8 +196,9 @@ Cada tela migrada deve oferecer:
 
 ## Abordagem escolhida
 
-Rollout: baseline físico sanitizado → fundação aditiva → shell compatível → hub
-Saúde piloto → demais telas uma por vez → consolidação. Componentes antigos
+Rollout: baseline físico sanitizado → fundação aditiva → shell compatível →
+estratégia cromática transversal → hub Saúde piloto → demais telas uma por vez →
+consolidação. Componentes antigos
 permanecem durante a migração. Cada tela recebe validação e aceite antes da
 próxima; rollback ocorre pela própria subtarefa.
 
@@ -291,10 +298,10 @@ ler banco, não coletar Logcat amplo e não registrar métricas.
 ## Ordem das subtarefas
 
 ```text
-024-01 → 024-02 → 024-03 → 024-04 (piloto/aceite)
-       → 024-05 → 024-06 → 024-07 → 024-08 → 024-09
+024-01 → 024-02 → 024-03 → 024-04 (estratégia cromática)
+       → 024-05 (piloto/aceite) → 024-06 → 024-07 → 024-08 → 024-09
        → 024-10 → 024-11 → 024-12 → 024-13 → 024-14
-       → 024-15 → 024-16 → 024-17
+       → 024-15 → 024-16 → 024-17 → 024-18
 ```
 
 ## Premissas explícitas
@@ -333,17 +340,18 @@ ler banco, não coletar Logcat amplo e não registrar métricas.
 | `024-01` | R1, R7, R8, R9 | Baseline e decisão visual |
 | `024-02` | R1, R2, R4, R5 | Fundação visual |
 | `024-03` | R2, R3, R5, R6 | Shell e navegação |
-| `024-04` | R1, R4–R8 | Saúde hub piloto |
-| `024-05` | R4–R9 | Home |
-| `024-06` | R4–R9 | Frequência cardíaca |
-| `024-07` | R4–R9 | Peso |
-| `024-08` | R4–R9 | Passos |
-| `024-09` | R4–R9 | Distância |
-| `024-10` | R4–R9 | Calendário |
-| `024-11` | R4–R9 | Detalhe diário |
-| `024-12` | R4–R10 | Lista de Exercícios |
-| `024-13` | R4–R10 | Detalhe de exercício |
-| `024-14` | R4–R9 | Dispositivo |
-| `024-15` | R4–R9 | Perfil |
-| `024-16` | R4–R9 | Configurações |
-| `024-17` | R1–R10 | Consolidação e smoke final |
+| `024-04` | R1, R2, R4, R5, R7–R9 | Estratégia cromática transversal |
+| `024-05` | R1, R4–R8 | Saúde hub piloto |
+| `024-06` | R4–R9 | Home |
+| `024-07` | R4–R9 | Frequência cardíaca |
+| `024-08` | R4–R9 | Peso |
+| `024-09` | R4–R9 | Passos |
+| `024-10` | R4–R9 | Distância |
+| `024-11` | R4–R9 | Calendário |
+| `024-12` | R4–R9 | Detalhe diário |
+| `024-13` | R4–R10 | Lista de Exercícios |
+| `024-14` | R4–R10 | Detalhe de exercício |
+| `024-15` | R4–R9 | Dispositivo |
+| `024-16` | R4–R9 | Perfil |
+| `024-17` | R4–R9 | Configurações |
+| `024-18` | R1–R10 | Consolidação e smoke final |

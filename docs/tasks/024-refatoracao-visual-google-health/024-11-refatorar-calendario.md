@@ -1,7 +1,7 @@
-# 024-10 — Refatorar Calendário
+# 024-11 — Refatorar Calendário
 
 - **Ticker:** `024`
-- **Número:** `10`
+- **Número:** `11`
 - **Status:** pending
 
 ## Objetivo e resultado esperado
@@ -28,7 +28,7 @@ read model, seleção ou abertura do dia.
 
 ## Dependências
 
-- `024-09` concluída.
+- `024-10` concluída.
 
 ## Arquivos e símbolos prováveis
 
