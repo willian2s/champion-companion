@@ -139,7 +139,7 @@ Regras transversais:
 | Comando/verificação | Resultado |
 |---|---|
 | `git diff --check` | Passou; sem erro |
-| Auditoria de ticker, números, links e checklist | Passou; 18 subtarefas, uma seção `## Checklist`, progresso `4/18` |
+| Auditoria inicial de ticker, números, links e checklist | Passou; 18 subtarefas, uma seção `## Checklist`, progresso `4/18` naquele momento; correção `024-19` foi planejada posteriormente |
 
 Não foram criados, alterados ou executados testes automatizados nem código de
 produção nesta subtarefa.
@@ -152,12 +152,13 @@ produção nesta subtarefa.
 
 ### Riscos residuais
 
-- `024-05` permanece bloqueada até aplicar estratégia no piloto e obter aceite
-  visual da superfície.
+- `024-05` aplicou a estratégia, recebeu aceite visual e foi concluída; correção
+  posterior de seleção cromática do shell foi planejada em `024-19`.
 - Dynamic color pode exigir validação física em cada superfície para confirmar
   contraste e variedade cromática observada.
 
 ## Revisão independente
 
 `PASS`; revisão confirmou matriz cromática materializada, dependência direta de
-`024-04` em `024-05`, renumeração sem lacunas, checklist único e progresso `4/18`.
+`024-04` em `024-05`, renumeração sem lacunas, checklist único e progresso `4/18`
+na auditoria inicial.

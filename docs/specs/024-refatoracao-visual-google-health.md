@@ -44,7 +44,9 @@ Health Connect continua apenas integração write-only já existente.
 - Adaptar os padrões ao conteúdo e aos contratos do Champion Companion, sem
   exigir reprodução literal ou paridade entre produtos.
 - Preservar nome, ícones, conteúdo, paleta fallback azul-petróleo, dynamic color
-  e tipografia do sistema do Champion Companion.
+  e tipografia do sistema do Champion Companion. No piloto Saúde, azul-petróleo
+  identifica header; `primary`, `secondary` e `tertiary` diferenciam métricas
+  sem transformar cor em único sinal.
 - Não copiar logo, Google Sans, quatro cores Google, screenshots, ilustrações,
   ativos, textos, Coach, IA, premium ou layout pixel a pixel.
 
@@ -60,6 +62,9 @@ Health Connect continua apenas integração write-only já existente.
 - A direção cromática pode abranger o app inteiro como resultado final, mas sua
   adoção deve ser opt-in por superfície; não alterar tema raiz para redesenhar
   consumidores ainda não migrados.
+- Uma superfície migrada pode usar fallback cromático nominal do Champion em
+  acentos quando dynamic color produzir esquema acromático; contraste e tema
+  claro/escuro continuam obrigatórios, sem alterar consumidores não migrados.
 
 ### R3 — Navegação preservada
 
@@ -83,6 +88,9 @@ Cada tela migrada deve oferecer:
 - A variedade cromática deve usar roles e containers Material 3 por intenção,
   preservando contraste, identidade Champion e sinais textuais/icônicos além da
   cor.
+- O resumo deve remover metadados técnicos que não ajudam decisão imediata;
+  importação, contadores e timestamps de integração ficam em detalhes ou
+  Configurações quando não forem necessários no hub.
 
 ### R5 — Usabilidade e acessibilidade
 
@@ -101,7 +109,8 @@ Cada tela migrada deve oferecer:
 - Home continua refresh explícito; Saúde hub não inicia BLE; frequência cardíaca
   mantém medição e D1 explícitos; Exercícios mantém importação e sync explícitos;
   Calendário continua somente leitura; Configurações mantém Health Connect
-  write-only.
+  write-only e concentra status da integração. O hub Saúde não duplica card de
+  Health Connect.
 - Nenhuma alteração de Room, schema, DataStore, BLE, Health Connect, permissões,
   serviços, manifesto ou dependências é esperada.
 
@@ -151,9 +160,12 @@ Cada tela migrada deve oferecer:
    subárvore e confirmações de saída.
 5. Cada uma das treze superfícies vigentes possui subtarefa própria e aceite
    visual registrado.
-6. Hub Saúde valida a linguagem visual como piloto antes da continuação.
+6. Hub Saúde valida a linguagem visual como piloto antes da continuação; o piloto
+   aceito usa header azul-petróleo, cards com acentos de branding, resumo curto e
+   quatro destinos acionáveis.
 7. Todas as telas priorizam resumo e ação útil antes de metadados técnicos,
-   preservando origem, unidade e estados necessários.
+   preservando somente origem, unidade, período e estados necessários; Health
+   Connect não é duplicado no hub.
 8. Fonte ampliada, landscape e temas representativos não cortam conteúdo nem
    tornam ações essenciais inacessíveis.
 9. Callbacks, intents, lifecycle, BLE, sincronização, persistência e dados
@@ -181,7 +193,10 @@ Cada tela migrada deve oferecer:
 - Home possui resumo diário, refresh, progresso, status do relógio, BPM e
   pendências; mantém algumas cores locais.
 - Saúde é hub de frequência cardíaca, peso, passos e distância. Detalhes de
-  métricas seguem resumo, gráfico e histórico.
+  métricas seguem resumo, gráfico e histórico. O hub aceito usa header
+  azul-petróleo, bordas/valores/setas com acentos `primary`/`secondary`/`tertiary`,
+  seção branca no escuro e `onBackground` no claro; mantém origem, período e
+  estados curtos, sem card Health Connect.
 - Calendário apresenta grade mensal e detalhe diário com navegação cruzada.
 - Exercícios reúne importação, filtros, lista e detalhe complexo no mesmo
   arquivo e ViewModel compartilhado.
@@ -197,8 +212,11 @@ Cada tela migrada deve oferecer:
 ## Abordagem escolhida
 
 Rollout: baseline físico sanitizado → fundação aditiva → shell compatível →
-estratégia cromática transversal → hub Saúde piloto → demais telas uma por vez →
-consolidação. Componentes antigos
+estratégia cromática transversal → hub Saúde piloto aceito → demais telas uma por
+vez → consolidação. O piloto estabeleceu header azul-petróleo fixo do branding,
+acentos de métrica por role, estados textuais acessíveis, resumo sem metadados
+técnicos desnecessários e status Health Connect concentrado em Configurações.
+Componentes antigos
 permanecem durante a migração. Cada tela recebe validação e aceite antes da
 próxima; rollback ocorre pela própria subtarefa.
 
@@ -301,7 +319,7 @@ ler banco, não coletar Logcat amplo e não registrar métricas.
 024-01 → 024-02 → 024-03 → 024-04 (estratégia cromática)
        → 024-05 (piloto/aceite) → 024-06 → 024-07 → 024-08 → 024-09
        → 024-10 → 024-11 → 024-12 → 024-13 → 024-14
-       → 024-15 → 024-16 → 024-17 → 024-18
+       → 024-15 → 024-16 → 024-17 → 024-19 (correção do shell) → 024-18
 ```
 
 ## Premissas explícitas
@@ -315,7 +333,8 @@ ler banco, não coletar Logcat amplo e não registrar métricas.
   paridade funcional.
 - Estrutura funcional e informação disponível nas telas atuais são adequadas.
 - Dynamic color permanece habilitado por padrão e paleta própria continua
-  fallback.
+  fallback; superfícies migradas podem aplicar fallback nominal de branding em
+  acentos quando dynamic color for acromático.
 - Ausência de cobertura automatizada nova é decisão explícita; lint, builds e
   validação física continuam obrigatórios.
 - Se o executor não receber permissão operacional para `adb`, subtarefas com
@@ -355,3 +374,4 @@ ler banco, não coletar Logcat amplo e não registrar métricas.
 | `024-16` | R4–R9 | Perfil |
 | `024-17` | R4–R9 | Configurações |
 | `024-18` | R1–R10 | Consolidação e smoke final |
+| `024-19` | R2, R3, R5–R7 | Correção cromática da seleção do shell |

@@ -29,6 +29,7 @@ documentação fechada e evidência física completa.
 ## Dependências
 
 - `024-01` a `024-17` concluídas;
+- `024-19` concluída;
 - aceite individual das treze superfícies;
 - dispositivo ADB disponível.
 
@@ -75,7 +76,7 @@ detalhe; Dispositivo; Perfil; Configurações; menu `Mais`; back/restauração.
 - componentes sem uso foram removidos somente com prova;
 - lint, builds, instalação e smoke aprovados;
 - configurações do aparelho restauradas;
-- spec/ADR/overview refletem fechamento e progresso `18/18`.
+- spec/ADR/overview refletem fechamento e progresso `19/19`.
 
 ## Riscos e cuidados
 

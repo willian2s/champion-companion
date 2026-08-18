@@ -90,6 +90,21 @@ respectivos containers. Dynamic color, fallback azul-petróleo, contraste e
 sinais textuais/icônicos permanecem obrigatórios. Nenhuma cor, marca, fonte,
 ativo ou mapeamento proprietário do Google Health/Fitbit será copiado.
 
+## Emenda — resultado visual do piloto Saúde
+
+- **Data:** 2026-08-18
+
+O hub Saúde aceito aplica azul-petróleo no header e acentos `primary`, `secondary`
+e `tertiary` em bordas, valores e setas dos cards. `Métricas locais` permanece
+branca no escuro e usa `onBackground` no claro para preservar contraste. A
+superfície pode usar fallback cromático nominal do Champion quando dynamic color
+for acromático; tema raiz e superfícies não migradas permanecem inalterados.
+
+Resumo e ação precedem metadados técnicos. O hub preserva origem, período,
+unidade e estado necessários, mas não duplica card de Health Connect; status da
+integração permanece em Configurações. Quatro destinos e callbacks continuam
+preservados.
+
 ## Relação com outras decisões
 
 - ADR-005 continua autoritativa para Navigation 3 e back stack manual.

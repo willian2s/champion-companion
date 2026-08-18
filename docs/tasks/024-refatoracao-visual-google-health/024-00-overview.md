@@ -29,8 +29,8 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [ ] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
 - [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
-- [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
 - [ ] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
+- [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
 
 ## Observações
 
@@ -68,10 +68,11 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   sanitizadas; riscos residuais documentados não bloqueiam aceite.
 - `024-05` concluída: piloto Saúde aceito visualmente pelo usuário após aplicação
   do branding, redução de textos, diferenciação de estados e remoção do card
-  Health Connect. Progresso passa a `5/18`.
+  Health Connect. Progresso era `5/18` antes da criação da correção `024-19`.
 - Plano normalizado: `024-04` agora define estratégia cromática transversal;
   piloto Saúde passou a `024-05`; subtarefas seguintes foram deslocadas até
-  `024-18`. Progresso passa a `4/18` após aprovação da estratégia.
+  `024-18`, e `024-19` foi inserida antes da consolidação final. Progresso inicial
+  era `4/18` após aprovação da estratégia.
 - Revisão independente de `024-04` passou após materialização da matriz de roles,
   dependência direta do piloto e validação da renumeração documental.
 - `024-05` usa header azul-petróleo do Champion, acentos primário/secundário/
