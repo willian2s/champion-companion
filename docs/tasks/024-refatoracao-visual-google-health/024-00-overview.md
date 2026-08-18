@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 11/19 subtarefas concluídas
+- **Progresso:** 12/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -23,7 +23,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
 - [x] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
 - [x] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
-- [ ] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
+- [x] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
 - [ ] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
 - [ ] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
 - [ ] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
@@ -166,5 +166,16 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   registrada na spec para o viewport portrait de 360 dp. Smoke cobriu mês
   anterior/próximo, `Hoje`, seleção, abertura do dia, retorno, fonte `1,3x`,
   tema claro, landscape e restauração; captura sanitizada válida foi registrada.
-  Contraste dos pontos foi corrigido pela variante nominal adequada ao fundo da
-  célula, com nova validação e captura sanitizada.
+   Contraste dos pontos foi corrigido pela variante nominal adequada ao fundo da
+   célula, com nova validação e captura sanitizada.
+- `024-12` concluída com panorama diário antes de métricas detalhadas, header
+  nominal, acentos por métrica, problemas por fonte e fila informativa. Atalhos
+  de Saúde/Exercícios, retorno contextual, estados seguros e status por
+  atividade foram preservados. Evidência sanitizada registrada em
+  `024-12-captura-real-sanitizada-detalhe-diario.png`.
+- `024-12` passou em `git diff --check`, compilação Kotlin, lint, builds
+  debug/release, instalação e smoke ADB. Foram exercitados dia completo,
+  rolagem, Passos → retorno, fonte `1,3x`, landscape e temas claro/escuro; o
+  aparelho foi restaurado para fonte `1,0x`, portrait e tema escuro. Loading,
+  erro, data inválida, ausência e problemas parciais ficaram `N/A` sem
+  fabricação. Nenhum teste automatizado foi criado ou executado.

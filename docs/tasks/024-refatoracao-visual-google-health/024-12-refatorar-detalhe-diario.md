@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `12`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -78,3 +78,41 @@ Smoke: Calendário → dia → detalhes relacionados → voltar; rolagem, fonte
 - fila informativa não pode parecer CTA;
 - captura pode reunir várias métricas pessoais;
 - não alterar candidate temporal nem navegação cruzada.
+
+## Registro de execução
+
+- **Status:** completed.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarDayScreen.kt` e
+  `024-12-captura-real-sanitizada-detalhe-diario.png`.
+- **Decisões:** o detalhe passou a abrir com header nominal azul-petróleo e
+  conteúdo branco, seguido por panorama local com passos, distância, BPM,
+  atividades, peso e estado das fontes. Métricas detalhadas foram agrupadas em
+  cards com acentos nominais `primary`, `secondary` e `tertiary`; problemas por
+  fonte e fila ficaram em seções secundárias informativas. Status de fila por
+  atividade permanece observável na seção de fila, sem CTA novo. Retorno,
+  atalhos, labels de origem, estados de ausência e tratamento de data inválida
+  foram preservados.
+- **Desvios:** nenhum contrato funcional foi alterado. ViewModel, read model,
+  intents, navegação, persistência, sincronização, BLE e regra temporal não
+  foram tocados. Não foram criados, alterados ou executados testes
+  automatizados. Loading, erro total, data inválida, ausência e problemas por
+  fonte não foram fabricados para evidência e permanecem `N/A`.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`;
+  `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`;
+  `adb devices -l`; abertura via `adb shell am start -n
+  br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity`;
+  dumps de hierarquia sanitizados via `uiautomator`; smoke Calendário → dia →
+  Passos → retorno, rolagem, fila informativa, status por atividade, fonte
+  `1,3x`, landscape, temas claro/escuro e restauração do aparelho.
+- **Resultados e evidências:** `git diff --check`, compilação Kotlin, lint,
+  builds debug/release e instalação passaram. Galaxy S22 `SM-S901E` confirmou
+  header, panorama, rolagem, abertura do detalhe de Passos, retorno contextual
+  e status individual da fila. Fonte `1,3x`, landscape e tema claro abriram
+  sem cortar header ou ação essencial; estado final restaurado para fonte
+  `1,0x`, portrait, rotação automática desativada e tema escuro. Captura
+  sanitizada, com data, métricas e timestamps ocultos:
+  `024-12-captura-real-sanitizada-detalhe-diario.png`.
+- **Riscos residuais:** loading, erro, data inválida, ausência e problemas
+  parciais não foram observados fisicamente; permanecem `N/A`. A captura não
+  representa conteúdo pessoal real, apenas estrutura da superfície.

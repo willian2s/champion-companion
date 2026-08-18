@@ -2,12 +2,15 @@ package br.com.mwconsulting.championcompanion.feature.calendar
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -33,14 +38,18 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.CalendarDataSource
+import br.com.mwconsulting.championcompanion.core.model.CalendarDataIssueReason
 import br.com.mwconsulting.championcompanion.core.model.CalendarDaySummary
 import br.com.mwconsulting.championcompanion.core.model.CalendarHeartRateSummary
 import br.com.mwconsulting.championcompanion.core.model.CalendarSyncState
@@ -134,28 +143,20 @@ fun CalendarDayScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         )
-                    }
+                     }
 
-                    dayDetail != null -> {
-                        if (dayDetail.issues.isNotEmpty()) {
-                            ErrorState(
-                                title = "Dados parciais",
-                                message = "Parte das fontes locais não pôde ser consultada. Ausência, zero e falha permanecem estados distintos.",
-                                actionLabel = if (dayError?.isRetryable != false) "Tentar novamente" else null,
-                                onAction = if (dayError?.isRetryable != false) {
-                                    { calendarViewModel.onIntent(CalendarIntent.Retry) }
-                                } else {
-                                    null
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        CalendarDayContent(
-                            summary = dayDetail,
-                            locale = locale,
-                            onNavigateTo = onNavigateTo,
-                        )
-                    }
+                     dayDetail != null -> {
+                         CalendarDayContent(
+                             summary = dayDetail,
+                             locale = locale,
+                             onNavigateTo = onNavigateTo,
+                             onRetry = if (dayError?.isRetryable != false) {
+                                 { calendarViewModel.onIntent(CalendarIntent.Retry) }
+                             } else {
+                                 null
+                             },
+                         )
+                     }
 
                     else -> EmptyState(
                         title = "Detalhe diário sem dados",
@@ -179,7 +180,7 @@ private fun DayHeader(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = LightColorScheme.primary,
         ),
     ) {
         Column(
@@ -189,16 +190,25 @@ private fun DayHeader(
             Text(
                 "Detalhe diário",
                 modifier = Modifier.semantics { heading() },
+                color = White,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 supportingText,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = White,
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (showContextualBack) {
-                OutlinedButton(onClick = onNavigateBack) { Text("Voltar para calendário") }
+                OutlinedButton(
+                    onClick = onNavigateBack,
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = White,
+                    ),
+                    border = BorderStroke(1.dp, White),
+                ) {
+                    Text("Voltar para calendário")
+                }
             }
         }
     }
@@ -209,24 +219,144 @@ private fun CalendarDayContent(
     summary: CalendarDaySummary?,
     locale: Locale,
     onNavigateTo: (AppDestination) -> Unit,
+    onRetry: (() -> Unit)?,
 ) {
     val day = summary ?: return
+    DayOverviewCard(day)
+    DaySectionTitle("Métricas do dia")
     StepsDayCard(day, onOpen = { onNavigateTo(AppDestination.HealthSteps) })
     DistanceDayCard(day, onOpen = { onNavigateTo(AppDestination.HealthDistance) })
     HeartRateDayCard(day, onOpen = { onNavigateTo(AppDestination.HealthHeartRate) })
     WorkoutsDayCard(
         day = day,
         locale = locale,
-        syncUnavailable = day.hasIssue(CalendarDataSource.HEALTH_SYNC_QUEUE),
         onOpen = { onNavigateTo(AppDestination.ExerciseDetail(it)) },
     )
     WeightDayCard(day, onOpen = { onNavigateTo(AppDestination.HealthWeight) })
+    if (day.issues.isNotEmpty()) {
+        DayIssuesCard(day, onRetry)
+    }
     SyncDayCard(day)
 }
 
 @Composable
+private fun DayOverviewCard(day: CalendarDaySummary) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, healthPrimaryAccent()),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text(
+                text = "Panorama do dia",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            DayOverviewRow(
+                DayOverviewMetric(
+                    title = "Passos",
+                    value = day.dailySummary?.let { "${it.steps} passos" } ?: "Sem dados",
+                    supportingText = "Meta ${day.stepsGoal}",
+                    accentColor = healthTertiaryAccent(),
+                ),
+                DayOverviewMetric(
+                    title = "Distância",
+                    value = day.dailySummary?.estimatedDistanceMeters?.let {
+                        "${NumberFormat.getNumberInstance(Locale.forLanguageTag("pt-BR")).format(it / 1_000.0)} km"
+                    } ?: "Indisponível",
+                    supportingText = "Estimativa local",
+                    accentColor = healthPrimaryAccent(),
+                ),
+            )
+            DayOverviewRow(
+                DayOverviewMetric(
+                    title = "Frequência cardíaca",
+                    value = day.heartRateSummary?.let { "${it.averageBpm.roundToInt()} BPM" } ?: "Sem dados",
+                    supportingText = day.heartRateSummary?.let { "${it.measurementCount} leituras" } ?: "Nenhuma leitura",
+                    accentColor = healthPrimaryAccent(),
+                ),
+                DayOverviewMetric(
+                    title = "Atividades",
+                    value = "${day.workouts.size}",
+                    supportingText = if (day.workouts.isEmpty()) "Nenhuma registrada" else "Registradas no dia",
+                    accentColor = healthSecondaryAccent(),
+                ),
+            )
+            DayOverviewRow(
+                DayOverviewMetric(
+                    title = "Peso",
+                    value = day.weightMeasurements.firstOrNull()?.toWeightLabel() ?: "Sem dados",
+                    supportingText = if (day.weightMeasurements.isEmpty()) "Nenhuma medida" else "Mais recente",
+                    accentColor = healthSecondaryAccent(),
+                ),
+                DayOverviewMetric(
+                    title = "Estado",
+                    value = if (day.issues.isEmpty()) "Completo" else "Parcial",
+                    supportingText = if (day.issues.isEmpty()) "Fontes locais disponíveis" else "Revise problemas abaixo",
+                    accentColor = if (day.issues.isEmpty()) healthPrimaryAccent() else MaterialTheme.colorScheme.error,
+                ),
+            )
+        }
+    }
+}
+
+private data class DayOverviewMetric(
+    val title: String,
+    val value: String,
+    val supportingText: String,
+    val accentColor: Color,
+)
+
+@Composable
+private fun DayOverviewRow(first: DayOverviewMetric, second: DayOverviewMetric) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    ) {
+        DayOverviewMetricContent(first, Modifier.weight(1f))
+        DayOverviewMetricContent(second, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DayOverviewMetricContent(metric: DayOverviewMetric, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.heightIn(min = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+    ) {
+        Text(metric.title, style = MaterialTheme.typography.labelLarge)
+        Text(
+            metric.value,
+            color = metric.accentColor,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            metric.supportingText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun DaySectionTitle(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.semantics { heading() },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
+
+@Composable
 private fun StepsDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
-    DayCard(title = "Passos") {
+    DayCard(title = "Passos", accentColor = healthTertiaryAccent()) {
         val daily = day.dailySummary
         if (daily == null) {
             Text(
@@ -248,7 +378,7 @@ private fun StepsDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
 
 @Composable
 private fun DistanceDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
-    DayCard(title = "Distância") {
+    DayCard(title = "Distância", accentColor = healthPrimaryAccent()) {
         val distance = day.dailySummary?.estimatedDistanceMeters
         if (distance == null) {
             Text(
@@ -273,7 +403,7 @@ private fun DistanceDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
 
 @Composable
 private fun HeartRateDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
-    DayCard(title = "Frequência cardíaca") {
+    DayCard(title = "Frequência cardíaca", accentColor = healthPrimaryAccent()) {
         val heartRate = day.heartRateSummary
         if (heartRate == null) {
             Text(
@@ -301,10 +431,9 @@ private fun HeartRateSummaryContent(summary: CalendarHeartRateSummary) {
 private fun WorkoutsDayCard(
     day: CalendarDaySummary,
     locale: Locale,
-    syncUnavailable: Boolean,
     onOpen: (String) -> Unit,
 ) {
-    DayCard(title = "Atividades (${day.workouts.size})") {
+    DayCard(title = "Atividades (${day.workouts.size})", accentColor = healthSecondaryAccent()) {
         if (day.workouts.isEmpty()) {
             Text(
                 if (day.hasIssue(CalendarDataSource.WORKOUT_ACTIVITY)) {
@@ -316,7 +445,7 @@ private fun WorkoutsDayCard(
             )
         } else {
             day.workouts.forEach { workout ->
-                WorkoutDayCard(workout, day.zoneId, locale, syncUnavailable, onOpen)
+                WorkoutDayCard(workout, day.zoneId, locale, onOpen)
             }
         }
     }
@@ -327,7 +456,6 @@ private fun WorkoutDayCard(
     workout: CalendarWorkoutSummary,
     zoneId: ZoneId,
     locale: Locale,
-    syncUnavailable: Boolean,
     onOpen: (String) -> Unit,
 ) {
     Card(
@@ -345,6 +473,7 @@ private fun WorkoutDayCard(
         ) {
             Text(workout.title ?: workout.displayType(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text("Tipo: ${workout.displayType()} • Início: ${workout.startedAt.formatCalendarTime(zoneId, locale)}")
+            Text("Origem: ${workout.origin.toCalendarLabel()}", style = MaterialTheme.typography.bodySmall)
             Text(
                 if (workout.isWatchWorkout && !workout.isCycling) {
                     "Duração: ${workout.duration.toCalendarLabel()} • Distância estimada: ${workout.distanceMeters.toDistanceLabel()}"
@@ -372,10 +501,6 @@ private fun WorkoutDayCard(
             }
             Text("Calorias: ${workout.caloriesKilocalories.toNumberLabel()} • BPM médio: ${workout.averageBpm.toBpmLabel()}")
             Text("Workflow: ${workout.workflowState.toCalendarLabel()}")
-            Text("Status da fila local", style = MaterialTheme.typography.labelLarge)
-            CalendarLocalSyncStatus(
-                state = workout.syncSummary.state.takeUnless { syncUnavailable },
-            )
             Text("Abrir detalhe da atividade", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
     }
@@ -383,7 +508,7 @@ private fun WorkoutDayCard(
 
 @Composable
 private fun WeightDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
-    DayCard(title = "Peso") {
+    DayCard(title = "Peso", accentColor = healthSecondaryAccent()) {
         val latest = day.weightMeasurements.firstOrNull()
         if (latest == null) {
             Text(
@@ -412,7 +537,7 @@ private fun WeightDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
 private fun SyncDayCard(day: CalendarDaySummary) {
     val summary = day.syncSummary
     val syncUnavailable = day.hasIssue(CalendarDataSource.HEALTH_SYNC_QUEUE)
-    DayCard(title = "Fila local de sincronização") {
+    DayCard(title = "Fila local informativa", accentColor = healthTertiaryAccent()) {
         CalendarLocalSyncStatus(
             state = summary.state.takeUnless { syncUnavailable },
         )
@@ -426,10 +551,55 @@ private fun SyncDayCard(day: CalendarDaySummary) {
         } else {
             Text("Pendentes ${summary.pendingCount} • Sincronizando ${summary.syncingCount} • Falhas ${summary.failedCount} • Sincronizados ${summary.syncedCount}")
         }
+        if (day.workouts.isNotEmpty()) {
+            Text("Status por atividade", style = MaterialTheme.typography.labelLarge)
+            day.workouts.forEach { workout ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = workout.title ?: workout.displayType(),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        text = workout.syncSummary.state
+                            .takeUnless { syncUnavailable }
+                            ?.toCalendarLabel()
+                            ?: "Indisponível",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
         Text(
             "Status derivado somente da fila local. Falhas não removem dados locais e nenhuma sincronização é iniciada nesta tela.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun DayIssuesCard(day: CalendarDaySummary, onRetry: (() -> Unit)?) {
+    DayCard(title = "Problemas de fontes", accentColor = MaterialTheme.colorScheme.error) {
+        Text(
+            "Parte das fontes locais não pôde ser consultada. Ausência, zero e falha permanecem estados distintos.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        day.issues
+            .sortedBy { it.source.name }
+            .forEach { issue ->
+                Text(
+                    "• ${issue.source.toCalendarLabel()}: ${issue.reason.toCalendarLabel()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        if (onRetry != null) {
+            OutlinedButton(onClick = onRetry) { Text("Tentar novamente") }
+        }
     }
 }
 
@@ -486,13 +656,27 @@ private fun CalendarLocalSyncStatus(
 }
 
 @Composable
-private fun DayCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun DayCard(
+    title: String,
+    accentColor: Color = healthPrimaryAccent(),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.55f)),
+    ) {
         Column(
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                color = accentColor,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
             content()
         }
     }
@@ -573,13 +757,53 @@ private fun CalendarSyncState.toCalendarLabel(): String = when (this) {
     CalendarSyncState.PARTIAL -> "Parcial"
 }
 
+private fun CalendarDataSource.toCalendarLabel(): String = when (this) {
+    CalendarDataSource.ASSOCIATED_DEVICE -> "dispositivo associado"
+    CalendarDataSource.DAILY_SUMMARY -> "resumo diário"
+    CalendarDataSource.HEART_RATE -> "frequência cardíaca"
+    CalendarDataSource.WORKOUT_ACTIVITY -> "atividades"
+    CalendarDataSource.WEIGHT_MEASUREMENT -> "peso"
+    CalendarDataSource.HEALTH_SYNC_QUEUE -> "fila local"
+    CalendarDataSource.PREFERENCES -> "preferências"
+}
+
+private fun CalendarDataIssueReason.toCalendarLabel(): String = when (this) {
+    CalendarDataIssueReason.SOURCE_UNAVAILABLE -> "fonte indisponível"
+    CalendarDataIssueReason.INVALID_LOCAL_DATA -> "dados locais inválidos"
+    CalendarDataIssueReason.UNRESOLVED_AGGREGATE -> "agregado não resolvido"
+}
+
 private fun CalendarDaySummary.hasIssue(source: CalendarDataSource): Boolean =
     issues.any { it.source == source }
+
+@Composable
+private fun healthPrimaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
+
+@Composable
+private fun healthSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.secondary
+} else {
+    LightColorScheme.secondary
+}
+
+@Composable
+private fun healthTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.tertiary
+} else {
+    LightColorScheme.tertiary
+}
 
 private fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toCalendarLabel(): String = when (this) {
     br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_DAILY_SUMMARY -> "Relógio"
     br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_D1_HISTORY -> "Histórico D1"
-    else -> name.lowercase(Locale.ROOT).replace('_', ' ')
+    br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_D3_D4 -> "Relógio D3/D4"
+    br.com.mwconsulting.championcompanion.core.model.DataOrigin.MANUAL_ENTRY -> "Entrada manual"
+    br.com.mwconsulting.championcompanion.core.model.DataOrigin.APP_WORKOUT_SESSION -> "Aplicativo"
+    br.com.mwconsulting.championcompanion.core.model.DataOrigin.DERIVED -> "Derivada localmente"
 }
 
 private fun DomainValue<Double>.toNumberLabel(): String = when (this) {
