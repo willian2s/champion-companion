@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 12/19 subtarefas concluídas
+- **Progresso:** 13/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -24,7 +24,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
 - [x] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
 - [x] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
-- [ ] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
+- [x] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
 - [ ] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
 - [ ] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
 - [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
@@ -179,3 +179,13 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   aparelho foi restaurado para fonte `1,0x`, portrait e tema escuro. Loading,
   erro, data inválida, ausência e problemas parciais ficaram `N/A` sem
   fabricação. Nenhum teste automatizado foi criado ou executado.
+- `024-13` concluída com header nominal, CTA explícita, progresso/retry, filtros,
+  cards compactos e Health Connect secundário. Bloco `Pendências e fluxo` foi
+  removido por solicitação do usuário; lista recebeu paginação de cinco itens,
+  âncora de título ao trocar página, `DirectionsBike` para bicicleta e título
+  `Todos os treinos`. Contratos, cancelamento, deduplicação, detalhe e sync foram
+  preservados. `git diff --check`, compilação Kotlin, lint, builds debug/release,
+  instalação e smoke ADB passaram com fonte `1,3x`, portrait escuro, landscape
+  claro e restauração do aparelho. Evidência sanitizada registrada em
+  `024-13-captura-real-sanitizada-exercicios.png`; nenhuma importação foi
+  iniciada. Revisão independente final aprovada sem bloqueadores.

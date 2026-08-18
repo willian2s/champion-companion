@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `13`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -81,3 +81,38 @@ real for segura; fonte `1,3x`, landscape e temas.
 - não iniciar importação apenas para screenshot;
 - títulos livres e métricas exigem sanitização;
 - Health Connect continua secundário e explícito.
+
+## Registro de execução
+
+- **Status:** completed.
+- **Arquivos alterados:** `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`.
+- **Decisões:** header nominal azul-petróleo; CTA, progresso, retry, filtros,
+  cards compactos e feedback secundário foram reorganizados sem tocar contratos
+  de importação, revisão, deduplicação ou sync. Lista passou a exibir cinco
+  atividades por página, com navegação anterior/próxima e reinício de página ao
+  trocar filtro; troca de página reposiciona a âncora do título no início da
+  lista, somente após ação explícita.
+  `CYCLING` usa `DirectionsBike`. Títulos da lista são normalizados sem truncar
+  conteúdo.
+- **Desvios:** bloco `Pendências e fluxo` removido por solicitação explícita do
+  usuário. O título `Todos os treinos importados` foi reduzido para `Todos os
+  treinos`.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`;
+  `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`;
+  `adb devices -l`; `adb shell am start -n
+  br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity`;
+  smoke ADB com rolagem, filtros, paginação, abertura de detalhe e retorno;
+  captura sanitizada via `adb exec-out screencap -p` e `magick`.
+- **Resultados e evidências:** todos os comandos passaram. Build debug/release,
+  lint e instalação concluídos; hierarquia ADB confirmou CTA, importação,
+  filtros, paginação `Página 2 de 3`, cards com tipo/momento/métricas/status,
+  ícone de bicicleta e âncora `Todos os treinos • 14` no topo após paginação.
+  Fonte `1,3x`, portrait escuro,
+  landscape claro e restauração para fonte `1,0x`, portrait escuro foram
+  exercitados. Evidência em
+  `024-13-captura-real-sanitizada-exercicios.png`. Nenhuma importação foi
+  iniciada para gerar evidência.
+- **Riscos residuais:** estados transitórios de importação, retry e erro não
+  foram fabricados; cancelamento, retry e deduplicação continuam cobertos por
+  preservação de código, mas não foram disparados fisicamente. Revisão
+  independente final aprovada, sem bloqueadores.

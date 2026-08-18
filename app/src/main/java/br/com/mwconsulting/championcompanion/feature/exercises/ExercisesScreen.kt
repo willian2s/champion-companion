@@ -4,12 +4,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +22,12 @@ import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
@@ -60,6 +67,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -70,8 +78,10 @@ import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.PendingReviewBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PermissionBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
@@ -120,10 +130,6 @@ private val ExerciseHeartRateChartRightPadding = 40.dp
 private val ExerciseCanonicalChartLeftPadding = 12.dp
 private val ExerciseCanonicalChartRightPadding = 40.dp
 
-private val PendingWorkflowBorderColor = Color(0xFFF9A825)
-private val ReadyWorkflowBorderColor = Color(0xFF1E88E5)
-private val SyncedWorkflowBorderColor = Color(0xFF2E7D32)
-
 @Composable
 fun ExercisesScreen(
     openedActivityId: WorkoutActivityId? = null,
@@ -141,6 +147,7 @@ fun ExercisesScreen(
     val dismissOperationError = remember(viewModel) {
         { viewModel.onIntent(ExercisesIntent.DismissOperationError) }
     }
+    val scrollState = rememberScrollState()
 
     LaunchedEffect(viewModel) {
         viewModel.onIntent(ExercisesIntent.Load)
@@ -175,9 +182,9 @@ fun ExercisesScreen(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
                 .padding(ChampionSpacing.extraLarge),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
@@ -190,7 +197,6 @@ fun ExercisesScreen(
                     onRetryImport = { viewModel.onIntent(ExercisesIntent.RetryImport) },
                     onDismissImport = { viewModel.onIntent(ExercisesIntent.DismissImport) },
                 )
-                WorkflowSummarySection(state = state)
                 if (!state.importState.isImportInFlight()) {
                     ExerciseSyncFeedbackCard(state.activityList, state.workflowSummary)
                 }
@@ -238,7 +244,7 @@ private fun ExercisesHeader(state: ExercisesUiState) {
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = LightColorScheme.primary,
         ),
     ) {
         Column(
@@ -247,13 +253,20 @@ private fun ExercisesHeader(state: ExercisesUiState) {
         ) {
             Text(
                 text = "Exercícios",
-                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.semantics { heading() },
+                color = Color.White,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Importe atividades gravadas no relógio e revise-as localmente.",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyLarge,
             )
             Text(
                 text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.9f),
             )
             Text(
                 text = if (state.hasAssociatedDevice) {
@@ -262,7 +275,7 @@ private fun ExercisesHeader(state: ExercisesUiState) {
                     "Nenhum relógio associado. A importação manual ficará disponível após associar um dispositivo."
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.82f),
             )
         }
     }
@@ -284,14 +297,18 @@ private fun ExercisesImportCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
+        border = BorderStroke(1.dp, exercisePrimaryAccent()),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
     ) {
         Column(
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
-            Text("Treinos do relógio", style = MaterialTheme.typography.titleLarge)
+            Text("Importar do relógio", style = MaterialTheme.typography.titleLarge)
             Text(
-                text = "A leitura só começa por ação explícita e mantém os treinos importados como pendentes de revisão.",
+                text = "A leitura começa somente por ação explícita. Atividades importadas ficam disponíveis para revisão local.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -339,6 +356,8 @@ private fun ExercisesImportCard(
                     LinearProgressIndicator(
                         progress = { importSession.progress.overallProgressFraction ?: 0f },
                         modifier = Modifier.fillMaxWidth(),
+                        color = exercisePrimaryAccent(),
+                        trackColor = exercisePrimaryAccent().copy(alpha = 0.18f),
                     )
                     Text(progressMessage, style = MaterialTheme.typography.bodyMedium)
                     Text(
@@ -447,7 +466,7 @@ private fun MetadataSection(metadata: WatchWorkoutImportMetadata?) {
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeMedium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
     ) {
@@ -455,7 +474,7 @@ private fun MetadataSection(metadata: WatchWorkoutImportMetadata?) {
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
-                Text("Última importação", style = MaterialTheme.typography.titleMedium)
+            Text("Última operação", style = MaterialTheme.typography.titleMedium)
             if (metadata == null) {
                 Text(
                     text = "Ainda não há importação registrada para este relógio.",
@@ -534,57 +553,6 @@ private fun PendingActivityCard(activity: WorkoutActivity) {
 }
 
 @Composable
-private fun WorkflowSummarySection(state: ExercisesUiState) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text("Resumo do fluxo", style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = buildString {
-                    append(state.workflowSummary.pendingReviewCount)
-                    append(" aguardando revisão, ")
-                    append(state.workflowSummary.pendingCalibrationCount)
-                    append(" aguardando calibração e ")
-                    append(state.workflowSummary.readyToSyncCount)
-                    append(" pronta(s) para sincronizar.")
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-            ) {
-                SummaryChip("Todas", workoutFilterOptions(state.workflowSummary).first().count)
-                SummaryChip("Pendentes", state.workflowSummary.pendingReviewCount)
-                SummaryChip("Calibração", state.workflowSummary.pendingCalibrationCount)
-                SummaryChip("Prontas", state.workflowSummary.readyToSyncCount)
-                SummaryChip("Sincronizadas", state.workflowSummary.syncedCount)
-                SummaryChip("Com erro", state.workflowSummary.syncFailedCount)
-                SummaryChip("Descartadas", state.workflowSummary.discardedCount)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryChip(label: String, count: Int) {
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text("$label: $count") },
-    )
-}
-
-@Composable
 private fun WorkoutFiltersSection(
     selectedFilter: WorkoutActivityFilter,
     workflowSummary: br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary,
@@ -602,6 +570,7 @@ private fun WorkoutFiltersSection(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = ChampionShapeMedium,
+            border = BorderStroke(1.dp, exerciseTertiaryAccent()),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
@@ -706,11 +675,41 @@ private fun ExercisesListSection(
     activities: List<WorkoutActivity>,
     onOpenActivity: (WorkoutActivityId) -> Unit,
 ) {
+    val pageSize = 5
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var selectedPage by remember(selectedFilter) { mutableStateOf(0) }
+    var pageNavigationRequested by remember(selectedFilter) { mutableStateOf(false) }
+    val pageCount = (activities.size + pageSize - 1) / pageSize
+    val currentPage = selectedPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+
+    LaunchedEffect(selectedFilter, activities.size) {
+        selectedPage = 0
+    }
+
+    LaunchedEffect(pageNavigationRequested) {
+        if (pageNavigationRequested) {
+            bringIntoViewRequester.bringIntoView()
+            pageNavigationRequested = false
+        }
+    }
+
+    fun selectPage(page: Int) {
+        val nextPage = page.coerceIn(0, pageCount - 1)
+        if (nextPage != currentPage) {
+            selectedPage = nextPage
+            pageNavigationRequested = true
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        Text(selectedFilter.toSectionTitle(), style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = "${selectedFilter.toSectionTitle()} • ${activities.size}",
+            modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester),
+            style = MaterialTheme.typography.titleLarge,
+        )
         if (activities.isEmpty()) {
             EmptyState(
                 title = "Nenhum treino neste filtro",
@@ -718,11 +717,39 @@ private fun ExercisesListSection(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            activities.forEach { activity ->
+            activities
+                .drop(currentPage * pageSize)
+                .take(pageSize)
+                .forEach { activity ->
                 WorkoutActivityCard(
                     activity = activity,
                     onClick = { onOpenActivity(activity.id) },
                 )
+            }
+            if (pageCount > 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = { selectPage(currentPage - 1) },
+                        enabled = currentPage > 0,
+                    ) {
+                        Text("Anterior")
+                    }
+                    Text(
+                        text = "Página ${currentPage + 1} de $pageCount",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(
+                        onClick = { selectPage(currentPage + 1) },
+                        enabled = currentPage < pageCount - 1,
+                    ) {
+                        Text("Próxima")
+                    }
+                }
             }
         }
     }
@@ -739,6 +766,7 @@ private fun ExerciseSyncFeedbackCard(
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, exerciseSecondaryAccent()),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
@@ -747,7 +775,12 @@ private fun ExerciseSyncFeedbackCard(
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
-            Text("Health Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Health Connect · feedback secundário",
+                style = MaterialTheme.typography.titleMedium,
+                color = exerciseSecondaryAccent(),
+                fontWeight = FontWeight.SemiBold,
+            )
             Text(
                 when {
                     syncingCount > 0 -> "Há treino(s) sincronizando com o Health Connect. Os dados locais continuam disponíveis normalmente."
@@ -773,71 +806,81 @@ private fun WorkoutActivityCard(
     activity: WorkoutActivity,
     onClick: () -> Unit,
 ) {
-    val borderColor = activity.workflowState.toListBorderColor()
+    val accentColor = activity.workflowState.toListAccentColor()
     Card(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .border(width = 2.dp, color = borderColor, shape = ChampionShapeMedium),
+            .heightIn(min = 96.dp),
         shape = ChampionShapeMedium,
+        border = BorderStroke(1.dp, accentColor),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        Row(
+            modifier = Modifier.padding(ChampionSpacing.medium),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            verticalAlignment = Alignment.Top,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        color = accentColor.copy(alpha = 0.14f),
+                        shape = ChampionShapeMedium,
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = activity.displayType().toListIcon(),
                     contentDescription = activity.displayType().toLabel(),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = accentColor,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+            ) {
+                Text(
+                    text = activity.displayListTitle(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = activity.displayType().toLabel(),
+                    text = activity.displayListContextLabel(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            Text(
-                text = activity.displayTitle(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = activity.metrics.startedAt.formatDateTime(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "Duração ${activity.metrics.duration.toDurationLabel()} • ${activity.displayDistanceLabel()}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (activity.isWatchWorkout && !activity.isCycling &&
-                activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE &&
-                activity.canonicalReadStatus != WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
-            ) {
                 Text(
-                    text = activity.canonicalReadStatus.toShortLabel(),
+                    text = "${activity.metrics.duration.toDurationLabel()} • ${activity.displayDistanceLabel()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (activity.isWatchWorkout && !activity.isCycling &&
+                    activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE &&
+                    activity.canonicalReadStatus != WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED
+                ) {
+                    Text(
+                        text = activity.canonicalReadStatus.toShortLabel(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (activity.isWatchWorkout && !activity.isCycling && activity.requiresWatchWorkoutReprocessing) {
+                    Text(
+                        "Reprocessamento explícito necessário",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = activity.workflowState.toLabel(),
+                    modifier = Modifier.semantics { stateDescription = activity.workflowState.toLabel() },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = accentColor,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-            if (activity.isWatchWorkout && !activity.isCycling && activity.requiresWatchWorkoutReprocessing) {
-                Text(
-                    "Reprocessamento explícito necessário",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                text = activity.workflowState.toLabel(),
-                style = MaterialTheme.typography.bodySmall,
-                color = borderColor,
-                fontWeight = FontWeight.SemiBold,
-            )
         }
     }
 }
@@ -2654,7 +2697,7 @@ private fun yForExerciseChartValue(
 }
 
 private fun WorkoutActivityFilter.toSectionTitle(): String = when (this) {
-    WorkoutActivityFilter.ALL -> "Todos os treinos importados"
+    WorkoutActivityFilter.ALL -> "Todos os treinos"
     WorkoutActivityFilter.PENDING_REVIEW -> "Treinos aguardando revisão"
     WorkoutActivityFilter.PENDING_CALIBRATION -> "Treinos aguardando calibração"
     WorkoutActivityFilter.READY_TO_SYNC -> "Treinos prontos"
@@ -2665,6 +2708,20 @@ private fun WorkoutActivityFilter.toSectionTitle(): String = when (this) {
 
 private fun WorkoutActivity.displayTitle(): String =
     title?.takeIf { it.isNotBlank() } ?: displayType().toFallbackTitle()
+
+private fun WorkoutActivity.displayListTitle(): String =
+    title
+        ?.trim()
+        ?.replace(Regex("\\s+"), " ")
+        ?.takeIf { it.isNotBlank() }
+        ?: displayType().toFallbackTitle()
+
+private fun WorkoutActivity.displayListContextLabel(): String =
+    if (title?.trim()?.isNotEmpty() == true) {
+        "${displayType().toLabel()} • ${metrics.startedAt.formatDateTime()}"
+    } else {
+        metrics.startedAt.formatDateTime()
+    }
 
 private fun WorkoutActivity.displayType(): WorkoutType = confirmedType ?: suggestedType
 
@@ -2692,18 +2749,41 @@ private fun ActivityWorkflowState.toChipLabel(): String = when (this) {
     else -> toLabel()
 }
 
-private fun ActivityWorkflowState.toListBorderColor(): Color = when (this) {
+@Composable
+private fun ActivityWorkflowState.toListAccentColor(): Color = when (this) {
     ActivityWorkflowState.PENDING_REVIEW,
-    ActivityWorkflowState.PENDING_CALIBRATION,
-    ActivityWorkflowState.DISCARDED,
-    -> PendingWorkflowBorderColor
+    -> exerciseSecondaryAccent()
+
+    ActivityWorkflowState.PENDING_CALIBRATION -> exerciseTertiaryAccent()
 
     ActivityWorkflowState.READY_TO_SYNC,
     ActivityWorkflowState.SYNCING,
-    ActivityWorkflowState.SYNC_FAILED,
-    -> ReadyWorkflowBorderColor
+    -> exercisePrimaryAccent()
 
-    ActivityWorkflowState.SYNCED -> SyncedWorkflowBorderColor
+    ActivityWorkflowState.SYNC_FAILED -> MaterialTheme.colorScheme.error
+    ActivityWorkflowState.DISCARDED -> MaterialTheme.colorScheme.onSurfaceVariant
+    ActivityWorkflowState.SYNCED -> exercisePrimaryAccent()
+}
+
+@Composable
+private fun exercisePrimaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
+
+@Composable
+private fun exerciseSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.secondary
+} else {
+    LightColorScheme.secondary
+}
+
+@Composable
+private fun exerciseTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.tertiary
+} else {
+    LightColorScheme.tertiary
 }
 
 private fun WorkoutType.toListIcon(): ImageVector = when (this) {
@@ -2711,7 +2791,7 @@ private fun WorkoutType.toListIcon(): ImageVector = when (this) {
     WorkoutType.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
     WorkoutType.FREE_WORKOUT -> Icons.Filled.FitnessCenter
     WorkoutType.TREADMILL -> Icons.AutoMirrored.Filled.DirectionsWalk
-    WorkoutType.CYCLING -> Icons.Filled.FitnessCenter
+    WorkoutType.CYCLING -> Icons.AutoMirrored.Filled.DirectionsBike
     WorkoutType.UNKNOWN -> Icons.Filled.FitnessCenter
 }
 
