@@ -14,6 +14,10 @@ ativo visualmente distinto sem alteração da máquina de navegação.
 
 - R2, R3, R5, R6 e R7.
 - Critérios 4, 8, 9 e 11 da spec aplicáveis ao shell.
+- Regra cromática comum: quando presentes, header azul-petróleo nominal do
+  Champion com conteúdo branco; cards, indicadores e progresso com acentos
+  nominais `primary`/`secondary`/`tertiary` da paleta clara/escura conforme o
+  tema, seguindo o piloto `024-05`, sem alterar o tema raiz.
 
 ## Escopo incluído
 

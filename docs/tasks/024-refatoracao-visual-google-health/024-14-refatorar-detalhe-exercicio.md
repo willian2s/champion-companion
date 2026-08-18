@@ -13,6 +13,10 @@ alterar derivação, calibração, descarte ou sync.
 ## Requisitos e critérios cobertos
 
 - R4–R10; critérios 5, 7–13 da spec.
+- Regra cromática comum: quando presentes, header azul-petróleo nominal do
+  Champion com conteúdo branco; cards, indicadores e progresso com acentos
+  nominais `primary`/`secondary`/`tertiary` da paleta clara/escura conforme o
+  tema, seguindo o piloto `024-05`, sem alterar o tema raiz.
 
 ## Escopo incluído
 

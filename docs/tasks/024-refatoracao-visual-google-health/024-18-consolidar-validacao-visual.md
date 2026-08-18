@@ -13,6 +13,10 @@ documentação fechada e evidência física completa.
 ## Requisitos e critérios cobertos
 
 - R1–R10; todos os critérios de aceite da spec.
+- Regra cromática comum: quando presentes, header azul-petróleo nominal do
+  Champion com conteúdo branco; cards, indicadores e progresso com acentos
+  nominais `primary`/`secondary`/`tertiary` da paleta clara/escura conforme o
+  tema, seguindo o piloto `024-05`, sem alterar o tema raiz.
 
 ## Escopo incluído
 

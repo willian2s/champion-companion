@@ -47,6 +47,11 @@ Health Connect continua apenas integração write-only já existente.
   e tipografia do sistema do Champion Companion. No piloto Saúde, azul-petróleo
   identifica header; `primary`, `secondary` e `tertiary` diferenciam métricas
   sem transformar cor em único sinal.
+- Nas superfícies migradas, aplicar a linguagem cromática aceita no piloto Saúde:
+  header, quando houver, em azul-petróleo nominal do Champion com conteúdo
+  branco; cards, indicadores e progresso com acentos nominais `primary`,
+  `secondary` e `tertiary` da paleta clara ou escura conforme o tema. Bases
+  neutras e tema raiz continuam Material 3, sem redesenho implícito.
 - Não copiar logo, Google Sans, quatro cores Google, screenshots, ilustrações,
   ativos, textos, Coach, IA, premium ou layout pixel a pixel.
 
@@ -62,9 +67,10 @@ Health Connect continua apenas integração write-only já existente.
 - A direção cromática pode abranger o app inteiro como resultado final, mas sua
   adoção deve ser opt-in por superfície; não alterar tema raiz para redesenhar
   consumidores ainda não migrados.
-- Uma superfície migrada pode usar fallback cromático nominal do Champion em
-  acentos quando dynamic color produzir esquema acromático; contraste e tema
-  claro/escuro continuam obrigatórios, sem alterar consumidores não migrados.
+- Uma superfície migrada usa a paleta nominal do Champion nos acentos definidos
+  pela linguagem cromática comum, com variante clara/escura conforme o tema;
+  dynamic color permanece habilitado no tema raiz e nas bases não especializadas.
+  Contraste continua obrigatório, sem alterar consumidores não migrados.
 
 ### R3 — Navegação preservada
 

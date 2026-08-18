@@ -2,8 +2,10 @@ package br.com.mwconsulting.championcompanion.feature.home
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -39,11 +41,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,13 +58,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeExtraLarge
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeSmall
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
-import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementIntent
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementViewModel
@@ -280,36 +288,58 @@ private fun HomeSummaryContent(
     onOpenExercises: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val primaryAccent = homePrimaryAccent()
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
     ) {
-        HealthCard(
-            title = "Resumo diário",
+        Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = ChampionShapeLarge,
+            border = BorderStroke(1.dp, primaryAccent),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
         ) {
-            Text(
-                text = formatSteps(summary.steps),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Meta ${formatGoal(summary.dailyGoal)} • ${formatPercent(summary.progress)} da meta",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            LinearProgressIndicator(
-                progress = { summary.progress.coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = ChampionSpacing.medium),
-            )
-            Text(
-                text = "Puxe para baixo para atualizar os dados do relógio.",
-                modifier = Modifier.padding(top = ChampionSpacing.medium),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Column(modifier = Modifier.padding(ChampionSpacing.large)) {
+                Text(
+                    text = "Resumo diário",
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Passos hoje",
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = formatSteps(summary.steps),
+                    color = primaryAccent,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Meta ${formatGoal(summary.dailyGoal)} • ${formatPercent(summary.progress)} da meta",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                LinearProgressIndicator(
+                    progress = { summary.progress.coerceIn(0f, 1f) },
+                    color = homeSecondaryAccent(),
+                    trackColor = primaryAccent.copy(alpha = 0.16f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = ChampionSpacing.medium),
+                )
+                Text(
+                    text = "Puxe para baixo para atualizar os dados do relógio.",
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
 
         workoutPendingBanner?.let { banner ->
@@ -329,16 +359,18 @@ private fun HomeSummaryContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
-            MetricCard(
-                label = "Distancia estimada",
+            HomeMetricCard(
+                label = "Distância estimada",
                 value = formatDistance(summary.estimatedDistanceMeters),
                 supportingText = estimateSupport(summary.estimatedDistanceMeters),
+                accentColor = homeTertiaryAccent(),
                 modifier = Modifier.weight(1f),
             )
-            MetricCard(
+            HomeMetricCard(
                 label = "Calorias estimadas",
                 value = formatCalories(summary.estimatedCaloriesKilocalories),
                 supportingText = estimateSupport(summary.estimatedCaloriesKilocalories),
+                accentColor = homeSecondaryAccent(),
                 modifier = Modifier.weight(1f),
             )
         }
@@ -375,16 +407,23 @@ private fun HomeWorkoutPendingBannerCard(
     banner: HomeWorkoutPendingBanner,
     onOpenExercises: () -> Unit,
 ) {
+    val accentColor = if (banner.isCalibrationPriority) {
+        homeTertiaryAccent()
+    } else {
+        homeSecondaryAccent()
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpenExercises),
-        colors = CardDefaults.cardColors(
-            containerColor = if (banner.isCalibrationPriority) {
-                MaterialTheme.colorScheme.tertiaryContainer
-            } else {
-                MaterialTheme.colorScheme.secondaryContainer
+            .clickable(onClick = onOpenExercises)
+            .semantics {
+                role = Role.Button
+                contentDescription = "${banner.title}. ${banner.message}. Toque para abrir Exercícios."
             },
+        border = BorderStroke(1.dp, accentColor),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ),
     ) {
         Column(
@@ -393,6 +432,7 @@ private fun HomeWorkoutPendingBannerCard(
         ) {
             Text(
                 text = banner.title,
+                color = accentColor,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -419,14 +459,17 @@ private fun HomeLatestHeartRateCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    MetricCard(
+    HomeMetricCard(
         label = "Última frequência cardíaca",
         value = latestHeartRate?.let { "${it.bpm} BPM" } ?: "Sem medições",
         supportingText = latestHeartRate?.let { formatMeasurementTimestamp(it.measuredAt) }
             ?: "Disponível após a primeira medição manual",
+        accentColor = homePrimaryAccent(),
+        isAvailable = latestHeartRate != null,
         modifier = modifier
             .clickable(onClick = onClick)
             .semantics {
+                role = Role.Button
                 contentDescription = buildString {
                     append("Última frequência cardíaca. ")
                     append(latestHeartRate?.let { "${it.bpm} BPM. ${formatMeasurementTimestamp(it.measuredAt)}." } ?: "Sem medições.")
@@ -434,6 +477,48 @@ private fun HomeLatestHeartRateCard(
                 }
             },
     )
+}
+
+@Composable
+private fun HomeMetricCard(
+    label: String,
+    value: String,
+    supportingText: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    isAvailable: Boolean = value != "Indisponível",
+) {
+    Card(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$label. $value. $supportingText"
+        },
+        shape = ChampionShapeMedium,
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.7f)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(
+                text = value,
+                color = if (isAvailable) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = supportingText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 @Composable
@@ -509,33 +594,45 @@ private fun HomeTopBar(
     onOpenDevice: () -> Unit,
     onOpenProfile: () -> Unit,
 ) {
+    val headerContainerColor = LightColorScheme.primary
+    val headerContentColor = White
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeExtraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = headerContainerColor,
+            contentColor = headerContentColor,
         ),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .padding(horizontal = ChampionSpacing.small),
-        ) {
-            WatchStatusButton(
-                status = status,
-                onClick = onOpenDevice,
-                modifier = Modifier.align(Alignment.CenterStart),
-            )
+        Column(modifier = Modifier.padding(ChampionSpacing.large)) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                WatchStatusButton(
+                    status = status,
+                    onClick = onOpenDevice,
+                    modifier = Modifier.align(Alignment.CenterStart),
+                )
+                Text(
+                    text = title,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .semantics { heading() },
+                    color = headerContentColor,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                ProfileShortcutButton(
+                    onClick = onOpenProfile,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            }
             Text(
-                text = title,
-                modifier = Modifier.align(Alignment.Center),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            ProfileShortcutButton(
-                onClick = onOpenProfile,
-                modifier = Modifier.align(Alignment.CenterEnd),
+                text = "Relógio: ${status.label}",
+                modifier = Modifier.padding(top = ChampionSpacing.small),
+                color = headerContentColor,
+                style = MaterialTheme.typography.bodyMedium,
             )
         }
     }
@@ -549,9 +646,9 @@ private fun WatchStatusButton(
 ) {
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(ChampionShapeExtraLarge)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(White.copy(alpha = 0.16f))
             .clickable(onClick = onClick)
             .semantics {
                 contentDescription = "Abrir Dispositivo. Status do relógio: ${status.label}"
@@ -561,15 +658,7 @@ private fun WatchStatusButton(
         Icon(
             imageVector = Icons.Filled.Watch,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(6.dp)
-                .size(10.dp)
-                .clip(ChampionShapeSmall)
-                .background(status.color()),
+            tint = White,
         )
     }
 }
@@ -581,9 +670,9 @@ private fun ProfileShortcutButton(
 ) {
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(ChampionShapeExtraLarge)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(White.copy(alpha = 0.16f))
             .clickable(onClick = onClick)
             .semantics {
                 contentDescription = "Abrir Perfil"
@@ -593,7 +682,7 @@ private fun ProfileShortcutButton(
         Icon(
             imageVector = Icons.Filled.PersonOutline,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = White,
         )
     }
 }
@@ -609,13 +698,24 @@ private enum class HomeWatchStatus(
 }
 
 @Composable
-private fun HomeWatchStatus.color() = when (this) {
-    HomeWatchStatus.Connected -> Color(0xFF22C55E)
-    HomeWatchStatus.Connecting -> Color(0xFF3B82F6)
-    HomeWatchStatus.Pending -> Color(0xFFFACC15)
-    HomeWatchStatus.BluetoothDisabled,
-    HomeWatchStatus.PermissionsRequired,
-    -> Color(0xFFEF4444)
+private fun homePrimaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
+
+@Composable
+private fun homeSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.secondary
+} else {
+    LightColorScheme.secondary
+}
+
+@Composable
+private fun homeTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.tertiary
+} else {
+    LightColorScheme.tertiary
 }
 
 private fun HomeWatchSnapshot.toHomeWatchStatus(): HomeWatchStatus = when (connectionState) {

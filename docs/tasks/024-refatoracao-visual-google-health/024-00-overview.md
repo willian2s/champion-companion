@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 5/19 subtarefas concluídas
+- **Progresso:** 6/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-03-refatorar-shell-de-navegacao.md](024-03-refatorar-shell-de-navegacao.md)
 - [x] [024-04-definir-estrategia-cromatica-transversal.md](024-04-definir-estrategia-cromatica-transversal.md)
 - [x] [024-05-refatorar-hub-saude-piloto.md](024-05-refatorar-hub-saude-piloto.md)
-- [ ] [024-06-refatorar-home.md](024-06-refatorar-home.md)
+- [x] [024-06-refatorar-home.md](024-06-refatorar-home.md)
 - [ ] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
 - [ ] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
 - [ ] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
@@ -92,3 +92,22 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   antes de implementação e não reabre subtarefa aceita.
 - Planejamento criado em `024-19-colorir-selecao-navegacao.md` para corrigir
   seleção cromática do shell; implementação ainda não iniciada.
+- Nova solicitação tornou o padrão cromático do piloto Saúde obrigatório nas
+  superfícies pendentes `024-06` a `024-19`: header azul-petróleo nominal com
+  conteúdo branco e acentos nominais claros/escuros nos cards, indicadores e
+  progresso, sem alteração do tema raiz. Regra também foi registrada no ADR-023.
+- `024-06` concluída: Home prioriza resumo/progresso, mantém status textual do
+  relógio, refresh, pendências, atalhos e estados seguros; card de revisão usa
+  acento secundário/terciário conforme prioridade; badge cromático sobre o ícone
+  do relógio foi removido a pedido do usuário; título `Hoje` ficou centralizado.
+- `024-06` passou em `git diff --check`, `./gradlew lint assembleDebug
+  assembleRelease`, instalação debug e smoke ADB sanitizado. Foram exercitados
+  portrait, retorno, rolagem, atalhos para Exercícios/Perfil/Dispositivo/BPM,
+  barra inferior Saúde → Início, fonte `1,3x`, landscape e temas claro/escuro;
+  configurações do aparelho foram restauradas para fonte `1,0x`, portrait e
+  tema escuro.
+- Evidência sanitizada registrada em
+  `024-06-captura-real-sanitizada-home-portrait.png`; barra de status foi
+  recortada, métricas e dados livres foram ocultados e o PNG ficou sem chunks
+  temporais. Estados raros e feedback transitório de refresh ficaram `N/A`
+  quando não observados sem fabricar dados.

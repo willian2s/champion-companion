@@ -105,6 +105,23 @@ unidade e estado necessários, mas não duplica card de Health Connect; status d
 integração permanece em Configurações. Quatro destinos e callbacks continuam
 preservados.
 
+## Emenda — regra cromática comum das superfícies pendentes
+
+- **Data:** 2026-08-18
+
+Após solicitação de alinhamento visual da Home ao piloto Saúde, a adoção da
+linguagem cromática passa a ser obrigatória em cada superfície migrada da Spec
+024: header, quando presente, usa azul-petróleo nominal do Champion com conteúdo
+branco; cards, indicadores e progresso usam acentos nominais `primary`,
+`secondary` e `tertiary` da paleta clara ou escura conforme o tema. Bases neutras
+continuam Material 3. Essa regra é opt-in por superfície e não altera dynamic
+color do tema raiz nem consumidores não migrados.
+
+O fallback nominal deixa de ser apenas condicional a esquema acromático nas
+superfícies migradas; a exigência vale para preservar coerência com o piloto,
+contraste e identidade do Champion. Sinais textuais e semânticos continuam
+obrigatórios, e cor não é sinal único.
+
 ## Relação com outras decisões
 
 - ADR-005 continua autoritativa para Navigation 3 e back stack manual.
