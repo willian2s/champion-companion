@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 9/19 subtarefas concluídas
+- **Progresso:** 11/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -21,8 +21,8 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
 - [x] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
 - [x] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
-- [ ] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
-- [ ] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
+- [x] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
+- [x] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
 - [ ] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
 - [ ] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
 - [ ] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
@@ -153,3 +153,18 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - Revisão independente de `024-09` aprovou após correção da evidência sanitizada
   e redução da descrição do gráfico para resumo acessível; nenhum bloqueador
   permaneceu.
+- `024-10` concluída após conexão do Galaxy S22 `SM-S901E`: header nominal, valor
+  diário estimado, origem, seletor 7D/30D/90D, gráfico com grade e lacunas
+  preservadas. Smoke físico cobriu portrait escuro, tema claro, fonte `1,3x`,
+  landscape, rolagem, retorno e captura sanitizada; loading, erro e vazio ficaram
+  `N/A` sem fabricação.
+- `024-11` concluída após decisão explícita do usuário por preservar dimensões
+  originais: Calendário recebeu header nominal, controles mensais com ícones,
+  grade de sete colunas/42 células, espaçamento entre datas, marcadores
+  simplificados, seleção/hoje separados, CTA priorizado e legenda compacta.
+  Bordas e margens foram alinhadas às demais superfícies. Exceção R5 foi
+  registrada na spec para o viewport portrait de 360 dp. Smoke cobriu mês
+  anterior/próximo, `Hoje`, seleção, abertura do dia, retorno, fonte `1,3x`,
+  tema claro, landscape e restauração; captura sanitizada válida foi registrada.
+  Contraste dos pontos foi corrigido pela variante nominal adequada ao fundo da
+  célula, com nova validação e captura sanitizada.

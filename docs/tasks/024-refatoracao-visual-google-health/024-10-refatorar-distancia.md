@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `10`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -77,3 +77,40 @@ Smoke: alternar períodos, rolar, validar ausência/estimativa e back.
 - zero e indisponível são estados distintos;
 - dados pessoais devem ser sanitizados;
 - reutilizar padrão de Passos só após equivalência comprovada.
+
+## Registro de execução
+
+- **Status:** completed.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/DistanceHistoryShell.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/DistanceHistoryChart.kt` e
+  `024-10-captura-real-sanitizada-distance-portrait.png`.
+- **Decisões:** detalhe recebeu header azul-petróleo nominal com conteúdo branco,
+  heading semântico, valor diário em `km`, origem e caráter de estimativa local
+  explícitos. Seletor 7D/30D/90D recebeu acento nominal primário. Gráfico recebeu
+  grade discreta, acento primário, descrição resumida acessível e marca compacta
+  para lacunas; zero continua barra preenchida e ausência continua distinta.
+  ViewModel, intents, repository, derivação, persistência e dados não foram
+  alterados.
+- **Desvios:** nenhum requisito funcional alterado. Estados loading, erro e vazio
+  não foram fabricados para evidência.
+- **Comandos executados:** `git diff --check`; `./gradlew app:lintDebug`;
+  `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`;
+  `adb devices -l`; abertura via `adb shell am start -n
+  br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity`;
+  dumps de hierarquia sanitizados via `uiautomator`; smoke com seleção de 7D,
+  30D e 90D, rolagem e retorno; configuração temporária de fonte `1,3x`, tema
+  claro e landscape; restauração para fonte `1,0x`, tema escuro, portrait,
+  rotação e densidade físicas originais.
+- **Resultados e evidências:** `git diff --check`, lint, builds debug/release e
+  instalação passaram no Galaxy S22 `SM-S901E`.
+  Header, valor diário, unidade, origem, períodos, gráfico/lista, rolagem e
+  retorno foram observados. Fonte `1,3x`, tema claro e landscape abriram sem
+  corte da ação essencial; tema escuro portrait foi capturado. Evidência
+  sanitizada: `024-10-captura-real-sanitizada-distance-portrait.png`.
+- **Riscos residuais:** loading, erro e vazio ficaram `N/A` por não fabricar
+  estados; nenhum bloqueio físico permanece.
+- **Revisão independente:** primeira revisão bloqueou contraste do header escuro
+  e evidência física. Header foi ajustado para azul-petróleo nominal fixo com
+  conteúdo branco. Reavaliação final aprovou o escopo estático sem bloqueadores;
+  validação física posterior foi concluída sem achados bloqueadores.

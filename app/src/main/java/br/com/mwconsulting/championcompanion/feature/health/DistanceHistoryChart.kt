@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,8 +21,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.model.CalendarDistanceHistorySnapshot
-import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
@@ -38,14 +40,14 @@ internal fun DistanceHistoryChart(
         snapshot.aggregates.maximumDistanceMeters ?: 0.0,
         1.0,
     )
-    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryColor = if (isSystemInDarkTheme()) DarkColorScheme.primary else LightColorScheme.primary
     val gapColor = MaterialTheme.colorScheme.outline
-    val chartDescription = entries.joinToString(separator = "; ") { entry ->
-        val date = shortDateFormatter(locale).format(entry.localDate)
-        val value = entry.estimatedDistanceMeters?.let { "${formatDistance(it)} km, estimada" }
-            ?: "sem estimativa"
-        "$date: $value"
-    }
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+    val estimatedDayCount = entries.count { it.estimatedDistanceMeters != null }
+    val missingDayCount = entries.size - estimatedDayCount
+    val chartDescription = "Gráfico de barras de distância estimada para ${entries.size} dias. " +
+        "$estimatedDayCount dias com estimativa e $missingDayCount dias sem estimativa. " +
+        "Lacunas não representam zero quilômetros. Valores diários estão disponíveis na lista acessível."
 
     Column(modifier = modifier.fillMaxWidth()) {
         Canvas(
@@ -62,6 +64,16 @@ internal fun DistanceHistoryChart(
             val slotWidth = size.width / entries.size.coerceAtLeast(1)
             val barWidth = (slotWidth * 0.68f).coerceAtLeast(2.dp.toPx())
 
+            listOf(0.25f, 0.5f, 0.75f).forEach { fraction ->
+                val y = bottom - (fraction * chartHeight)
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
+
             entries.forEachIndexed { index, entry ->
                 val centerX = slotWidth * index + slotWidth / 2f
                 val left = centerX - barWidth / 2f
@@ -69,8 +81,8 @@ internal fun DistanceHistoryChart(
                 if (distanceMeters == null) {
                     drawRoundRect(
                         color = gapColor,
-                        topLeft = Offset(left, top),
-                        size = Size(barWidth, chartHeight),
+                        topLeft = Offset(left, bottom - 8.dp.toPx()),
+                        size = Size(barWidth, 8.dp.toPx()),
                         cornerRadius = CornerRadius(3.dp.toPx()),
                         style = Stroke(width = 1.dp.toPx()),
                     )
@@ -103,19 +115,13 @@ internal fun DistanceHistoryChart(
             }
         }
         Text(
-            text = "Barras: distância estimada • contorno: sem estimativa • unidade: km",
+            text = "Barras: estimativa em km • marca: sem estimativa",
             modifier = Modifier.padding(top = ChampionSpacing.small),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
     }
 }
-
-private fun formatDistance(meters: Double): String =
-    NumberFormat.getNumberInstance(Locale.getDefault()).apply {
-        maximumFractionDigits = 1
-        minimumFractionDigits = 0
-    }.format(meters / 1000.0)
 
 private fun shortDateFormatter(locale: Locale): DateTimeFormatter =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)

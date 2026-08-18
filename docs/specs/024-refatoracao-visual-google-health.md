@@ -108,6 +108,13 @@ Cada tela migrada deve oferecer:
 - Gráficos preservam descrição acessível, período, unidade, lacunas e estado
   vazio sem dados sintéticos.
 
+**Exceção aceita em `024-11`:** a grade mensal preserva dimensões anteriores ao
+redesign, sete colunas visíveis e espaçamento original no viewport portrait de
+360 dp, conforme decisão explícita do usuário. Nesse caso, a largura visual de
+células pode ficar abaixo de 48 dp; não ampliar grade, margens ou reflow apenas
+para cumprir o alvo genérico, desde que seleção, descrição semântica e
+espaçamento permaneçam preservados.
+
 ### R6 — Compatibilidade funcional
 
 - Preservar estados, intents, callbacks, lifecycle, repositories, confirmação

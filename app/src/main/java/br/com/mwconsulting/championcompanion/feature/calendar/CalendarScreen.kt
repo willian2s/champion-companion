@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,9 +19,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,6 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -49,9 +55,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeSmall
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.model.CalendarDayPresence
 import br.com.mwconsulting.championcompanion.core.model.CalendarMonthSnapshot
@@ -87,7 +96,10 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge),
+                .padding(
+                    horizontal = ChampionSpacing.extraLarge,
+                    vertical = ChampionSpacing.extraLarge,
+                ),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
             CalendarHeader()
@@ -146,13 +158,6 @@ fun CalendarScreen(
                     locale = locale,
                     onSelectDate = { calendarViewModel.onIntent(CalendarIntent.SelectDate(it)) },
                 )
-                CalendarLegend()
-                if (snapshot.days.isEmpty() && snapshot.issues.isEmpty()) {
-                    EmptyState(
-                        title = "Mês sem registros",
-                        message = "Nenhum indicador local foi encontrado neste mês.",
-                    )
-                }
                 SelectedDateActions(
                     selectedDate = state.selectedDate,
                     locale = locale,
@@ -162,6 +167,13 @@ fun CalendarScreen(
                     onOpenDate = onOpenDate,
                     onRetry = { calendarViewModel.onIntent(CalendarIntent.Retry) },
                 )
+                CalendarLegend()
+                if (snapshot.days.isEmpty() && snapshot.issues.isEmpty()) {
+                    EmptyState(
+                        title = "Mês sem registros",
+                        message = "Nenhum indicador local foi encontrado neste mês.",
+                    )
+                }
             }
         }
     }
@@ -173,7 +185,8 @@ private fun CalendarHeader() {
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = LightColorScheme.primary,
+            contentColor = Color.White,
         ),
     ) {
         Column(
@@ -183,13 +196,12 @@ private fun CalendarHeader() {
             Text(
                 text = "Calendário",
                 modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Histórico local por dia",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Navegue pelo histórico local e selecione um dia.",
+                style = MaterialTheme.typography.bodyLarge,
             )
         }
     }
@@ -209,6 +221,7 @@ private fun MonthHeader(
             .semantics {
                 contentDescription = "Mês exibido: ${formatMonth(month, locale)}"
             },
+        shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
     ) {
         Column(
@@ -231,14 +244,28 @@ private fun MonthHeader(
                     onClick = onPrevious,
                     modifier = Modifier.semantics { contentDescription = "Mês anterior" },
                 ) {
-                    Text("‹", style = MaterialTheme.typography.headlineMedium)
+                    Icon(
+                        imageVector = Icons.Filled.ChevronLeft,
+                        contentDescription = null,
+                    )
                 }
-                Button(onClick = onToday) { Text("Hoje") }
+                Button(
+                    onClick = onToday,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = calendarPrimaryAccent(),
+                        contentColor = calendarOnPrimaryAccent(),
+                    ),
+                ) {
+                    Text("Hoje")
+                }
                 IconButton(
                     onClick = onNext,
                     modifier = Modifier.semantics { contentDescription = "Próximo mês" },
                 ) {
-                    Text("›", style = MaterialTheme.typography.headlineMedium)
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                    )
                 }
             }
         }
@@ -263,7 +290,10 @@ private fun MonthCalendar(
     }
     val presenceByDate = snapshot.days.associateBy { it.localDate }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+    ) {
         Column(
             modifier = Modifier.padding(
                 horizontal = ChampionSpacing.small,
@@ -278,8 +308,8 @@ private fun MonthCalendar(
                 weekdays.forEach { dayOfWeek ->
                     Text(
                         text = dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
-                        modifier = Modifier
-                            .weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
                             .semantics {
                                 contentDescription = dayOfWeek.getDisplayName(TextStyle.FULL, locale)
                             },
@@ -348,20 +378,20 @@ private fun RowScope.CalendarDayCell(
     }
     val cellContentColor = calendarCellContentColor(presence)
     val borderColor = when {
+        isSelected -> calendarPrimaryAccent()
         isToday -> cellContentColor
-        isSelected -> MaterialTheme.colorScheme.primary
         else -> Color.Transparent
     }
     val borderWidth = when {
-        isToday -> 2.dp
         isSelected -> 3.dp
+        isToday -> 2.dp
         else -> 0.dp
     }
     Surface(
         modifier = Modifier
             .weight(1f)
             .heightIn(min = 56.dp)
-            .border(borderWidth, borderColor, RoundedCornerShape(10.dp))
+            .border(borderWidth, borderColor, ChampionShapeSmall)
             .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {
                 contentDescription = cellDescription
@@ -369,7 +399,7 @@ private fun RowScope.CalendarDayCell(
                 selected = isSelected
                 stateDescription = if (isSelected) "Selecionado" else "Não selecionado"
             },
-        shape = RoundedCornerShape(10.dp),
+        shape = ChampionShapeSmall,
         color = background,
     ) {
         Column(
@@ -393,43 +423,55 @@ private fun RowScope.CalendarDayCell(
 @Composable
 private fun CalendarPresenceMarkers(presence: CalendarDayPresence?, background: Color) {
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (presence?.hasSteps == true) {
-            CalendarPresenceDot(calendarStepsColor(background))
-        }
-        if (presence?.hasHeartRate == true) {
-            CalendarPresenceDot(calendarHeartRateColor(background))
-        }
-        if ((presence?.workoutCount ?: 0) > 0) {
-            CalendarPresenceDot(calendarActivityColor(background))
-        }
+        CalendarPresenceMarker(presence?.hasSteps == true, calendarStepsColor(background), CircleShape)
+        CalendarPresenceMarker(
+            presence?.hasHeartRate == true,
+            calendarHeartRateColor(background),
+            RoundedCornerShape(1.dp),
+        )
+        CalendarPresenceMarker(
+            visible = (presence?.workoutCount ?: 0) > 0,
+            color = calendarActivityColor(background),
+            shape = RoundedCornerShape(1.dp),
+            rotation = 45f,
+        )
     }
 }
 
 @Composable
-private fun CalendarPresenceDot(color: Color) {
+private fun CalendarPresenceMarker(
+    visible: Boolean,
+    color: Color,
+    shape: Shape,
+    rotation: Float = 0f,
+) {
     Box(
         modifier = Modifier
             .size(7.dp)
-            .background(color, CircleShape),
+            .graphicsLayer { rotationZ = rotation }
+            .then(if (visible) Modifier.background(color, shape) else Modifier),
     )
 }
 
+@Composable
 private fun calendarStepsColor(background: Color): Color = if (background.luminance() > 0.5f) {
-    Color(0xFF1565C0)
+    LightColorScheme.tertiary
 } else {
-    Color(0xFF64B5F6)
+    DarkColorScheme.tertiary
 }
 
+@Composable
 private fun calendarHeartRateColor(background: Color): Color = if (background.luminance() > 0.5f) {
-    Color(0xFF2E7D32)
+    LightColorScheme.primary
 } else {
-    Color(0xFF81C784)
+    DarkColorScheme.primary
 }
 
+@Composable
 private fun calendarActivityColor(background: Color): Color = if (background.luminance() > 0.5f) {
-    Color(0xFF8A6D00)
+    LightColorScheme.secondary
 } else {
-    Color(0xFFFFD54F)
+    DarkColorScheme.secondary
 }
 
 @Composable
@@ -446,6 +488,7 @@ private fun calendarCellContentColor(presence: CalendarDayPresence?): Color = wh
 private fun CalendarLegend() {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
@@ -454,28 +497,46 @@ private fun CalendarLegend() {
         ) {
             Text("Legenda", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             val legendBackground = MaterialTheme.colorScheme.surfaceContainerLow
-            CalendarLegendItem("Passos", calendarStepsColor(legendBackground))
-            CalendarLegendItem("Frequência cardíaca", calendarHeartRateColor(legendBackground))
-            CalendarLegendItem("Atividade física", calendarActivityColor(legendBackground))
-            CalendarLegendStateItem("Falha de sincronização", MaterialTheme.colorScheme.errorContainer)
+            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
+                CalendarLegendItem("Passos", calendarStepsColor(legendBackground), CircleShape)
+                CalendarLegendItem("Frequência cardíaca", calendarHeartRateColor(legendBackground), RoundedCornerShape(1.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
+                CalendarLegendItem("Atividade física", calendarActivityColor(legendBackground), RoundedCornerShape(1.dp), 45f)
+                CalendarLegendStateItem("Falha de sincronização", MaterialTheme.colorScheme.errorContainer)
+            }
             CalendarLegendStateItem("Sincronização pendente", MaterialTheme.colorScheme.tertiaryContainer)
         }
     }
 }
 
 @Composable
-private fun CalendarLegendItem(label: String, color: Color) {
+private fun CalendarLegendItem(label: String, color: Color, shape: Shape, rotation: Float = 0f) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
     ) {
-        CalendarPresenceDot(color)
+        CalendarPresenceMarker(visible = true, color = color, shape = shape, rotation = rotation)
         Text(
             label,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
     }
+}
+
+@Composable
+private fun calendarPrimaryAccent(): Color = if (androidx.compose.foundation.isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
+
+@Composable
+private fun calendarOnPrimaryAccent(): Color = if (androidx.compose.foundation.isSystemInDarkTheme()) {
+    DarkColorScheme.onPrimary
+} else {
+    LightColorScheme.onPrimary
 }
 
 @Composable
@@ -508,7 +569,10 @@ private fun SelectedDateActions(
     onRetry: () -> Unit,
 ) {
     selectedDate?.let { date ->
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ChampionShapeLarge,
+        ) {
             Column(
                 modifier = Modifier.padding(ChampionSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),

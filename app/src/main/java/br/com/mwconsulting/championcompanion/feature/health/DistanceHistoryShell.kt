@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -20,8 +24,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -29,10 +35,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.model.CalendarDataSource
 import br.com.mwconsulting.championcompanion.core.model.CalendarDistanceHistorySnapshot
@@ -62,24 +70,25 @@ fun DistanceDetailScreen(
 
     MetricDetailScaffold(
         title = "Distância",
-        description = "Esta tela reutiliza distância estimada já persistida no resumo diário. Quando faltarem dados pessoais, o valor permanece indisponível.",
+        description = "Acompanhe estimativa diária e tendência dos resumos locais.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
+        header = { DistanceDetailHeader() },
     ) {
         HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
             if (summary == null || summary.estimatedDistanceMeters == null) {
                 HealthMetricEmptyState(
                     message = if (summary == null) {
-                        "Nenhum resumo diário persistido foi encontrado para hoje."
+                        "Nenhum resumo diário local foi encontrado para hoje."
                     } else {
-                        "A distância de hoje está indisponível porque ainda faltam dados pessoais suficientes para a estimativa."
+                        "Sem estimativa de distância hoje: ainda faltam dados pessoais suficientes."
                     },
                 )
             } else {
-                MetricValueBlock(
+                DistanceDailyValue(
                     value = "${distanceDecimalFormat().format(summary.estimatedDistanceMeters / 1000.0)} km",
-                    supporting = "Estimativa de hoje",
-                    extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
+                    supporting = "Estimativa local de hoje",
+                    extra = "Origem: ${summary.sourceLabel} • Atualizado em ${formatDateTime(summary.updatedAt)}",
                 )
             }
         }
@@ -88,6 +97,62 @@ fun DistanceDetailScreen(
             onIntent = distanceHistoryViewModel::onIntent,
         )
     }
+}
+
+@Composable
+private fun DistanceDetailHeader() {
+    val headerColor = LightColorScheme.primary
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = headerColor,
+            contentColor = White,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Distância",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Veja a estimativa diária e a tendência dos resumos locais.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DistanceDailyValue(
+    value: String,
+    supporting: String,
+    extra: String,
+) {
+    Text(
+        text = value,
+        modifier = Modifier.padding(top = ChampionSpacing.medium),
+        color = distancePrimaryAccent(),
+        style = MaterialTheme.typography.displaySmall,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+        text = supporting,
+        modifier = Modifier.padding(top = ChampionSpacing.small),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        text = extra,
+        modifier = Modifier.padding(top = ChampionSpacing.small),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
@@ -179,12 +244,19 @@ private fun DistanceHistoryPeriodSelector(
                         contentDescription = "Últimos ${period.windowDays} dias"
                         stateDescription = if (period == selected) "Selecionado" else "Não selecionado"
                     }
-                OutlinedButton(onClick = { onSelect(period) }, modifier = modifier) {
+                OutlinedButton(
+                    onClick = { onSelect(period) },
+                    modifier = modifier,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (period == selected) distancePrimaryAccent() else MaterialTheme.colorScheme.outline,
+                    ),
+                ) {
                     Text(
                         text = period.toDistancePeriodLabel(),
                         maxLines = 1,
                         color = if (period == selected) {
-                            MaterialTheme.colorScheme.primary
+                            distancePrimaryAccent()
                         } else {
                             MaterialTheme.colorScheme.onSurface
                         },
@@ -317,6 +389,8 @@ private fun DistanceHistoryList(snapshot: CalendarDistanceHistorySnapshot) {
                 Spacer(modifier = Modifier.width(ChampionSpacing.medium))
                 Text(
                     text = value,
+                    color = entry.estimatedDistanceMeters?.let { distancePrimaryAccent() }
+                        ?: MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -370,6 +444,13 @@ private fun formatDistance(meters: Double): String =
 private fun distanceDecimalFormat(): NumberFormat = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
     maximumFractionDigits = 1
     minimumFractionDigits = 0
+}
+
+@Composable
+private fun distancePrimaryAccent() = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
 }
 
 @Composable
