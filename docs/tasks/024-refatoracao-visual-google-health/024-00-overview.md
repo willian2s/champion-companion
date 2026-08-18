@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 7/19 subtarefas concluídas
+- **Progresso:** 8/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -19,7 +19,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-05-refatorar-hub-saude-piloto.md](024-05-refatorar-hub-saude-piloto.md)
 - [x] [024-06-refatorar-home.md](024-06-refatorar-home.md)
 - [x] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
-- [ ] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
+- [x] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
 - [ ] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
 - [ ] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
 - [ ] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
@@ -126,3 +126,16 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   ação destrutiva primária e representação de lacunas; correções foram aplicadas,
   builds/smoke foram repetidos e revisão independente final passou sem
   bloqueadores.
+- `024-08` concluída com header nominal, valor atual, editor de quilogramas,
+  feedback semântico, histórico separado, tratamento explícito de loading/
+  indisponibilidade, fallback seguro entre coletores e `imePadding`; contratos,
+  callbacks, ViewModel, persistência e timestamps foram preservados.
+- `024-08` passou em `git diff --check`, lint, builds debug/release, instalação e
+  smoke ADB sanitizado. Foram exercitados portrait escuro, tema claro, fonte
+  `1,3x`, landscape por rotação forçada, rolagem, editor e cancelamento sem
+  persistência, inclusive após correção final do fallback; aparelho restaurado
+  para fonte `1,0x`, portrait e tema escuro.
+- Evidência sanitizada registrada em
+  `024-08-captura-real-sanitizada-weight-portrait.png`. Estados de salvamento,
+  sucesso, erro, loading e vazio real ficaram `N/A` por não iniciar persistência
+  artificial nem fabricar estados transitórios.

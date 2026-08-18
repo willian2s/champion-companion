@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.BorderStroke
@@ -259,24 +260,59 @@ fun WeightDetailScreen(
     val state by healthViewModel.state.collectAsState()
     MetricDetailScaffold(
         title = "Peso",
-        description = "Registre medições em quilogramas. Os dados locais permanecem disponíveis mesmo quando Health Connect estiver indisponível.",
+        description = "Acompanhe seu valor atual e registre novas medições em quilogramas.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
+        header = { WeightDetailHeader() },
+        contentModifier = Modifier.imePadding(),
     ) {
-        val weight = state.latestWeight
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
-            if (weight == null) {
-                HealthMetricEmptyState(message = "Nenhum peso persistido foi encontrado até agora.")
-            } else {
-                MetricValueBlock(
-                    value = "${decimalFormat().format(weight.kilograms)} kg",
-                    supporting = "Última atualização: ${formatDateTime(weight.measuredAt)}",
-                    extra = weight.origin?.toHealthOriginLabel(),
+        val weightHistory = state.weightHistory
+        val weight = state.latestWeight ?: (weightHistory as? HealthWeightHistoryState.Available)
+            ?.measurements
+            ?.firstNotNullOfOrNull { it.toHealthWeightSnapshotOrNull() }
+        HealthCard(title = "Valor atual", modifier = Modifier.fillMaxWidth()) {
+            when {
+                weight != null -> {
+                    Text(
+                        text = "${decimalFormat().format(weight.kilograms)} kg",
+                        modifier = Modifier.padding(top = ChampionSpacing.medium),
+                        color = weightPrimaryAccent(),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Último registro: ${formatDateTime(weight.measuredAt)}",
+                        modifier = Modifier.padding(top = ChampionSpacing.small),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = weight.origin?.toHealthOriginLabel() ?: "Origem: não disponível",
+                        modifier = Modifier.padding(top = ChampionSpacing.small),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                weightHistory is HealthWeightHistoryState.Loading -> Text(
+                    text = "Carregando valor atual…",
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                weightHistory is HealthWeightHistoryState.Unavailable -> Text(
+                    text = "O valor atual está indisponível porque não foi possível ler os registros locais.",
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                weightHistory is HealthWeightHistoryState.Available && weightHistory.measurements.isNotEmpty() -> Text(
+                    text = "Não foi possível determinar um valor atual válido a partir dos registros locais.",
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                else -> HealthMetricEmptyState(message = "Nenhum peso persistido foi encontrado até agora.")
             }
         }
         PrimaryActionButton(
-            label = "Adicionar medição",
+            label = "Registrar peso",
             onClick = { healthViewModel.onIntent(HealthIntent.OpenWeightEditor) },
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.isSavingWeight,
@@ -295,11 +331,15 @@ fun WeightDetailScreen(
             }
         }
         HealthMetricHistorySection(
-            title = "Histórico",
+            title = "Histórico de registros",
             emptyMessage = "Ainda não há medições de peso salvas.",
         ) {
             when (val history = state.weightHistory) {
-                HealthWeightHistoryState.Loading -> Text("Carregando histórico…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                HealthWeightHistoryState.Loading -> Text(
+                    text = "Carregando histórico…",
+                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 HealthWeightHistoryState.Unavailable -> ErrorState(
                     title = "Histórico indisponível",
                     message = "Não foi possível ler o histórico local agora.",
@@ -312,18 +352,45 @@ fun WeightDetailScreen(
 }
 
 @Composable
+private fun WeightDetailHeader() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = LightColorScheme.primary,
+            contentColor = White,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Peso",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Veja seu último registro e mantenha seu histórico local atualizado.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+}
+
+@Composable
 private fun WeightEditor(
     state: HealthUiState,
     onValueChange: (String) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    HealthCard(title = "Nova medição", modifier = Modifier.fillMaxWidth()) {
+    HealthCard(title = "Registrar peso", modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = state.weightInput,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
-            label = { Text("Peso") },
+            label = { Text("Valor em quilogramas") },
             suffix = { Text("kg") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -335,10 +402,11 @@ private fun WeightEditor(
             style = MaterialTheme.typography.bodySmall,
         )
         PrimaryActionButton(
-            label = if (state.isSavingWeight) "Salvando…" else "Salvar medição",
+            label = "Salvar medição",
             onClick = onSave,
             modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
             enabled = !state.isSavingWeight,
+            isLoading = state.isSavingWeight,
         )
         TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth(), enabled = !state.isSavingWeight) {
             Text("Cancelar")
@@ -349,24 +417,38 @@ private fun WeightEditor(
 @Composable
 private fun WeightMessageCard(message: HealthWeightMessage, onDismiss: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite },
         colors = CardDefaults.cardColors(
             containerColor = when (message) {
                 HealthWeightMessage.SAVED -> MaterialTheme.colorScheme.secondaryContainer
                 else -> MaterialTheme.colorScheme.errorContainer
             },
+            contentColor = when (message) {
+                HealthWeightMessage.SAVED -> MaterialTheme.colorScheme.onSecondaryContainer
+                else -> MaterialTheme.colorScheme.onErrorContainer
+            },
         ),
     ) {
-        Column(modifier = Modifier.padding(ChampionSpacing.large)) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = when (message) {
+                    HealthWeightMessage.SAVED -> "Registro salvo"
+                    HealthWeightMessage.INVALID_VALUE -> "Valor inválido"
+                    HealthWeightMessage.SAVE_FAILED -> "Não foi possível salvar"
+                },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
             Text(
                 text = when (message) {
                     HealthWeightMessage.SAVED -> "Medição salva localmente com sucesso."
                     HealthWeightMessage.INVALID_VALUE -> "Informe um peso positivo válido em quilogramas."
                     HealthWeightMessage.SAVE_FAILED -> "Não foi possível salvar medição local. Tente novamente."
-                },
-                color = when (message) {
-                    HealthWeightMessage.SAVED -> MaterialTheme.colorScheme.onSecondaryContainer
-                    else -> MaterialTheme.colorScheme.onErrorContainer
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -399,9 +481,11 @@ private fun WeightHistoryList(measurements: List<WeightMeasurement>) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                Spacer(modifier = Modifier.width(ChampionSpacing.medium))
                 Text(
                     text = measurement.toKilogramsOrNull()?.let { "${decimalFormat().format(it)} kg" }
                         ?: "Peso indisponível",
+                    color = weightPrimaryAccent(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -415,12 +499,25 @@ private fun WeightMeasurement.toKilogramsOrNull(): Double? = when (unit) {
     br.com.mwconsulting.championcompanion.core.model.WeightUnit.POUNDS -> value * 0.45359237
 }.takeIf { it.isFinite() && it > 0.0 }
 
+private fun WeightMeasurement.toHealthWeightSnapshotOrNull(): HealthWeightSnapshot? =
+    toKilogramsOrNull()?.let { kilograms ->
+        HealthWeightSnapshot(
+            kilograms = kilograms,
+            measuredAt = measuredAt,
+            origin = origin,
+        )
+    }
+
 @Composable
 internal fun MetricDetailScaffold(
     title: String,
     description: String,
     onNavigateBack: () -> Unit,
     backLabel: String,
+    header: @Composable () -> Unit = {
+        MetricDetailHeader(title = title, description = description)
+    },
+    contentModifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Surface(
@@ -430,12 +527,13 @@ internal fun MetricDetailScaffold(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(contentModifier)
                 .verticalScroll(rememberScrollState())
                 .padding(ChampionSpacing.extraLarge)
                 .heightIn(min = 1.dp),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
-            MetricDetailHeader(title = title, description = description)
+            header()
             content()
             TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
                 Text(backLabel)
@@ -1649,6 +1747,13 @@ private fun numberFormat(): NumberFormat = NumberFormat.getIntegerInstance(Local
 
 @Composable
 private fun heartRatePrimaryAccent() = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
+
+@Composable
+private fun weightPrimaryAccent() = if (isSystemInDarkTheme()) {
     DarkColorScheme.primary
 } else {
     LightColorScheme.primary
