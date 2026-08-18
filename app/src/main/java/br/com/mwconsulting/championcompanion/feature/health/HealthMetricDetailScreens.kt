@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,12 +45,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -64,6 +69,8 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
@@ -162,6 +169,10 @@ fun HeartRateDetailScreen(
                         }
                         onNavigateBack()
                     },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
                 ) {
                     Text(backLabel)
                 }
@@ -203,21 +214,19 @@ fun HeartRateDetailScreen(
                         .heightIn(min = 1.dp),
                     verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
                 ) {
-                    MetricDetailHeader(
-                        title = "Frequência cardíaca",
-                        description = "Esta tela concentra medição manual, importação D1 local e amostras reais de atividades do relógio em gráfico e histórico consolidados, sem iniciar BLE automaticamente.",
-                    )
-                    HeartRateOverviewCard(
-                        state = state,
-                        onRetryD1Import = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
-                        onDismissD1Import = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
-                    )
+                    HeartRateDetailHeader()
+                    HeartRateOverviewCard(state = state)
                     HeartRateSessionSurface(
                         state = state,
                         onStart = { healthViewModel.onIntent(HealthIntent.StartMeasurement) },
                         onCancel = { healthViewModel.onIntent(HealthIntent.CancelMeasurement) },
                         onRetry = { healthViewModel.onIntent(HealthIntent.Retry) },
                         onDismiss = { healthViewModel.onIntent(HealthIntent.DismissError) },
+                    )
+                    HeartRateD1ImportCard(
+                        state = state,
+                        onRetry = { healthViewModel.onIntent(HealthIntent.RetryD1Import) },
+                        onDismiss = { healthViewModel.onIntent(HealthIntent.DismissD1Import) },
                     )
                     HeartRateHistoryChartSection(
                         state = state,
@@ -465,10 +474,34 @@ private fun MetricDetailHeader(
 }
 
 @Composable
+private fun HeartRateDetailHeader() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Frequência cardíaca",
+                modifier = Modifier.semantics { heading() },
+                color = White,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Acompanhe seu último valor, leituras do relógio e tendência local.",
+                color = White,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+}
+
+@Composable
 private fun HeartRateOverviewCard(
     state: HealthUiState,
-    onRetryD1Import: () -> Unit,
-    onDismissD1Import: () -> Unit,
 ) {
     val latestMeasurement = state.latestMeasurement
 
@@ -488,6 +521,7 @@ private fun HeartRateOverviewCard(
             Text(
                 text = "${latestMeasurement.bpm} BPM",
                 modifier = Modifier.padding(top = ChampionSpacing.medium),
+                color = heartRatePrimaryAccent(),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -513,14 +547,6 @@ private fun HeartRateOverviewCard(
             )
         }
 
-        HeartRateD1ImportPanel(
-            state = state.d1ImportState,
-            latestMetadata = state.latestD1ImportMetadata,
-            associatedDeviceName = state.associatedDeviceName,
-            onRetry = onRetryD1Import,
-            onDismiss = onDismissD1Import,
-        )
-
         if (state.healthConnectSync.hasVisibleState) {
             Text(
                 text = when {
@@ -534,6 +560,26 @@ private fun HeartRateOverviewCard(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+}
+
+@Composable
+private fun HeartRateD1ImportCard(
+    state: HealthUiState,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    HealthCard(
+        title = "Importar histórico D1",
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        HeartRateD1ImportPanel(
+            state = state.d1ImportState,
+            latestMetadata = state.latestD1ImportMetadata,
+            associatedDeviceName = state.associatedDeviceName,
+            onRetry = onRetry,
+            onDismiss = onDismiss,
+        )
     }
 }
 
@@ -557,6 +603,11 @@ private fun HeartRateD1ImportPanel(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
         Text(
+            text = state.toUiTitle(),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
             text = importMessage,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
@@ -564,7 +615,10 @@ private fun HeartRateD1ImportPanel(
 
         if (state.isImportInFlight()) {
             if (progress == null) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = heartRatePrimaryAccent(),
+                )
                 Text(
                     text = "Aguardando primeiros pacotes válidos do D1.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -578,6 +632,7 @@ private fun HeartRateD1ImportPanel(
                         stateDescription = "${(progress * 100f).roundToInt()} por cento concluído"
                         progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(progress, 0f..1f)
                     },
+                    color = heartRatePrimaryAccent(),
                 )
                 Text(
                     text = "${session.progress.receivedPacketCount} pacotes recebidos • ${(progress * 100f).roundToInt()}% concluído",
@@ -639,7 +694,7 @@ private fun HeartRateHistoryChartSection(
     state: HealthUiState,
     onSelectPeriod: (HeartRateHistoryPeriod) -> Unit,
 ) {
-    HealthCard(title = "Gráfico e resumo", modifier = Modifier.fillMaxWidth()) {
+    HealthCard(title = "Tendência", modifier = Modifier.fillMaxWidth()) {
         HistoryPeriodSelector(
             selected = state.selectedHistoryPeriod,
             onSelectPeriod = onSelectPeriod,
@@ -685,6 +740,7 @@ private fun HeartRateChartHeadline(
         )
         Text(
             text = heartRateRangeHeadline(aggregates),
+            color = heartRatePrimaryAccent(),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
         )
@@ -712,15 +768,23 @@ private fun HistoryPeriodSelector(
     ) {
         HeartRateHistoryPeriod.entries.forEach { period ->
             val isSelected = period == selected
-            OutlinedButton(
-                onClick = { onSelectPeriod(period) },
-                modifier = Modifier.weight(1f),
-            )
+                OutlinedButton(
+                    onClick = { onSelectPeriod(period) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics {
+                            stateDescription = if (isSelected) "Selecionado" else "Não selecionado"
+                        },
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (isSelected) heartRatePrimaryAccent() else MaterialTheme.colorScheme.outline,
+                    ),
+                )
             {
                 Text(
-                    text = compactPeriodToLabel(period),
+                    text = periodToLabel(period),
                     color = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
+                        heartRatePrimaryAccent()
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -830,6 +894,7 @@ private fun HeartRateHistoryList(
                     Spacer(modifier = Modifier.width(ChampionSpacing.medium))
                     Text(
                         text = "${entry.bpm} BPM",
+                        color = heartRatePrimaryAccent(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -961,14 +1026,23 @@ private fun MeasurementProgressCard(
                         stateDescription = "${(progress * 100).roundToInt()} por cento concluído"
                         progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(progress, 0f..1f)
                     },
+                color = heartRatePrimaryAccent(),
             )
         }
         onCancel?.let {
-            PrimaryActionButton(
-                label = "Cancelar medição",
+            Button(
                 onClick = it,
-                modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-            )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .padding(top = ChampionSpacing.large),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
+            ) {
+                Text("Cancelar medição")
+            }
         }
     }
 }
@@ -982,8 +1056,16 @@ private fun CurrentHeartRateHero(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            containerColor = if (isSystemInDarkTheme()) {
+                DarkColorScheme.primaryContainer
+            } else {
+                LightColorScheme.primaryContainer
+            },
+            contentColor = if (isSystemInDarkTheme()) {
+                DarkColorScheme.onPrimaryContainer
+            } else {
+                LightColorScheme.onPrimaryContainer
+            },
         ),
     ) {
         Column(
@@ -1520,12 +1602,6 @@ private fun periodToLabel(period: HeartRateHistoryPeriod): String = when (period
     HeartRateHistoryPeriod.LAST_30_DAYS -> "30 dias"
 }
 
-private fun compactPeriodToLabel(period: HeartRateHistoryPeriod): String = when (period) {
-    HeartRateHistoryPeriod.TODAY -> "D"
-    HeartRateHistoryPeriod.LAST_7_DAYS -> "S"
-    HeartRateHistoryPeriod.LAST_30_DAYS -> "M"
-}
-
 private fun periodHeadline(period: HeartRateHistoryPeriod): String = when (period) {
     HeartRateHistoryPeriod.TODAY -> "Hoje"
     HeartRateHistoryPeriod.LAST_7_DAYS -> buildRelativeDateRangeLabel(days = 7)
@@ -1570,6 +1646,13 @@ internal fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toHealt
 }
 
 private fun numberFormat(): NumberFormat = NumberFormat.getIntegerInstance(Locale.getDefault())
+
+@Composable
+private fun heartRatePrimaryAccent() = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
 
 private fun decimalFormat(): NumberFormat = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
     maximumFractionDigits = 1

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.absolutePadding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartPoint
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartSeries
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
@@ -54,7 +57,7 @@ internal fun HeartRateHistoryChart(
 ) {
     val points = series.points
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryColor = heartRateChartAccent()
     val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
     if (points.isEmpty()) {
@@ -164,7 +167,12 @@ internal fun HeartRateHistoryChart(
                         leftPadding = leftPadding,
                     )
                     val y = yForValue(point.bpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
-                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    val previousPoint = points.getOrNull(index - 1)
+                    if (index == 0 || previousPoint?.let { chartHasGap(it, point, period) } == true) {
+                        path.moveTo(x, y)
+                    } else {
+                        path.lineTo(x, y)
+                    }
                     if (point.minimumBpm != null && point.maximumBpm != null) {
                         val minY = yForValue(point.minimumBpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
                         val maxY = yForValue(point.maximumBpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
@@ -297,19 +305,26 @@ private fun buildXAxisLabels(
     HeartRateHistoryPeriod.TODAY -> listOf("0", "4", "8", "12", "16", "20", "23")
     HeartRateHistoryPeriod.LAST_7_DAYS -> {
         val formatter = DateTimeFormatter.ofPattern("EEEEE", Locale.forLanguageTag("pt-BR"))
-        if (points.isEmpty()) {
-            lastSevenDaysDates().map { formatter.format(it) }
-        } else {
-            points.map {
-                it.timestamp.atZone(ZoneId.systemDefault()).toLocalDate().let(formatter::format)
-            }
-        }
+        pickEvenlySpaced(lastSevenDaysDates(), count = 4).map(formatter::format)
     }
     HeartRateHistoryPeriod.LAST_30_DAYS -> {
         val formatter = DateTimeFormatter.ofPattern("d", Locale.forLanguageTag("pt-BR"))
-        val source = if (points.isEmpty()) lastThirtyDaysDates() else points.map { it.timestamp.atZone(ZoneId.systemDefault()).toLocalDate() }
-        pickEvenlySpaced(source, count = 4).map(formatter::format)
+        pickEvenlySpaced(lastThirtyDaysDates(), count = 4).map(formatter::format)
     }
+}
+
+private fun chartHasGap(
+    previous: HeartRateChartPoint,
+    current: HeartRateChartPoint,
+    period: HeartRateHistoryPeriod,
+): Boolean = when (period) {
+    HeartRateHistoryPeriod.TODAY -> false
+    HeartRateHistoryPeriod.LAST_7_DAYS,
+    HeartRateHistoryPeriod.LAST_30_DAYS,
+    -> ChronoUnit.DAYS.between(
+        previous.timestamp.atZone(ZoneId.systemDefault()).toLocalDate(),
+        current.timestamp.atZone(ZoneId.systemDefault()).toLocalDate(),
+    ) > 1
 }
 
 private fun lastSevenDaysDates() = List(7) { index ->
@@ -370,3 +385,10 @@ private fun Color.toArgbCompat(): Int = android.graphics.Color.argb(
     (green * 255).roundToInt(),
     (blue * 255).roundToInt(),
 )
+
+@Composable
+private fun heartRateChartAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}

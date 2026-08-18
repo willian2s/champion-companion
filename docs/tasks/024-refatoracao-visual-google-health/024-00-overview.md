@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 6/19 subtarefas concluídas
+- **Progresso:** 7/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-04-definir-estrategia-cromatica-transversal.md](024-04-definir-estrategia-cromatica-transversal.md)
 - [x] [024-05-refatorar-hub-saude-piloto.md](024-05-refatorar-hub-saude-piloto.md)
 - [x] [024-06-refatorar-home.md](024-06-refatorar-home.md)
-- [ ] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
+- [x] [024-07-refatorar-frequencia-cardiaca.md](024-07-refatorar-frequencia-cardiaca.md)
 - [ ] [024-08-refatorar-peso.md](024-08-refatorar-peso.md)
 - [ ] [024-09-refatorar-passos.md](024-09-refatorar-passos.md)
 - [ ] [024-10-refatorar-distancia.md](024-10-refatorar-distancia.md)
@@ -111,3 +111,18 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   recortada, métricas e dados livres foram ocultados e o PNG ficou sem chunks
   temporais. Estados raros e feedback transitório de refresh ficaram `N/A`
   quando não observados sem fabricar dados.
+- `024-07` concluída com header nominal azul-petróleo, resumo, medição manual,
+  importação D1, tendência e histórico visualmente separados; callbacks,
+  intents, confirmação de saída, gráfico, períodos e dados persistidos foram
+  preservados.
+- `024-07` passou em `git diff --check`, lint, builds debug/release, instalação e
+  smoke ADB com dados persistidos existentes; períodos, rolagem, retorno,
+  landscape, fonte `1,3x` e temas claro/escuro foram exercitados. Evidência
+  sanitizada registrada em `024-07-captura-real-sanitizada-heart-rate-portrait.png`.
+- Em `024-07`, medição manual e importação D1 não foram iniciadas para gerar
+  evidência; estados em voo, retry, cancelamento, erro e resultado parcial
+  ficaram `N/A`.
+- Revisão independente inicial de `024-07` encontrou contraste do hero escuro,
+  ação destrutiva primária e representação de lacunas; correções foram aplicadas,
+  builds/smoke foram repetidos e revisão independente final passou sem
+  bloqueadores.
