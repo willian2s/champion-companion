@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 15/19 subtarefas concluídas
+- **Progresso:** 16/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
 - [x] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
 - [x] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
-- [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
+- [x] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
 - [ ] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
 - [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
@@ -210,3 +210,25 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   diagnóstico e confirmação de esquecer sem confirmar. Evidência registrada em
   `024-15-captura-real-sanitizada-dispositivo.png`; revisão independente final
   aprovada sem bloqueadores.
+- `024-16` concluída com foco no passo base e métricas editáveis; perfis aprendidos
+  e histórico de calibração foram retirados do fluxo principal e organizados em
+  modais separados. RUNNING/WALKING, provenance, correção, remoção confirmada e
+  abertura de atividade relacionada foram preservados.
+- Após feedback visual, valor atual, sugestão por altura e edição manual de
+  comprimento do passo foram reunidos em uma única seção contextual, com
+  subseções e divisores; a tela principal deixou de repartir essa informação em
+  cards desconexos.
+- `024-16` passou em `git diff --check`, compilação Kotlin, lint, builds
+  debug/release, instalação e smoke ADB. Foram exercitados modais, cancelamento
+  de sugestão, abertura/retorno de atividade, precisão máxima de quatro casas,
+  fonte `1,3x`, landscape e temas claro/escuro; aparelho restaurado para fonte
+  `1,0x`, portrait e tema escuro. Evidência registrada em
+  `024-16-captura-real-sanitizada-perfil.png`.
+- Revisão independente inicial de `024-16` encontrou arredondamento visual
+  contaminando campo editável e unidade duplicada no resumo de distância.
+  Formatter separado para entrada preserva precisão persistida; unidade duplicada
+  foi removida; compilação, lint, builds e smoke final foram repetidos.
+- Revisão independente final de `024-16` aprovada sem bloqueadores; confirmou
+  agrupamento contextual, modais, precisão, unidade única e checklist SDD.
+- Nenhum teste automatizado foi criado ou executado em `024-16`; revisão
+  independente final concluída.

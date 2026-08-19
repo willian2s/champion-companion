@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.model.UpdateHeightInput
 import br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -65,7 +66,7 @@ class ProfileViewModel @Inject constructor(
                             stepLengthInput = if (hasLocalStepLengthInput) {
                                 current.stepLengthInput
                             } else {
-                                profile?.stepLengthMeters?.let(::formatStepLengthMeters).orEmpty()
+                                profile?.stepLengthMeters?.let(::formatStepLengthInput).orEmpty()
                             },
                             heightSuggestionMeters = StepLengthSuggestionPolicy.fromHeight(
                                 snapshot.heightCentimeters,
@@ -369,7 +370,7 @@ class ProfileViewModel @Inject constructor(
                             stepLengthSource = result.value.stepLengthProfile?.source,
                             stepLengthUpdatedAt = result.value.stepLengthProfile?.updatedAt,
                             stepLengthInput = result.value.stepLengthProfile?.stepLengthMeters
-                                ?.let(::formatStepLengthMeters)
+                                ?.let(::formatStepLengthInput)
                                 .orEmpty(),
                             message = successMessage,
                         )
@@ -420,13 +421,32 @@ internal fun parseDailyStepsGoal(input: String): Int? = input.trim()
 internal fun formatHeightCentimeters(
     value: Double,
     locale: Locale = Locale.getDefault(),
-): String = formatStepLengthMeters(value, locale)
+): String = formatDecimal(value, locale)
+
+internal fun formatStepLengthInput(
+    value: Double,
+    locale: Locale = Locale.getDefault(),
+): String = formatDecimal(value, locale)
 
 internal fun formatStepLengthMeters(
     value: Double,
     locale: Locale = Locale.getDefault(),
 ): String {
-    val plain = BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
+    val plain = BigDecimal.valueOf(value)
+        .setScale(4, RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
+    val decimalSeparator = DecimalFormatSymbols.getInstance(locale).decimalSeparator
+    return if (decimalSeparator == '.') plain else plain.replace('.', decimalSeparator)
+}
+
+private fun formatDecimal(
+    value: Double,
+    locale: Locale,
+): String {
+    val plain = BigDecimal.valueOf(value)
+        .stripTrailingZeros()
+        .toPlainString()
     val decimalSeparator = DecimalFormatSymbols.getInstance(locale).decimalSeparator
     return if (decimalSeparator == '.') plain else plain.replace('.', decimalSeparator)
 }
