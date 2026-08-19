@@ -12,6 +12,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -42,11 +43,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -54,19 +58,16 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
-import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionStatus
-import br.com.mwconsulting.championcompanion.core.designsystem.ConnectionVisualState
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.designsystem.SyncStatusBadge
 import br.com.mwconsulting.championcompanion.core.designsystem.SyncVisualState
+import androidx.compose.foundation.isSystemInDarkTheme
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
@@ -335,24 +336,30 @@ private fun DeviceManagementScreen(
             DeviceHeader()
 
             HealthCard(
-                title = "Resumo da conexão",
-                status = {
-                    ConnectionStatus(
-                        state = state.connectionState.toVisualState(),
-                    )
-                },
+                title = "Estado atual",
+                modifier = Modifier
+                    .fillMaxWidth()
+                .border(1.dp, devicePrimaryAccent(), ChampionShapeLarge),
             ) {
                 Text(
-                    text = state.screenState.label(),
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = state.connectionState.label(),
+                    color = devicePrimaryAccent(),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 state.activeOperation?.let {
                     Text(
-                        text = "Operação atual: ${it.label()}",
+                        text = "Em andamento: ${it.label()}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+                Text(
+                    text = "Próxima ação: ${state.nextActionLabel()}",
+                    color = devicePrimaryAccent(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
 
             when (state.screenState) {
@@ -394,7 +401,6 @@ private fun DeviceManagementScreen(
             if (associatedDevice != null) {
                 AssociatedDeviceSection(
                     device = associatedDevice,
-                    connectionState = state.connectionState,
                 )
             } else if (state.candidates.isEmpty() && state.screenState != DeviceManagementScreenState.Scanning) {
                 EmptyState(
@@ -418,15 +424,30 @@ private fun DeviceManagementScreen(
                 )
             }
 
-            ActionSection(
+            DiscoveryActionsSection(
                 state = state,
                 hasAssociatedDevice = associatedDevice != null,
                 hasSelectedCandidate = selectedCandidate != null,
                 onAddDevice = onAddDevice,
                 onRetry = onRetry,
+            )
+
+            ConnectionActionsSection(
+                state = state,
+                hasAssociatedDevice = associatedDevice != null,
                 onConnectAssociatedDevice = onConnectAssociatedDevice,
                 onDisconnectDevice = onDisconnectDevice,
+            )
+
+            MaintenanceActionsSection(
+                state = state,
+                hasAssociatedDevice = associatedDevice != null,
                 onForgetDevice = onForgetDevice,
+            )
+
+            DiagnosticsActionsSection(
+                state = state,
+                hasAssociatedDevice = associatedDevice != null,
                 onOpenDiagnostics = onOpenDiagnostics,
                 onExportDiagnostics = onExportDiagnostics,
             )
@@ -463,7 +484,7 @@ private fun DeviceHeader() {
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = LightColorScheme.primary,
         ),
     ) {
         Column(
@@ -473,12 +494,13 @@ private fun DeviceHeader() {
             Text(
                 text = "Dispositivo",
                 modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineSmall,
+                color = White,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = "Gerencie busca, conexão, associação e informações seguras do Champion C001.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = White,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -488,13 +510,12 @@ private fun DeviceHeader() {
 @Composable
 private fun AssociatedDeviceSection(
     device: DeviceManagementAssociatedDevice,
-    connectionState: DeviceManagementConnectionState,
 ) {
     HealthCard(
         title = "Dispositivo associado",
-        status = {
-            ConnectionStatus(state = connectionState.toVisualState())
-        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, deviceSecondaryAccent(), ChampionShapeLarge),
     ) {
         Text(device.displayName, style = MaterialTheme.typography.titleLarge)
         Text(
@@ -513,23 +534,6 @@ private fun AssociatedDeviceSection(
             }
             SyncStatusBadge(state = device.lastImportedAt.toSyncVisualState())
         }
-        Column(
-            modifier = Modifier.padding(top = ChampionSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            DeviceInfoRow(
-                label = "Última conexão",
-                value = device.lastSuccessfulConnectionAt.formatTimestamp("Nunca conectado"),
-            )
-            DeviceInfoRow(
-                label = "Última sincronização",
-                value = device.lastImportedAt.formatTimestamp("Ainda não disponível"),
-            )
-            DeviceInfoRow(
-                label = "Associado em",
-                value = device.associatedAt.formatTimestamp("Não disponível"),
-            )
-        }
     }
 }
 
@@ -543,7 +547,12 @@ private fun ScanResultsSection(
     onCancelScan: () -> Unit,
     onConnectSelectedCandidate: () -> Unit,
 ) {
-    HealthCard(title = if (isScanning) "Buscando dispositivos" else "Dispositivos encontrados") {
+    HealthCard(
+        title = if (isScanning) "Busca em andamento" else "Resultados da busca",
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, deviceTertiaryAccent(), ChampionShapeLarge),
+    ) {
         if (isScanning) {
             LoadingState(
                 label = "Busca em andamento",
@@ -595,13 +604,9 @@ private fun CandidateRow(
 ) {
     HealthCard(
         title = candidate.displayName,
-        status = {
-            if (candidate.isSelected) {
-                AssistChip(onClick = {}, enabled = false, label = { Text("Selecionado") })
-            }
-        },
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, deviceTertiaryAccent(), ChampionShapeLarge)
             .clickable(enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .semantics {
                 contentDescription = buildString {
@@ -611,13 +616,20 @@ private fun CandidateRow(
                     if (candidate.isSelected) append(", selecionado")
                 }
             },
+        status = {
+            if (candidate.isSelected) {
+                AssistChip(onClick = {}, enabled = false, label = { Text("Selecionado") })
+            }
+        },
     ) {
         Text(candidate.safeIdentifier, style = MaterialTheme.typography.bodyLarge)
-        Text(
-            text = if (candidate.isSelected) "Pronto para conectar" else "Toque para selecionar este dispositivo",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (!candidate.isSelected) {
+            Text(
+                text = "Toque para selecionar este dispositivo",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         candidate.signalLabel?.let {
             Text(
                 text = it,
@@ -629,17 +641,12 @@ private fun CandidateRow(
 }
 
 @Composable
-private fun ActionSection(
+private fun DiscoveryActionsSection(
     state: DeviceManagementUiState,
     hasAssociatedDevice: Boolean,
     hasSelectedCandidate: Boolean,
     onAddDevice: () -> Unit,
     onRetry: () -> Unit,
-    onConnectAssociatedDevice: () -> Unit,
-    onDisconnectDevice: () -> Unit,
-    onForgetDevice: () -> Unit,
-    onOpenDiagnostics: () -> Unit,
-    onExportDiagnostics: () -> Unit,
 ) {
     val canStartScan = state.activeOperation == null &&
         state.screenState !in setOf(
@@ -649,24 +656,13 @@ private fun ActionSection(
             DeviceManagementScreenState.Disconnecting,
             DeviceManagementScreenState.Forgetting,
         )
-    val canConnectAssociated = hasAssociatedDevice &&
-        state.activeOperation == null &&
-        state.connectionState !in setOf(
-            DeviceManagementConnectionState.CONNECTED,
-            DeviceManagementConnectionState.CONNECTING,
-            DeviceManagementConnectionState.PREPARING_CONNECTION,
-            DeviceManagementConnectionState.DISCONNECTING,
-        )
-    val canDisconnect = hasAssociatedDevice &&
-        state.activeOperation == null &&
-        state.connectionState in setOf(
-            DeviceManagementConnectionState.CONNECTED,
-            DeviceManagementConnectionState.CONNECTING,
-            DeviceManagementConnectionState.PREPARING_CONNECTION,
-            DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE,
-        )
 
-    HealthCard(title = "Ações") {
+    HealthCard(
+        title = "Nova busca",
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, devicePrimaryAccent(), ChampionShapeLarge),
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
             PrimaryActionButton(
                 label = if (hasAssociatedDevice) "Buscar outro dispositivo" else "Buscar dispositivo",
@@ -684,54 +680,6 @@ private fun ActionSection(
                     Text("Tentar novamente")
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-            ) {
-                OutlinedButton(
-                    onClick = onConnectAssociatedDevice,
-                    enabled = canConnectAssociated,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Conectar")
-                }
-                OutlinedButton(
-                    onClick = onDisconnectDevice,
-                    enabled = canDisconnect,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Desconectar")
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-            ) {
-                OutlinedButton(
-                    onClick = onForgetDevice,
-                    enabled = hasAssociatedDevice && state.activeOperation == null,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Esquecer")
-                }
-                OutlinedButton(
-                    onClick = onOpenDiagnostics,
-                    enabled = hasAssociatedDevice && state.activeOperation == null,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Diagnóstico")
-                }
-            }
-
-            OutlinedButton(
-                onClick = onExportDiagnostics,
-                enabled = hasAssociatedDevice && state.activeOperation == null,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Exportar relatório")
-            }
         }
 
         if (hasSelectedCandidate && !hasAssociatedDevice) {
@@ -740,6 +688,112 @@ private fun ActionSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionActionsSection(
+    state: DeviceManagementUiState,
+    hasAssociatedDevice: Boolean,
+    onConnectAssociatedDevice: () -> Unit,
+    onDisconnectDevice: () -> Unit,
+) {
+    val canConnectAssociated = hasAssociatedDevice &&
+        state.activeOperation == null &&
+        state.connectionState !in setOf(
+            DeviceManagementConnectionState.CONNECTED,
+            DeviceManagementConnectionState.CONNECTING,
+            DeviceManagementConnectionState.PREPARING_CONNECTION,
+            DeviceManagementConnectionState.DISCONNECTING,
+        )
+    val canDisconnect = hasAssociatedDevice &&
+        state.activeOperation == null &&
+        state.connectionState in setOf(
+            DeviceManagementConnectionState.CONNECTED,
+            DeviceManagementConnectionState.CONNECTING,
+            DeviceManagementConnectionState.PREPARING_CONNECTION,
+            DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE,
+        )
+
+    HealthCard(
+        title = "Conexão",
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, deviceSecondaryAccent(), ChampionShapeLarge),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            OutlinedButton(
+                onClick = onConnectAssociatedDevice,
+                enabled = canConnectAssociated,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Conectar")
+            }
+            OutlinedButton(
+                onClick = onDisconnectDevice,
+                enabled = canDisconnect,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Desconectar")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaintenanceActionsSection(
+    state: DeviceManagementUiState,
+    hasAssociatedDevice: Boolean,
+    onForgetDevice: () -> Unit,
+) {
+    HealthCard(
+        title = "Manutenção",
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, deviceTertiaryAccent(), ChampionShapeLarge),
+    ) {
+        OutlinedButton(
+            onClick = onForgetDevice,
+            enabled = hasAssociatedDevice && state.activeOperation == null,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Esquecer dispositivo")
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsActionsSection(
+    state: DeviceManagementUiState,
+    hasAssociatedDevice: Boolean,
+    onOpenDiagnostics: () -> Unit,
+    onExportDiagnostics: () -> Unit,
+) {
+    HealthCard(
+        title = "Diagnóstico seguro",
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, devicePrimaryAccent(), ChampionShapeLarge),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
+            OutlinedButton(
+                onClick = onOpenDiagnostics,
+                enabled = hasAssociatedDevice && state.activeOperation == null,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Ver diagnóstico")
+            }
+            OutlinedButton(
+                onClick = onExportDiagnostics,
+                enabled = hasAssociatedDevice && state.activeOperation == null,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Exportar relatório")
+            }
         }
     }
 }
@@ -820,23 +874,44 @@ private fun Set<DeviceManagementPermission>.toRuntimePermissionNames(): List<Str
 private fun android.content.Context.isDebugBuild(): Boolean =
     applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
-private fun DeviceManagementScreenState.label(): String = when (this) {
-    DeviceManagementScreenState.Loading -> "Carregando"
-    DeviceManagementScreenState.NoAssociatedDevice -> "Nenhum dispositivo associado"
-    DeviceManagementScreenState.PermissionsRequired -> "Permissões necessárias"
-    DeviceManagementScreenState.BluetoothDisabled -> "Bluetooth desligado"
-    DeviceManagementScreenState.ReadyToScan -> "Pronto para buscar"
-    DeviceManagementScreenState.Scanning -> "Procurando dispositivos"
-    DeviceManagementScreenState.ScanResults -> "Dispositivos encontrados"
-    DeviceManagementScreenState.Connecting -> "Conectando"
-    DeviceManagementScreenState.PreparingConnection -> "Preparando conexão"
-    DeviceManagementScreenState.Connected -> "Conectado"
-    DeviceManagementScreenState.Disconnecting -> "Desconectando"
-    DeviceManagementScreenState.Disconnected -> "Desconectado"
-    DeviceManagementScreenState.DeviceNotFound -> "Dispositivo não encontrado"
-    DeviceManagementScreenState.ConnectionFailed -> "Falha de conexão"
-    DeviceManagementScreenState.Forgetting -> "Esquecendo dispositivo"
-    DeviceManagementScreenState.Error -> "Erro"
+private fun DeviceManagementConnectionState.label(): String = when (this) {
+    DeviceManagementConnectionState.DISCONNECTED -> "Desconectado"
+    DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE -> "Procurando Champion associado"
+    DeviceManagementConnectionState.SCANNING -> "Buscando dispositivos"
+    DeviceManagementConnectionState.CONNECTING -> "Conectando"
+    DeviceManagementConnectionState.PREPARING_CONNECTION -> "Preparando conexão"
+    DeviceManagementConnectionState.CONNECTED -> "Conectado"
+    DeviceManagementConnectionState.DISCONNECTING -> "Desconectando"
+    DeviceManagementConnectionState.FAILED -> "Falha na conexão"
+}
+
+private fun DeviceManagementUiState.nextActionLabel(): String = when (screenState) {
+    DeviceManagementScreenState.Loading -> "aguarde o carregamento"
+    DeviceManagementScreenState.NoAssociatedDevice -> "busque um dispositivo"
+    DeviceManagementScreenState.PermissionsRequired -> "conceda as permissões BLE"
+    DeviceManagementScreenState.BluetoothDisabled -> "ative o Bluetooth"
+    DeviceManagementScreenState.ReadyToScan -> "busque um dispositivo"
+    DeviceManagementScreenState.Scanning -> "aguarde os resultados ou cancele a busca"
+    DeviceManagementScreenState.ScanResults -> if (candidates.any { it.isSelected }) {
+        "conecte o dispositivo selecionado"
+    } else {
+        "selecione um dispositivo encontrado"
+    }
+    DeviceManagementScreenState.Connecting,
+    DeviceManagementScreenState.PreparingConnection,
+    -> "aguarde a conexão"
+    DeviceManagementScreenState.Connected -> "nenhuma ação necessária"
+    DeviceManagementScreenState.Disconnecting -> "aguarde a desconexão"
+    DeviceManagementScreenState.Disconnected -> if (associatedDevice != null) {
+        "conecte o Champion C001"
+    } else {
+        "busque um dispositivo"
+    }
+    DeviceManagementScreenState.DeviceNotFound -> "tente buscar novamente"
+    DeviceManagementScreenState.ConnectionFailed,
+    DeviceManagementScreenState.Error,
+    -> if (retryAction != null) "tente novamente" else "feche o aviso"
+    DeviceManagementScreenState.Forgetting -> "aguarde a remoção da associação"
 }
 
 private fun DeviceManagementActiveOperation.label(): String = when (this) {
@@ -911,22 +986,29 @@ private fun Boolean.yesNo(): String = if (this) "Sim" else "Nao"
 
 private fun List<String>.joinForUi(): String = if (isEmpty()) "nenhuma" else joinToString()
 
-private fun DeviceManagementConnectionState.toVisualState(): ConnectionVisualState = when (this) {
-    DeviceManagementConnectionState.CONNECTED -> ConnectionVisualState.Connected
-    else -> ConnectionVisualState.Disconnected
+@Composable
+private fun devicePrimaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.primary
+} else {
+    LightColorScheme.primary
+}
+
+@Composable
+private fun deviceSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.secondary
+} else {
+    LightColorScheme.secondary
+}
+
+@Composable
+private fun deviceTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
+    DarkColorScheme.tertiary
+} else {
+    LightColorScheme.tertiary
 }
 
 private fun Instant?.toSyncVisualState(): SyncVisualState = if (this == null) {
     SyncVisualState.Pending
 } else {
     SyncVisualState.Success
-}
-
-private fun Instant?.formatTimestamp(fallback: String): String {
-    if (this == null) return fallback
-    val formatter = DateTimeFormatter
-        .ofLocalizedDateTime(FormatStyle.MEDIUM)
-        .withLocale(Locale.getDefault())
-        .withZone(ZoneId.systemDefault())
-    return formatter.format(this)
 }

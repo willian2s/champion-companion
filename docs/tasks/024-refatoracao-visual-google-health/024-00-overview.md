@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 14/19 subtarefas concluídas
+- **Progresso:** 15/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -26,7 +26,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
 - [x] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
 - [x] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
-- [ ] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
+- [x] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
 - [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
 - [ ] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
@@ -201,3 +201,12 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   fonte `1,3x`, portrait, landscape e temas claro/escuro com dynamic colors
   padrão foram repetidos após o ajuste final. Revisão independente final aprovada
   sem bloqueadores. Nenhum bloqueio técnico ativo.
+- `024-15` concluída após compactação solicitada pelo usuário: o estado de
+  conexão aparece uma única vez no resumo, o card associado não repete status ou
+  timestamps, e descoberta, conexão, manutenção e diagnóstico foram separados.
+- `024-15` passou em `git diff --check`, compilação Kotlin, lint, builds
+  debug/release, instalação e smoke ADB sanitizado. Foram exercitados portrait,
+  rolagem, fonte `1,3x`, landscape, temas claro/escuro, abertura/cancelamento de
+  diagnóstico e confirmação de esquecer sem confirmar. Evidência registrada em
+  `024-15-captura-real-sanitizada-dispositivo.png`; revisão independente final
+  aprovada sem bloqueadores.

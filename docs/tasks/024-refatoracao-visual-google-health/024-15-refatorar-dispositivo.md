@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `15`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -82,3 +82,74 @@ scan/conexão somente se seguro; fonte `1,3x`, landscape e temas.
 - não esquecer ou substituir aparelho por evidência;
 - identificadores e diagnósticos exigem sanitização;
 - estados raros não devem ser fabricados.
+
+## Registro de execução
+
+### Status
+
+`completed`; tela refatorada após revisão do excesso de status e informações
+duplicadas. Associação, estado atual, descoberta, conexão, manutenção e
+diagnóstico ficaram visualmente separados sem alteração dos fluxos BLE.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceScreen.kt`;
+- `024-15-captura-real-sanitizada-dispositivo.png`;
+- `024-00-overview.md`.
+
+### Decisões e desvios
+
+- O estado de conexão passou a aparecer uma única vez no card `Estado atual`,
+  junto da próxima ação; o card `Dispositivo associado` mantém identidade,
+  identificador seguro, firmware e sincronização, sem repetir conexão ou
+  timestamps técnicos.
+- Descoberta, conexão, manutenção e diagnóstico receberam cards próprios com
+  acentos nominais `primary`, `secondary` e `tertiary`, conforme tema, sem
+  alterar tema raiz.
+- Candidatos selecionados não repetem `Selecionado` e `Pronto para conectar`;
+  o chip e a ação principal preservam essa informação.
+- Diagnóstico continua sanitizado e a confirmação de esquecer continua
+  informando que histórico e dados salvos permanecem intactos.
+- Nenhuma alteração em ViewModel, contratos, BLE, permissões, persistência,
+  navegação, Health Connect ou PoC debug.
+
+### Comandos executados e resultados
+
+| Comando/verificação | Resultado |
+|---|---|
+| `git diff --check` | Passou |
+| `./gradlew app:compileDebugKotlin` | Primeira tentativa falhou por import removido de `Instant`; import restaurado e compilação repetida com sucesso |
+| `./gradlew app:compileDebugKotlin` | Passou após correção |
+| `./gradlew app:lintDebug` | Passou |
+| `./gradlew lint assembleDebug assembleRelease` | Passou; `BUILD SUCCESSFUL` |
+| `./gradlew installDebug` | Passou; instalado no Galaxy S22 `SM-S901E` |
+| `adb devices -l` | Passou; dispositivo autorizado |
+| `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` | Passou |
+| Revisão independente final | Passou; estado real de conexão, duplicação de descoberta e checklist SDD aprovados |
+| Smoke ADB portrait | Passou; header, estado único, associação compacta, descoberta e conexão visíveis |
+| Smoke ADB rolagem | Passou; conexão, manutenção, diagnóstico e PoC debug separados e acessíveis |
+| Smoke ADB diagnóstico | Passou; abrir e fechar diagnóstico seguro sem exposição de payload |
+| Smoke ADB esquecer | Passou; abrir/cancelar confirmação; nenhum esquecimento executado |
+| Smoke ADB fonte `1,3x`, landscape e tema claro/escuro | Passou; bounds acessíveis sem clipping observado; aparelho restaurado para fonte `1,0x`, portrait e tema escuro |
+| Captura sanitizada | Passou; barra de status e timestamps pessoais removidos de `024-15-captura-real-sanitizada-dispositivo.png` |
+
+Não foram criados, alterados ou executados testes automatizados.
+
+### Evidências
+
+- Hierarquia ADB inicial confirmou `Estado atual` com uma única ocorrência de
+  `Conectado`, seguido por associação compacta sem badge de conexão duplicado.
+- Hierarquia após rolagem confirmou cards separados `Conexão`, `Manutenção`,
+  `Diagnóstico seguro` e PoC técnica de debug.
+- Dialogs de diagnóstico e esquecimento foram abertos e cancelados; histórico
+  permaneceu protegido por confirmação explícita.
+- Captura sanitizada registra header, estado atual e associação sem timestamps
+  ou dados pessoais.
+
+### Riscos residuais
+
+- Estados transitórios BLE, scan real, retry, erro e ausência de associado não
+  foram fabricados; permanecem `N/A` nesta validação.
+- Operações de conectar, desconectar, esquecer, substituir e exportar não foram
+  executadas no aparelho para evitar alteração de associação ou dados.
+- Revisão independente final passou sem bloqueadores.
