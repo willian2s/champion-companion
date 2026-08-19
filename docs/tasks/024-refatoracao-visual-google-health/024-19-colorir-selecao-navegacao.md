@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `19`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -85,3 +85,65 @@ claro/escuro e dynamic/fallback.
 - indicador colorido não pode ocultar seleção em dynamic color acromático;
 - rótulos longos não podem sofrer truncamento em fonte ampliada;
 - não tocar caminhos bloqueados de treino phone.
+
+## Execução registrada
+
+### Status
+
+`in_progress`; implementação e validação principal concluídas, aguardando
+revisão independente final.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`;
+- `024-19-captura-real-sanitizada-navegacao.png`;
+- `024-19-colorir-selecao-navegacao.md`;
+- `024-00-overview.md` atualizado após revisão final.
+
+### Decisões e desvios
+
+- Seleção usa `primaryContainer`, `onPrimaryContainer` e `primary` da paleta
+  nominal clara/escura do Champion, seguindo estratégia aprovada em `024-04`.
+- Itens não selecionados continuam usando `MaterialTheme.colorScheme`,
+  preservando dynamic color e tema raiz para superfícies não migradas.
+- Indicador, ícone, rótulo, cinco entradas, `Mais` e seleção de subárvores foram
+  alterados somente no ramo de apresentação do shell.
+- Fallback físico em API inferior a 31 não foi exercitado: aparelho autorizado
+  disponível é API 36 e usuário dispensou uso de emulador. Contraste nominal foi
+  confirmado por inspeção das paletas `LightColorScheme` e `DarkColorScheme`.
+- Não foram alterados destinos, back stack, saver, guards, callbacks, ViewModels,
+  persistência, BLE ou Health Connect.
+
+### Comandos executados e resultados
+
+| Comando/verificação | Resultado |
+|---|---|
+| `git diff --check` | Passou; sem erro |
+| `./gradlew lint assembleDebug assembleRelease` | Passou; `BUILD SUCCESSFUL` no rerun final |
+| `./gradlew installDebug` | Passou; instalado no Galaxy S22 `SM-S901E` |
+| `adb devices -l` | Passou; dispositivo autorizado |
+| `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` | Passou; Activity aberta |
+| Smoke ADB do shell | Passou; Início, Saúde, Calendário, Exercícios, `Mais`, Dispositivo, Perfil, Configurações e detalhe de frequência cardíaca |
+| Fonte `1,3x` + landscape + tema claro | Passou; rótulos permaneceram visíveis, com quebra natural em rótulos longos |
+| Tema escuro + portrait | Passou; seleção nominal visível em Saúde |
+| Restauração do aparelho | Passou; fonte `1,0x`, portrait e tema escuro restaurados |
+| Testes automatizados | Não executados, conforme R8 |
+
+A primeira execução de `./gradlew lint assembleDebug assembleRelease` excedeu
+120 segundos sem resultado final; o rerun com timeout ampliado passou.
+
+### Evidências
+
+- `024-19-captura-real-sanitizada-navegacao.png` preserva somente shell e barra,
+  com conteúdo e status mascarados.
+- Hierarquia ADB confirmou cinco alvos, rótulos, seleção e bounds mínimos.
+- Fallback nominal permanece verificável estaticamente nas paletas próprias; sua
+  execução física ficou `N/A` por indisponibilidade de aparelho API inferior a 31
+  e por decisão de não iniciar emulador.
+
+### Riscos residuais
+
+- Fallback sem dynamic color não teve smoke físico; não foi simulado como sucesso.
+- Estados raros de confirmação e operações BLE/importação não foram acionados;
+  nenhum foi iniciado para produzir evidência.
+- Revisão independente final: `PASS`; nenhum bloqueador ou achado importante.

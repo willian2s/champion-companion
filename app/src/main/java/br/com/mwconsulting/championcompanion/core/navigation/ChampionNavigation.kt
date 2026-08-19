@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,6 +81,8 @@ import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileViewModel
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import java.util.UUID
@@ -371,10 +374,15 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
                 val navigationBarScope = this
                 val isCalendarSubtree = backStack.contains(AppDestination.Calendar) &&
                     currentDestination != AppDestination.Calendar
+                val navigationAccentScheme = if (isSystemInDarkTheme()) {
+                    DarkColorScheme
+                } else {
+                    LightColorScheme
+                }
                 val navigationItemColors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedIconColor = navigationAccentScheme.onPrimaryContainer,
+                    selectedTextColor = navigationAccentScheme.primary,
+                    indicatorColor = navigationAccentScheme.primaryContainer,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

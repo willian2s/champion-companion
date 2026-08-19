@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 16/19 subtarefas concluídas
+- **Progresso:** 17/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -29,7 +29,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
 - [x] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
-- [ ] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
+- [x] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
 - [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
 
 ## Observações
@@ -90,8 +90,14 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - Nova solicitação de cor para item selecionado na barra de navegação pertence ao
   shell compartilhado, fora de `024-05`; requer planejamento de correção próprio
   antes de implementação e não reabre subtarefa aceita.
-- Planejamento criado em `024-19-colorir-selecao-navegacao.md` para corrigir
-  seleção cromática do shell; implementação ainda não iniciada.
+- `024-19` implementou seleção cromática nominal no shell, sem reabrir o piloto
+  Saúde `024-05`.
+- `024-19` concluída: indicador, ícone e rótulo selecionados usam roles nominais
+  `primary`/`primaryContainer` sem alterar máquina de navegação; smoke ADB,
+  builds, instalação, captura sanitizada e revisão independente passaram.
+- Fallback físico sem dynamic color ficou `N/A`: aparelho disponível é API 36 e
+  o usuário dispensou emulador; paletas nominais foram inspecionadas estaticamente
+  sem declarar sucesso físico.
 - Nova solicitação tornou o padrão cromático do piloto Saúde obrigatório nas
   superfícies pendentes `024-06` a `024-19`: header azul-petróleo nominal com
   conteúdo branco e acentos nominais claros/escuros nos cards, indicadores e
