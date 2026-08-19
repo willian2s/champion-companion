@@ -5,6 +5,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.foundation.Canvas
@@ -38,6 +39,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -909,75 +911,97 @@ private fun ExerciseDetailShell(
     var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
     var showDeleteConfirmation by remember(activityId) { mutableStateOf(false) }
     var showReprocessConfirmation by remember(activityId) { mutableStateOf(false) }
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ChampionShapeLarge,
+            colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(ChampionSpacing.medium),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                ) {
-                    Text("Detalhe do treino", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            when (val detailState = state.detailState) {
-                ExerciseDetailState.Loading -> Text("Carregando atividade $activityId", style = MaterialTheme.typography.bodyMedium)
-                ExerciseDetailState.NotFound -> ErrorState(
-                    title = "Treino não encontrado",
-                    message = "Nenhuma atividade importada foi encontrada para este identificador.",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                is ExerciseDetailState.Failed -> ErrorState(
-                    title = "Não foi possível abrir o treino",
-                    message = detailState.error.message,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                is ExerciseDetailState.Ready -> {
-                    val activity = state.selectedActivity
-                    if (activity == null || activity.id != detailState.activityId) {
-                        Text("Carregando treino selecionado", style = MaterialTheme.typography.bodyMedium)
-                    } else {
-                        WorkoutActivityDetailContent(
-                            activity = activity,
-                            latestCalibration = detailState.latestCalibration,
-                            reviewFormState = state.reviewFormState,
-                            calibrationFormState = state.calibrationFormState,
-                            referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
-                            operationError = state.operationError,
-                            isReprocessing = state.isReprocessing,
-                            canDiscardSelectedActivity = state.canDiscardSelectedActivity,
-                            onDismissError = onDismissError,
-                            onReviewTypeChange = onReviewTypeChange,
-                            onReviewDistanceChange = onReviewDistanceChange,
-                            onReviewTitleChange = onReviewTitleChange,
-                            onReviewNotesChange = onReviewNotesChange,
-                            onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
-                            onSubmitReview = onSubmitReview,
-                            onCalibrationDistanceChange = onCalibrationDistanceChange,
-                            onSubmitCalibration = onSubmitCalibration,
-                            onRequestReprocess = { showReprocessConfirmation = true },
-                            isAcceptingPlausibility = state.isAcceptingPlausibility,
-                            onAcceptPlausibility = onAcceptPlausibility,
-                            onSyncActivity = onSyncActivity,
-                            onRequestDiscard = { showDiscardConfirmation = true },
-                            canDeleteSelectedActivity = state.canDeleteSelectedActivity,
-                            isDeletingSelectedActivity = state.isDeletingSelectedActivity,
-                            onRequestDelete = { showDeleteConfirmation = true },
+                onNavigateBack?.let { navigateBack ->
+                    IconButton(onClick = navigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Voltar para exercícios",
+                            tint = Color.White,
                         )
                     }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+                ) {
+                    Text(
+                        "Detalhe do treino",
+                        modifier = Modifier.semantics { heading() },
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Atividade importada",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+
+        when (val detailState = state.detailState) {
+            ExerciseDetailState.Loading -> Text("Carregando atividade $activityId", style = MaterialTheme.typography.bodyMedium)
+            ExerciseDetailState.NotFound -> ErrorState(
+                title = "Treino não encontrado",
+                message = "Nenhuma atividade importada foi encontrada para este identificador.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            is ExerciseDetailState.Failed -> ErrorState(
+                title = "Não foi possível abrir o treino",
+                message = detailState.error.message,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            is ExerciseDetailState.Ready -> {
+                val activity = state.selectedActivity
+                if (activity == null || activity.id != detailState.activityId) {
+                    Text("Carregando treino selecionado", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    WorkoutActivityDetailContent(
+                        activity = activity,
+                        latestCalibration = detailState.latestCalibration,
+                        reviewFormState = state.reviewFormState,
+                        calibrationFormState = state.calibrationFormState,
+                        referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
+                        operationError = state.operationError,
+                        isReprocessing = state.isReprocessing,
+                        canDiscardSelectedActivity = state.canDiscardSelectedActivity,
+                        onDismissError = onDismissError,
+                        onReviewTypeChange = onReviewTypeChange,
+                        onReviewDistanceChange = onReviewDistanceChange,
+                        onReviewTitleChange = onReviewTitleChange,
+                        onReviewNotesChange = onReviewNotesChange,
+                        onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
+                        onSubmitReview = onSubmitReview,
+                        onCalibrationDistanceChange = onCalibrationDistanceChange,
+                        onSubmitCalibration = onSubmitCalibration,
+                        onRequestReprocess = { showReprocessConfirmation = true },
+                        isAcceptingPlausibility = state.isAcceptingPlausibility,
+                        onAcceptPlausibility = onAcceptPlausibility,
+                        onSyncActivity = onSyncActivity,
+                        onRequestDiscard = { showDiscardConfirmation = true },
+                        canDeleteSelectedActivity = state.canDeleteSelectedActivity,
+                        isDeletingSelectedActivity = state.isDeletingSelectedActivity,
+                        onRequestDelete = { showDeleteConfirmation = true },
+                    )
                 }
             }
         }
@@ -1115,6 +1139,9 @@ private fun WorkoutActivityDetailContent(
     isDeletingSelectedActivity: Boolean,
     onRequestDelete: () -> Unit,
 ) {
+    val hasReferenceDistanceCalibration = activity.isReferenceDistanceCalibrationEligible() &&
+        referenceDistanceCalibrationAllowed
+
     Column(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
@@ -1138,7 +1165,7 @@ private fun WorkoutActivityDetailContent(
                 )
             }
         }
-        ActivityCanonicalStatusSection(activity)
+        ActivityStatusOriginSection(activity)
         if (activity.isWatchWorkout && !activity.isCycling && activity.requiresWatchWorkoutReprocessing) {
             WatchWorkoutReprocessSection(
                 activity = activity,
@@ -1146,12 +1173,18 @@ private fun WorkoutActivityDetailContent(
                 onRequestReprocess = onRequestReprocess,
             )
         }
+        DetailSectionHeading("Resumo")
         ActivityMetricsSection(activity, latestCalibration)
+        DetailSectionHeading("Tendências")
         ActivityCanonicalChartSection(activity)
         ActivityHeartRateChartSection(activity)
-        ActivityIntervalsSection(activity)
-        ActivitySplitsSection(activity)
-        if (activity.isReferenceDistanceCalibrationEligible() && referenceDistanceCalibrationAllowed) {
+        if (!activity.isCycling) {
+            DetailSectionHeading("Detalhamento")
+            ActivityIntervalsSection(activity)
+            ActivitySplitsSection(activity)
+        }
+        if (hasReferenceDistanceCalibration) {
+            DetailSectionHeading("Revisão e calibração")
             ReferenceDistanceCalibrationSection(
                 activity = activity,
                 formState = calibrationFormState,
@@ -1160,35 +1193,48 @@ private fun WorkoutActivityDetailContent(
             )
         }
         if (activity.parserValidity == ParserValidity.PARTIAL) {
+            DetailSectionHeading("Qualidade da importação")
             PartialParserNotice(activity)
         }
         when {
-            activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> ReviewFormSection(
-                activity = activity,
-                formState = reviewFormState,
-                calibrationFormState = calibrationFormState,
-                onReviewTypeChange = onReviewTypeChange,
-                onReviewDistanceChange = onReviewDistanceChange,
-                onReviewTitleChange = onReviewTitleChange,
-                onReviewNotesChange = onReviewNotesChange,
-                onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
-                onSubmitReview = onSubmitReview,
-                onCalibrationDistanceChange = onCalibrationDistanceChange,
-            )
+            activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> {
+                DetailSectionHeading("Revisão e calibração")
+                ReviewFormSection(
+                    activity = activity,
+                    formState = reviewFormState,
+                    calibrationFormState = calibrationFormState,
+                    onReviewTypeChange = onReviewTypeChange,
+                    onReviewDistanceChange = onReviewDistanceChange,
+                    onReviewTitleChange = onReviewTitleChange,
+                    onReviewNotesChange = onReviewNotesChange,
+                    onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
+                    onSubmitReview = onSubmitReview,
+                    onCalibrationDistanceChange = onCalibrationDistanceChange,
+                )
+            }
 
-            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout && !activity.isCycling ->
+            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout && !activity.isCycling -> {
+                if (!hasReferenceDistanceCalibration) {
+                    DetailSectionHeading("Revisão e calibração")
+                }
                 WatchWorkoutPendingDerivationSection(activity)
+            }
 
-            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isCycling ->
+            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isCycling -> {
+                DetailSectionHeading("Revisão e calibração")
                 CyclingCalibrationBlockedSection()
+            }
 
-            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION -> CalibrationFormSection(
-                activity = activity,
-                latestCalibration = latestCalibration,
-                formState = calibrationFormState,
-                onCalibrationDistanceChange = onCalibrationDistanceChange,
-                onSubmitCalibration = onSubmitCalibration,
-            )
+            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION -> {
+                DetailSectionHeading("Revisão e calibração")
+                CalibrationFormSection(
+                    activity = activity,
+                    latestCalibration = latestCalibration,
+                    formState = calibrationFormState,
+                    onCalibrationDistanceChange = onCalibrationDistanceChange,
+                    onSubmitCalibration = onSubmitCalibration,
+                )
+            }
 
             activity.workflowState in setOf(
                 ActivityWorkflowState.READY_TO_SYNC,
@@ -1196,29 +1242,61 @@ private fun WorkoutActivityDetailContent(
                 ActivityWorkflowState.SYNCED,
                 ActivityWorkflowState.SYNC_FAILED,
                 ActivityWorkflowState.DISCARDED,
-            ) -> ReadOnlyWorkflowSection(
-                activity = activity,
-                latestCalibration = latestCalibration,
-                isAcceptingPlausibility = isAcceptingPlausibility,
-                onAcceptPlausibility = onAcceptPlausibility,
-                onSyncActivity = onSyncActivity,
-            )
-        }
-        if (canDiscardSelectedActivity) {
-            TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
-                Text("Descartar treino")
+            ) -> {
+                DetailSectionHeading("Workflow e sincronização")
+                ReadOnlyWorkflowSection(
+                    activity = activity,
+                    latestCalibration = latestCalibration,
+                    isAcceptingPlausibility = isAcceptingPlausibility,
+                    onAcceptPlausibility = onAcceptPlausibility,
+                    onSyncActivity = onSyncActivity,
+                )
             }
         }
-        if (canDeleteSelectedActivity) {
-            TextButton(
-                onClick = onRequestDelete,
-                enabled = !isDeletingSelectedActivity,
-                modifier = Modifier.align(Alignment.End),
+        if (canDiscardSelectedActivity || canDeleteSelectedActivity) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ChampionShapeMedium,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             ) {
-                Text("Excluir treino permanentemente", color = MaterialTheme.colorScheme.error)
+                Column(
+                    modifier = Modifier.padding(ChampionSpacing.large),
+                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                ) {
+                    DetailSectionHeading("Ações locais")
+                    Text(
+                        "Estas ações não iniciam sincronização e exigem confirmação.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (canDiscardSelectedActivity) {
+                        TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
+                            Text("Descartar treino", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    if (canDeleteSelectedActivity) {
+                        TextButton(
+                            onClick = onRequestDelete,
+                            enabled = !isDeletingSelectedActivity,
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Text("Excluir treino permanentemente", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun DetailSectionHeading(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.semantics { heading() },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
 }
 
 @Composable
@@ -1227,8 +1305,9 @@ private fun ActivityHeaderCard(activity: WorkoutActivity) {
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ),
+        border = BorderStroke(1.dp, exercisePrimaryAccent()),
     ) {
         Column(
             modifier = Modifier.padding(ChampionSpacing.large),
@@ -1240,15 +1319,107 @@ private fun ActivityHeaderCard(activity: WorkoutActivity) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Column(
+        }
+    }
+}
+
+@Composable
+private fun ActivityStatusOriginSection(activity: WorkoutActivity) {
+    val isCanonicalWarning = activity.isWatchWorkout && !activity.isCycling &&
+        activity.canonicalReadStatus in setOf(
+            WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED,
+            WorkoutCanonicalReadStatus.SERIES_INELIGIBLE,
+        )
+    val statusAccent = if (isCanonicalWarning) {
+        MaterialTheme.colorScheme.error
+    } else {
+        activity.workflowState.toListAccentColor()
+    }
+    val snapshot = activity.derivationSnapshot
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                stateDescription = activity.workflowState.toLabel()
+                contentDescription = activity.statusOriginAccessibleDescription()
+            },
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        border = BorderStroke(1.dp, statusAccent),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text(
+                "Status e origem",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
                 verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
             ) {
-                AssistChip(onClick = {}, enabled = false, label = { Text(activity.workflowState.toChipLabel()) })
-                AssistChip(onClick = {}, enabled = false, label = { Text(activity.displayType().toLabel()) })
-                AssistChip(onClick = {}, enabled = false, label = { Text(activity.parserValidity.toLabel()) })
-                AssistChip(onClick = {}, enabled = false, label = { Text("Origem: relógio") })
+                ActivityBadge(activity.workflowState.toChipLabel(), statusAccent)
+                ActivityBadge(activity.displayType().toLabel(), exerciseSecondaryAccent())
+                ActivityBadge(activity.parserValidity.toLabel(), exerciseTertiaryAccent())
+                ActivityBadge(
+                    activity.originLabel(),
+                    exercisePrimaryAccent(),
+                )
+            }
+            if (activity.isWatchWorkout && !activity.isCycling) {
+                Text(
+                    "Derivação canônica",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = activity.canonicalReadStatus.toShortLabel(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = statusAccent,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = activity.canonicalStatusMessage(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                snapshot?.let {
+                    Text(
+                        text = "Comprimento do passo: ${formatStepLength(it.stepLengthMetersUsed)} (${it.stepLengthSource.toLabel()}) • Derivação ${it.derivationVersion}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (snapshot?.plausibility?.indicators?.isNotEmpty() == true) {
+                    Text(
+                        text = "Indicadores: ${snapshot.plausibility.indicators.joinToString { it.toLabel() }}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ActivityBadge(label: String, accentColor: Color) {
+    Surface(
+        shape = ChampionShapeMedium,
+        color = accentColor.copy(alpha = if (isSystemInDarkTheme()) 0.2f else 0.1f),
+        contentColor = accentColor,
+        border = BorderStroke(1.dp, accentColor),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = ChampionSpacing.medium, vertical = ChampionSpacing.small),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -1269,61 +1440,6 @@ private fun WorkoutActivity.canonicalMetricReadModel(): CanonicalActivityMetricR
         paceSecondsPerKilometer = lastInterval.cumulativeMetrics.paceSecondsPerKilometer,
         speedMetersPerSecond = lastInterval.cumulativeMetrics.speedMetersPerSecond,
     )
-}
-
-@Composable
-private fun ActivityCanonicalStatusSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout || activity.isCycling) return
-    val status = activity.canonicalReadStatus
-    val snapshot = activity.derivationSnapshot
-    val isWarning = status == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ||
-        status == WorkoutCanonicalReadStatus.SERIES_INELIGIBLE
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics {
-                stateDescription = status.toShortLabel()
-                contentDescription = activity.canonicalStatusAccessibleDescription()
-            },
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isWarning) {
-                MaterialTheme.colorScheme.errorContainer
-            } else {
-                MaterialTheme.colorScheme.tertiaryContainer
-            },
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(status.toShortLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = activity.canonicalStatusMessage(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isWarning) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                },
-            )
-            snapshot?.let {
-                Text(
-                    text = "Comprimento do passo: ${formatStepLength(it.stepLengthMetersUsed)} (${it.stepLengthSource.toLabel()}) • Derivação ${it.derivationVersion}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (snapshot?.plausibility?.indicators?.isNotEmpty() == true) {
-                Text(
-                    text = "Indicadores: ${snapshot.plausibility.indicators.joinToString { it.toLabel() }}.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -1451,8 +1567,8 @@ private fun ActivityMetricsSection(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
-            activity.detailMetricItems().forEach { item ->
-                MetricCard(item.label, item.value)
+            activity.detailMetricItems().forEachIndexed { index, item ->
+                MetricCard(item.label, item.value, exerciseMetricAccent(index))
             }
         }
         activity.confirmedType?.let {
@@ -1488,20 +1604,21 @@ private fun ActivityMetricsSection(
 }
 
 @Composable
-private fun MetricCard(label: String, value: String) {
+private fun MetricCard(label: String, value: String, accentColor: Color) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeMedium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
+        border = BorderStroke(1.dp, accentColor),
     ) {
         Column(
             modifier = Modifier.padding(ChampionSpacing.medium),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
         ) {
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(value, color = accentColor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -2208,7 +2325,7 @@ private fun CalibrationFormSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            MetricCard("Base importada", activity.metrics.distances.toImportedDistanceLabel())
+            MetricCard("Base importada", activity.metrics.distances.toImportedDistanceLabel(), exercisePrimaryAccent())
             latestCalibration?.let {
                 Text(
                     text = "Última calibração ativa: revisão ${it.revision} em ${it.appliedAt.formatDateTime()}",
@@ -2229,9 +2346,9 @@ private fun CalibrationFormSection(
                 horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
             ) {
-                MetricCard("Prévia distância", formState.previewDistanceMeters.toDistanceLabel())
-                MetricCard("Prévia ritmo", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel())
-                MetricCard("Prévia velocidade", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel())
+                MetricCard("Prévia distância", formState.previewDistanceMeters.toDistanceLabel(), exercisePrimaryAccent())
+                MetricCard("Prévia ritmo", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel(), exerciseSecondaryAccent())
+                MetricCard("Prévia velocidade", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel(), exerciseTertiaryAccent())
             }
             formState.validationError?.let {
                 Text(it.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -2277,10 +2394,10 @@ private fun ReferenceDistanceCalibrationSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            MetricCard("Distância atual estimada", activity.canonicalDistanceMeters.toDistanceLabel())
-            MetricCard("Distância após calibração", formState.previewDistanceMeters.toDistanceLabel())
-            MetricCard("Ritmo após calibração", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel())
-            MetricCard("Velocidade após calibração", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel())
+            MetricCard("Distância atual estimada", activity.canonicalDistanceMeters.toDistanceLabel(), exercisePrimaryAccent())
+            MetricCard("Distância após calibração", formState.previewDistanceMeters.toDistanceLabel(), exerciseSecondaryAccent())
+            MetricCard("Ritmo após calibração", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel(), exerciseTertiaryAccent())
+            MetricCard("Velocidade após calibração", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel(), exercisePrimaryAccent())
             OutlinedTextField(
                 value = formState.reportedDistanceInput,
                 onValueChange = onDistanceChange,
@@ -2289,10 +2406,10 @@ private fun ReferenceDistanceCalibrationSection(
                 singleLine = true,
                 enabled = !formState.isSaving,
             )
-            MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível")
-            MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel())
-            MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel())
-            MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel())
+            MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível", exerciseSecondaryAccent())
+            MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel(), exerciseTertiaryAccent())
+            MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel(), exercisePrimaryAccent())
+            MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel(), exerciseSecondaryAccent())
             Text(
                 "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada.",
                 style = MaterialTheme.typography.bodySmall,
@@ -2512,6 +2629,24 @@ private fun WorkoutActivity.displayDistanceLabel(): String = when {
 
 private fun WorkoutActivity.canonicalStatusAccessibleDescription(): String =
     "${canonicalReadStatus.toShortLabel()}. ${canonicalStatusMessage()}"
+
+private fun WorkoutActivity.statusOriginAccessibleDescription(): String = buildString {
+    append("Status: ${workflowState.toLabel()}. ")
+    append("Tipo: ${displayType().toLabel()}. ")
+    append("Parser: ${parserValidity.toLabel()}. ")
+    append("${originLabel()}.")
+    if (isWatchWorkout && !isCycling) {
+        append(" ${canonicalStatusAccessibleDescription()}")
+    }
+}
+
+private fun WorkoutActivity.originLabel(): String = when (activityOrigin) {
+    WorkoutActivityOrigin.WATCH_D3_D4 -> "Origem: relógio"
+    WorkoutActivityOrigin.PHONE_GPS,
+    WorkoutActivityOrigin.PHONE_TREADMILL,
+    WorkoutActivityOrigin.PHONE_FREE_WORKOUT,
+    -> "Origem: sessão local legada"
+}
 
 private fun WorkoutActivity.canonicalStatusMessage(): String = when (canonicalReadStatus) {
     WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Métricas canônicas não se aplicam a esta origem."
@@ -2784,6 +2919,13 @@ private fun exerciseTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
     DarkColorScheme.tertiary
 } else {
     LightColorScheme.tertiary
+}
+
+@Composable
+private fun exerciseMetricAccent(index: Int): Color = when (index % 3) {
+    0 -> exercisePrimaryAccent()
+    1 -> exerciseSecondaryAccent()
+    else -> exerciseTertiaryAccent()
 }
 
 private fun WorkoutType.toListIcon(): ImageVector = when (this) {

@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 13/19 subtarefas concluídas
+- **Progresso:** 14/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -25,7 +25,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-11-refatorar-calendario.md](024-11-refatorar-calendario.md)
 - [x] [024-12-refatorar-detalhe-diario.md](024-12-refatorar-detalhe-diario.md)
 - [x] [024-13-refatorar-lista-exercicios.md](024-13-refatorar-lista-exercicios.md)
-- [ ] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
+- [x] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
 - [ ] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
 - [ ] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
@@ -189,3 +189,15 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   claro e restauração do aparelho. Evidência sanitizada registrada em
   `024-13-captura-real-sanitizada-exercicios.png`; nenhuma importação foi
   iniciada. Revisão independente final aprovada sem bloqueadores.
+- `024-14` concluída após revisão independente e nova validação física. Header separado e retorno por ícone acessível, badges
+  tonais nominais, card `Status e origem` consolidando workflow, tipo, parser,
+  origem e derivação, além de seções claras para resumo, tendências,
+  detalhamento, revisão e workflow. Callbacks, guards, dialogs, snapshots e
+  sync foram preservados.
+- `024-14` passou em `git diff --check`, compilação Kotlin, lint, builds
+  debug/release, instalação e smoke ADB sanitizado. Evidência registrada em
+  `024-14-captura-real-sanitizada-detalhe-exercicio.png`.
+- Em `024-14`, estados transitórios de operação ficaram `N/A` sem fabricar dados;
+  fonte `1,3x`, portrait, landscape e temas claro/escuro com dynamic colors
+  padrão foram repetidos após o ajuste final. Revisão independente final aprovada
+  sem bloqueadores. Nenhum bloqueio técnico ativo.
