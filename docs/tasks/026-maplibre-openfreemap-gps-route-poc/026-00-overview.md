@@ -118,6 +118,29 @@ evidência cobre entrega básica fused e ciclo de vida, mas não encerra o gate:
 não houve percurso externo de aproximadamente 500 m, casos negativos ou
 inspeção sanitizada do Logcat. O checklist permanece desmarcado.
 
+Atualização da `026-07` em 2026-08-20: foi criado o objeto debug-only
+`GpsMapPocMockGeometryDebugMode` para aceitar localização mock/fake somente na
+inspeção de geometria, câmera, stop e reset. Permissão precisa e localização
+habilitada continuam necessárias; validações de coordenada, precisão, idade,
+velocidade e ordem permanecem. A adaptação para readiness e para a fronteira do
+filtro é local à PoC, sem alteração dos contratos produtivos. A UI identifica
+`Modo geometria debug: mock aceito` e informa que o modo não comprova GPS real.
+O gate de percurso real continua bloqueado e o progresso permanece `6/8`, com
+checklists inalterados.
+
+Validação física debug com localização mock no `SM-S901E` confirmou rota visual:
+linha azul, início verde e fim vermelho após parada; posição corrente laranja
+durante tracking. Primeiro ciclo registrou 8 fixes, 8 pontos aceitos e 54 m;
+segundo ciclo, após limpar, registrou 6 fixes, 6 pontos aceitos e 39 m. Reset
+final zerou pontos aceitos e distância. Evidência mock não substitui percurso
+real; `026-07` permanece desmarcada.
+
+Atualização visual da `026-07`: a rota usa linha azul com contraste sobre
+`Positron`; o início fica verde, o fim fica vermelho após `Parar` e a posição
+corrente fica laranja durante tracking. Fontes GeoJSON e camadas foram
+separadas para evitar sobreposição semântica dos marcadores. Checklist permanece
+desmarcado.
+
 ## Ordem
 
 ```text

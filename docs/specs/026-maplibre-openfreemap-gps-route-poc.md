@@ -258,6 +258,8 @@ Sem:
 - GPS nativo como objetivo, com `FusedLocationProviderClient` debug-only como
   API efetiva de coleta;
 - combinação de GPS, rede móvel, Wi-Fi, cache e sensores disponíveis pelo fused;
+- modo de geometria debug-only com localização mock/fake aceita somente para
+  inspeção visual, sem alterar o gate de GPS real;
 - seed recente via `lastLocation`, sem inclusão automática na rota;
 - readiness;
 - precisão horizontal;
@@ -308,7 +310,8 @@ Sem:
 - compartilhamento de rota;
 - servidor próprio;
 - upload explícito de coordenadas;
-- suporte multiusuário.
+- suporte multiusuário;
+- app fake GPS, integração de localização ou credencial para injetar fixes.
 
 ## Estratégia de isolamento
 
@@ -323,7 +326,8 @@ app/src/debug/java/
     ├── GpsMapPocScreen.kt
     ├── GpsMapPocUiState.kt
     ├── GpsMapPocCoordinator.kt
-    └── GpsMapPocLocationSource.kt
+    ├── GpsMapPocLocationSource.kt
+    └── GpsMapPocMockGeometryDebugMode.kt
 ```
 
 E:
@@ -448,6 +452,37 @@ Campos relevantes:
 
 Nenhuma coordenada deve ser escrita em Logcat.
 
+### Modo de geometria debug-only para localização mock
+
+Para inspeção visual da geometria, câmera, parada e reset durante a `026-07`, a
+variante debug possui o objeto centralizado
+`GpsMapPocMockGeometryDebugMode`. Ele aceita localização mock/fake somente no
+fluxo efêmero da PoC e mantém o modo explicitamente identificado na UI. Essa
+exceção não cria app fake GPS, integração de localização, credencial ou fonte
+adicional de dados.
+
+O modo continua exigindo permissão precisa e localização do aparelho habilitada.
+Não há bypass para serviço, permissão ou readiness. O candidato mock precisa
+passar pelas mesmas validações de coordenada, precisão, idade, velocidade,
+bearing e ordem aplicáveis ao fluxo debug; `lastLocation` só pode ser usado como
+seed recente e continua fora da rota antes de `Iniciar`.
+
+O isolamento ocorre em duas fronteiras locais, sem alterar contratos produtivos:
+
+- a fonte debug apresenta o mock ao readiness como admissível somente enquanto o
+  modo estiver ativo; `GpsReadiness`, `GpsReadinessEvaluator` e sua política
+  global continuam rejeitando mock;
+- o coordinator permite posição corrente mock somente no modo ativo e faz
+  `copy(isMock = false)` exclusivamente no candidato enviado ao
+  `RoutePointFilter`; o filtro compartilhado, `WorkoutRoutePointCandidate` e a
+  semântica produtiva permanecem inalterados. A localização real não passa por
+  essa adaptação.
+
+Assim, mock fora desse modo continua sendo caso negativo e rejeitado pelo
+contrato compartilhado. Aceitação mock serve apenas para verificar a geometria;
+nenhuma evidência desse modo prova GPS real, e o gate de percurso real da PoC
+continua pendente até validação física externa sem localização mock.
+
 ## Reutilização do legado
 
 Reutilizar quando possível e sem modificar semântica:
@@ -520,7 +555,7 @@ idade máxima                  10 s
 precisão horizontal máxima    50 m
 velocidade humana máxima      12 m/s
 deslocamento mínimo           3 m
-mock                          rejeitado
+mock                          rejeitado fora do modo de geometria debug
 duplicata                     rejeitada
 ordem temporal inválida       rejeitada
 ```
@@ -741,7 +776,9 @@ Com dois ou mais:
 
 - construir `LineString`;
 - atualizar source conforme pontos aceitos entram;
-- desenhar `LineLayer`.
+- desenhar `LineLayer` azul com contraste suficiente;
+- mostrar início em verde e fim em vermelho após `Parar`;
+- mostrar posição corrente em laranja durante tracking.
 
 A linha deve possuir:
 
@@ -750,6 +787,10 @@ A linha deve possuir:
 - largura legível no telefone;
 - cor derivada da identidade visual do Champion quando tecnicamente viável;
 - contraste suficiente sobre `Positron`.
+
+Início, fim e posição corrente devem usar fontes visuais separadas para não
+parecerem um único marcador. O fim não deve permanecer sobreposto à posição
+corrente depois de `Parar`.
 
 Não codificar coordenadas no estilo.
 
@@ -921,7 +962,12 @@ Continuam válidos:
 
 ## Privacidade
 
-A PoC manipula localização real, portanto as regras são estritas.
+A PoC manipula localização real e pode receber mock somente na exceção debug
+explicitamente delimitada; portanto as regras são estritas.
+
+Quando o modo de geometria debug usar localização mock, a evidência deve nomear
+explicitamente esse modo e nunca apresentar o resultado como GPS real. Não
+mascarar essa origem em evidências; não criar logs adicionais.
 
 Proibido em Logcat:
 
@@ -1029,9 +1075,15 @@ Cenário principal mínimo:
 - perda temporária de qualidade durante tracking;
 - parar antes do segundo ponto;
 - limpar após parada;
-- executar dois ciclos consecutivos.
+- executar dois ciclos consecutivos;
+- localização mock fora do modo de geometria debug: permanece rejeitada pelo
+  contrato compartilhado.
 
 Background, tela apagada, offline map e process death não fazem parte do gate desta PoC.
+
+O modo de geometria debug não substitui o cenário principal com percurso externo
+real. Seu uso não aprova o gate de rota real nem permite classificar a PoC como
+`go`, `go_with_adjustments` ou `no_go`.
 
 ## Critérios de aceite
 

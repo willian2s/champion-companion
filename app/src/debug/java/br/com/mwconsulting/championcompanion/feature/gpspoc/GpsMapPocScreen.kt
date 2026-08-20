@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
@@ -48,6 +49,11 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private const val OPEN_FREE_MAP_POSITRON_STYLE =
     "https://tiles.openfreemap.org/styles/positron"
+
+private val ROUTE_LINE_COLOR = Color(0xFF1565C0)
+private val ROUTE_START_COLOR = Color(0xFF2E7D32)
+private val ROUTE_END_COLOR = Color(0xFFC62828)
+private val CURRENT_POSITION_COLOR = Color(0xFFFF8F00)
 
 @Composable
 fun GpsMapPocScreen(
@@ -168,7 +174,25 @@ fun GpsMapPocScreen(
                     ) {
                         val routeSource = rememberGeoJsonSource(
                             data = GeoJsonData.JsonString(
-                                state.toMapGeoJson(),
+                                state.toRouteGeoJson(),
+                            ),
+                            options = GeoJsonOptions(synchronousUpdate = false),
+                        )
+                        val startMarkerSource = rememberGeoJsonSource(
+                            data = GeoJsonData.JsonString(
+                                state.toStartMarkerGeoJson(),
+                            ),
+                            options = GeoJsonOptions(synchronousUpdate = false),
+                        )
+                        val endMarkerSource = rememberGeoJsonSource(
+                            data = GeoJsonData.JsonString(
+                                state.toEndMarkerGeoJson(),
+                            ),
+                            options = GeoJsonOptions(synchronousUpdate = false),
+                        )
+                        val currentPositionSource = rememberGeoJsonSource(
+                            data = GeoJsonData.JsonString(
+                                state.toCurrentPositionGeoJson(),
                             ),
                             options = GeoJsonOptions(synchronousUpdate = false),
                         )
@@ -177,20 +201,42 @@ fun GpsMapPocScreen(
                             LineLayer(
                                 id = "gps-poc-route",
                                 source = routeSource,
-                                color = const(MaterialTheme.colorScheme.primary),
+                                color = const(ROUTE_LINE_COLOR),
                                 width = const(5.dp),
                                 cap = const(LineCap.Round),
                                 join = const(LineJoin.Round),
                             )
                         }
 
-                        if (state.currentPosition != null) {
+                        if (state.routePoints.isNotEmpty()) {
+                            CircleLayer(
+                                id = "gps-poc-route-start",
+                                source = startMarkerSource,
+                                color = const(ROUTE_START_COLOR),
+                                radius = const(6.dp),
+                                strokeColor = const(Color.White),
+                                strokeWidth = const(2.dp),
+                            )
+                        }
+
+                        if (state.status == GpsMapPocStatus.Stopped && state.routePoints.size >= 2) {
+                            CircleLayer(
+                                id = "gps-poc-route-end",
+                                source = endMarkerSource,
+                                color = const(ROUTE_END_COLOR),
+                                radius = const(7.dp),
+                                strokeColor = const(Color.White),
+                                strokeWidth = const(2.dp),
+                            )
+                        }
+
+                        if (state.currentPosition != null && state.status != GpsMapPocStatus.Stopped) {
                             CircleLayer(
                                 id = "gps-poc-current-position",
-                                source = routeSource,
-                                color = const(MaterialTheme.colorScheme.primary),
+                                source = currentPositionSource,
+                                color = const(CURRENT_POSITION_COLOR),
                                 radius = const(7.dp),
-                                strokeColor = const(MaterialTheme.colorScheme.onPrimary),
+                                strokeColor = const(Color.White),
                                 strokeWidth = const(2.dp),
                             )
                         }
@@ -249,6 +295,24 @@ private fun GpsMapPocStatusCard(state: GpsMapPocUiState) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (GpsMapPocMockGeometryDebugMode.isEnabled) {
+                Text(
+                    text = GpsMapPocMockGeometryDebugMode.banner,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = GpsMapPocMockGeometryDebugMode.disclaimer,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = GpsMapPocMockGeometryDebugMode.requirements,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
@@ -395,23 +459,41 @@ private fun Double.formatDistance(): String = when {
     else -> "%.0f m".format(java.util.Locale.ROOT, this)
 }
 
-private fun GpsMapPocUiState.toMapGeoJson(): String {
-    val features = buildList {
-        currentPosition?.let { point ->
-            add(point.toPointFeatureJson())
-        }
-        if (routePoints.size >= 2) {
-            add(
-                """{"type":"Feature","geometry":{"type":"LineString","coordinates":[${
-                    routePoints.joinToString(",") { it.toGeoJsonCoordinate() }
-                }]},"properties":{}}""",
-            )
-        }
+private fun GpsMapPocUiState.toRouteGeoJson(): String =
+    if (routePoints.size >= 2) {
+        featureCollectionJson(
+            """{"type":"Feature","geometry":{"type":"LineString","coordinates":[${
+                routePoints.joinToString(",") { it.toGeoJsonCoordinate() }
+            }]},"properties":{}}""",
+        )
+    } else {
+        emptyFeatureCollectionJson()
     }
-    return """{"type":"FeatureCollection","features":[${features.joinToString(",")}]}"""
-}
+
+private fun GpsMapPocUiState.toStartMarkerGeoJson(): String =
+    routePoints.firstOrNull()?.let { point ->
+        featureCollectionJson(point.toPointFeatureJson())
+    } ?: emptyFeatureCollectionJson()
+
+private fun GpsMapPocUiState.toEndMarkerGeoJson(): String =
+    routePoints.lastOrNull()?.let { point ->
+        featureCollectionJson(point.toPointFeatureJson())
+    } ?: emptyFeatureCollectionJson()
+
+private fun GpsMapPocUiState.toCurrentPositionGeoJson(): String =
+    currentPosition?.let { point ->
+        featureCollectionJson(point.toPointFeatureJson())
+    } ?: emptyFeatureCollectionJson()
+
+private fun featureCollectionJson(vararg features: String): String =
+    """{"type":"FeatureCollection","features":[${features.joinToString(",")}]}"""
+
+private fun emptyFeatureCollectionJson(): String = featureCollectionJson()
 
 private fun GpsMapPocCurrentPosition.toPointFeatureJson(): String =
+    """{"type":"Feature","geometry":{"type":"Point","coordinates":${toGeoJsonCoordinate()}},"properties":{}}"""
+
+private fun WorkoutRoutePoint.toPointFeatureJson(): String =
     """{"type":"Feature","geometry":{"type":"Point","coordinates":${toGeoJsonCoordinate()}},"properties":{}}"""
 
 private fun GpsMapPocCurrentPosition.toGeoJsonCoordinate(): String =

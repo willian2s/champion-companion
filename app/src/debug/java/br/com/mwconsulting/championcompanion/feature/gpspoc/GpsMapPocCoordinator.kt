@@ -321,7 +321,7 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
                 segmentIndex = 0,
                 observedAt = Instant.now(),
                 expectedRuntimeGeneration = runtimeGeneration,
-                candidate = candidate,
+                candidate = candidate.forRoutePointFilter(),
                 previousAcceptedPoint = previousAcceptedPoint,
             ),
         )
@@ -353,7 +353,8 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
     private fun WorkoutRoutePointCandidate.toCurrentPosition(
         previousSampledAt: Instant?,
     ): GpsMapPocCurrentPosition? {
-        if (isMock || !latitudeDegrees.isFinite() || !longitudeDegrees.isFinite() ||
+        if ((isMock && !GpsMapPocMockGeometryDebugMode.acceptsMockLocations) ||
+            !latitudeDegrees.isFinite() || !longitudeDegrees.isFinite() ||
             latitudeDegrees !in -90.0..90.0 || longitudeDegrees !in -180.0..180.0 ||
             !horizontalAccuracyMeters.isFinite() || horizontalAccuracyMeters <= 0.0 ||
             speedMetersPerSecond?.let { !it.isFinite() || it < 0.0 || it > 12.0 } == true ||
@@ -372,6 +373,13 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
             longitudeDegrees = longitudeDegrees,
         )
     }
+
+    private fun WorkoutRoutePointCandidate.forRoutePointFilter(): WorkoutRoutePointCandidate =
+        if (isMock && GpsMapPocMockGeometryDebugMode.acceptsMockLocations) {
+            copy(isMock = false)
+        } else {
+            this
+        }
 }
 
 private fun GpsPermissionState.readinessState(): GpsMapPocGpsReadiness = when (this) {

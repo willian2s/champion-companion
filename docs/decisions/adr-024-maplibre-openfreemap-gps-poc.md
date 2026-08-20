@@ -89,6 +89,21 @@ OpenFreeMap Positron
     `debugImplementation`. A variante release não resolve a dependência fused,
     não expõe o entrypoint da PoC e não recebe promoção produtiva por esta ADR.
     A integração não introduz segredo, token, API key ou credencial.
+14. Durante a `026-07`, a variante debug pode ativar o objeto
+    `GpsMapPocMockGeometryDebugMode` para aceitar localização mock/fake somente
+    na inspeção efêmera de geometria, câmera, parada e reset. Permissão precisa,
+    localização habilitada e validações de coordenada, precisão, idade,
+    velocidade, bearing e ordem continuam obrigatórias.
+15. A fonte debug adapta o mock para readiness somente dentro desse modo, e o
+    coordinator adapta exclusivamente o candidato mock na fronteira do
+    `RoutePointFilter` (`copy(isMock = false)`). `GpsReadiness`,
+    `GpsReadinessEvaluator`, `RoutePointFilter`, `WorkoutRoutePointCandidate`,
+    `PhoneWorkoutPolicy` e demais contratos produtivos não mudam. Fix real não é
+    adaptado.
+16. O modo mock não cria app fake GPS, integração, credencial, persistência ou
+    log adicional. A UI deve exibir claramente `Modo geometria debug: mock
+    aceito` e informar que o resultado não comprova GPS real. O gate de percurso
+    real permanece exigido e não é aprovado por esse modo.
 
 ### Revisão de escopo e desvio de acesso
 
@@ -115,6 +130,8 @@ física de GPS/rota continua fora desta subtarefa.
   converter fused em fluxo de treino iniciado pelo celular;
 - não solicitar localização em background, persistir rota ou enviar fixes a
   OpenFreeMap, Health Connect ou serviço próprio.
+- não tratar localização mock aceita pelo modo de geometria como GPS real, nem
+  usar esse modo para aprovar o gate de percurso externo.
 
 ## Escopo e fronteiras
 
@@ -128,6 +145,10 @@ Logs, mensagens e evidências não podem conter latitude, longitude, altitude,
 rota, GeoJSON, bounds ou identificadores pessoais. A comunicação de rede
 necessária para style, tiles, fontes e infraestrutura associada do mapa-base é
 aceita somente no experimento e deve ser reavaliada antes de promoção.
+
+Se houver evidência de localização mock, sua origem deve ser declarada como modo
+de geometria debug; ela não pode ser mascarada ou apresentada como evidência de
+GPS real. Não adicionar logs para esse modo.
 
 ## Consequências
 
@@ -155,6 +176,8 @@ aceita somente no experimento e deve ser reavaliada antes de promoção.
   fabricantes, sem constituir requisito ou arquitetura de produção;
 - a escolha não resolve requisitos de produção, como cache, offline, retenção,
   privacidade, escala ou suporte;
+- a aceitação de mock facilita inspeção geométrica, mas não produz evidência do
+  comportamento de GPS real e exige manter separado o gate físico principal;
 - a affordance em Exercícios pode ser confundida com fluxo de treino se não for
   identificada como PoC técnica, e isolamento incorreto de source set, recursos,
   `Intent` ou manifest pode vazar o acesso para release;

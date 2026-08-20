@@ -293,7 +293,8 @@ internal class GpsMapPocLocationSource(
                 fixObservedAt = candidate?.sampledAt,
                 evaluatedAt = clock(),
                 horizontalAccuracyMeters = candidate?.horizontalAccuracyMeters,
-                isMock = candidate?.isMock == true,
+                isMock = candidate?.isMock == true &&
+                    !GpsMapPocMockGeometryDebugMode.acceptsMockLocations,
                 wasPreviouslyReady = runtime.wasPreviouslyReady,
                 gnss = null,
                 fixAge = runtime.fixAgeAt(elapsedRealtimeNanos()),
@@ -378,7 +379,8 @@ internal class GpsMapPocLocationSource(
             horizontalAccuracyMeters.isFinite() && horizontalAccuracyMeters > 0.0
 
     private fun WorkoutRoutePointCandidate.isValidSeed(now: Instant): Boolean =
-        isValidForReadiness(now) && !isMock &&
+        isValidForReadiness(now) &&
+            (!isMock || GpsMapPocMockGeometryDebugMode.acceptsMockLocations) &&
             horizontalAccuracyMeters <= GpsReadinessPolicy().weakMaximumAccuracyMeters
 
     @Suppress("DEPRECATION")
