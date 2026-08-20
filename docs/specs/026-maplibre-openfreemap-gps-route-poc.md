@@ -100,9 +100,9 @@ MapLibre Compose
 OpenFreeMap public instance
 ```
 
-Direção técnica inicial confirmada em 2026-08-20:
+Direção técnica revalidada em 2026-08-20:
 
-- `org.maplibre.compose:maplibre-compose:0.13.0`;
+- `org.maplibre.compose:maplibre-compose:0.14.0`;
 - biblioteca publicada no Maven Central;
 - MapLibre Compose é wrapper Compose sobre os SDKs MapLibre;
 - OpenFreeMap fornece tiles/estilos baseados em dados OpenStreetMap/OpenMapTiles;
@@ -796,13 +796,15 @@ Não solicitar `ACCESS_BACKGROUND_LOCATION`.
 
 ## Dependências e build
 
-Dependência inicial prevista:
+Dependência efetiva revalidada na `026-02`:
 
 ```text
-org.maplibre.compose:maplibre-compose:0.13.0
+org.maplibre.compose:maplibre-compose:0.14.0
 ```
 
-Usar release estável do Maven Central; não usar snapshot nesta PoC sem decisão explícita posterior.
+A versão `0.13.0` constava no planejamento inicial. A `026-02` confirmou
+`0.14.0` como release estável vigente no Maven Central. Não usar snapshot nesta
+PoC sem decisão explícita posterior.
 
 Não adicionar:
 
@@ -1134,7 +1136,8 @@ A ADR deve registrar:
 
 - uso experimental restrito à Spec 026;
 - MapLibre Compose como renderizador;
-- versão inicial `0.13.0`;
+- versão efetiva revalidada `0.14.0` (o planejamento inicial `0.13.0` foi
+  substituído pela release estável confirmada na `026-02`);
 - OpenFreeMap como mapa-base inicial;
 - estilo `Positron`;
 - ausência de conta, API key e pagamento;

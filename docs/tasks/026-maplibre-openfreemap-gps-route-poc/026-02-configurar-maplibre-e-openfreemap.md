@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `02`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -118,6 +118,54 @@ Se houver superfície visual mínima executável nesta task:
 - `assembleRelease` passa;
 - lint passa;
 - overview registra versão e estratégia Gradle realmente usadas.
+
+## Execução
+
+- **Status:** completed
+- **Data:** 2026-08-20
+- **Arquivos alterados:** `gradle/libs.versions.toml`,
+  `app/build.gradle.kts`, `docs/decisions/adr-024-maplibre-openfreemap-gps-poc.md`,
+  `docs/specs/026-maplibre-openfreemap-gps-route-poc.md`,
+  `docs/tasks/026-maplibre-openfreemap-gps-route-poc/026-00-overview.md` e este
+  arquivo. `settings.gradle.kts` permaneceu intacto porque Maven Central já
+  estava configurado com `FAIL_ON_PROJECT_REPOS`.
+- **Revalidação:** a documentação oficial do MapLibre Compose consultada em
+  2026-08-20 informa `v0.14.0` como latest release e a coordenada
+  `org.maplibre.compose:maplibre-compose:0.14.0`; o metadata do Maven Central
+  confirmou `0.14.0` como `latest` e `release`. A página oficial do OpenFreeMap,
+  seus termos e sua política de privacidade confirmaram instância pública sem
+  registro, banco de usuários, API key, cookies ou pagamento, sem SLA/suporte
+  personalizado, com atribuição obrigatória e style Positron em
+  `https://tiles.openfreemap.org/styles/positron`; o endpoint também retornou
+  um style JSON válido durante a consulta.
+- **Estratégia Gradle:** adicionada entrada `maplibre-compose` no version catalog
+  e dependência somente em `debugImplementation`; isso substituiu a versão
+  planejada `0.13.0` pela release estável vigente `0.14.0`. A configuração foi
+  resolvida em `debugCompileClasspath`; `releaseCompileClasspath` e
+  `releaseRuntimeClasspath` não possuem MapLibre. Nenhum smoke/UI, GPS, rota,
+  câmera, teste, credencial ou token foi adicionado.
+- **Comandos e resultados:**
+  - `git diff --check` — passou;
+  - `./gradlew :app:dependencyInsight --dependency org.maplibre.compose:maplibre-compose --configuration debugCompileClasspath` — passou, resolveu `0.14.0`;
+  - `./gradlew :app:dependencyInsight --dependency org.maplibre.compose:maplibre-compose --configuration releaseCompileClasspath` — passou, nenhuma dependência encontrada;
+  - `./gradlew :app:dependencyInsight --dependency org.maplibre.compose --configuration releaseRuntimeClasspath` — passou, nenhuma dependência encontrada;
+  - `./gradlew :app:assembleDebug :app:assembleRelease` — passou;
+  - `./gradlew :app:lintDebug` — passou;
+  - `./gradlew lint assembleDebug assembleRelease` — passou;
+  - `./gradlew :app:dependencyInsight --dependency
+    org.maplibre.compose:maplibre-compose --configuration debugCompileClasspath` —
+    passou novamente, resolveu `0.14.0`;
+  - `./gradlew :app:dependencyInsight --dependency org.maplibre.compose
+    --configuration releaseRuntimeClasspath` — passou novamente, nenhuma
+    dependência encontrada;
+  - inspeção dos APKs — `app-debug.apk` contém runtime MapLibre;
+    `app-release.apk` não contém entradas MapLibre.
+- **Avisos observados:** build manteve avisos preexistentes de KSP, APIs Java
+  depreciadas e cast não verificado; não houve erro novo relacionado ao MapLibre.
+- **Bloqueios remanescentes:** renderização visual, carregamento efetivo do
+  style, GPS, rota e validação física continuam sem evidência nesta subtarefa e
+  dependem das subtarefas seguintes. Nenhuma validação em aparelho foi
+  declarada.
 
 ## Riscos e cuidados
 

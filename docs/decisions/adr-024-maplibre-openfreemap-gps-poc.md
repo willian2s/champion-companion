@@ -27,14 +27,16 @@ credencial ou pagamento.
 Para a PoC da Spec 026, adotar:
 
 ```text
-MapLibre Compose 0.13.0
+MapLibre Compose 0.14.0
         +
 OpenFreeMap public instance
         +
 OpenFreeMap Positron
 ```
 
-1. MapLibre Compose será o renderizador experimental da tela Compose.
+1. MapLibre Compose `0.14.0` substitui a versão planejada `0.13.0` após
+   revalidação da release estável e da coordenada oficial no Maven Central em
+   2026-08-20. Será o renderizador experimental da tela Compose.
 2. OpenFreeMap será usado somente como fonte pública do mapa-base, inicialmente
    pelo estilo `https://tiles.openfreemap.org/styles/positron`.
 3. A geometria da rota virá exclusivamente do GPS recebido pelo Champion

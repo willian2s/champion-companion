@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 1/8 subtarefas concluídas
+- **Progresso:** 2/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -11,7 +11,7 @@ Validar fisicamente, em fluxo debug-only e sem reativar treinos iniciados pelo c
 ## Decisão experimental
 
 ```text
-MapLibre Compose 0.13.0
+MapLibre Compose 0.14.0
         +
 OpenFreeMap public instance
         +
@@ -30,7 +30,7 @@ Premissas atuais:
 ## Checklist
 
 - [x] [026-01-alinhar-documentacao-e-adr.md](026-01-alinhar-documentacao-e-adr.md)
-- [ ] [026-02-configurar-maplibre-e-openfreemap.md](026-02-configurar-maplibre-e-openfreemap.md)
+- [x] [026-02-configurar-maplibre-e-openfreemap.md](026-02-configurar-maplibre-e-openfreemap.md)
 - [ ] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
 - [ ] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
 - [ ] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
@@ -44,6 +44,11 @@ Premissas atuais:
 experimental `debug-only`; guards da Fase 013 permanecem vigentes fora da
 exceção. Não há bloqueios para 026-02. Termos, disponibilidade e ausência de
 SLA do OpenFreeMap devem ser revalidados antes da configuração.
+
+026-02 concluída com MapLibre Compose `0.14.0` em `debugImplementation` via
+Maven Central. `settings.gradle.kts` não precisou de alteração. Release não
+resolve MapLibre; style Positron e atribuição permanecem definidos para a tela
+debug das subtarefas seguintes. Renderização física ainda não foi validada.
 
 ## Ordem
 
