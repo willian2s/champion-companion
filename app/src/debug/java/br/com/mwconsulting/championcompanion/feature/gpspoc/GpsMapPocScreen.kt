@@ -25,8 +25,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
+import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.value.LineCap
+import org.maplibre.compose.expressions.value.LineJoin
+import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.layers.LineLayer
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.style.BaseStyle
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.GeoJsonOptions
+import org.maplibre.compose.sources.rememberGeoJsonSource
 
 private const val OPEN_FREE_MAP_POSITRON_STYLE =
     "https://tiles.openfreemap.org/styles/positron"
@@ -72,7 +81,36 @@ fun GpsMapPocScreen(
                         baseStyle = BaseStyle.Uri(OPEN_FREE_MAP_POSITRON_STYLE),
                         onMapLoadFinished = coordinator::markMapReady,
                         onMapLoadFailed = { coordinator.markMapError() },
-                    )
+                    ) {
+                        val routeSource = rememberGeoJsonSource(
+                            data = GeoJsonData.JsonString(
+                                state.toMapGeoJson(),
+                            ),
+                            options = GeoJsonOptions(synchronousUpdate = true),
+                        )
+
+                        if (state.routePoints.size >= 2) {
+                            LineLayer(
+                                id = "gps-poc-route",
+                                source = routeSource,
+                                color = const(MaterialTheme.colorScheme.primary),
+                                width = const(5.dp),
+                                cap = const(LineCap.Round),
+                                join = const(LineJoin.Round),
+                            )
+                        }
+
+                        if (state.currentPoint != null) {
+                            CircleLayer(
+                                id = "gps-poc-current-position",
+                                source = routeSource,
+                                color = const(MaterialTheme.colorScheme.primary),
+                                radius = const(7.dp),
+                                strokeColor = const(MaterialTheme.colorScheme.onPrimary),
+                                strokeWidth = const(2.dp),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -264,3 +302,25 @@ private fun Double.formatDistance(): String = when {
     this >= 1000.0 -> "%.2f km".format(java.util.Locale.ROOT, this / 1000.0)
     else -> "%.0f m".format(java.util.Locale.ROOT, this)
 }
+
+private fun GpsMapPocUiState.toMapGeoJson(): String {
+    val features = buildList {
+        currentPoint?.let { point ->
+            add(point.toPointFeatureJson())
+        }
+        if (routePoints.size >= 2) {
+            add(
+                """{"type":"Feature","geometry":{"type":"LineString","coordinates":[${
+                    routePoints.joinToString(",") { it.toGeoJsonCoordinate() }
+                }]},"properties":{}}""",
+            )
+        }
+    }
+    return """{"type":"FeatureCollection","features":[${features.joinToString(",")}]}"""
+}
+
+private fun WorkoutRoutePoint.toPointFeatureJson(): String =
+    """{"type":"Feature","geometry":{"type":"Point","coordinates":${toGeoJsonCoordinate()}},"properties":{}}"""
+
+private fun WorkoutRoutePoint.toGeoJsonCoordinate(): String =
+    "[$longitudeDegrees,$latitudeDegrees]"

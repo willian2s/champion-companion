@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `05`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -157,5 +157,14 @@ Smoke físico deve confirmar mapa, marcador e crescimento da linha. Evidência v
 
 - recriar geometria inteira a cada segundo é aceitável para PoC curta, mas registrar qualquer jank observado para a spec de produção;
 - não antecipar otimização de rotas longas sem evidência;
-- verificar API real da versão 0.13.x antes de copiar snippets de documentação antiga;
+- verificar API real da versão 0.14.x antes de copiar snippets de documentação antiga;
 - não remover attribution para ganhar espaço visual.
+
+## Execução
+
+- **Status final:** completed.
+- **Arquivos alterados:** `app/src/debug/java/br/com/mwconsulting/championcompanion/feature/gpspoc/GpsMapPocScreen.kt`.
+- **Decisões e desvios:** `GeoJsonData.JsonString` e `rememberGeoJsonSource` usam uma única `FeatureCollection` efêmera com o ponto corrente e, somente quando há pelo menos dois pontos aceitos, uma `LineString`. A adaptação respeita a ordem GeoJSON `[longitude, latitude]`. `LineLayer` e `CircleLayer` usam a mesma fonte; não foi habilitado componente de localização do MapLibre. Linha usa cor primária, largura legível, cap e join arredondados. Nenhum desvio de escopo.
+- **Comandos executados:** `git diff --check`; `./gradlew :app:compileDebugKotlin`; `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`.
+- **Resultados e evidências:** todos os comandos concluíram com sucesso na execução final. A primeira execução conjunta de lint/build excedeu o limite operacional de 120 s sem erro do Gradle; a repetição com limite ampliado passou. O APK debug foi instalado no dispositivo `SM-S901E` com Android API 36. Screenshot sanitizado já existente da Activity técnica confirma mapa OpenFreeMap carregado, atribuição visível e estado sem localização pessoal. Revisão independente aprovou a implementação com ressalva de validação física da rota, que pertence à `026-07`.
+- **Riscos residuais:** carregamento efetivo durante tracking, marcador, crescimento da linha, responsividade/jank e ausência de coordenadas no Logcat ainda exigem smoke físico sanitizado. Câmera, stop, enquadramento e reset permanecem na `026-06`.

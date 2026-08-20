@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 4/8 subtarefas concluídas
+- **Progresso:** 5/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -37,7 +37,7 @@ Premissas atuais:
 - [x] [026-02-configurar-maplibre-e-openfreemap.md](026-02-configurar-maplibre-e-openfreemap.md)
 - [x] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
 - [x] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
-- [ ] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
+- [x] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
 - [ ] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
 - [ ] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
 - [ ] [026-08-fechar-poc-e-registrar-decisao.md](026-08-fechar-poc-e-registrar-decisao.md)
@@ -67,6 +67,14 @@ precisa por ação explícita, readiness baseada em `GpsReadinessEvaluator`, fil
 contadores de fixes aceitos/rejeitados. Builds, lint, instalação e abertura da
 Activity foram confirmados; validação física de GPS, rota e Logcat sanitizado
 permanece na 026-07. Não há bloqueios atuais.
+
+026-05 concluída com `FeatureCollection` GeoJSON efêmera, `LineString` somente a
+partir de dois pontos aceitos, marcador derivado de `currentPoint`, `LineLayer` e
+`CircleLayer` usando a mesma fonte. A ordem `[longitude, latitude]`, atribuição e
+style Positron foram preservados. `git diff --check`, compilação debug, lint,
+builds debug/release e instalação debug passaram. Screenshot neutro já existente
+confirma mapa-base e atribuição; validação física de crescimento da rota,
+responsividade e Logcat sanitizado permanece na 026-07. Não há bloqueios atuais.
 
 ## Ordem
 
