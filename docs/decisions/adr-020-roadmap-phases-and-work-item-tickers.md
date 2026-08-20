@@ -52,12 +52,9 @@ A direção autoritativa é registrada em `docs/roadmap/post-phase-15-direction.
 
 Resumo:
 
-- Fase 16: mantida, revisar antes do planejamento;
-- Fase 17: mantida e simplificada, revisar antes do planejamento;
-- Fase 18: removida;
-- Fase 19: mantida, revisar antes do planejamento;
-- Fase 20: mantida e reescrita sem GPS/rota/distribuição pública;
-- Fases 21–25: removidas.
+- Fase 16: concluída pela Spec 023;
+- Fases 17–25: encerradas por decisão explícita de maturidade do produto, sem
+  execução futura.
 
 ### 5. Uso pessoal é premissa de roadmap
 
@@ -84,10 +81,21 @@ Código, migrations, schemas e dados históricos da Fase 13 não são removidos 
 - documentação deixa de inferir fase pelo número da spec/task;
 - trabalhos corretivos podem evoluir sem distorcer o roadmap macro;
 - histórico de fases permanece estável mesmo quando fases futuras são removidas;
-- agentes devem consultar a direção pós-Fase 15 antes de planejar nova fase;
-- Fases 16, 17, 19 e 20 precisam de auditoria do estado atual antes de qualquer spec nova;
-- antigas Fases 18 e 21–25 permanecem apenas como histórico obsoleto no roadmap completo;
+- não há fase macro futura planejável; reabertura exige decisão explícita de
+  governança;
+- Fase 16 está concluída e Fases 17–25 permanecem fechadas como histórico;
 - não há autorização implícita para remover código legado.
+
+### 7. Encerramento do roadmap
+
+Em 2026-08-20, após a conclusão da Fase 16, foi decidido encerrar o roadmap
+macro. As Fases 17–25 recebem status `closed` com motivo
+`product_maturity_no_further_phases`. Esse status não afirma que as fases foram
+implementadas: `completed` continua reservado para entregas comprovadas.
+
+O encerramento fecha o backlog macro, mas não remove código, migrations,
+schemas, dados ou evidências. Correções e manutenção podem receber specs/tasks
+independentes sem reabrir fases automaticamente.
 
 ## Alternativas rejeitadas
 

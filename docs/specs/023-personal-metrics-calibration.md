@@ -604,5 +604,6 @@ Validação final:
 Esta spec executa a Fase 16 revisada registrada em
 `docs/roadmap/post-phase-15-direction.md`.
 
-Após conclusão, a próxima fase macro continua sendo a Fase 17 — Backup e
-restauração local, salvo nova decisão explícita.
+Após conclusão, não há próxima fase macro: o roadmap foi encerrado em
+2026-08-20 por decisão explícita de maturidade do produto. Correções futuras
+podem receber specs independentes sem reabrir fases.

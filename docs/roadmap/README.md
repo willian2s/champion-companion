@@ -2,10 +2,22 @@
 
 Esta pasta contém a direção macro do produto e o histórico das fases.
 
+## Estado do roadmap
+
+- **Status:** `complete`
+- **Encerramento:** 2026-08-20
+- Fases 0–16 estão concluídas ou fechadas conforme seus resultados registrados.
+- Fases 17–25 estão `closed` por decisão de maturidade do produto, sem
+  implementação futura planejada.
+- O encerramento não remove histórico, código legado, migrations, schemas, dados
+  ou evidências.
+
 ## Fonte autoritativa
 
-- `champion-companion-roadmap.md` preserva o roadmap histórico completo e o estado das fases já executadas.
-- `post-phase-15-direction.md` é a direção autoritativa para o trabalho posterior à Fase 15.
+- `champion-companion-roadmap.md` preserva o roadmap histórico completo e o
+  estado das fases executadas ou encerradas.
+- `post-phase-15-direction.md` registra o encerramento da direção posterior à
+  Fase 15; não há fase macro futura ativa.
 
 Quando houver divergência entre as seções futuras antigas de `champion-companion-roadmap.md` e `post-phase-15-direction.md`, prevalece `post-phase-15-direction.md`.
 

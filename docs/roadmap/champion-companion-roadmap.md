@@ -23,6 +23,19 @@
 - Critérios finais do roadmap não exigem novos treinos phone, GPS, rota ou
   mapa. O histórico abaixo permanece preservado e não constitui backlog ativo.
 
+## Registro final de encerramento do roadmap
+
+- **Status do roadmap:** `complete`.
+- **Data:** 2026-08-20.
+- **Marco final:** Fase 16, concluída pela Spec 023.
+- **Fases 17–25:** `closed` por `product_maturity_no_further_phases`; não foram
+  executadas e não constituem backlog macro futuro.
+- `closed` não significa `completed`. O registro não atribui crédito por
+  entregas inexistentes.
+- Histórico, código legado, migrations, schemas, dados e evidências permanecem
+  preservados. Limpeza técnica exige task explícita.
+- Specs/tasks corretivas independentes continuam possíveis sem reabrir fases.
+
 ## 1. Visão geral
 
 O **Champion Companion** será um novo aplicativo Android nativo, desenvolvido em Kotlin e Jetpack Compose, dedicado exclusivamente à integração com o relógio Champion C001.
@@ -2217,7 +2230,7 @@ Riscos residuais aceitos permanecem registrados no overview da Fase 15. A spec
 
 ---
 
-# Fase 16 — Perfil e cálculos pessoais
+# Fase 16 — Perfil e cálculos pessoais — `completed`
 
 ## Objetivo
 
@@ -2257,7 +2270,9 @@ Manter dados usados nas estimativas.
 
 ---
 
-# Fase 17 — Backup e restauração
+# Fase 17 — Backup e restauração — `closed`
+
+**Encerramento:** não executada por `product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2317,7 +2332,10 @@ Não precisa ser compatível com:
 
 ---
 
-# Fase 18 — Transição sem migração
+# Fase 18 — Transição sem migração — `closed`
+
+**Encerramento:** obsoleta e não executada por
+`product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2397,7 +2415,9 @@ Não haverá deduplicação cruzada com o MotionLog.
 
 ---
 
-# Fase 19 — Diagnóstico e observabilidade
+# Fase 19 — Diagnóstico e observabilidade — `closed`
+
+**Encerramento:** não executada por `product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2429,7 +2449,9 @@ Facilitar investigação.
 
 ---
 
-# Fase 20 — Segurança e privacidade
+# Fase 20 — Segurança e privacidade — `closed`
+
+**Encerramento:** não executada por `product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2462,7 +2484,10 @@ Proteger dados de saúde.
 
 ---
 
-# Fase 21 — Testes e qualidade
+# Fase 21 — Testes e qualidade — `closed`
+
+**Encerramento:** removida e não executada por
+`product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2547,7 +2572,10 @@ Simular:
 
 ---
 
-# Fase 22 — Validação em dispositivos reais
+# Fase 22 — Validação em dispositivos reais — `closed`
+
+**Encerramento:** removida e não executada por
+`product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2614,7 +2642,10 @@ Quando possível:
 
 ---
 
-# Fase 23 — Paridade funcional
+# Fase 23 — Paridade funcional — `closed`
+
+**Encerramento:** removida e não executada por
+`product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2683,7 +2714,10 @@ feat/015-watch-workouts-d3-d4
 
 ---
 
-# Fase 24 — Beta e uso paralelo
+# Fase 24 — Beta e uso paralelo — `closed`
+
+**Encerramento:** removida e não executada por
+`product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2723,7 +2757,10 @@ Usar os dois aplicativos durante a validação.
 
 ---
 
-# Fase 25 — Lançamento
+# Fase 25 — Lançamento — `closed`
+
+**Encerramento:** removida e não executada por
+`product_maturity_no_further_phases`.
 
 ## Objetivo
 
@@ -2836,24 +2873,25 @@ Fases 13 (encerramento) e 14 (refinamento redefinido).
 
 ---
 
-## Marco G — Paridade
+## Marco G — Paridade histórica — encerrado sem execução
 
 ```text
 Champion Companion equivalente à baseline
 ```
 
-Fases 15 a 23.
+Fases 15 a 23. O marco posterior à Fase 16 foi encerrado e não constitui
+critério atual.
 
 ---
 
-## Marco H — Substituição
+## Marco H — Substituição histórica — encerrado sem execução
 
 ```text
 Champion Companion em produção
 MotionLog congelado
 ```
 
-Fases 24 e 25.
+Fases 24 e 25. O marco foi encerrado e não constitui critério atual.
 
 ---
 
@@ -2877,22 +2915,15 @@ Fase 13 — Exercícios phone (`closed`, `partially_delivered`)
 Fase 14 — Refinamento, derivação e sincronização dos treinos do relógio (`completed`, `17/17`)
 Fase 15 — Calendário (concluída)
 Fase 16 — Perfil
-Fase 17 — Backup próprio
-Fase 18 — Transição sem migração
-Fase 19 — Diagnóstico
-Fase 20 — Privacidade
-Fase 21 — Testes
-Fase 22 — Dispositivos reais
-Fase 23 — Paridade
-Fase 24 — Beta
-Fase 25 — Lançamento
+Fases 17–25 — `closed` / `product_maturity_no_further_phases`
 ```
 
 ---
 
 # 13. Priorização
 
-Fase 15 está concluída. Fase 13 está fechada como `partially_delivered` após a
+Roadmap está `complete` após a conclusão da Fase 16. Fase 13 está fechada como
+`partially_delivered` após a
 descontinuação de novos treinos phone. Fase 14 está `completed`, com `014-01` até
 `014-17` concluídas. O fechamento documental foi concluído após a revalidação
 física limitada de `014-15`; Gates físicos sem fixtures permanecem `N/A` e Gate F
@@ -2921,12 +2952,8 @@ isso — o escopo permanece dentro da Fase 12.
 
 ## Alta
 
-- importação, derivação, revisão e sincronização de treinos do relógio;
-- foreground service;
-- recuperação;
-- calendário;
-- perfil;
-- backup.
+- manutenção e correções somente por task independente;
+- limpeza técnica somente por decisão explícita.
 
 ## Média
 
@@ -3058,7 +3085,11 @@ Mitigação:
 
 ---
 
-# 16. Definition of Done
+# 16. Definition of Done histórico
+
+Os critérios abaixo pertencem ao planejamento original e permanecem preservados
+como histórico. Não são gates atuais das Fases 17–25, encerradas por decisão de
+produto.
 
 O projeto estará concluído quando:
 
@@ -3092,3 +3123,10 @@ critérios finais de conclusão do roadmap. A desativação operacional dos pont
 de entrada phone foi registrada em `013-17`; o legado permanece preservado.
 
 O MotionLog poderá ser desinstalado depois da validação final, sem necessidade de transferência dos dados locais.
+
+## Estado atual de conclusão
+
+O roadmap está completo após a Fase 16. Backup próprio, paridade formal, beta,
+matriz adicional de dispositivos e lançamento público não são requisitos
+pendentes: Fases 17–25 foram encerradas como `closed` por
+`product_maturity_no_further_phases`.

@@ -1,13 +1,19 @@
 # Direção autoritativa após a Fase 15
 
-- **Status:** vigente
+- **Status:** encerrada; roadmap completo
 - **Data da decisão original:** 2026-08-08
-- **Última revisão:** 2026-08-12
-- **Escopo:** direção macro do produto após a conclusão da Fase 15
+- **Última revisão:** 2026-08-20
+- **Escopo:** registro histórico e encerramento da direção macro posterior à
+  Fase 15
 
-Este documento substitui como direção futura as antigas seções de Fases 16–25 de `champion-companion-roadmap.md` quando houver divergência. O roadmap histórico continua preservado para contexto das decisões anteriores.
+Este documento registrou a direção futura das antigas seções de Fases 16–25 de
+`champion-companion-roadmap.md` e agora registra seu encerramento. O roadmap
+histórico continua preservado para contexto das decisões anteriores.
 
-As fases posteriores são planejadas somente quando houver auditoria do estado real e decisão explícita. A Fase 16 já passou por essa auditoria e possui plano executável na Spec `023-personal-metrics-calibration`.
+As fases posteriores foram avaliadas até a conclusão da Fase 16 e encerradas em
+2026-08-20 por decisão explícita de maturidade do produto. A Fase 16 foi
+executada pela Spec `023-personal-metrics-calibration`; não há fase macro futura
+planejável sem reabertura formal da governança.
 
 ## Regra de governança: fases e tickers são independentes
 
@@ -17,7 +23,8 @@ Número de fase e ticker de spec/task não possuem relação obrigatória.
 - **Ticker** identifica uma spec/task executável, corretiva, evolutiva ou documental.
 - Coincidências como Fase 014 + ticker `014` são conveniência histórica, não regra.
 - O trabalho `021` de normalização D4 e integridade do calendário não executou nem substituiu a Fase 21 histórica.
-- A Fase 16 será executada pela Spec `023` por escolha desta entrega; isso não cria regra `fase == ticker`.
+- A Fase 16 foi executada pela Spec `023` por escolha desta entrega; isso não
+  cria regra `fase == ticker`.
 - Um trabalho futuro pode receber qualquer ticker disponível sem alterar a sequência das fases.
 - Fases removidas não são renumeradas e seus números não são reciclados.
 
@@ -29,6 +36,31 @@ Número de fase e ticker de spec/task não possuem relação obrigatória.
 - Fase 15: concluída; calendário e histórico local consolidados.
 - Specs/tasks independentes posteriores, incluindo `016`, `017`, `018`, `021` e `022`, não alteram essa sequência de fases.
 - Spec `022` de bicicleta está concluída e não representa a antiga Fase 22 removida.
+
+## Encerramento do roadmap
+
+**Decisão final:** Fases 17–25 estão `closed` em 2026-08-20 pelo motivo
+`product_maturity_no_further_phases`. Não serão planejadas ou executadas como
+fases macro do produto.
+
+- Fase 17: `closed` — backup e restauração não serão desenvolvidos como fase;
+- Fase 18: `closed` — transição sem migração permaneceu obsoleta;
+- Fase 19: `closed` — diagnóstico adicional não justifica fase futura;
+- Fase 20: `closed` — revisão adicional de segurança não justifica fase futura;
+- Fase 21: `closed` — testes e qualidade continuam somente quando uma task
+  específica exigir;
+- Fase 22: `closed` — validação adicional continua somente quando uma task
+  específica exigir;
+- Fase 23: `closed` — paridade formal deixou de ser objetivo;
+- Fase 24: `closed` — beta e uso paralelo não serão gates;
+- Fase 25: `closed` — lançamento público não é objetivo.
+
+`closed` não significa `completed`: Fases 17–25 não recebem crédito por
+entregas não realizadas. O encerramento fecha o backlog macro por decisão de
+produto. Specs corretivas independentes continuam possíveis sem reabrir fases.
+
+Código legado, migrations, schemas, dados, permissões históricas e evidências
+permanecem preservados. Limpeza técnica futura exige task explícita.
 
 ## Direção de produto vigente
 
@@ -94,13 +126,14 @@ Não fazem parte da Fase 16:
 
 Alterações de perfil/calibração nunca reescrevem silenciosamente snapshots históricos.
 
-## Fase 17 — Backup e restauração local
+## Fase 17 — Backup e restauração local — `closed`
 
-**Decisão:** manter, simplificar antes do planejamento.
+**Decisão histórica:** manter, simplificar antes do planejamento. **Encerramento
+final:** não planejada por maturidade do produto.
 
 A direção pretendida é backup manual/local dos dados do Champion Companion, sem transformar o app em serviço de sincronização entre dispositivos.
 
-Escopo futuro provável:
+Escopo histórico originalmente previsto, não executado:
 
 - exportação manual;
 - arquivo versionado;
@@ -119,21 +152,23 @@ Fora da direção:
 
 `android:allowBackup="false"` e as regras atuais de backup/device transfer permanecem vigentes até decisão explícita em contrário.
 
-## Fase 18 — Transição sem migração
+## Fase 18 — Transição sem migração — `closed`
 
-**Decisão:** removida do roadmap ativo.
+**Decisão:** removida do roadmap ativo e encerrada.
 
 Motivo: o requisito estrutural já está resolvido. Champion Companion e MotionLog usam identidades/prefixos próprios e mantêm armazenamento/banco independentes. Não existe entrega futura que justifique uma fase de transição.
 
 A fase não deve ser marcada como concluída artificialmente; permanece apenas como item histórico removido por obsolescência do requisito.
 
-## Fase 19 — Diagnóstico e manutenção
+## Fase 19 — Diagnóstico e manutenção — `closed`
 
-**Decisão:** manter, revisar antes do planejamento.
+**Decisão histórica:** manter, revisar antes do planejamento. **Encerramento
+final:** não planejada por maturidade do produto.
 
 O projeto já possui infraestrutura diagnóstica, payloads persistidos e exportações seguras usados durante investigação real de D1/D3/D4 e reprocessamento. Portanto, a fase não deve recriar diagnóstico do zero.
 
-O planejamento futuro deve começar por auditoria e completar somente lacunas úteis para manutenção pessoal, como:
+O planejamento histórico previa auditoria e lacunas úteis para manutenção
+pessoal, mas esse trabalho não será aberto como fase macro:
 
 - versão do app;
 - versão do parser;
@@ -147,13 +182,14 @@ O planejamento futuro deve começar por auditoria e completar somente lacunas ú
 
 Não criar plataforma extensa de logging, telemetria ou observabilidade remota.
 
-## Fase 20 — Segurança, permissões e dados locais
+## Fase 20 — Segurança, permissões e dados locais — `closed`
 
-**Decisão:** manter, reescrever antes do planejamento.
+**Decisão histórica:** manter, reescrever antes do planejamento. **Encerramento
+final:** não planejada por maturidade do produto.
 
 A antiga fase de segurança e privacidade ainda é útil, mas o escopo ligado a GPS/rota e distribuição pública está obsoleto.
 
-Direção futura:
+Direção histórica registrada, não executada como fase macro:
 
 - revisar somente permissões realmente utilizadas;
 - manter Health Connect com permissões mínimas por record type;
@@ -176,9 +212,9 @@ Fora da direção:
 - política pública de distribuição como requisito de produto;
 - requisitos de loja, analytics de produção ou compliance voltado a usuários externos.
 
-## Fase 21 — Testes e qualidade
+## Fase 21 — Testes e qualidade — `closed`
 
-**Decisão:** removida como fase do roadmap.
+**Decisão:** removida como fase do roadmap e encerrada.
 
 O projeto continua podendo criar testes quando um trabalho específico justificar, mas não haverá uma fase dedicada a construir cobertura ampla, fakes BLE ou matriz de testes como requisito de conclusão do aplicativo.
 
@@ -186,9 +222,9 @@ O Champion Companion é pessoal e a validação prática já ocorre continuament
 
 O ticker `021` já utilizado por uma spec corretiva é independente desta fase removida.
 
-## Fase 22 — Validação em dispositivos reais
+## Fase 22 — Validação em dispositivos reais — `closed`
 
-**Decisão:** removida.
+**Decisão:** removida e encerrada.
 
 Não existe requisito de matriz multi-device ou multi-fabricante. O aplicativo é pessoal, não será distribuído e a validação no dispositivo de uso ocorre continuamente durante o desenvolvimento.
 
@@ -196,51 +232,46 @@ Validações físicas continuam sendo usadas quando uma task específica precisa
 
 A Spec `022` concluída de bicicleta é independente desta fase removida.
 
-## Fase 23 — Paridade funcional
+## Fase 23 — Paridade funcional — `closed`
 
-**Decisão:** removida.
+**Decisão:** removida e encerrada.
 
 MotionLog deixou de ser meta formal de paridade. Ele permanece somente como referência histórica quando útil. O Champion Companion pode divergir quando a direção atual for melhor ou quando funcionalidades antigas tiverem sido deliberadamente abandonadas, como treinos iniciados pelo celular/GPS.
 
 O ticker `023` usado para executar a Fase 16 é independente desta fase removida.
 
-## Fase 24 — Beta e uso paralelo
+## Fase 24 — Beta e uso paralelo — `closed`
 
-**Decisão:** removida.
+**Decisão:** removida e encerrada.
 
 Não haverá programa de beta ou gate formal de uso paralelo. A instalação paralela pode continuar existindo tecnicamente por application IDs diferentes, mas não é uma etapa do roadmap.
 
-## Fase 25 — Lançamento
+## Fase 25 — Lançamento — `closed`
 
-**Decisão:** removida.
+**Decisão:** removida e encerrada.
 
 Não existe objetivo de distribuição pública. Assinatura de produção, changelog de lançamento, política pública, plano de rollout/rollback e congelamento formal do MotionLog não são gates do projeto.
 
 Builds `debug` e `release` continuam úteis como validação técnica do projeto, independentemente de publicação.
 
-## Roadmap ativo após esta decisão
+## Roadmap encerrado após esta decisão
 
 ```text
-Fases concluídas
+Fases concluídas ou fechadas
 0–12
 13 — closed / partially_delivered
 14 — completed
 15 — completed
 16 — Perfil, métricas pessoais e calibração / Spec 023 completed
 
-Direção futura a revisar antes de planejar
-17 — Backup e restauração local
-19 — Diagnóstico e manutenção
-20 — Segurança, permissões e dados locais
-
-Removidas do roadmap ativo
-18, 21, 22, 23, 24, 25
+Fases fechadas por decisão de produto
+17–25 — closed / product_maturity_no_further_phases
 ```
 
 A remoção de uma fase não implica remoção automática de código legado. Limpeza técnica deve ser solicitada e planejada separadamente.
 
 ## Próximo passo
 
-Antes de planejar Fase 17, auditar estado real, simplificar escopo e registrar
-decisão explícita. Não reexecutar `023-01`: auditoria, implementação e validação
-da Fase 16 já estão encerradas pela Spec 023.
+Não há próxima fase macro. Manutenção, correções ou limpeza técnica somente
+ocorrem por decisão explícita e task independente, sem reabrir o roadmap
+automaticamente.

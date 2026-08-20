@@ -92,22 +92,19 @@
 
 A fonte autoritativa é `docs/roadmap/post-phase-15-direction.md`.
 
-Resumo vigente:
+Resumo final:
 
-- Fase 16: planejada pela Spec `023-personal-metrics-calibration`, status `pending`;
-- Fase 17: manter, simplificar e auditar antes do planejamento;
-- Fase 18: removida do roadmap ativo;
-- Fase 19: manter e auditar antes do planejamento;
-- Fase 20: manter e reescrever sem GPS/rota/distribuição pública;
-- Fases 21, 22, 23, 24 e 25: removidas do roadmap ativo.
+- Fase 16: `completed`, executada pela Spec `023-personal-metrics-calibration`;
+- Fases 17–25: `closed` por `product_maturity_no_further_phases`, sem backlog
+  macro futuro.
 
 O Champion Companion é um aplicativo pessoal. Não criar fases de beta, lançamento público, matriz multi-device, paridade obrigatória com MotionLog ou cobertura ampla de testes sem nova decisão explícita.
 
 ## Privacidade e backup
 
 - `AndroidManifest.xml` mantém `android:allowBackup="false"`.
-- `app/src/main/res/xml/backup_rules.xml` e `data_extraction_rules.xml` negam backup e device transfer para root/files/database/sharedpref/external. Preserve isso até decisão explícita da futura Fase 17.
-- Backup futuro, se planejado, deve partir da direção de exportação/restauração manual local registrada no roadmap pós-Fase 15.
+- `app/src/main/res/xml/backup_rules.xml` e `data_extraction_rules.xml` negam backup e device transfer para root/files/database/sharedpref/external. Preserve isso; a Fase 17 foi encerrada sem implementação.
+- Backup manual/local não é backlog macro. Qualquer mudança exige decisão explícita e task independente.
 
 ## Convenções de mudança
 

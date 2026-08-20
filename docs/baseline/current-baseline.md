@@ -33,16 +33,18 @@ A Spec/Task `021` de normalização D4 e integridade do calendário é um trabal
 
 A direção autoritativa após a Fase 15 está em `docs/roadmap/post-phase-15-direction.md` e a decisão de governança está em `docs/decisions/adr-020-roadmap-phases-and-work-item-tickers.md`.
 
-Estado futuro vigente:
+Estado final do roadmap:
 
 - Fase 16: `completed`, executada pela Spec 023, com perfil pessoal, calibração
   contextual RUNNING/WALKING, fallback BASE, snapshots preservados e sync
   Health Connect explícito/write-only;
-- Fase 17: manter, simplificar e auditar antes do planejamento;
-- Fase 18: removida do roadmap ativo;
-- Fase 19: manter e auditar antes do planejamento;
-- Fase 20: manter e reescrever sem GPS/rota/distribuição pública;
-- Fases 21, 22, 23, 24 e 25: removidas do roadmap ativo.
+- Fases 17–25: `closed` por `product_maturity_no_further_phases`; não foram
+  executadas nem permanecem como backlog macro.
+
+O roadmap está `complete` após a Fase 16. `closed` não significa `completed`:
+não há crédito por entregas não realizadas. Specs corretivas independentes
+continuam possíveis sem reabrir fases. Código legado, migrations, schemas,
+dados e evidências permanecem preservados; limpeza exige task explícita.
 
 ### Fase 16 concluída
 
