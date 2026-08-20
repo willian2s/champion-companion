@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `04`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -159,3 +159,12 @@ Smoke físico deve cobrir permissão, GPS buscando e estado pronto sem versionar
 - não duplicar regras puras já existentes;
 - não confundir precisão horizontal com força de sinal;
 - GPS indoor pode impedir READY e isso é comportamento esperado, não motivo para afrouxar policy sem evidência física.
+
+## Execução
+
+- **Status final:** completed.
+- **Arquivos alterados:** `app/src/debug/java/br/com/mwconsulting/championcompanion/feature/gpspoc/GpsMapPocLocationSource.kt`, `GpsMapPocCoordinator.kt`, `GpsMapPocUiState.kt`, `GpsMapPocScreen.kt` e `GpsMapPocActivity.kt`.
+- **Decisões e desvios:** a fonte debug implementa `WorkoutLocationSource` separadamente da implementação produtiva para não tocar `PhoneWorkoutPolicy` nem `LocationModule`; permissão é solicitada somente pelo botão `Preparar GPS`; rota, IDs, filtro, readiness, contadores e distância permanecem em memória; nenhuma coordenada é registrada. Captura ativa permanece separada de readiness para recuperar `GpsLost` sem resetar rota; localização desativada possui estado próprio e polling sanitizado para reativação.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`; `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`; abertura física por `adb shell am start` e inspeção de `dumpsys activity activities`.
+- **Resultados e evidências:** compilação debug, lint, `assembleDebug`, `assembleRelease` e instalação passaram; Activity da PoC abriu em estado `resumed`; fonte usa `GPS_PROVIDER`, intervalo de 1 s, deslocamento mínimo de 0 m, readiness monotônica e filtro com política padrão; callbacks antigos são isolados por geração e cleanup invalida runtime encerrado; `receivedFixCount` é zerado no início; fixes durante `GpsLost` continuam sendo filtrados; variante release continua sem entrypoint debug. Revisão independente aprovou a implementação sem bloqueador funcional.
+- **Riscos residuais:** percurso físico, qualidade real do GPS, aceitação/rejeição em deslocamento e ausência de coordenadas no Logcat ainda exigem validação sanitizada da `026-07`; câmera, renderização da rota e reset visual permanecem nas subtarefas seguintes.

@@ -32,7 +32,10 @@ private const val OPEN_FREE_MAP_POSITRON_STYLE =
     "https://tiles.openfreemap.org/styles/positron"
 
 @Composable
-fun GpsMapPocScreen(coordinator: GpsMapPocCoordinator) {
+fun GpsMapPocScreen(
+    coordinator: GpsMapPocCoordinator,
+    onPrepareLocation: () -> Unit,
+) {
     val state by coordinator.state.collectAsState()
 
     Surface(
@@ -77,6 +80,7 @@ fun GpsMapPocScreen(coordinator: GpsMapPocCoordinator) {
             GpsMapPocMetricsCard(state = state)
             GpsMapPocActions(
                 state = state,
+                onPrepareLocation = onPrepareLocation,
                 onRecenter = coordinator::recenter,
                 onStart = coordinator::start,
                 onStop = coordinator::stop,
@@ -132,6 +136,7 @@ private fun GpsMapPocMetricsCard(state: GpsMapPocUiState) {
                 label = "Precisão horizontal",
                 value = state.horizontalAccuracyMeters?.let { "${it.formatMeters()} m" } ?: "não disponível",
             )
+            StatusRow(label = "Fixes recebidos", value = state.receivedFixCount.toString())
             StatusRow(label = "Distância", value = state.distanceMeters.formatDistance())
             StatusRow(label = "Pontos aceitos", value = state.acceptedPointCount.toString())
             StatusRow(label = "Pontos rejeitados", value = state.rejectedPointCount.toString())
@@ -142,12 +147,20 @@ private fun GpsMapPocMetricsCard(state: GpsMapPocUiState) {
 @Composable
 private fun GpsMapPocActions(
     state: GpsMapPocUiState,
+    onPrepareLocation: () -> Unit,
     onRecenter: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onClear: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            onClick = onPrepareLocation,
+            enabled = state.status != GpsMapPocStatus.Tracking,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Preparar GPS")
+        }
         OutlinedButton(
             onClick = onRecenter,
             enabled = state.mapStatus is GpsMapPocMapStatus.Ready && state.status.canRecenter(),
@@ -206,6 +219,8 @@ private fun GpsMapPocMapStatus.label(): String = when (this) {
 
 private fun GpsMapPocGpsReadiness.label(): String = when (this) {
     GpsMapPocGpsReadiness.PermissionRequired -> "Permissão necessária"
+    GpsMapPocGpsReadiness.PrecisePermissionRequired -> "Permissão precisa necessária"
+    GpsMapPocGpsReadiness.LocationDisabled -> "Localização desativada"
     GpsMapPocGpsReadiness.Searching -> "Procurando GPS"
     GpsMapPocGpsReadiness.Ready -> "Pronto"
     GpsMapPocGpsReadiness.Lost -> "GPS perdido"

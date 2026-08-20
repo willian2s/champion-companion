@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 3/8 subtarefas concluídas
+- **Progresso:** 4/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -36,7 +36,7 @@ Premissas atuais:
 - [x] [026-01-alinhar-documentacao-e-adr.md](026-01-alinhar-documentacao-e-adr.md)
 - [x] [026-02-configurar-maplibre-e-openfreemap.md](026-02-configurar-maplibre-e-openfreemap.md)
 - [x] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
-- [ ] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
+- [x] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
 - [ ] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
 - [ ] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
 - [ ] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
@@ -59,8 +59,14 @@ separados de mapa/GPS, ações neutras e CTA técnico variant-safe em Exercício
 No debug, o CTA dispara `Intent` explícito para a Activity; no release, o
 provider retorna `null`, sem botão, Intent executável ou referência à PoC. ADB
 permanece fallback diagnóstico. Builds, lint, instalação debug, abertura da
-Activity e screenshot sanitizado em estado neutro foram confirmados; 026-04
-continua bloqueada até integração GPS, readiness real e filtro.
+Activity e screenshot sanitizado em estado neutro foram confirmados.
+
+026-04 concluída com fonte GPS debug independente do binding produtivo, permissão
+precisa por ação explícita, readiness baseada em `GpsReadinessEvaluator`, filtro
+`RoutePointFilter`, identidade efêmera por geração, rota em memória, distância e
+contadores de fixes aceitos/rejeitados. Builds, lint, instalação e abertura da
+Activity foram confirmados; validação física de GPS, rota e Logcat sanitizado
+permanece na 026-07. Não há bloqueios atuais.
 
 ## Ordem
 

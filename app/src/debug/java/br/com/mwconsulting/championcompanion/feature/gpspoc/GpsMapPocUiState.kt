@@ -1,13 +1,22 @@
 package br.com.mwconsulting.championcompanion.feature.gpspoc
 
+import br.com.mwconsulting.championcompanion.core.model.GpsAccuracyQuality
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointRejectionReason
+
 data class GpsMapPocUiState(
-    val status: GpsMapPocStatus = GpsMapPocStatus.Initializing,
+    val status: GpsMapPocStatus = GpsMapPocStatus.PermissionRequired,
     val mapStatus: GpsMapPocMapStatus = GpsMapPocMapStatus.Loading,
-    val gpsReadiness: GpsMapPocGpsReadiness = GpsMapPocGpsReadiness.Searching,
+    val gpsReadiness: GpsMapPocGpsReadiness = GpsMapPocGpsReadiness.PermissionRequired,
+    val gpsAccuracyQuality: GpsAccuracyQuality = GpsAccuracyQuality.UNKNOWN,
     val horizontalAccuracyMeters: Float? = null,
+    val receivedFixCount: Int = 0,
     val distanceMeters: Double = 0.0,
     val acceptedPointCount: Int = 0,
     val rejectedPointCount: Int = 0,
+    val rejectionCounts: Map<WorkoutRoutePointRejectionReason, Int> = emptyMap(),
+    val routePoints: List<WorkoutRoutePoint> = emptyList(),
+    val currentPoint: WorkoutRoutePoint? = null,
 )
 
 sealed interface GpsMapPocStatus {
@@ -29,6 +38,8 @@ sealed interface GpsMapPocMapStatus {
 
 enum class GpsMapPocGpsReadiness {
     PermissionRequired,
+    PrecisePermissionRequired,
+    LocationDisabled,
     Searching,
     Ready,
     Lost,
@@ -48,6 +59,10 @@ sealed interface GpsMapPocError {
 
     data object GpsUnavailable : GpsMapPocError {
         override val message: String = "GPS indisponível no momento."
+    }
+
+    data object LocationDisabled : GpsMapPocError {
+        override val message: String = "Ative a localização do aparelho para continuar."
     }
 
     data object Internal : GpsMapPocError {
