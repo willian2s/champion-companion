@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 17/19 subtarefas concluídas
+- **Progresso:** 18/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-14-refatorar-detalhe-exercicio.md](024-14-refatorar-detalhe-exercicio.md)
 - [x] [024-15-refatorar-dispositivo.md](024-15-refatorar-dispositivo.md)
 - [x] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
-- [ ] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
+- [x] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
 - [x] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
 - [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
 
@@ -238,3 +238,18 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   agrupamento contextual, modais, precisão, unidade única e checklist SDD.
 - Nenhum teste automatizado foi criado ou executado em `024-16`; revisão
   independente final concluída.
+- `024-17` concluída com header nominal azul-petróleo, hierarquia de integração,
+  ações empilhadas, permissões e fila local reorganizadas. Toggle, launcher,
+  provider update, gerenciar acesso e sincronização write-only foram preservados.
+- `024-17` passou em `git diff --check`, lint, builds debug/release, instalação e
+  smoke ADB sanitizado. Foram exercitados abertura, rolagem, fonte `1,3x`,
+  landscape e temas claro/escuro; aparelho restaurado para fonte `1,0x`, portrait
+  e tema escuro. Evidência registrada em
+  `024-17-captura-real-sanitizada-configuracoes.png`.
+- Em `024-17`, `Gerenciar acesso` não abriu tela externa no provider disponível;
+  callback permaneceu seguro, sem mutação, e retorno real ficou `N/A`. Provider
+  update, indisponibilidade, sync remoto e estados transitórios também ficaram
+  `N/A` sem fabricação.
+- Revisão independente de `024-17` encontrou bloqueio documental e melhoria
+  preventiva no filtro de permissões; documentação foi registrada e o filtro foi
+  removido antes da validação final. Revisão final permanece solicitada.
