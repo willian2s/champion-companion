@@ -2,11 +2,11 @@
 
 - **Status geral:** pending
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 2/8 subtarefas concluídas
+- **Progresso:** 3/8 subtarefas concluídas
 
 ## Objetivo
 
-Validar fisicamente, em fluxo debug-only e sem reativar treinos iniciados pelo celular, se MapLibre Compose + OpenFreeMap conseguem apresentar posição GPS e uma rota que cresce em tempo real, com câmera utilizável e estado totalmente efêmero.
+Validar fisicamente, em fluxo debug-only e sem reativar treinos iniciados pelo celular, se MapLibre Compose + OpenFreeMap conseguem apresentar posição GPS e uma rota que cresce em tempo real, com câmera utilizável, estado totalmente efêmero e acesso manual por botão técnico na página de Exercícios.
 
 ## Decisão experimental
 
@@ -25,13 +25,17 @@ Premissas atuais:
 - OpenFreeMap não oferece SLA;
 - atribuição cartográfica deve permanecer;
 - `PhoneWorkoutPolicy` continua bloqueando a antiga feature phone;
-- nenhuma rota será persistida nesta PoC.
+- nenhuma rota será persistida nesta PoC;
+- o CTA de acesso fica somente em Exercícios no build debug, dispara `Intent`
+  explícito para a Activity e não é CTA de treino;
+- ADB é fallback diagnóstico, não a única abertura prevista;
+- release não expõe botão, `Intent` executável ou entrypoint da PoC.
 
 ## Checklist
 
 - [x] [026-01-alinhar-documentacao-e-adr.md](026-01-alinhar-documentacao-e-adr.md)
 - [x] [026-02-configurar-maplibre-e-openfreemap.md](026-02-configurar-maplibre-e-openfreemap.md)
-- [ ] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
+- [x] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
 - [ ] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
 - [ ] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
 - [ ] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
@@ -49,6 +53,14 @@ SLA do OpenFreeMap devem ser revalidados antes da configuração.
 Maven Central. `settings.gradle.kts` não precisou de alteração. Release não
 resolve MapLibre; style Positron e atribuição permanecem definidos para a tela
 debug das subtarefas seguintes. Renderização física ainda não foi validada.
+
+026-03 concluída com Activity, shell Compose, state machine explícita, estados
+separados de mapa/GPS, ações neutras e CTA técnico variant-safe em Exercícios.
+No debug, o CTA dispara `Intent` explícito para a Activity; no release, o
+provider retorna `null`, sem botão, Intent executável ou referência à PoC. ADB
+permanece fallback diagnóstico. Builds, lint, instalação debug, abertura da
+Activity e screenshot sanitizado em estado neutro foram confirmados; 026-04
+continua bloqueada até integração GPS, readiness real e filtro.
 
 ## Ordem
 
@@ -89,7 +101,9 @@ no_go
 - não adicionar Room/migration;
 - não usar Health Connect;
 - não usar BLE;
-- não adicionar CTA em superfícies de produto;
+- permitir CTA somente técnico em Exercícios no debug, sem tratá-lo como treino;
+- não adicionar CTA em Home, Saúde, Dispositivo ou Configurações;
+- não expor botão, `Intent` executável ou entrypoint da PoC em release;
 - não registrar coordenadas;
 - não criar credenciais de mapa;
 - não remover atribuição do mapa;

@@ -48,6 +48,11 @@ parar captura
 enquadrar rota completa
 ```
 
+Para teste externo, o acesso manual à PoC deve ser simples: o build debug deve
+oferecer um botão técnico na página de Exercícios que abra explicitamente a
+Activity da PoC. Esse botão é somente uma affordance de teste debug-only; não é
+CTA de treino phone nem feature de produto.
+
 O comportamento de referência é semelhante à visualização de atividade ao vivo de aplicativos esportivos como Strava, sem buscar paridade funcional.
 
 ## Objetivo
@@ -229,6 +234,7 @@ Sem:
 - OpenFreeMap como provedor do mapa-base;
 - estilo `Positron` inicial;
 - Activity técnica debug;
+- affordance técnica de acesso na página de Exercícios somente no build debug;
 - tela Compose específica da PoC;
 - solicitação de localização precisa;
 - GPS via `LocationManager.GPS_PROVIDER`;
@@ -307,13 +313,38 @@ app/src/debug/AndroidManifest.xml
 
 para registrar a Activity somente na variante debug.
 
-A Activity pode ser aberta explicitamente por ADB durante a PoC.
+No build debug, a Activity deve ser aberta manualmente pelo botão técnico da
+página de Exercícios, por `Intent` explícito. Esse é o caminho primário para
+teste externo. ADB pode ser usado como fallback diagnóstico para smoke de
+manifest ou investigação, mas não satisfaz sozinho o requisito de acesso
+externo.
 
 Não adicionar destino permanente à navegação principal.
 
-Não adicionar CTA em Home, Saúde, Exercícios, Dispositivo ou Configurações.
+O CTA técnico é permitido somente na página de Exercícios e somente no build
+debug. Não adicionar CTA em Home, Saúde, Dispositivo ou Configurações. O CTA de
+Exercícios não pode iniciar treino, alterar a sessão phone ou ser apresentado
+como feature de produto.
 
-A variante release não deve possuir entrypoint para a PoC.
+A variante release não deve possuir botão, `Intent` executável ou entrypoint para
+a PoC.
+
+O clique no CTA deve somente abrir a Activity técnica. Permissão, readiness,
+captura e demais ações continuam sob controle explícito da tela da PoC, sem
+início automático de GPS ou treino.
+
+### Revisão de escopo
+
+Em 2026-08-20, a exigência de teste externo alterou o plano inicial de abertura
+por ADB para acesso manual por CTA técnico em Exercícios no debug. A alteração
+permanece dentro de `026-03`, que já concentra Activity, entrypoint e estado; não
+cria novo destino, nova subtarefa ou autorização de produto.
+
+A implementação de `026-03` concluiu o contrato com provider separado por
+variante: debug injeta callback com `Intent` explícito; release retorna `null` e
+não referencia Activity ou MapLibre. Builds, instalação debug e abertura da
+Activity foram validados. Permanece risco residual somente na validação física
+do mapa/GPS/rota e na confirmação sanitizada durante as subtarefas posteriores.
 
 ## Arquitetura
 
@@ -907,7 +938,7 @@ A validação deve ocorrer em aparelho Android real.
 Cenário principal mínimo:
 
 1. instalar debug;
-2. abrir Activity da PoC;
+2. abrir a página de Exercícios e tocar o CTA técnico `debug-only` da PoC;
 3. confirmar carregamento do mapa-base OpenFreeMap e atribuição;
 4. conceder localização precisa;
 5. aguardar `READY`;
@@ -943,8 +974,11 @@ Background, tela apagada, offline map e process death não fazem parte do gate d
 1. Spec e documentação registram explicitamente que a PoC não reabre a Fase 013.
 2. `PhoneWorkoutPolicy` permanece com treinos phone descontinuados.
 3. `WorkoutRecordingService` não é utilizado pela PoC.
-4. Nenhuma superfície de produto recebe CTA para iniciar treino.
-5. Activity da PoC existe somente em debug.
+4. Nenhuma superfície de produto recebe CTA para iniciar treino ou feature de
+   produto; a única exceção é o CTA técnico de acesso da PoC em Exercícios no
+   debug.
+5. O CTA de Exercícios dispara `Intent` explícito e a Activity da PoC existe
+   somente em debug, sem destino permanente na navegação.
 6. MapLibre Compose renderiza corretamente no aparelho real.
 7. OpenFreeMap carrega corretamente como mapa-base.
 8. Estilo inicial `Positron` é utilizado ou desvio para `Liberty` é documentado.
@@ -970,7 +1004,7 @@ Background, tela apagada, offline map e process death não fazem parte do gate d
 28. Nenhuma rota é persistida no Room ou em arquivo.
 29. Health Connect não participa.
 30. BLE não participa.
-31. Variante release não expõe entrypoint da PoC.
+31. Variante release não expõe botão, `Intent` executável ou entrypoint da PoC.
 32. `lint`, `assembleDebug` e `assembleRelease` concluem.
 33. Validação física principal é concluída e registrada de forma sanitizada.
 34. Falha de rede/mapa-base não é confundida com falha de GPS.
@@ -1073,6 +1107,8 @@ Não há arquivo de credenciais previsto.
 
 - `app/src/debug/AndroidManifest.xml`;
 - `app/src/debug/java/.../feature/gpspoc/*`.
+- integração variant-safe do CTA técnico na página de Exercícios, sem exposição
+  na variante release.
 
 ### Main
 

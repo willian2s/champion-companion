@@ -17,6 +17,10 @@ Essa avaliação precisa de renderizador Compose e de um provedor de mapa-base,
 mas não precisa reativar a sessão phone, persistir coordenadas ou criar uma
 decisão de produção.
 
+A revisão de escopo de 2026-08-20 registrou exigência explícita de teste externo:
+ADB sozinho não é suficiente; o acesso manual precisa estar disponível por um
+botão técnico na página de Exercícios do build debug.
+
 A alternativa inicialmente considerada foi Mapbox. Ela foi abandonada antes da
 implementação porque exigia configuração de billing/forma de pagamento
 incompatível com a premissa desta PoC, que não deve introduzir cadastro,
@@ -45,23 +49,46 @@ OpenFreeMap Positron
 4. A atribuição cartográfica exigida pelo mapa deve permanecer visível. Não
    remover controles ou ornamentos necessários para atribuição.
 5. A PoC será `debug-only`, limitada ao source set `app/src/debug`, sem destino
-   permanente na navegação, CTA em superfícies de produto, `WorkoutRecordingService`,
-   alteração de `PhoneWorkoutPolicy`, Room, Health Connect, BLE ou persistência.
-6. Nenhuma conta, API key, token, credencial ou forma de pagamento será
+   permanente na navegação. Para teste externo, a página de Exercícios poderá
+   exibir somente no build debug uma affordance técnica que dispara `Intent`
+   explícito para a Activity da PoC. Esse CTA não inicia treino phone nem é
+   feature de produto. Não haverá CTA equivalente em Home, Saúde, Dispositivo ou
+   Configurações.
+6. Botão, `Intent` executável e entrypoint da PoC não podem ser expostos na
+   variante release. ADB pode continuar disponível como fallback diagnóstico,
+   mas não é o caminho exclusivo de abertura.
+7. A PoC não usará `WorkoutRecordingService`, não alterará `PhoneWorkoutPolicy`
+   e não terá Room, Health Connect, BLE ou persistência.
+8. Nenhuma conta, API key, token, credencial ou forma de pagamento será
    introduzida. O uso gratuito observado não é tratado como condição permanente.
-7. OpenFreeMap não oferece SLA para esta decisão. Termos, privacidade,
+9. OpenFreeMap não oferece SLA para esta decisão. Termos, privacidade,
    disponibilidade e política de uso devem ser revalidados na execução da
    `026-02` e antes de qualquer uso posterior.
-8. Esta decisão autoriza somente a PoC. Mesmo resultado `go` ou
+10. Esta decisão autoriza somente a PoC. Mesmo resultado `go` ou
    `go_with_adjustments` não autoriza feature de produção; eventual efetivação
    exige nova spec e nova decisão sobre provider, SLA, privacidade, cache,
    offline, persistência e reativação ou não do treino phone.
+
+### Revisão de escopo e desvio de acesso
+
+O plano inicial previa abertura somente por ADB. Por exigência explícita do
+usuário, o contrato foi revisado para tornar o CTA técnico da página de
+Exercícios o caminho manual primário para teste externo no debug. A mudança cabe
+coerentemente em `026-03`, pois altera apenas o contrato de acesso ao entrypoint
+debug e não cria nova superfície de navegação ou nova subtarefa.
+
+Esta revisão foi implementada em `026-03`: o debug injeta callback com `Intent`
+explícito e o release injeta `null`, sem referência à Activity ou ao MapLibre.
+Builds, instalação debug e abertura da Activity foram validados; a validação
+física de GPS/rota continua fora desta subtarefa.
 
 ## Escopo e fronteiras
 
 Esta ADR constitui exceção explícita aos guards gerais somente para a Spec 026.
 Não altera o encerramento histórico da Fase 013 e não transforma a PoC em
-backlog de produto. A variante release não deve expor entrypoint da PoC.
+backlog de produto. O CTA técnico em Exercícios é exceção de acesso manual
+somente no debug; não é CTA de treino. A variante release não deve expor botão,
+`Intent` executável ou entrypoint da PoC.
 
 Logs, mensagens e evidências não podem conter latitude, longitude, altitude,
 rota, GeoJSON, bounds ou identificadores pessoais. A comunicação de rede
@@ -84,6 +111,9 @@ aceita somente no experimento e deve ser reavaliada antes de promoção.
 - o experimento depende de rede e de nova confirmação das condições do provider;
 - a escolha não resolve requisitos de produção, como cache, offline, retenção,
   privacidade, escala ou suporte;
+- a affordance em Exercícios pode ser confundida com fluxo de treino se não for
+  identificada como PoC técnica, e isolamento incorreto de source set, recursos,
+  `Intent` ou manifest pode vazar o acesso para release;
 - atribuição e privacidade exigem revisão durante a validação física.
 
 ## Alternativas consideradas

@@ -25,7 +25,7 @@ Existe evidência suficiente para classificar tecnicamente a PoC sem depender de
 ## Pré-condições
 
 ```text
-aparelho Android real conectado por ADB
+aparelho Android real disponível para teste externo
 build debug instalado
 rede disponível para cenário principal
 localização habilitada
@@ -38,7 +38,7 @@ O cenário de rede indisponível deve ser exercitado separadamente.
 ## Cenário principal
 
 1. Instalar build debug.
-2. Abrir Activity da PoC por ADB.
+2. Abrir a página de Exercícios no build debug e tocar o CTA técnico da PoC.
 3. Confirmar mapa OpenFreeMap carregado.
 4. Confirmar atribuição visível.
 5. Conceder localização precisa quando solicitada.
@@ -158,7 +158,9 @@ git diff --check
 ./gradlew installDebug
 ```
 
-Comandos ADB podem ser usados para abrir Activity e smoke, preservando evidência sanitizada.
+Comandos ADB podem ser usados opcionalmente para instalar, diagnosticar ou abrir
+a Activity como fallback, preservando evidência sanitizada. O gate deve exercitar
+o CTA de Exercícios, pois ADB sozinho não comprova o requisito de acesso externo.
 
 ## Definition of Done
 

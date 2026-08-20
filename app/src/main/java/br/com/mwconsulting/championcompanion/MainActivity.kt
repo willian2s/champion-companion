@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionCompanionTheme
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.navigation.ChampionNavigation
+import br.com.mwconsulting.championcompanion.feature.exercises.DebugPocLauncher
 import br.com.mwconsulting.championcompanion.feature.exercises.StaleWorkoutReconciliation
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutSessionActivity
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutSessionOwnershipCoordinator
@@ -28,7 +29,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ChampionCompanionTheme {
-                ChampionNavigation()
+                ChampionNavigation(
+                    onOpenDebugPoc = DebugPocLauncher.createCallback(this@MainActivity),
+                )
             }
         }
         offerRecoverableWorkout()

@@ -24,14 +24,22 @@
 A Spec `026-maplibre-openfreemap-gps-route-poc.md` registra uma PoC técnica
 planejada e independente para avaliar GPS nativo, MapLibre Compose e OpenFreeMap
 em fluxo `debug-only`. Essa autorização é estritamente efêmera: a rota ficará
-somente em memória, a implementação deve permanecer no source set
-`app/src/debug` e nenhum entrypoint ou CTA será adicionado às superfícies de
-produto.
+somente em memória e a implementação deve permanecer no source set
+`app/src/debug`. A revisão de 2026-08-20 autoriza, para teste externo, um botão
+técnico na página de Exercícios somente no build debug, disparando `Intent`
+explícito para a Activity da PoC. ADB permanece apenas como fallback diagnóstico;
+não é mais a única forma prevista de abertura. A autorização não adiciona
+destino permanente à navegação, não libera CTA em Home, Saúde, Dispositivo ou
+Configurações e não permite que botão, `Intent` executável ou entrypoint da PoC
+apareça na variante release.
 
 A exceção não reabre a Fase 013, não altera `PhoneWorkoutPolicy`, não reativa
 `WorkoutRecordingService` e não autoriza persistência, Health Connect, BLE,
-treino iniciado pelo celular ou feature de produção. O histórico e os guards da
-Fase 013 permanecem preservados.
+treino iniciado pelo celular ou feature de produção. O CTA é affordance técnica
+para abrir a PoC; não é CTA de treino phone. O histórico e os guards da Fase 013
+permanecem preservados. O CTA técnico foi implementado em `026-03` com provider
+separado por variante e validação de build; validação física de GPS/rota continua
+pertencendo às subtarefas posteriores.
 
 MapLibre Compose será o renderizador experimental e OpenFreeMap, o provedor
 inicial do mapa-base, com atribuição obrigatória e sem SLA assumido. A escolha
