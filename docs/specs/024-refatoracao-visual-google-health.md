@@ -1,7 +1,7 @@
 # 024 — Refatoração visual inspirada no Google Health
 
 - **Ticker:** `024`
-- **Status:** in_progress
+- **Status:** completed
 - **Tipo:** refatoração visual incremental
 
 ## Contexto e objetivo
@@ -192,6 +192,16 @@ espaçamento permaneçam preservados.
 13. Nenhum fluxo phone, GPS, localização, rota ou mapa é reativado ou expandido.
 14. Consolidação final remove somente legado visual comprovadamente sem uso e
     repete smoke integrado das superfícies migradas.
+
+## Fechamento
+
+- `024-18` consolidou o inventário final, removeu somente os composition locals
+  visuais sem consumidores e preservou APIs ainda cobertas por previews/testes.
+- Smoke integrado, builds, lint, instalação, evidências sanitizadas e restauração
+  do aparelho foram registrados em
+  `docs/tasks/024-refatoracao-visual-google-health/evidencia-final-validacao-024-18.md`.
+- Fallback físico sem dynamic color em API inferior a 31 e estados transitórios
+  com efeitos ficaram `N/A`, sem serem tratados como sucesso.
 
 ## Comportamento atual encontrado
 

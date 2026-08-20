@@ -128,3 +128,16 @@ obrigatórios, e cor não é sinal único.
 - ADR-009 continua autoritativa para Saúde como hub e rotas específicas.
 - ADR-004 continua autoritativa para privacidade operacional.
 - A Spec 024 e o overview `024-00` definem ordem, critérios e evidências.
+
+## Emenda — consolidação final
+
+- **Data:** 2026-08-20
+
+O fechamento da Spec 024 confirmou que primitives e componentes compartilhados
+com consumidores reais permanecem estáveis. Foram removidos somente
+`LocalChampionSpacing` e `LocalChampionElevation`, composition locals sem uso
+comprovado. Componentes sem consumidor de superfície, mas cobertos por
+previews/testes existentes, foram preservados para não alterar contratos fora do
+escopo da subtarefa. A validação física final reutiliza evidências sanitizadas
+individuais e smoke integrado, sem alterar tema raiz, navegação ou contratos
+funcionais.

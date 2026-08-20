@@ -1,8 +1,8 @@
 # 024 — Refatoração visual inspirada no Google Health
 
-- **Status geral:** in_progress
+- **Status geral:** completed
 - **Spec:** [024-refatoracao-visual-google-health.md](../../specs/024-refatoracao-visual-google-health.md)
-- **Progresso:** 18/19 subtarefas concluídas
+- **Progresso:** 19/19 subtarefas concluídas
 
 ## Objetivo
 
@@ -30,7 +30,7 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - [x] [024-16-refatorar-perfil.md](024-16-refatorar-perfil.md)
 - [x] [024-17-refatorar-configuracoes.md](024-17-refatorar-configuracoes.md)
 - [x] [024-19-colorir-selecao-navegacao.md](024-19-colorir-selecao-navegacao.md)
-- [ ] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
+- [x] [024-18-consolidar-validacao-visual.md](024-18-consolidar-validacao-visual.md)
 
 ## Observações
 
@@ -253,3 +253,19 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
 - Revisão independente de `024-17` encontrou bloqueio documental e melhoria
   preventiva no filtro de permissões; documentação foi registrada e o filtro foi
   removido antes da validação final. Revisão final permanece solicitada.
+- `024-18` concluiu inventário, consolidação e smoke integrado. `HealthCard`,
+  `MetricCard`, estados de feedback, `PrimaryActionButton` e `SyncStatusBadge`
+  mantêm consumidores reais múltiplos; headers e cards locais não foram
+  promovidos sem equivalência comprovada. Foram removidos somente os composition
+  locals `LocalChampionSpacing` e `LocalChampionElevation`, sem consumidores.
+- Evidência final sanitizada registrada em
+  `evidencia-final-validacao-024-18.md`; capturas individuais das treze
+  superfícies e shell permanecem versionadas. Fallback físico inferior à API 31 e
+  estados transitórios ficaram `N/A`, sem fabricação. Amostra final repetiu shell
+  em claro, fonte `1,3x`, landscape e portrait escuro, com restauração confirmada.
+  Spec 024 e ADR-023 refletem fechamento; progresso final `19/19`.
+- Revisão independente de `024-18`: `PASS`, sem bloqueadores ou achados
+  importantes.
+- A observação histórica de `024-17` sobre revisão final solicitada permanece
+  registrada no item correspondente; aceite individual, validação física e
+  ausência de bloqueador técnico estão documentados, sem reabrir a subtarefa.

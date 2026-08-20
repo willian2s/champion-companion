@@ -4,7 +4,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -22,7 +21,6 @@ data class ChampionSpacingValues(
 )
 
 val ChampionSpacing = ChampionSpacingValues()
-val LocalChampionSpacing = staticCompositionLocalOf { ChampionSpacing }
 
 val ChampionShapeSmall = RoundedCornerShape(8.dp)
 val ChampionShapeMedium = RoundedCornerShape(12.dp)
@@ -63,4 +61,3 @@ data class ChampionElevationTokens(
 )
 
 val ChampionElevation = ChampionElevationTokens()
-val LocalChampionElevation = staticCompositionLocalOf { ChampionElevation }

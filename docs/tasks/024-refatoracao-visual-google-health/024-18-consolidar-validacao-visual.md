@@ -2,7 +2,7 @@
 
 - **Ticker:** `024`
 - **Número:** `18`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo e resultado esperado
 
@@ -88,3 +88,66 @@ detalhe; Dispositivo; Perfil; Configurações; menu `Mais`; back/restauração.
 - não tratar estado não observado como aprovado;
 - não executar suites automatizadas por conveniência;
 - nenhum fechamento sem ADB físico e aceite das telas.
+
+## Execução registrada
+
+### Status
+
+`completed`; consolidação visual, validação integrada e fechamento documental
+concluídos sem alteração funcional.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionTokens.kt`;
+- `docs/tasks/024-refatoracao-visual-google-health/evidencia-final-validacao-024-18.md`;
+- `docs/specs/024-refatoracao-visual-google-health.md`;
+- `docs/decisions/adr-023-refatoracao-visual-incremental-inspirada-no-google-health.md`;
+- `docs/tasks/024-refatoracao-visual-google-health/024-00-overview.md`;
+- `docs/tasks/024-refatoracao-visual-google-health/024-18-consolidar-validacao-visual.md`.
+
+### Decisões e desvios
+
+- Inventário confirmou uso real múltiplo de `HealthCard`, `MetricCard`, estados
+  de feedback, `PrimaryActionButton` e `SyncStatusBadge`; nenhuma promoção nova
+  foi necessária.
+- Headers e cards locais permaneceram locais por falta de equivalência simples
+  comprovada em duas superfícies.
+- Removidos somente `LocalChampionSpacing` e `LocalChampionElevation`, sem
+  consumidores em código de produção, previews ou testes.
+- `HealthChart`, `CalibrationBanner`, `ConnectionStatus` e
+  `ActivityStatusBadge` foram preservados por cobertura de previews/testes;
+  removê-los exigiria alterar testes, proibido nesta subtarefa.
+- Nenhum arquivo de feature, navegação, tema raiz, domínio, persistência, BLE,
+  Health Connect ou legado phone foi alterado.
+
+### Comandos executados e resultados
+
+| Comando/verificação | Resultado |
+|---|---|
+| Auditoria de consumidores reais | Passou; inventário registrado na evidência final |
+| `git diff --check` | Passou; sem erro |
+| `./gradlew lint assembleDebug assembleRelease` | Passou; `BUILD SUCCESSFUL` |
+| `./gradlew installDebug` | Passou; instalado no Galaxy S22 `SM-S901E` |
+| `adb devices -l` | Passou; dispositivo autorizado |
+| `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` | Passou; Activity aberta |
+| Smoke ADB integrado | Passou; shell, treze superfícies, detalhes, menu `Mais`, back e restauração |
+| Smoke final claro, fonte `1,3x`, landscape e portrait escuro restaurado | Passou; PNGs transitórios confirmaram renderização em `2340x1080` e `1080x2340`, sem persistência |
+| Fallback físico sem dynamic color inferior à API 31 | `N/A`; aparelho API 36 e sem emulador |
+| Testes automatizados | Não executados, conforme R8 |
+
+### Evidências
+
+- `evidencia-final-validacao-024-18.md` consolida inventário, smoke, privacidade
+  e riscos residuais.
+- Capturas individuais sanitizadas `024-03`, `024-05` a `024-17` e `024-19`
+  permanecem como evidência física das superfícies e shell.
+- Nenhum dump ou screenshot bruto foi versionado.
+
+### Riscos residuais
+
+- Fallback físico inferior à API 31 não foi observado.
+- Estados transitórios e operações com efeitos não foram disparados e permanecem
+  `N/A`.
+- Componentes sem consumidor de superfície permanecem por cobertura de
+  previews/testes; nova remoção exigiria escopo próprio para atualizar contratos.
+- Revisão independente final: `PASS`; nenhum bloqueador ou achado importante.
