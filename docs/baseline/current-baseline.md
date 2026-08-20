@@ -19,6 +19,28 @@
   pode apoiar trabalho finito e adiável. Ver
   `docs/specs/014-watch-workout-derived-metrics.md`.
 
+## Exceção experimental isolada da Spec 026
+
+A Spec `026-maplibre-openfreemap-gps-route-poc.md` registra uma PoC técnica
+planejada e independente para avaliar GPS nativo, MapLibre Compose e OpenFreeMap
+em fluxo `debug-only`. Essa autorização é estritamente efêmera: a rota ficará
+somente em memória, a implementação deve permanecer no source set
+`app/src/debug` e nenhum entrypoint ou CTA será adicionado às superfícies de
+produto.
+
+A exceção não reabre a Fase 013, não altera `PhoneWorkoutPolicy`, não reativa
+`WorkoutRecordingService` e não autoriza persistência, Health Connect, BLE,
+treino iniciado pelo celular ou feature de produção. O histórico e os guards da
+Fase 013 permanecem preservados.
+
+MapLibre Compose será o renderizador experimental e OpenFreeMap, o provedor
+inicial do mapa-base, com atribuição obrigatória e sem SLA assumido. A escolha
+anterior de Mapbox foi abandonada antes da implementação por exigir
+configuração de billing/forma de pagamento incompatível com a premissa da PoC.
+Não há conta, API key, token ou pagamento previsto; termos, disponibilidade e
+política gratuita do provedor devem ser revalidados na implementação. Nenhuma
+decisão de produção foi tomada. Ver ADR-024 e o overview da Spec 026.
+
 ## Produto e fase
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.

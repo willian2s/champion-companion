@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 0/8 subtarefas concluídas
+- **Progresso:** 1/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -29,7 +29,7 @@ Premissas atuais:
 
 ## Checklist
 
-- [ ] [026-01-alinhar-documentacao-e-adr.md](026-01-alinhar-documentacao-e-adr.md)
+- [x] [026-01-alinhar-documentacao-e-adr.md](026-01-alinhar-documentacao-e-adr.md)
 - [ ] [026-02-configurar-maplibre-e-openfreemap.md](026-02-configurar-maplibre-e-openfreemap.md)
 - [ ] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
 - [ ] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
@@ -37,6 +37,13 @@ Premissas atuais:
 - [ ] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
 - [ ] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
 - [ ] [026-08-fechar-poc-e-registrar-decisao.md](026-08-fechar-poc-e-registrar-decisao.md)
+
+## Observações
+
+026-01 concluída. ADR-024 registra MapLibre Compose + OpenFreeMap como stack
+experimental `debug-only`; guards da Fase 013 permanecem vigentes fora da
+exceção. Não há bloqueios para 026-02. Termos, disponibilidade e ausência de
+SLA do OpenFreeMap devem ser revalidados antes da configuração.
 
 ## Ordem
 

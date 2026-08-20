@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `01`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -97,3 +97,27 @@ Como esta task é documental, não executar Gradle apenas para produzi-la.
 - não remover `PhoneWorkoutPolicy`;
 - não afirmar estabilidade ou SLA do OpenFreeMap;
 - não registrar como permanente uma condição gratuita que deve ser revalidada no futuro.
+
+## Execução
+
+- **Status:** completed
+- **Arquivos alterados:** `AGENTS.md`, `docs/baseline/current-baseline.md`,
+  `docs/decisions/adr-024-maplibre-openfreemap-gps-poc.md`,
+  `docs/tasks/026-maplibre-openfreemap-gps-route-poc/026-00-overview.md` e este
+  arquivo.
+- **Decisões e desvios:** confirmado ADR-024 como próximo número livre. Registrada
+  exceção exclusiva da Spec 026 no source set `debug`, sem reabrir a Fase 013;
+  MapLibre Compose `0.13.0` + OpenFreeMap/Positron foram formalizados como stack
+  experimental. Mapbox foi abandonado antes da implementação por exigir billing/
+  forma de pagamento incompatível com a premissa da PoC. Nenhum desvio de escopo.
+- **Comandos executados:** `git status --short`; `git diff --check`; `git diff
+  --no-index --check /dev/null
+  docs/decisions/adr-024-maplibre-openfreemap-gps-poc.md`.
+- **Resultados e evidências:** ticker `026` confirmado na spec, overview e oito
+  subtarefas; overview mantém uma única seção `## Checklist` com um item por
+  subtarefa. `git diff --check` e a checagem explícita do ADR ainda não rastreado
+  concluídos sem saída/erros. Nenhum comando Gradle executado, conforme validação
+  documental da task.
+- **Riscos residuais:** OpenFreeMap continua sem SLA; termos, disponibilidade e
+  política gratuita precisam ser revalidados em `026-02`. ADR-024 não autoriza
+  feature de produção nem altera os guards gerais.
