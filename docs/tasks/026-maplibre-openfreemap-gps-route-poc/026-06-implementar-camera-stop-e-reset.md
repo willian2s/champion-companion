@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `06`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -156,3 +156,12 @@ Smoke físico deve cobrir pan, zoom, recentralização, stop, fit bounds e segun
 - não transformar recentralização em loop que brigue com gestos;
 - bounds calculado contém coordenadas e nunca deve ser logado;
 - evitar animações longas que prejudiquem percepção do tracking.
+
+## Execução
+
+- **Status final:** completed.
+- **Arquivos alterados:** `app/src/debug/java/br/com/mwconsulting/championcompanion/feature/gpspoc/GpsMapPocCoordinator.kt`, `GpsMapPocScreen.kt` e `GpsMapPocUiState.kt`.
+- **Decisões e desvios:** `CameraState` permanece na tela debug e usa a mesma posição aceita pelo coordinator. O primeiro ponto centraliza em zoom urbano aproximado de 16; follow preserva zoom escolhido pelo usuário. `CameraMoveReason.GESTURE` suspende follow, e `Recentralizar` usa nonce de comando para restaurar acompanhamento durante captura e centralizar o ponto corrente. Follow, recentralização e fit final são comandos serializados em um único efeito de câmera, evitando animações concorrentes obsoletas. Stop encerra o runtime GPS, invalida a geração anterior, preserva rota/métricas e é idempotente. Parada enquadra bounds com padding para dois ou mais pontos, centraliza um ponto e preserva câmera com zero pontos. Reset zera estado efêmero, inclusive nonce de recentralização, e mantém readiness/permissão por meio do runtime recriado.
+- **Comandos executados:** `git diff --check`; `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`; `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.feature.gpspoc.GpsMapPocActivity`; `adb shell dumpsys activity activities`.
+- **Resultados e evidências:** todos os comandos concluíram com sucesso. O APK debug foi instalado no dispositivo `SM-S901E` com Android API 36, e a Activity técnica abriu em estado `resumed`. Nenhum teste automatizado foi criado, conforme política do projeto. Revisão independente confirmou isolamento debug-only, ausência de persistência/logs de coordenadas e coerência estrutural de follow, stop, bounds e reset.
+- **Riscos residuais:** comportamento físico de pan/zoom, recentralização, fit bounds com percurso real, stop repetido e dois ciclos ainda precisa ser observado no smoke sanitizado da `026-07`; build e abertura da Activity não substituem esse gate. A validação não deve versionar rota ou localização pessoal.

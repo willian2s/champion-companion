@@ -26,6 +26,14 @@ implementação porque exigia configuração de billing/forma de pagamento
 incompatível com a premissa desta PoC, que não deve introduzir cadastro,
 credencial ou pagamento.
 
+O plano inicial de coleta usava registros manuais de
+`LocationManager.GPS_PROVIDER`. Durante a `026-07`, uma tentativa intermediária
+registrou `GPS_PROVIDER` e `NETWORK_PROVIDER` em paralelo, mas essa abordagem foi
+substituída por `FusedLocationProviderClient` para permitir que a API combine
+GPS, rede móvel, Wi-Fi, cache de localização e sensores disponíveis. O objetivo
+experimental continua sendo validar GPS nativo do aparelho; fused é a API de
+coleta da variante debug, não uma decisão de fonte produtiva.
+
 ## Decisão
 
 Para a PoC da Spec 026, adotar:
@@ -65,9 +73,22 @@ OpenFreeMap Positron
    disponibilidade e política de uso devem ser revalidados na execução da
    `026-02` e antes de qualquer uso posterior.
 10. Esta decisão autoriza somente a PoC. Mesmo resultado `go` ou
-   `go_with_adjustments` não autoriza feature de produção; eventual efetivação
-   exige nova spec e nova decisão sobre provider, SLA, privacidade, cache,
-   offline, persistência e reativação ou não do treino phone.
+    `go_with_adjustments` não autoriza feature de produção; eventual efetivação
+    exige nova spec e nova decisão sobre provider, SLA, privacidade, cache,
+    offline, persistência e reativação ou não do treino phone.
+11. A fonte de coleta da PoC será `FusedLocationProviderClient`, configurada
+    com `Priority.PRIORITY_HIGH_ACCURACY`, intervalo de 1.000 ms, intervalo
+    mínimo de 1.000 ms e distância mínima de 0 m. `lastLocation` recente e
+    válido pode aquecer readiness e posição corrente, mas não entra
+    automaticamente na rota antes de `Iniciar`.
+12. Fused é a API efetiva para combinar GPS, rede móvel, Wi-Fi, cache de
+    localização e sensores disponíveis. GPS nativo permanece objetivo de
+    validação; a decisão não exige nem autoriza registros manuais concorrentes
+    de `GPS_PROVIDER` e `NETWORK_PROVIDER`.
+13. `com.google.android.gms:play-services-location:21.3.0` fica somente em
+    `debugImplementation`. A variante release não resolve a dependência fused,
+    não expõe o entrypoint da PoC e não recebe promoção produtiva por esta ADR.
+    A integração não introduz segredo, token, API key ou credencial.
 
 ### Revisão de escopo e desvio de acesso
 
@@ -81,6 +102,19 @@ Esta revisão foi implementada em `026-03`: o debug injeta callback com `Intent`
 explícito e o release injeta `null`, sem referência à Activity ou ao MapLibre.
 Builds, instalação debug e abertura da Activity foram validados; a validação
 física de GPS/rota continua fora desta subtarefa.
+
+## Contraindicações
+
+- não registrar manualmente `GPS_PROVIDER` e `NETWORK_PROVIDER` como fontes
+  concorrentes da PoC;
+- não colocar `play-services-location` no grafo release ou em dependência
+  produtiva;
+- não adicionar API key, token, segredo, credencial, conta ou billing para a
+  coleta fused ou para o mapa;
+- não alterar `PhoneWorkoutPolicy`, não usar `WorkoutRecordingService` e não
+  converter fused em fluxo de treino iniciado pelo celular;
+- não solicitar localização em background, persistir rota ou enviar fixes a
+  OpenFreeMap, Health Connect ou serviço próprio.
 
 ## Escopo e fronteiras
 
@@ -102,6 +136,10 @@ aceita somente no experimento e deve ser reavaliada antes de promoção.
 - permite validar MapLibre Compose e OpenFreeMap sem conta, billing ou segredo;
 - mantém a Fase 013 encerrada e os guards de produto preservados;
 - separa experimento visual de persistência, Health Connect, BLE e atividade real;
+- permite aquecimento e coleta combinada por GPS, rede móvel, Wi-Fi, cache e
+  sensores sem orquestrar manualmente múltiplos providers;
+- mantém `play-services-location` isolado em debug, sem contaminar o artefato
+  release;
 - mantém aberta a possibilidade de trocar provider após evidência física.
 
 ### Negativas e riscos
@@ -109,6 +147,12 @@ aceita somente no experimento e deve ser reavaliada antes de promoção.
 - OpenFreeMap público pode sofrer indisponibilidade, limites ou mudança de
   termos sem SLA;
 - o experimento depende de rede e de nova confirmação das condições do provider;
+- a API fused depende de comportamento e disponibilidade de Google Play Services
+  no aparelho debug e pode produzir fixes apoiados por fontes distintas de GPS;
+- `lastLocation` pode estar ausente ou perder atualidade; ele serve somente para
+  aquecer readiness/posição e não substitui fixes válidos após o início;
+- a combinação de fontes pode aumentar consumo de bateria, rede e variação entre
+  fabricantes, sem constituir requisito ou arquitetura de produção;
 - a escolha não resolve requisitos de produção, como cache, offline, retenção,
   privacidade, escala ou suporte;
 - a affordance em Exercícios pode ser confundida com fluxo de treino se não for

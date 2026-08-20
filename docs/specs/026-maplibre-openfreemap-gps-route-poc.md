@@ -7,6 +7,7 @@
 - **Escopo de distribuição:** debug only
 - **Data da decisão inicial:** 2026-08-20
 - **Decisão de provedor revisada:** 2026-08-20
+- **Decisão de fonte de localização revisada:** 2026-08-20
 
 ## Contexto
 
@@ -22,9 +23,19 @@ Parte relevante da infraestrutura técnica permaneceu no código:
 - `RoutePointFilter`;
 - `WorkoutRouteAccumulator`;
 - contratos `WorkoutLocationSource`;
-- implementação Android baseada em `LocationManager.GPS_PROVIDER`;
+- implementação Android histórica baseada em `LocationManager.GPS_PROVIDER`;
 - infraestrutura histórica de foreground service e persistência de sessão/rota;
 - permissões de localização e foreground service no manifesto.
+
+Durante a execução da `026-07`, a fonte de coleta da PoC foi alinhada à
+`FusedLocationProviderClient`. O objetivo continua sendo validar GPS nativo do
+aparelho, mas a API efetiva de coleta pode combinar GPS, rede móvel, Wi-Fi,
+cache de localização e sensores disponíveis. Essa troca substitui o registro
+manual de `GPS_PROVIDER`/`NETWORK_PROVIDER` na variante debug; não altera a
+fonte produtiva, não reativa a política phone e não transforma Google Play
+Services em dependência de produção. A dependência
+`com.google.android.gms:play-services-location:21.3.0` permanece somente em
+`debugImplementation`.
 
 Entretanto, o comportamento vigente mantém treinos iniciados pelo celular explicitamente descontinuados por `PhoneWorkoutPolicy`, e `AGENTS.md` proíbe expansão de GPS, rota e mapa sem nova decisão explícita.
 
@@ -61,7 +72,8 @@ Validar fisicamente que o Champion Companion consegue:
 
 1. renderizar mapa via MapLibre Compose dentro da UI Compose;
 2. carregar mapa-base vetorial da instância pública do OpenFreeMap;
-3. obter localização precisa pelo GPS do aparelho;
+3. obter localização precisa do aparelho, mantendo GPS nativo como objetivo e
+   usando uma API fused debug-only para a coleta;
 4. reutilizar os contratos puros existentes de readiness e filtragem quando aplicável;
 5. representar a posição atual no mapa;
 6. acumular pontos aceitos durante deslocamento real;
@@ -148,10 +160,16 @@ Versões, termos e disponibilidade devem ser novamente confirmados quando a task
 - `docs/specs/005-native-ble-poc.md`;
 - `docs/specs/013-app-workouts-gps-route.md`;
 - `docs/specs/024-refatoracao-visual-google-health.md`;
+- `docs/decisions/adr-024-maplibre-openfreemap-gps-poc.md`;
+- `gradle/libs.versions.toml` e `app/build.gradle.kts` para o isolamento das
+  dependências debug;
 - `app/src/main/java/.../core/model/WorkoutRoute.kt`;
 - `app/src/main/java/.../core/location/RoutePointFilter.kt`;
 - `app/src/main/java/.../core/location/WorkoutLocationSource.kt`;
-- `app/src/main/java/.../core/location/android/AndroidWorkoutLocationSource.kt`.
+- `app/src/main/java/.../core/location/android/AndroidWorkoutLocationSource.kt`
+  como referência histórica da fonte produtiva;
+- `app/src/debug/java/.../feature/gpspoc/GpsMapPocLocationSource.kt` como fonte
+  efetiva da PoC.
 
 A implementação deve atualizar `AGENTS.md` e `current-baseline.md` antes ou junto do código para registrar a exceção explícita desta PoC.
 
@@ -237,7 +255,10 @@ Sem:
 - affordance técnica de acesso na página de Exercícios somente no build debug;
 - tela Compose específica da PoC;
 - solicitação de localização precisa;
-- GPS via `LocationManager.GPS_PROVIDER`;
+- GPS nativo como objetivo, com `FusedLocationProviderClient` debug-only como
+  API efetiva de coleta;
+- combinação de GPS, rede móvel, Wi-Fi, cache e sensores disponíveis pelo fused;
+- seed recente via `lastLocation`, sem inclusão automática na rota;
 - readiness;
 - precisão horizontal;
 - filtragem de pontos;
@@ -352,10 +373,13 @@ do mapa/GPS/rota e na confirmação sanitizada durante as subtarefas posteriores
 flowchart TD
     UI[GpsMapPocScreen] --> C[GpsMapPocCoordinator]
 
-    C --> GPS[GpsMapPocLocationSource]
-    GPS --> LM[Android LocationManager GPS_PROVIDER]
+    C --> SOURCE[GpsMapPocLocationSource]
+    SOURCE --> FUSED[FusedLocationProviderClient<br/>debug-only]
+    FUSED --> INPUT[GPS + rede móvel + Wi-Fi + cache + sensores]
+    FUSED --> REQUEST[HIGH_ACCURACY<br/>1 s / 0 m]
+    FUSED --> SEED[lastLocation recente]
 
-    GPS --> READY[GpsReadiness]
+    SOURCE --> READY[GpsReadiness]
 
     C --> FILTER[RoutePointFilter]
     FILTER --> STATE[GpsMapPocUiState]
@@ -376,20 +400,39 @@ Não alterar o binding produtivo de `LocationModule`.
 
 Não utilizar `WorkoutRecordingService`.
 
-Criar uma fonte mínima debug-only utilizando:
+O objetivo permanece validar GPS nativo do aparelho. Nesta PoC, “GPS nativo”
+descreve o objetivo de localização no dispositivo; não exige registro manual
+direto de um provider Android. A fonte mínima debug-only utiliza:
 
 ```text
-LocationManager.GPS_PROVIDER
+FusedLocationProviderClient
 ```
 
-com direção inicial equivalente ao código histórico:
+com `Priority.PRIORITY_HIGH_ACCURACY` e solicitação contínua configurada como:
 
 ```text
 intervalo: 1.000 ms
+intervalo mínimo: 1.000 ms
 distância mínima solicitada: 0 m
 ```
 
-Essa fonte deve produzir dados suficientes para alimentar os contratos puros existentes.
+O fused pode combinar GPS, rede móvel, Wi-Fi, cache de localização e sensores
+disponíveis para produzir os fixes. `lastLocation` recente e válido pode ser
+usado para aquecer readiness e posição corrente, mas nunca entra
+automaticamente na rota antes de `Iniciar`. O mesmo candidate observado pela
+fonte alimenta posição corrente, readiness e, após o início explícito, o filtro
+da rota.
+
+Não registrar manualmente `LocationManager.GPS_PROVIDER` ou
+`LocationManager.NETWORK_PROVIDER` como callbacks concorrentes. O
+`LocationManager` permanece apenas como leitura do estado global de localização
+(`isLocationEnabled`) para separar serviço desativado de indisponibilidade da
+fonte fused.
+
+Essa API de coleta pertence exclusivamente ao source set debug. A dependência
+`com.google.android.gms:play-services-location:21.3.0` deve ficar em
+`debugImplementation`; a variante release não resolve fused e não recebe
+entrypoint da PoC. A escolha não introduz segredo, token, API key ou credencial.
 
 Campos relevantes:
 
@@ -833,6 +876,17 @@ Dependência efetiva revalidada na `026-02`:
 org.maplibre.compose:maplibre-compose:0.14.0
 ```
 
+Dependência de localização adotada na `026-07`:
+
+```text
+com.google.android.gms:play-services-location:21.3.0
+```
+
+`play-services-location` permanece somente em `debugImplementation`. A
+variante release não contém a dependência fused, o entrypoint ou um `Intent`
+executável da PoC. Nenhuma conta, token, API key, segredo ou credencial de mapa
+ou localização é necessária.
+
 A versão `0.13.0` constava no planejamento inicial. A `026-02` confirmou
 `0.14.0` como release estável vigente no Maven Central. Não usar snapshot nesta
 PoC sem decisão explícita posterior.
@@ -848,11 +902,14 @@ Não adicionar:
 Objetivo de isolamento:
 
 ```text
-debug → possui entrypoint da PoC
-release → não possui entrypoint da PoC
+debug → possui entrypoint e dependências da PoC
+release → não possui entrypoint nem dependência fused da PoC
 ```
 
-Se `debugImplementation` for tecnicamente compatível com o source set escolhido, preferi-lo. Se não for, a dependência pode estar no grafo principal desde que a superfície permaneça debug-only e isso seja registrado em `026-02`; não introduzir arquitetura artificial apenas para ocultar uma dependência inerte.
+`debugImplementation` é a configuração efetiva para MapLibre Compose e
+`play-services-location` nesta PoC. Não promover a dependência fused ao grafo
+principal para ocultar a restrição de variante; qualquer mudança futura exige
+nova decisão explícita.
 
 Continuam válidos:
 
@@ -898,6 +955,13 @@ Não sincronizar rota.
 Não enviar rota explicitamente a API própria ou ao provedor cartográfico.
 
 O mapa-base exige comunicação de rede com OpenFreeMap e infraestrutura associada, incluindo eventual CDN. Isso deve ser reavaliado antes de promover a PoC a feature definitiva.
+
+A coleta fused pode combinar sinais de GPS, rede móvel, Wi-Fi, cache e sensores
+do aparelho. Essa possibilidade melhora o aquecimento e a disponibilidade do
+fix, mas não autoriza persistência, upload ou leitura de localização fora do
+fluxo efêmero da PoC. Qualquer promoção produtiva deverá reavaliar dependência,
+privacidade, disponibilidade de Google Play Services e comportamento por
+fabricante.
 
 ## Evidências
 
@@ -984,8 +1048,9 @@ Background, tela apagada, offline map e process death não fazem parte do gate d
 8. Estilo inicial `Positron` é utilizado ou desvio para `Liberty` é documentado.
 9. Nenhuma conta, cartão, forma de pagamento, token ou API key de mapa é exigida.
 10. Atribuição cartográfica exigida permanece visível.
-11. GPS preciso é obtido por fluxo controlado pelo Champion Companion.
-12. O mesmo fluxo de GPS alimenta posição atual e rota.
+11. A localização precisa é obtida por fluxo fused controlado pelo Champion
+    Companion, mantendo GPS nativo como objetivo da validação.
+12. O mesmo fluxo de localização alimenta posição atual e rota.
 13. Readiness distingue pelo menos aguardando, pronto, perdido e indisponível.
 14. Início só ocorre após ação explícita e GPS aceitável.
 15. Pontos anteriores ao início não entram na rota.
@@ -1193,7 +1258,8 @@ A Spec 026 termina quando:
 - MapLibre Compose renderiza no aparelho real;
 - OpenFreeMap fornece o mapa-base sem credenciais ou pagamento;
 - atribuição exigida está preservada;
-- GPS preciso alimenta o estado da PoC;
+- localização precisa, coletada pela API fused debug-only, alimenta o estado da
+  PoC e mantém GPS nativo como objetivo;
 - pontos aceitos produzem rota crescente em tempo real;
 - a posição atual é derivada da mesma fonte;
 - follow e recentralização funcionam;

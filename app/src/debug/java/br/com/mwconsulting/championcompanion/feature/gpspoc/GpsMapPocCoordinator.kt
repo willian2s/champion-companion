@@ -12,7 +12,9 @@ import br.com.mwconsulting.championcompanion.core.model.GpsServiceState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointFilterInput
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointCandidate
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointRejectionReason
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +38,7 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
     private var routeId: WorkoutRouteId? = null
     private var nextSequence = 0L
     private var previousAcceptedPoint: br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint? = null
+    private var captureStartedAt: Instant? = null
     private var captureActive = false
     private var isClosed = false
 
@@ -63,10 +66,11 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
             !current.gpsAccuracyQuality.isStartable()
         ) return
 
-        runtimeGeneration += 1
+        // Keep preparation runtime alive; routeId and sequence isolate capture cycle.
         routeId = WorkoutRouteId(UUID.randomUUID())
         nextSequence = 0L
         previousAcceptedPoint = null
+        captureStartedAt = Instant.now()
         captureActive = true
         mutableState.update {
             it.copy(
@@ -78,31 +82,54 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
                 rejectionCounts = emptyMap(),
                 routePoints = emptyList(),
                 currentPoint = null,
+                followUser = true,
             )
         }
-        restartLocationRuntime()
     }
 
     fun stop() {
+        if (isClosed) return
+        val current = state.value
+        if (current.status != GpsMapPocStatus.Tracking &&
+            current.status != GpsMapPocStatus.GpsLost
+        ) return
         captureActive = false
+        captureStartedAt = null
+        val stoppedGeneration = runtimeGeneration
+        locationSource.stop(stoppedGeneration)
+        runtimeGeneration += 1
         mutableState.update { current ->
-            if (current.status == GpsMapPocStatus.Tracking ||
-                current.status == GpsMapPocStatus.GpsLost
-            ) {
-                current.copy(status = GpsMapPocStatus.Stopped)
-            } else {
-                current
-            }
+            current.copy(
+                status = GpsMapPocStatus.Stopped,
+                followUser = false,
+            )
         }
     }
 
-    /** Câmera pertence à 026-06; a ação mantém contrato seguro até lá. */
-    fun recenter() = Unit
+    fun recenter() {
+        if (isClosed || state.value.currentPosition == null) return
+        mutableState.update { current ->
+            current.copy(
+                followUser = current.status == GpsMapPocStatus.Tracking ||
+                    current.status == GpsMapPocStatus.GpsLost,
+                recenterRequestId = current.recenterRequestId + 1,
+            )
+        }
+    }
+
+    fun onManualCameraGesture() {
+        if (isClosed) return
+        mutableState.update { current ->
+            if (current.followUser) current.copy(followUser = false) else current
+        }
+    }
 
     fun clear() {
         val current = state.value
         if (isClosed || !current.status.canClear()) return
         captureActive = false
+        locationSource.stop(runtimeGeneration)
+        captureStartedAt = null
         routeId = null
         nextSequence = 0L
         previousAcceptedPoint = null
@@ -120,6 +147,9 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
                 rejectionCounts = emptyMap(),
                 routePoints = emptyList(),
                 currentPoint = null,
+                currentPosition = null,
+                followUser = false,
+                recenterRequestId = 0L,
             )
         }
         if (current.status != GpsMapPocStatus.PermissionRequired) restartLocationRuntime()
@@ -172,42 +202,81 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
     }
 
     private fun onPermission(permission: GpsPermissionState) {
-        if (permission != GpsPermissionState.PRECISE) {
-            mutableState.update {
-                it.copy(
-                    status = if (it.status == GpsMapPocStatus.Tracking) {
-                        GpsMapPocStatus.GpsLost
-                    } else {
-                        GpsMapPocStatus.PermissionRequired
-                    },
+        mutableState.update { current ->
+            if (permission != GpsPermissionState.PRECISE) {
+                current.copy(
+                    status = if (captureActive) GpsMapPocStatus.GpsLost else GpsMapPocStatus.PermissionRequired,
                     gpsReadiness = permission.readinessState(),
+                    horizontalAccuracyMeters = null,
+                    currentPosition = null,
                 )
+            } else if (current.gpsReadiness in setOf(
+                    GpsMapPocGpsReadiness.PermissionRequired,
+                    GpsMapPocGpsReadiness.PrecisePermissionRequired,
+                )
+            ) {
+                current.copy(
+                    status = if (captureActive) GpsMapPocStatus.GpsLost else GpsMapPocStatus.SearchingGps,
+                    gpsReadiness = GpsMapPocGpsReadiness.Searching,
+                )
+            } else {
+                current
             }
         }
     }
 
     private fun onService(service: GpsServiceState) {
-        if (service == GpsServiceState.UNAVAILABLE) {
-            mutableState.update {
-                it.copy(
-                    status = if (it.status == GpsMapPocStatus.Tracking) {
-                        GpsMapPocStatus.GpsLost
-                    } else {
-                        GpsMapPocStatus.Error(GpsMapPocError.GpsUnavailable)
-                    },
+        mutableState.update { current ->
+            when (service) {
+                GpsServiceState.UNAVAILABLE -> current.copy(
+                    status = if (captureActive) GpsMapPocStatus.GpsLost else GpsMapPocStatus.Error(GpsMapPocError.GpsUnavailable),
                     gpsReadiness = GpsMapPocGpsReadiness.Unavailable,
+                    horizontalAccuracyMeters = null,
+                    followUser = false,
                 )
+
+                GpsServiceState.DISABLED -> current.copy(
+                    status = if (captureActive) GpsMapPocStatus.GpsLost else GpsMapPocStatus.Error(GpsMapPocError.LocationDisabled),
+                    gpsReadiness = GpsMapPocGpsReadiness.LocationDisabled,
+                    horizontalAccuracyMeters = null,
+                    followUser = false,
+                )
+
+                GpsServiceState.ENABLED -> if (current.gpsReadiness in setOf(
+                        GpsMapPocGpsReadiness.LocationDisabled,
+                        GpsMapPocGpsReadiness.Unavailable,
+                    )
+                ) {
+                    current.copy(
+                        status = if (captureActive) GpsMapPocStatus.GpsLost else GpsMapPocStatus.SearchingGps,
+                        gpsReadiness = GpsMapPocGpsReadiness.Searching,
+                    )
+                } else {
+                    current
+                }
             }
         }
     }
 
     private fun onReadiness(readiness: GpsReadiness) {
         mutableState.update { current ->
-            val nextReadiness = readiness.toUiReadiness()
+            val transientLoss = readiness.state == GpsReadinessState.LOST &&
+                readiness.fixAge?.let { it <= Duration.ofSeconds(10) } == true
+            val nextReadiness = if (transientLoss) {
+                GpsMapPocGpsReadiness.Searching
+            } else {
+                readiness.toUiReadiness()
+            }
+            val fixExpired = readiness.fixAge?.let { it > Duration.ofSeconds(10) } == true
             current.copy(
                 status = current.statusFor(readiness, captureActive),
                 gpsReadiness = nextReadiness,
-                gpsAccuracyQuality = readiness.accuracyQuality,
+                gpsAccuracyQuality = if (fixExpired) GpsAccuracyQuality.UNKNOWN else readiness.accuracyQuality,
+                horizontalAccuracyMeters = if (fixExpired) null else current.horizontalAccuracyMeters,
+                followUser = if (fixExpired) false else current.followUser,
+                currentPosition = if (readiness.state == GpsReadinessState.PERMISSION_REQUIRED ||
+                    readiness.state == GpsReadinessState.PRECISE_PERMISSION_REQUIRED
+                ) null else current.currentPosition,
             )
         }
     }
@@ -215,15 +284,35 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
     private fun onFix(event: WorkoutLocationEvent.Fix) {
         val candidate = event.candidate
         val current = state.value
+        if (current.status == GpsMapPocStatus.Stopped) return
         mutableState.update {
+            val nextPosition = candidate.toCurrentPosition(it.currentPosition?.sampledAt)
             it.copy(
                 horizontalAccuracyMeters = candidate.horizontalAccuracyMeters.toFloat(),
                 receivedFixCount = it.receivedFixCount + 1,
+                currentPosition = nextPosition ?: it.currentPosition,
+                followUser = when {
+                    nextPosition == null -> it.followUser
+                    it.status == GpsMapPocStatus.GpsLost -> true
+                    it.currentPosition == null && !captureActive -> true
+                    else -> it.followUser
+                },
             )
         }
         if (!captureActive) return
 
         val activeRouteId = routeId ?: return
+        if (captureStartedAt?.isAfter(candidate.sampledAt) == true) {
+            mutableState.update {
+                it.copy(
+                    rejectedPointCount = it.rejectedPointCount + 1,
+                    rejectionCounts = it.rejectionCounts.increment(
+                        WorkoutRoutePointRejectionReason.STALE,
+                    ),
+                )
+            }
+            return
+        }
         val result = RoutePointFilter.filter(
             WorkoutRoutePointFilterInput(
                 pointId = WorkoutRoutePointId(UUID.randomUUID()),
@@ -260,14 +349,37 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
             }
         }
     }
+
+    private fun WorkoutRoutePointCandidate.toCurrentPosition(
+        previousSampledAt: Instant?,
+    ): GpsMapPocCurrentPosition? {
+        if (isMock || !latitudeDegrees.isFinite() || !longitudeDegrees.isFinite() ||
+            latitudeDegrees !in -90.0..90.0 || longitudeDegrees !in -180.0..180.0 ||
+            !horizontalAccuracyMeters.isFinite() || horizontalAccuracyMeters <= 0.0 ||
+            speedMetersPerSecond?.let { !it.isFinite() || it < 0.0 || it > 12.0 } == true ||
+            bearingDegrees?.let { !it.isFinite() || it !in 0.0..<360.0 } == true
+        ) return null
+        val age = Duration.between(sampledAt, Instant.now())
+        if (age.isNegative || age > Duration.ofSeconds(10) || horizontalAccuracyMeters > 50.0 ||
+            previousSampledAt?.let { !sampledAt.isAfter(it) } == true
+        ) {
+            return null
+        }
+        return GpsMapPocCurrentPosition(
+            id = UUID.randomUUID(),
+            sampledAt = sampledAt,
+            latitudeDegrees = latitudeDegrees,
+            longitudeDegrees = longitudeDegrees,
+        )
+    }
 }
 
 private fun GpsPermissionState.readinessState(): GpsMapPocGpsReadiness = when (this) {
     GpsPermissionState.APPROXIMATE -> GpsMapPocGpsReadiness.PrecisePermissionRequired
     GpsPermissionState.NOT_REQUESTED,
     GpsPermissionState.DENIED,
-    GpsPermissionState.PRECISE,
     -> GpsMapPocGpsReadiness.PermissionRequired
+    GpsPermissionState.PRECISE -> GpsMapPocGpsReadiness.Searching
 }
 
 private fun GpsReadiness.toUiReadiness(): GpsMapPocGpsReadiness = when (state) {
@@ -285,6 +397,9 @@ private fun GpsMapPocUiState.statusFor(
     captureActive: Boolean,
 ): GpsMapPocStatus = when {
     captureActive && readiness.state == GpsReadinessState.READY -> GpsMapPocStatus.Tracking
+    captureActive && status == GpsMapPocStatus.Tracking &&
+        readiness.state == GpsReadinessState.LOST &&
+        readiness.fixAge?.let { it <= Duration.ofSeconds(10) } == true -> GpsMapPocStatus.Tracking
     captureActive -> GpsMapPocStatus.GpsLost
     status == GpsMapPocStatus.Stopped -> status
     readiness.state == GpsReadinessState.PERMISSION_REQUIRED ||

@@ -3,9 +3,7 @@ package br.com.mwconsulting.championcompanion.feature.gpspoc
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.GnssStatus
 import android.location.Location
-import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Handler
@@ -15,32 +13,44 @@ import br.com.mwconsulting.championcompanion.core.location.GpsReadinessEvaluator
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationEvent
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSource
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationStartResult
-import br.com.mwconsulting.championcompanion.core.model.GnssQualitySupplement
 import br.com.mwconsulting.championcompanion.core.model.GpsPermissionState
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.GpsReadinessInput
+import br.com.mwconsulting.championcompanion.core.model.GpsReadinessPolicy
 import br.com.mwconsulting.championcompanion.core.model.GpsServiceState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointCandidate
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.OnCompleteListener
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Executor
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-/** Fonte GPS independente do binding produtivo e limitada à variante debug. */
+/** Fonte fused independente do binding produtivo e limitada à variante debug. */
 @Suppress("MissingPermission")
 internal class GpsMapPocLocationSource(
     context: Context,
     private val locationManager: LocationManager =
         checkNotNull(context.getSystemService(LocationManager::class.java)),
+    private val fusedLocationClient: FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(context),
     private val handler: Handler = Handler(Looper.getMainLooper()),
     private val clock: () -> Instant = Instant::now,
     private val elapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
 ) : WorkoutLocationSource {
     private val applicationContext = context.applicationContext
+    private val mainExecutor = Executor { command -> handler.post(command) }
     private val lock = Any()
     private val mutableEvents = MutableSharedFlow<WorkoutLocationEvent>(
+        replay = 1,
         extraBufferCapacity = EVENT_BUFFER_CAPACITY,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
@@ -100,89 +110,142 @@ internal class GpsMapPocLocationSource(
             return
         }
 
-        val listener = locationListener(runtime)
-        runtime.locationListener = listener
-        try {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                LOCATION_INTERVAL_MILLIS,
-                MINIMUM_DISTANCE_METERS,
-                listener,
-                handler.looper,
-            )
-            runtime.locationRegistered = true
-        } catch (_: SecurityException) {
-            runtime.permission = permissionState()
-            emit(WorkoutLocationEvent.Permission(runtime.generation, runtime.permission))
-            emitReadiness(runtime)
-            cleanup(runtime)
-            return
-        } catch (_: IllegalArgumentException) {
-            runtime.service = GpsServiceState.UNAVAILABLE
-            emit(WorkoutLocationEvent.Service(runtime.generation, runtime.service))
-            emitReadiness(runtime)
-            cleanup(runtime)
-            return
-        } catch (_: RuntimeException) {
-            runtime.service = GpsServiceState.UNAVAILABLE
-            emit(WorkoutLocationEvent.Service(runtime.generation, runtime.service))
-            emitReadiness(runtime)
-            cleanup(runtime)
-            return
-        }
-
-        registerGnss(runtime)
+        registerFusedUpdates(runtime)
+        requestLastLocation(runtime)
         scheduleTick(runtime)
     }
 
-    private fun locationListener(runtime: Runtime) = object : LocationListener {
-        override fun onLocationChanged(location: Location) {
-            if (!isActive(runtime)) return
-            val candidate = location.toCandidate(runtime.generation)
-            runtime.lastCandidate = candidate
-            runtime.lastFixElapsedRealtimeNanos = location.elapsedRealtimeNanos
-            emit(WorkoutLocationEvent.Fix(runtime.generation, candidate))
-            emitReadiness(runtime)
-        }
+    private fun registerFusedUpdates(runtime: Runtime) {
+        if (runtime.fusedRegistered || runtime.fusedRegistrationPending) return
 
-        override fun onProviderEnabled(provider: String) {
-            if (provider == LocationManager.GPS_PROVIDER && isActive(runtime)) {
-                updateEnvironment(runtime, force = false)
-            }
-        }
-
-        override fun onProviderDisabled(provider: String) {
-            if (provider == LocationManager.GPS_PROVIDER && isActive(runtime)) {
-                updateEnvironment(runtime, force = false)
-            }
+        val callback = locationCallback(runtime)
+        runtime.fusedCallback = callback
+        runtime.fusedRegistrationPending = true
+        try {
+            fusedLocationClient.requestLocationUpdates(
+                LOCATION_REQUEST,
+                callback,
+                handler.looper,
+            ).addOnCompleteListener(
+                mainExecutor,
+                OnCompleteListener<Void> { task ->
+                    if (!isActive(runtime)) return@OnCompleteListener
+                    runtime.fusedRegistrationPending = false
+                    if (task.isSuccessful) {
+                        runtime.fusedRegistered = true
+                        emitReadiness(runtime)
+                    } else {
+                        handleFusedFailure(runtime)
+                    }
+                },
+            )
+        } catch (_: SecurityException) {
+            runtime.permission = permissionState()
+            emit(WorkoutLocationEvent.Permission(runtime.generation, runtime.permission))
+            handleFusedFailure(runtime)
+        } catch (_: RuntimeException) {
+            handleFusedFailure(runtime)
         }
     }
 
-    private fun registerGnss(runtime: Runtime) {
-        val callback = object : GnssStatus.Callback() {
-            override fun onSatelliteStatusChanged(status: GnssStatus) {
-                if (!isActive(runtime)) return
-                runtime.gnss = status.toQualitySupplement()
-                emit(WorkoutLocationEvent.Gnss(runtime.generation, runtime.gnss))
-                emitReadiness(runtime)
-            }
+    private fun requestLastLocation(runtime: Runtime) {
+        if (runtime.lastLocationRequested || runtime.lastLocationPending) return
 
-            override fun onStopped() {
-                if (!isActive(runtime)) return
-                runtime.gnss = null
-                emit(WorkoutLocationEvent.Gnss(runtime.generation, null))
-                emitReadiness(runtime)
+        runtime.lastLocationRequested = true
+        runtime.lastLocationPending = true
+        try {
+            fusedLocationClient.lastLocation.addOnCompleteListener(
+                mainExecutor,
+                OnCompleteListener<Location> { task ->
+                    if (!isActive(runtime)) return@OnCompleteListener
+                    runtime.lastLocationPending = false
+                    if (!task.isSuccessful) {
+                        runtime.lastLocationRequested = false
+                        emitReadiness(runtime)
+                        return@OnCompleteListener
+                    }
+                    val location = try {
+                        task.result
+                    } catch (_: RuntimeException) {
+                        runtime.lastLocationRequested = false
+                        null
+                    }
+                    if (location != null && isRecentSeed(location) &&
+                        location.toCandidate(runtime.generation).isValidSeed(clock())
+                    ) {
+                        emitLocation(runtime, location)
+                    }
+                    emitReadiness(runtime)
+                },
+            )
+        } catch (_: SecurityException) {
+            runtime.lastLocationRequested = false
+            runtime.lastLocationPending = false
+            runtime.permission = permissionState()
+            emit(WorkoutLocationEvent.Permission(runtime.generation, runtime.permission))
+            emitReadiness(runtime)
+        } catch (_: RuntimeException) {
+            runtime.lastLocationRequested = false
+            runtime.lastLocationPending = false
+            emitReadiness(runtime)
+        }
+    }
+
+    private fun locationCallback(runtime: Runtime) = object : LocationCallback() {
+        override fun onLocationResult(result: LocationResult) {
+            if (!isActive(runtime)) return
+            result.locations.forEach { location -> emitLocation(runtime, location) }
+        }
+    }
+
+    private fun isRecentSeed(location: Location): Boolean {
+        val nowElapsed = elapsedRealtimeNanos()
+        val observedAt = location.elapsedRealtimeNanos
+        if (observedAt > 0L && nowElapsed >= observedAt) {
+            return Duration.ofNanos(nowElapsed - observedAt) <= RECENT_FIX_MAXIMUM_AGE
+        }
+
+        val sampledAt = Instant.ofEpochMilli(location.time)
+        val now = clock()
+        return sampledAt <= now && Duration.between(sampledAt, now) <= RECENT_FIX_MAXIMUM_AGE
+    }
+
+    private fun emitLocation(runtime: Runtime, location: Location) {
+        val observedAt = location.elapsedRealtimeNanos
+        val previousObservedAt = runtime.lastFixElapsedRealtimeNanos
+        if (observedAt > 0L && previousObservedAt != null && previousObservedAt > 0L &&
+            observedAt < previousObservedAt
+        ) return
+
+        val candidate = location.toCandidate(runtime.generation)
+        if (!candidate.isValidForReadiness(clock())) {
+            runtime.lastCandidate = null
+            runtime.lastFixElapsedRealtimeNanos = null
+            emitReadiness(runtime)
+            return
+        }
+        runtime.lastCandidate = candidate
+        if (observedAt > 0L) runtime.lastFixElapsedRealtimeNanos = observedAt
+        emit(WorkoutLocationEvent.Fix(runtime.generation, candidate))
+        emitReadiness(runtime)
+    }
+
+    private fun handleFusedFailure(runtime: Runtime) {
+        runtime.fusedRegistrationPending = false
+        runtime.fusedRegistered = false
+        runtime.fusedCallback?.let { callback ->
+            try {
+                fusedLocationClient.removeLocationUpdates(callback)
+            } catch (_: SecurityException) {
+                // Revogação concorrente não impede retry no próximo tick.
+            } catch (_: RuntimeException) {
+                // Falha de cleanup não deve derrubar a PoC.
             }
         }
-        runtime.gnssCallback = callback
-        runtime.gnssRegistered = try {
-            locationManager.registerGnssStatusCallback(callback, handler)
-        } catch (_: SecurityException) {
-            false
-        } catch (_: RuntimeException) {
-            false
-        }
-        if (!runtime.gnssRegistered) emit(WorkoutLocationEvent.Gnss(runtime.generation, null))
+        runtime.fusedCallback = null
+        runtime.service = GpsServiceState.UNAVAILABLE
+        emit(WorkoutLocationEvent.Service(runtime.generation, runtime.service))
+        emitReadiness(runtime)
     }
 
     private fun scheduleTick(runtime: Runtime) {
@@ -194,11 +257,9 @@ internal class GpsMapPocLocationSource(
                     cleanup(runtime)
                     return
                 }
-                if (runtime.service == GpsServiceState.ENABLED && !runtime.locationRegistered) {
-                    runtime.tick = null
-                    handler.removeCallbacks(this)
-                    register(runtime)
-                    return
+                if (runtime.service == GpsServiceState.ENABLED) {
+                    registerFusedUpdates(runtime)
+                    requestLastLocation(runtime)
                 }
                 handler.postDelayed(this, READINESS_INTERVAL_MILLIS)
             }
@@ -229,12 +290,12 @@ internal class GpsMapPocLocationSource(
             GpsReadinessInput(
                 permission = runtime.permission,
                 services = runtime.service,
-                fixObservedAt = null,
+                fixObservedAt = candidate?.sampledAt,
                 evaluatedAt = clock(),
                 horizontalAccuracyMeters = candidate?.horizontalAccuracyMeters,
                 isMock = candidate?.isMock == true,
                 wasPreviouslyReady = runtime.wasPreviouslyReady,
-                gnss = runtime.gnss,
+                gnss = null,
                 fixAge = runtime.fixAgeAt(elapsedRealtimeNanos()),
             ),
         )
@@ -246,26 +307,18 @@ internal class GpsMapPocLocationSource(
         if (runtime == null || runtime.cleaned) return
         runtime.cleaned = true
         runtime.tick?.let(handler::removeCallbacks)
-        if (runtime.locationRegistered) {
-            runtime.locationListener?.let { listener ->
-                try {
-                    locationManager.removeUpdates(listener)
-                } catch (_: SecurityException) {
-                    // Revogação concorrente não impede cleanup restante.
-                } catch (_: RuntimeException) {
-                    // Provider indisponível não impede cleanup de GNSS.
-                }
+        runtime.fusedCallback?.let { callback ->
+            try {
+                fusedLocationClient.removeLocationUpdates(callback)
+            } catch (_: SecurityException) {
+                // Permission revogada não impede o restante do cleanup.
+            } catch (_: RuntimeException) {
+                // Falha de cleanup não deve derrubar a PoC.
             }
         }
-        if (runtime.gnssRegistered) {
-            runtime.gnssCallback?.let { callback ->
-                try {
-                    locationManager.unregisterGnssStatusCallback(callback)
-                } catch (_: RuntimeException) {
-                    // Alguns providers já removem callback ao revogar permissão.
-                }
-            }
-        }
+        runtime.fusedCallback = null
+        runtime.fusedRegistered = false
+        runtime.fusedRegistrationPending = false
     }
 
     private fun permissionState(): GpsPermissionState {
@@ -277,25 +330,16 @@ internal class GpsMapPocLocationSource(
         return if (coarse) GpsPermissionState.APPROXIMATE else GpsPermissionState.DENIED
     }
 
-    @Suppress("DEPRECATION")
-    private fun serviceState(): GpsServiceState {
-        val hasGpsProvider = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                locationManager.hasProvider(LocationManager.GPS_PROVIDER)
-            } else {
-                locationManager.getProvider(LocationManager.GPS_PROVIDER) != null
-            }
-        } catch (_: RuntimeException) {
-            false
+    private fun serviceState(): GpsServiceState = try {
+        if (locationManager.isLocationEnabled) {
+            GpsServiceState.ENABLED
+        } else {
+            GpsServiceState.DISABLED
         }
-        if (!hasGpsProvider) return GpsServiceState.UNAVAILABLE
-        return try {
-            if (!locationManager.isLocationEnabled ||
-                !locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-            ) GpsServiceState.DISABLED else GpsServiceState.ENABLED
-        } catch (_: RuntimeException) {
-            GpsServiceState.UNAVAILABLE
-        }
+    } catch (_: SecurityException) {
+        GpsServiceState.UNAVAILABLE
+    } catch (_: RuntimeException) {
+        GpsServiceState.UNAVAILABLE
     }
 
     private fun isActive(runtime: Runtime): Boolean = synchronized(lock) {
@@ -308,7 +352,7 @@ internal class GpsMapPocLocationSource(
 
     private fun Runtime.fixAgeAt(nowElapsedRealtimeNanos: Long): Duration? {
         val observed = lastFixElapsedRealtimeNanos ?: return null
-        if (observed < 0L || nowElapsedRealtimeNanos < observed) return null
+        if (observed <= 0L || nowElapsedRealtimeNanos < observed) return null
         return Duration.ofNanos(nowElapsedRealtimeNanos - observed)
     }
 
@@ -328,6 +372,15 @@ internal class GpsMapPocLocationSource(
             runtimeGeneration = runtimeGeneration,
         )
 
+    private fun WorkoutRoutePointCandidate.isValidForReadiness(now: Instant): Boolean =
+        sampledAt <= now && latitudeDegrees.isFinite() && longitudeDegrees.isFinite() &&
+            latitudeDegrees in -90.0..90.0 && longitudeDegrees in -180.0..180.0 &&
+            horizontalAccuracyMeters.isFinite() && horizontalAccuracyMeters > 0.0
+
+    private fun WorkoutRoutePointCandidate.isValidSeed(now: Instant): Boolean =
+        isValidForReadiness(now) && !isMock &&
+            horizontalAccuracyMeters <= GpsReadinessPolicy().weakMaximumAccuracyMeters
+
     @Suppress("DEPRECATION")
     private fun Location.isMockLocation(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         isMock
@@ -335,44 +388,33 @@ internal class GpsMapPocLocationSource(
         isFromMockProvider
     }
 
-    private fun GnssStatus.toQualitySupplement(): GnssQualitySupplement {
-        var usedInFix = 0
-        var cn0Total = 0.0
-        var cn0Count = 0
-        for (index in 0 until satelliteCount) {
-            if (usedInFix(index)) usedInFix += 1
-            val cn0 = getCn0DbHz(index).toDouble()
-            if (cn0.isFinite() && cn0 >= 0.0) {
-                cn0Total += cn0
-                cn0Count += 1
-            }
-        }
-        return GnssQualitySupplement(
-            visibleSatelliteCount = satelliteCount,
-            usedInFixSatelliteCount = usedInFix,
-            averageCn0DbHz = if (cn0Count == 0) null else cn0Total / cn0Count,
-        )
-    }
-
     private class Runtime(val generation: Long) {
         var permission = GpsPermissionState.DENIED
         var service = GpsServiceState.UNAVAILABLE
         var lastCandidate: WorkoutRoutePointCandidate? = null
         var lastFixElapsedRealtimeNanos: Long? = null
-        var gnss: GnssQualitySupplement? = null
         var wasPreviouslyReady = false
-        var locationListener: LocationListener? = null
-        var gnssCallback: GnssStatus.Callback? = null
+        var fusedCallback: LocationCallback? = null
         var tick: Runnable? = null
-        var locationRegistered = false
-        var gnssRegistered = false
+        var fusedRegistered = false
+        var fusedRegistrationPending = false
+        var lastLocationRequested = false
+        var lastLocationPending = false
         var cleaned = false
     }
 
     private companion object {
+        val LOCATION_REQUEST: LocationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            LOCATION_INTERVAL_MILLIS,
+        ).setMinUpdateIntervalMillis(MIN_UPDATE_INTERVAL_MILLIS)
+            .setMinUpdateDistanceMeters(MINIMUM_DISTANCE_METERS)
+            .build()
         const val LOCATION_INTERVAL_MILLIS = 1_000L
+        const val MIN_UPDATE_INTERVAL_MILLIS = 1_000L
         const val READINESS_INTERVAL_MILLIS = 1_000L
         const val MINIMUM_DISTANCE_METERS = 0f
         const val EVENT_BUFFER_CAPACITY = 64
+        val RECENT_FIX_MAXIMUM_AGE: Duration = GpsReadinessPolicy().recentFixMaximumAge
     }
 }

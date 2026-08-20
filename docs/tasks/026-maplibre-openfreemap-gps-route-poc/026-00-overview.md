@@ -1,8 +1,8 @@
 # 026 — Overview: PoC MapLibre + OpenFreeMap com GPS e rota
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 5/8 subtarefas concluídas
+- **Progresso:** 6/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,9 @@ MapLibre Compose 0.14.0
         +
 OpenFreeMap public instance
         +
-GPS nativo do Champion Companion
+GPS nativo do aparelho (objetivo)
+        via
+FusedLocationProviderClient (API de coleta debug-only)
 ```
 
 Premissas atuais:
@@ -24,6 +26,14 @@ Premissas atuais:
 - OpenFreeMap não exige cadastro, API key, token ou pagamento;
 - OpenFreeMap não oferece SLA;
 - atribuição cartográfica deve permanecer;
+- GPS nativo continua sendo objetivo de validação, enquanto fused combina GPS,
+  rede móvel, Wi-Fi, cache e sensores disponíveis para coletar fixes;
+- `FusedLocationProviderClient` usa alta precisão, intervalo de 1 s, intervalo
+  mínimo de 1 s e distância mínima de 0 m;
+- `lastLocation` recente pode aquecer readiness e posição corrente, mas não
+  entra automaticamente na rota antes de `Iniciar`;
+- `com.google.android.gms:play-services-location:21.3.0` fica somente em
+  `debugImplementation`; release não contém fused;
 - `PhoneWorkoutPolicy` continua bloqueando a antiga feature phone;
 - nenhuma rota será persistida nesta PoC;
 - o CTA de acesso fica somente em Exercícios no build debug, dispara `Intent`
@@ -38,7 +48,7 @@ Premissas atuais:
 - [x] [026-03-criar-entrypoint-debug-e-estado.md](026-03-criar-entrypoint-debug-e-estado.md)
 - [x] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
 - [x] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
-- [ ] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
+- [x] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
 - [ ] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
 - [ ] [026-08-fechar-poc-e-registrar-decisao.md](026-08-fechar-poc-e-registrar-decisao.md)
 
@@ -75,6 +85,38 @@ style Positron foram preservados. `git diff --check`, compilação debug, lint,
 builds debug/release e instalação debug passaram. Screenshot neutro já existente
 confirma mapa-base e atribuição; validação física de crescimento da rota,
 responsividade e Logcat sanitizado permanece na 026-07. Não há bloqueios atuais.
+
+026-06 concluída com `CameraState`, follow moderado preservando zoom manual,
+suspensão por gesto, recentralização, stop idempotente com invalidação de geração,
+fit bounds final e reset efêmero incluindo identidade, métricas e nonce de comando.
+Lint, builds, instalação debug e abertura direta da Activity foram confirmados no
+dispositivo `SM-S901E`. O smoke físico completo de pan/zoom, recentralização,
+percurso e fit bounds permanece na 026-07; smoke fused posterior confirmou
+stop/reset e segundo ciclo, sem substituir o gate. Não há bloqueios atuais.
+
+026-07 está em andamento após smoke físico reportar estado stale de permissão,
+readiness lento, perda de GPS ao iniciar, câmera sem centralização e jank na
+navegação. Correções foram aplicadas para preservar runtime quente, replayar
+snapshot GPS, usar último fix recente como seed, separar posição corrente da rota,
+serializar câmera, atualizar GeoJSON de forma assíncrona e separar mapa da rolagem.
+O plano inicial baseado em `LocationManager.GPS_PROVIDER` e a tentativa
+intermediária com registros paralelos de `GPS_PROVIDER`/`NETWORK_PROVIDER` foram
+substituídos por `FusedLocationProviderClient`, com alta precisão, callback de
+1 s, `lastLocation` recente como seed e cleanup explícito. Fused pode combinar
+GPS, rede móvel, Wi-Fi, cache e sensores; `LocationManager` permanece somente
+para observar o estado global de localização. A dependência
+`play-services-location:21.3.0` está somente em `debugImplementation`, sem
+dependência fused no release. `git diff --check`, `app:compileDebugKotlin`,
+`app:lintDebug`, `app:assembleDebug`, builds completos e `dependencyInsight` do
+runtime release passaram.
+
+Smoke físico fused no `SM-S901E`: após tocar `Preparar GPS`, a UI mostrou
+`GPS/PoC Pronto`, precisão de 7 m e 18 fixes; após iniciar, mostrou
+`PoC Capturando`, precisão de 6 m, 29 fixes e 1 ponto aceito. Stop/reset
+funcionaram, e o segundo ciclo voltou a `Capturando` sem contaminação. Essa
+evidência cobre entrega básica fused e ciclo de vida, mas não encerra o gate:
+não houve percurso externo de aproximadamente 500 m, casos negativos ou
+inspeção sanitizada do Logcat. O checklist permanece desmarcado.
 
 ## Ordem
 

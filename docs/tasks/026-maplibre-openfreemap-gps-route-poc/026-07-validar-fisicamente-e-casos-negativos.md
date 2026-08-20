@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `07`
-- **Status:** pending
+- **Status:** in_progress
 
 ## Objetivo
 
@@ -179,3 +179,17 @@ o CTA de Exercícios, pois ADB sozinho não comprova o requisito de acesso exter
 - indisponibilidade do OpenFreeMap durante teste deve ser distinguida de defeito do MapLibre ou GPS;
 - trajeto pessoal é dado sensível; evidência textual deve permanecer agregada;
 - qualidade GPS varia com ambiente; registrar contexto sem afrouxar filtro durante o gate apenas para obter aprovação.
+
+## Execução parcial
+
+- **Status atual:** in_progress; smoke físico fused parcial realizado, mas gate completo ainda bloqueado pelos cenários não exercitados.
+- **Arquivos alterados:** `app/src/debug/java/br/com/mwconsulting/championcompanion/feature/gpspoc/GpsMapPocLocationSource.kt`, `GpsMapPocCoordinator.kt`, `GpsMapPocUiState.kt` e `GpsMapPocScreen.kt`.
+- **Achados físicos reportados:** permissão concedida permanecia apresentada como necessária; readiness demorava apesar de precisão e fixes; `Iniciar` perdia o sinal; câmera não centralizava e `Recentralizar` podia não produzir efeito; navegação apresentava travamentos e disputa com rolagem.
+- **Decisões e desvios:** o runtime de preparação agora permanece ativo no início da captura, isolando ciclos por `routeId`, sequência e fronteira temporal de captura; candidatos anteriores ao toque são descartados da rota. Snapshot de eventos GPS tornou-se replayável; último fix recente pode aquecer readiness sem entrar automaticamente na rota. O plano inicial usava `LocationManager.GPS_PROVIDER`; uma tentativa intermediária registrou `GPS_PROVIDER` e `NETWORK_PROVIDER` em paralelo, mas a fonte atual usa `FusedLocationProviderClient` para combinar GPS, rede móvel, Wi-Fi, cache e sensores disponíveis. A solicitação fused usa alta precisão, intervalo de 1.000 ms, intervalo mínimo coerente e distância mínima de 0 m; `lastLocation` recente e válido aquece readiness/posição sem entrar automaticamente na rota. Posição corrente efêmera foi separada de `routePoints`, com validação de coordenadas, idade, precisão, velocidade, bearing e ordem temporal; posição expirada é removida. Recentralização exige posição disponível, atualização GeoJSON tornou-se assíncrona e mapa foi separado da rolagem vertical dos cards.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`; `./gradlew app:lintDebug`; `./gradlew app:assembleDebug`; comandos anteriores `./gradlew lint assembleDebug assembleRelease`, `./gradlew installDebug`, `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.feature.gpspoc.GpsMapPocActivity` e `adb shell dumpsys activity activities`.
+- **Resultados e evidências:** `git diff --check`, compilação Kotlin debug, lint debug e assemble debug concluíram com sucesso. Evidência física anterior permanece no `SM-S901E` com Android API 36 e Activity em estado `resumed`. Nenhum teste automatizado foi criado. A revisão independente aprovou a correção estrutural para continuar validação, sem classificar o gate como aprovado.
+- **Riscos residuais e bloqueio:** o smoke fused exercitou stop/reset e segundo ciclo, mas ainda não substitui percurso externo de aproximadamente 500 m, avaliação completa de pan/zoom, Recentralizar e fit bounds, casos negativos e inspeção sanitizada do Logcat. `026-07` não pode ser marcada como concluída nem permitir fechamento `026-08` antes dessa evidência.
+- **Ajuste operacional posterior:** a fonte debug foi migrada de registros paralelos em `GPS_PROVIDER`/`NETWORK_PROVIDER` para `FusedLocationProviderClient`, com `LocationRequest` de alta precisão a 1.000 ms, intervalo mínimo coerente, distância mínima de 0 m e callbacks entregues no handler principal. `lastLocation` recente e válido aquece readiness e posição corrente, sem entrar automaticamente na rota. Falhas de `Task`, `SecurityException` e API não encerram o processo; serviço/readiness são atualizados e o tick tenta novamente. Callback fused é removido em stop, clear e close; GNSS ficou `null` sem callback obrigatório.
+- **Build após migração:** `git diff --check`; `./gradlew app:compileDebugKotlin app:lintDebug app:assembleDebug`; `./gradlew lint assembleDebug assembleRelease`; `./gradlew app:dependencyInsight --configuration releaseRuntimeClasspath --dependency play-services-location` concluíram com sucesso. `play-services-location:21.3.0` ficou somente em `debugImplementation`; dependency insight não encontrou a biblioteca no runtime release.
+- **Smoke físico após migração fused:** no `SM-S901E`, após tocar `Preparar GPS`, a UI mostrou `GPS/PoC Pronto`, precisão de 7 m e 18 fixes. Após iniciar, mostrou `PoC Capturando`, precisão de 6 m, 29 fixes e 1 ponto aceito. Stop/reset funcionaram; o segundo ciclo voltou a `Capturando` sem contaminação. Não houve percurso externo de aproximadamente 500 m, casos negativos ou inspeção sanitizada do Logcat.
+- **Status preservado:** `in_progress`; o gate completo do fused continua bloqueado por percurso, casos negativos e Logcat sanitizado não exercitados. O smoke parcial de dois ciclos não foi classificado como aprovação.

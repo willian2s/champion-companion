@@ -3,6 +3,7 @@ package br.com.mwconsulting.championcompanion.feature.gpspoc
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,13 +20,18 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
+import org.maplibre.compose.camera.CameraMoveReason
+import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.expressions.value.LineCap
 import org.maplibre.compose.expressions.value.LineJoin
@@ -36,6 +42,9 @@ import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.GeoJsonOptions
 import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.spatialk.geojson.BoundingBox
+import org.maplibre.spatialk.geojson.Position
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val OPEN_FREE_MAP_POSITRON_STYLE =
     "https://tiles.openfreemap.org/styles/positron"
@@ -46,6 +55,81 @@ fun GpsMapPocScreen(
     onPrepareLocation: () -> Unit,
 ) {
     val state by coordinator.state.collectAsState()
+    val cameraState = rememberCameraState()
+    val moveReason = cameraState.moveReason
+    val lastHandledRecenterRequestId = remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(moveReason) {
+        if (moveReason == CameraMoveReason.GESTURE) {
+            coordinator.onManualCameraGesture()
+        }
+    }
+
+    LaunchedEffect(
+        state.currentPosition,
+        state.followUser,
+        state.status,
+        state.mapStatus,
+        state.recenterRequestId,
+    ) {
+        if (state.mapStatus !is GpsMapPocMapStatus.Ready) return@LaunchedEffect
+
+        if (state.recenterRequestId != lastHandledRecenterRequestId.longValue) {
+            lastHandledRecenterRequestId.longValue = state.recenterRequestId
+            state.currentPosition?.let { point ->
+                val currentCamera = cameraState.position
+                cameraState.animateTo(
+                    currentCamera.copy(
+                        target = point.toMapPosition(),
+                        zoom = if (state.routePoints.size == 1) {
+                            URBAN_ACTIVITY_ZOOM
+                        } else {
+                            currentCamera.zoom.forLocation()
+                        },
+                    ),
+                    duration = RECENTER_ANIMATION_MILLIS.milliseconds,
+                )
+            }
+            return@LaunchedEffect
+        }
+
+        if (state.status == GpsMapPocStatus.Stopped) {
+            state.routePoints.toMapBounds()?.let { bounds ->
+                cameraState.animateTo(
+                    bounds,
+                    padding = FINAL_ROUTE_PADDING,
+                    duration = FINAL_ROUTE_ANIMATION_MILLIS.milliseconds,
+                )
+                return@LaunchedEffect
+            }
+            if (state.routePoints.size == 1) {
+                val point = state.routePoints.single()
+                val currentCamera = cameraState.position
+                cameraState.animateTo(
+                    currentCamera.copy(
+                        target = point.toMapPosition(),
+                        zoom = URBAN_ACTIVITY_ZOOM,
+                    ),
+                    duration = FINAL_ROUTE_ANIMATION_MILLIS.milliseconds,
+                )
+            }
+            return@LaunchedEffect
+        }
+
+        val point = state.currentPosition ?: return@LaunchedEffect
+        if (!state.followUser || cameraState.moveReason == CameraMoveReason.GESTURE) {
+            return@LaunchedEffect
+        }
+
+        val currentCamera = cameraState.position
+        cameraState.animateTo(
+            currentCamera.copy(
+                target = point.toMapPosition(),
+                zoom = if (state.routePoints.size == 1) URBAN_ACTIVITY_ZOOM else currentCamera.zoom.forLocation(),
+            ),
+            duration = FOLLOW_ANIMATION_MILLIS.milliseconds,
+        )
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -54,7 +138,6 @@ fun GpsMapPocScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -79,6 +162,7 @@ fun GpsMapPocScreen(
                     MaplibreMap(
                         modifier = Modifier.fillMaxSize(),
                         baseStyle = BaseStyle.Uri(OPEN_FREE_MAP_POSITRON_STYLE),
+                        cameraState = cameraState,
                         onMapLoadFinished = coordinator::markMapReady,
                         onMapLoadFailed = { coordinator.markMapError() },
                     ) {
@@ -86,7 +170,7 @@ fun GpsMapPocScreen(
                             data = GeoJsonData.JsonString(
                                 state.toMapGeoJson(),
                             ),
-                            options = GeoJsonOptions(synchronousUpdate = true),
+                            options = GeoJsonOptions(synchronousUpdate = false),
                         )
 
                         if (state.routePoints.size >= 2) {
@@ -100,7 +184,7 @@ fun GpsMapPocScreen(
                             )
                         }
 
-                        if (state.currentPoint != null) {
+                        if (state.currentPosition != null) {
                             CircleLayer(
                                 id = "gps-poc-current-position",
                                 source = routeSource,
@@ -114,16 +198,23 @@ fun GpsMapPocScreen(
                 }
             }
 
-            GpsMapPocStatusCard(state = state)
-            GpsMapPocMetricsCard(state = state)
-            GpsMapPocActions(
-                state = state,
-                onPrepareLocation = onPrepareLocation,
-                onRecenter = coordinator::recenter,
-                onStart = coordinator::start,
-                onStop = coordinator::stop,
-                onClear = coordinator::clear,
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                GpsMapPocStatusCard(state = state)
+                GpsMapPocMetricsCard(state = state)
+                GpsMapPocActions(
+                    state = state,
+                    onPrepareLocation = onPrepareLocation,
+                    onRecenter = coordinator::recenter,
+                    onStart = coordinator::start,
+                    onStop = coordinator::stop,
+                    onClear = coordinator::clear,
+                )
+            }
         }
     }
 }
@@ -201,7 +292,8 @@ private fun GpsMapPocActions(
         }
         OutlinedButton(
             onClick = onRecenter,
-            enabled = state.mapStatus is GpsMapPocMapStatus.Ready && state.status.canRecenter(),
+            enabled = state.mapStatus is GpsMapPocMapStatus.Ready &&
+                state.status.canRecenter() && state.currentPosition != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Recentralizar")
@@ -305,7 +397,7 @@ private fun Double.formatDistance(): String = when {
 
 private fun GpsMapPocUiState.toMapGeoJson(): String {
     val features = buildList {
-        currentPoint?.let { point ->
+        currentPosition?.let { point ->
             add(point.toPointFeatureJson())
         }
         if (routePoints.size >= 2) {
@@ -319,8 +411,40 @@ private fun GpsMapPocUiState.toMapGeoJson(): String {
     return """{"type":"FeatureCollection","features":[${features.joinToString(",")}]}"""
 }
 
-private fun WorkoutRoutePoint.toPointFeatureJson(): String =
+private fun GpsMapPocCurrentPosition.toPointFeatureJson(): String =
     """{"type":"Feature","geometry":{"type":"Point","coordinates":${toGeoJsonCoordinate()}},"properties":{}}"""
+
+private fun GpsMapPocCurrentPosition.toGeoJsonCoordinate(): String =
+    "[$longitudeDegrees,$latitudeDegrees]"
 
 private fun WorkoutRoutePoint.toGeoJsonCoordinate(): String =
     "[$longitudeDegrees,$latitudeDegrees]"
+
+private fun GpsMapPocCurrentPosition.toMapPosition(): Position =
+    Position(longitudeDegrees, latitudeDegrees)
+
+private fun WorkoutRoutePoint.toMapPosition(): Position =
+    Position(longitudeDegrees, latitudeDegrees)
+
+private fun List<WorkoutRoutePoint>.toMapBounds(): BoundingBox? {
+    if (size < 2) return null
+    val minLongitude = minOf { it.longitudeDegrees }
+    val maxLongitude = maxOf { it.longitudeDegrees }
+    val minLatitude = minOf { it.latitudeDegrees }
+    val maxLatitude = maxOf { it.latitudeDegrees }
+    return BoundingBox(minLongitude, minLatitude, maxLongitude, maxLatitude)
+}
+
+private const val URBAN_ACTIVITY_ZOOM = 16.0
+private const val FOLLOW_ANIMATION_MILLIS = 350L
+private const val RECENTER_ANIMATION_MILLIS = 450L
+private const val FINAL_ROUTE_ANIMATION_MILLIS = 600L
+private val FINAL_ROUTE_PADDING = PaddingValues(48.dp)
+
+private fun Double.forLocation(): Double = if (this < MIN_USABLE_LOCATION_ZOOM) {
+    URBAN_ACTIVITY_ZOOM
+} else {
+    this
+}
+
+private const val MIN_USABLE_LOCATION_ZOOM = 1.0

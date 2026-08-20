@@ -3,6 +3,8 @@ package br.com.mwconsulting.championcompanion.feature.gpspoc
 import br.com.mwconsulting.championcompanion.core.model.GpsAccuracyQuality
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointRejectionReason
+import java.time.Instant
+import java.util.UUID
 
 data class GpsMapPocUiState(
     val status: GpsMapPocStatus = GpsMapPocStatus.PermissionRequired,
@@ -17,6 +19,16 @@ data class GpsMapPocUiState(
     val rejectionCounts: Map<WorkoutRoutePointRejectionReason, Int> = emptyMap(),
     val routePoints: List<WorkoutRoutePoint> = emptyList(),
     val currentPoint: WorkoutRoutePoint? = null,
+    val currentPosition: GpsMapPocCurrentPosition? = null,
+    val followUser: Boolean = false,
+    val recenterRequestId: Long = 0L,
+)
+
+data class GpsMapPocCurrentPosition(
+    val id: UUID,
+    val sampledAt: Instant,
+    val latitudeDegrees: Double,
+    val longitudeDegrees: Double,
 )
 
 sealed interface GpsMapPocStatus {
