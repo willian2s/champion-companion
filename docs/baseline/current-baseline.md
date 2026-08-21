@@ -49,6 +49,26 @@ Não há conta, API key, token ou pagamento previsto; termos, disponibilidade e
 política gratuita do provedor devem ser revalidados na implementação. Nenhuma
 decisão de produção foi tomada. Ver ADR-024 e o overview da Spec 026.
 
+### Fechamento factual da Spec 026 — 2026-08-21
+
+A Spec 026 foi concluída com classificação `go_with_adjustments`. Validação
+física sanitizada no `SM-S901E` confirmou MapLibre Compose, OpenFreeMap/Positron,
+atribuição, GPS real, rotas visuais de aproximadamente 538 m e 557 m, câmera,
+stop, fit bounds, reset, segundo ciclo e casos negativos principais. O conceito
+não apresentou bloqueio estrutural para a PoC. O crescimento visual foi
+observado, mas não houve medição final explícita de jank após as correções de
+responsividade.
+
+Falha real do mapa em cold-cache permaneceu inconclusiva porque o mapa continuou
+`Pronto` offline, provavelmente por cache. Uma rejeição sem categoria foi aceita
+como resíduo de observabilidade, e a variação do fused entre ambientes continua
+risco residual. Nenhum dado sensível foi preservado em Logcat ou evidências.
+
+O fechamento não autoriza feature de produção, não reabre a Fase 013 e não
+altera `PhoneWorkoutPolicy`. Qualquer efetivação exige nova spec e decisão
+explícita, com revalidação de provider, disponibilidade, termos, privacidade,
+cache/offline e observabilidade.
+
 ## Produto e fase
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.

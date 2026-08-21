@@ -2,7 +2,7 @@
 
 - **Ticker:** `026`
 - **Número:** `08`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -163,3 +163,108 @@ Executar Gradle somente se houver código/Gradle da PoC no estado final.
 - não declarar OpenFreeMap permanentemente gratuito ou disponível; registrar apenas condição observada e decisão baseada nela;
 - não incluir rota/localização pessoal em relatório final;
 - não transformar `go_with_adjustments` em `go` para simplificar fechamento.
+
+## Execução — 2026-08-21
+
+- **Status:** `completed`.
+- **Arquivos documentais atualizados:** esta subtarefa, `026-00-overview.md`,
+  `docs/specs/026-maplibre-openfreemap-gps-route-poc.md`,
+  `docs/decisions/adr-024-maplibre-openfreemap-gps-poc.md` e
+  `docs/baseline/current-baseline.md`.
+- **Escopo preservado:** nenhum arquivo de código, teste, dependência,
+  manifesto ou configuração de build foi alterado nesta subtarefa.
+
+## Decisão final
+
+Classificação: **`go_with_adjustments`**.
+
+O conceito foi validado no aparelho real, sem bloqueio estrutural para o
+experimento: MapLibre Compose renderizou, OpenFreeMap/Positron carregou com
+atribuição, GPS real alimentou rotas visuais, e câmera, parada, enquadramento,
+reset e segundo ciclo foram exercitados. A classificação não autoriza feature de
+produção.
+
+## Respostas às questões obrigatórias
+
+1. **MapLibre Compose foi estável no aparelho real?** Sim. Renderizou sem crash
+   ou ANR observado durante as atividades reais.
+2. **OpenFreeMap carregou adequadamente?** Sim para o cenário observado, com
+   Positron e atribuição visível. Falha real em cold-cache permaneceu
+   inconclusiva porque o mapa continuou pronto offline.
+3. **A atribuição permaneceu correta?** Sim. Permaneceu visível no mapa.
+4. **A linha cresceu sem jank relevante?** Parcialmente evidenciado. As rotas
+   cresceram visualmente, mas não houve medição final explícita de jank após as
+   correções; esse ponto permanece risco residual.
+5. **A câmera permitiu follow e interação manual?** Sim. Pan, zoom, follow e
+   Recentralizar foram confirmados; gesto manual suspende follow até recentralizar.
+6. **O filtro produziu rota visualmente coerente?** Parcialmente. GPS real
+   produziu rotas funcionais, mas houve variância do fused e uma rejeição sem
+   categoria, mantidas como riscos de observabilidade.
+7. **A perda de rede foi tratada sem corromper GPS?** Parcialmente comprovado.
+   O mapa permaneceu pronto por provável cache e o estado GPS ficou separado;
+   falha real do mapa em cold-cache não foi isolada.
+8. **O reset impediu contaminação entre ciclos?** Sim. Reset e segundo ciclo
+   foram confirmados sem reutilização de rota ou métricas.
+9. **Houve exposição de localização em logs/evidências?** Não foi observada.
+   Auditoria sanitizada não encontrou coordenadas, GeoJSON, rota ou bounds.
+10. **Há motivo técnico para não seguir com MapLibre + OpenFreeMap?** Não há
+    bloqueio estrutural para investigação futura. Provider, cache/offline,
+    disponibilidade, termos e privacidade exigem nova avaliação.
+
+## Decisões e desvios
+
+- Manter MapLibre Compose + OpenFreeMap como stack experimental da Spec 026.
+- Recomendar revalidação de provider, cache/cold-cache e observabilidade antes de
+  qualquer uso posterior; não trocar provider automaticamente nesta subtarefa.
+- Aceitar uma rejeição sem categoria na atividade 3 como resíduo de
+  observabilidade, sem alterar filtro ou suavização.
+- Registrar que a falha real do mapa em cold-cache permaneceu inconclusiva: o
+  mapa continuou `Pronto` offline, provavelmente por cache remanescente.
+- Manter a variação do fused entre ambientes como risco técnico residual.
+- Preservar Fase 013 `closed` / `partially_delivered` /
+  `product_reorientation`, `PhoneWorkoutPolicy`, ausência de persistência,
+  Health Connect, BLE e `WorkoutRecordingService`.
+
+## Resultados e evidências
+
+- No `SM-S901E`, atividades reais registraram aproximadamente 538 m e 557 m,
+  com 122 pontos aceitos em cada uma; as rotas cresceram visualmente.
+- Pan, zoom, follow, `Recentralizar`, fit bounds após parada, reset e segundo
+  ciclo sem reinício foram confirmados.
+- Permissão negada, localização aproximada, localização desligada/GPS perdido,
+  stop precoce em modo mock e isolamento entre falha de mapa e GPS foram
+  exercitados. O stop precoce mock não é evidência de GPS real.
+- Atribuição cartográfica permaneceu visível. Não foram observados dados
+  sensíveis em Logcat ou nas evidências sanitizadas.
+
+## Comandos e validação
+
+- `git diff --check` — executado nesta subtarefa após as alterações; passou sem
+  erros.
+- `./gradlew lint assembleDebug assembleRelease` — não executado nesta
+  subtarefa documental; não houve alteração de código ou Gradle. A evidência de
+  execução anterior permanece registrada em `026-07`.
+- Testes automatizados — não criados nem executados, conforme política do
+  projeto.
+
+## Riscos residuais e bloqueios
+
+- Falha real do mapa em cold-cache não foi isolada; disponibilidade, termos e
+  ausência de SLA do OpenFreeMap continuam dependências externas.
+- A fonte fused pode variar conforme aparelho, Google Play Services, rede,
+  Wi-Fi, cache, sensores e ambiente físico.
+- Observabilidade ainda precisa categorizar toda rejeição sem expor localização.
+- Não há registro final sanitizado com medição explícita de jank após as
+  correções de responsividade.
+- Qualquer efetivação produtiva continua bloqueada até nova spec e nova decisão
+  explícita sobre provider, cache/offline, privacidade, persistência,
+  `PhoneWorkoutPolicy` e demais fronteiras de produto.
+
+## Próxima decisão recomendada
+
+Se houver interesse em efetivação, criar spec própria para avaliar, nesta ordem,
+sessão phone, foreground service, GPS persistente, rota persistida, mapa ao vivo,
+atividade final e detalhe com mapa. A nova spec deve decidir novamente
+`PhoneWorkoutPolicy`, legado da Fase 013, Room/migration, background, provider,
+cache/offline, privacidade, Health Connect e BLE/Champion C001. Nenhuma dessas
+etapas é criada ou autorizada por este fechamento.

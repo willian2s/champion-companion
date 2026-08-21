@@ -1,8 +1,8 @@
 # 026 — Overview: PoC MapLibre + OpenFreeMap com GPS e rota
 
-- **Status geral:** in_progress
+- **Status geral:** completed
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 7/8 subtarefas concluídas
+- **Progresso:** 8/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -50,7 +50,7 @@ Premissas atuais:
 - [x] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
 - [x] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
 - [x] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
-- [ ] [026-08-fechar-poc-e-registrar-decisao.md](026-08-fechar-poc-e-registrar-decisao.md)
+- [x] [026-08-fechar-poc-e-registrar-decisao.md](026-08-fechar-poc-e-registrar-decisao.md)
 
 ## Observações
 
@@ -257,6 +257,25 @@ erro de mapa e GPS. GPS real, câmera, rota, reset, ciclos e casos negativos
 principais foram validados; rejeição não classificada foi aceita como resíduo de
 observabilidade. Progresso atualizado para `7/8`. `026-08` é única subtarefa
 pendente e não foi iniciada automaticamente.
+
+### Fechamento final — 2026-08-21
+
+`026-08` concluída. A Spec 026 está `completed` e classificada como
+`go_with_adjustments`: o conceito foi validado no `SM-S901E`, sem bloqueio
+estrutural, mas provider/cache e observabilidade exigem ajustes e revalidação.
+As evidências sanitizadas registram GPS real em duas atividades de
+aproximadamente 538 m e 557 m, 122 pontos aceitos em cada, rota visual, câmera,
+stop, fit bounds, reset, segundo ciclo, casos negativos principais e isolamento
+entre mapa e GPS. Crescimento visual foi observado, mas não houve medição final
+explícita de jank após as correções de responsividade.
+
+A falha real do mapa em cold-cache permaneceu inconclusiva porque o mapa ficou
+`Pronto` offline, provavelmente por cache. Uma rejeição sem categoria na
+atividade 3 foi aceita como resíduo de observabilidade. Nenhuma coordenada ou
+dado sensível foi preservado em Logcat/evidências.
+
+O resultado não reabre a Fase 013, não altera `PhoneWorkoutPolicy` e não
+autoriza produção. Qualquer efetivação exige nova spec e decisão explícita.
 
 ## Ordem
 

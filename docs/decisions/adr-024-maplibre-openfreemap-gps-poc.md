@@ -202,3 +202,27 @@ GPS real. Não adicionar logs para esse modo.
 - ADR-014 permanece histórica e não é reativada por esta decisão.
 - A Spec 026 e seu overview definem ordem, critérios, validação física e
   resultado final `go`, `go_with_adjustments` ou `no_go`.
+
+## Resultado do gate físico — 2026-08-21
+
+A Spec 026 foi concluída com classificação **`go_with_adjustments`**. No
+`SM-S901E`, o conceito funcionou: MapLibre Compose e OpenFreeMap/Positron
+renderizaram com atribuição, GPS real produziu duas rotas visuais de
+aproximadamente 538 m e 557 m, e foram confirmados pan, zoom, follow,
+Recentralizar, fit bounds, stop, reset e segundo ciclo.
+
+O crescimento visual da linha foi observado, mas não houve medição final
+explícita de jank após as correções de responsividade; essa lacuna permanece
+como ajuste residual.
+
+Permissão negada, localização aproximada, localização desligada/GPS perdido,
+stop precoce mock e isolamento controlado entre falha do mapa e GPS foram
+exercitados. O mapa permaneceu `Pronto` no teste offline após limpeza de cache,
+portanto a falha real em cold-cache ficou inconclusiva. Uma rejeição sem
+categoria na atividade 3 foi aceita como resíduo de observabilidade. A variação
+do fused conforme ambiente permanece risco residual.
+
+Este resultado não altera a decisão experimental nem seus guards. Não autoriza
+produção, não reabre a Fase 013 e não libera `PhoneWorkoutPolicy`. Provider,
+cache/offline, observabilidade, privacidade e demais requisitos produtivos devem
+ser reavaliados em nova spec e nova decisão explícita.

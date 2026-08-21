@@ -1,7 +1,7 @@
 # 026 — PoC MapLibre + OpenFreeMap com GPS e rota em tempo real
 
 - **Ticker:** `026`
-- **Status:** draft
+- **Status:** completed
 - **Tipo:** prova de conceito técnica isolada
 - **Roadmap:** trabalho independente; não cria nova fase
 - **Escopo de distribuição:** debug only
@@ -1325,3 +1325,37 @@ A Spec 026 termina quando:
 - validação física sanitizada foi documentada;
 - decisão final `go`, `go_with_adjustments` ou `no_go` foi registrada;
 - a PoC não depende desta conversa para ser compreendida ou executada.
+
+## Resultado final do gate — 2026-08-21
+
+- **Status:** `completed`.
+- **Classificação:** `go_with_adjustments`.
+
+O conceito foi validado no aparelho real `SM-S901E`, sem bloqueio estrutural
+para o experimento. MapLibre Compose renderizou o mapa, OpenFreeMap/Positron
+carregou com atribuição visível, e GPS real produziu rotas visuais em duas
+atividades de aproximadamente 538 m e 557 m, com 122 pontos aceitos em cada.
+Pan, zoom, follow, `Recentralizar`, enquadramento após parada, reset e segundo
+ciclo sem reinício foram confirmados.
+
+O crescimento visual da linha foi observado, mas não houve medição final
+explícita de jank após as correções de responsividade; essa lacuna entra nos
+ajustes e riscos residuais.
+
+Permissão negada, localização aproximada, localização desligada/GPS perdido,
+stop precoce em modo mock e isolamento entre falha de mapa e GPS foram
+exercitados. O stop precoce mock não substitui evidência de GPS real. Nenhuma
+coordenada ou dado sensível foi encontrado no Logcat ou preservado nas
+evidências sanitizadas.
+
+A classificação incorpora ajustes e revalidação recomendados: a falha real do
+mapa em cold-cache permaneceu inconclusiva porque o mapa continuou `Pronto`
+offline, provavelmente por cache; uma rejeição sem categoria na atividade 3 foi
+aceita como resíduo de observabilidade; e o comportamento do fused pode variar
+conforme aparelho, Google Play Services, rede, cache, sensores e ambiente.
+
+Este fechamento não autoriza produção, não reabre a Fase 013, não altera
+`PhoneWorkoutPolicy` e não autoriza `WorkoutRecordingService`, persistência,
+Health Connect ou BLE. Qualquer efetivação exige nova spec e nova decisão
+explícita, incluindo provider, termos, disponibilidade, privacidade,
+cache/offline e arquitetura de sessão.
