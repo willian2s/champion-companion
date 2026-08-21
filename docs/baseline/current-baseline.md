@@ -19,6 +19,56 @@
   pode apoiar trabalho finito e adiável. Ver
   `docs/specs/014-watch-workout-derived-metrics.md`.
 
+## Exceção experimental isolada da Spec 026
+
+A Spec `026-maplibre-openfreemap-gps-route-poc.md` registra uma PoC técnica
+planejada e independente para avaliar GPS nativo, MapLibre Compose e OpenFreeMap
+em fluxo `debug-only`. Essa autorização é estritamente efêmera: a rota ficará
+somente em memória e a implementação deve permanecer no source set
+`app/src/debug`. A revisão de 2026-08-20 autoriza, para teste externo, um botão
+técnico na página de Exercícios somente no build debug, disparando `Intent`
+explícito para a Activity da PoC. ADB permanece apenas como fallback diagnóstico;
+não é mais a única forma prevista de abertura. A autorização não adiciona
+destino permanente à navegação, não libera CTA em Home, Saúde, Dispositivo ou
+Configurações e não permite que botão, `Intent` executável ou entrypoint da PoC
+apareça na variante release.
+
+A exceção não reabre a Fase 013, não altera `PhoneWorkoutPolicy`, não reativa
+`WorkoutRecordingService` e não autoriza persistência, Health Connect, BLE,
+treino iniciado pelo celular ou feature de produção. O CTA é affordance técnica
+para abrir a PoC; não é CTA de treino phone. O histórico e os guards da Fase 013
+permanecem preservados. O CTA técnico foi implementado em `026-03` com provider
+separado por variante e validação de build; validação física de GPS/rota continua
+pertencendo às subtarefas posteriores.
+
+MapLibre Compose será o renderizador experimental e OpenFreeMap, o provedor
+inicial do mapa-base, com atribuição obrigatória e sem SLA assumido. A escolha
+anterior de Mapbox foi abandonada antes da implementação por exigir
+configuração de billing/forma de pagamento incompatível com a premissa da PoC.
+Não há conta, API key, token ou pagamento previsto; termos, disponibilidade e
+política gratuita do provedor devem ser revalidados na implementação. Nenhuma
+decisão de produção foi tomada. Ver ADR-024 e o overview da Spec 026.
+
+### Fechamento factual da Spec 026 — 2026-08-21
+
+A Spec 026 foi concluída com classificação `go_with_adjustments`. Validação
+física sanitizada no `SM-S901E` confirmou MapLibre Compose, OpenFreeMap/Positron,
+atribuição, GPS real, rotas visuais de aproximadamente 538 m e 557 m, câmera,
+stop, fit bounds, reset, segundo ciclo e casos negativos principais. O conceito
+não apresentou bloqueio estrutural para a PoC. O crescimento visual foi
+observado, mas não houve medição final explícita de jank após as correções de
+responsividade.
+
+Falha real do mapa em cold-cache permaneceu inconclusiva porque o mapa continuou
+`Pronto` offline, provavelmente por cache. Uma rejeição sem categoria foi aceita
+como resíduo de observabilidade, e a variação do fused entre ambientes continua
+risco residual. Nenhum dado sensível foi preservado em Logcat ou evidências.
+
+O fechamento não autoriza feature de produção, não reabre a Fase 013 e não
+altera `PhoneWorkoutPolicy`. Qualquer efetivação exige nova spec e decisão
+explícita, com revalidação de provider, disponibilidade, termos, privacidade,
+cache/offline e observabilidade.
+
 ## Produto e fase
 
 Champion Companion é aplicativo Android nativo do relógio Champion C001, escrito em Kotlin e Jetpack Compose.

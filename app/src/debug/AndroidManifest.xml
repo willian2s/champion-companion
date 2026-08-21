@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".feature.gpspoc.GpsMapPocActivity"
+            android:exported="true"
+            android:label="GPS + MapLibre — PoC"
+            android:theme="@style/Theme.ChampionCompanion" />
+    </application>
+
+</manifest>

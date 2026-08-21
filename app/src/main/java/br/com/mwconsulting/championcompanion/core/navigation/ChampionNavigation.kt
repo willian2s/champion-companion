@@ -117,7 +117,10 @@ private enum class ExitConfirmationTarget {
 }
 
 @Composable
-fun ChampionNavigation(modifier: Modifier = Modifier) {
+fun ChampionNavigation(
+    modifier: Modifier = Modifier,
+    onOpenDebugPoc: (() -> Unit)? = null,
+) {
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
     val healthViewModel = remember(activity) {
         ViewModelProvider(activity)[HealthViewModel::class.java]
@@ -447,6 +450,7 @@ fun ChampionNavigation(modifier: Modifier = Modifier) {
             profileViewModel = profileViewModel,
             animationDirection = animationDirection,
             backLabel = contextualBackLabel,
+            onOpenDebugPoc = onOpenDebugPoc,
         )
     }
 }
@@ -518,6 +522,7 @@ private fun ChampionNavDisplay(
     profileViewModel: ProfileViewModel,
     animationDirection: NavigationAnimationDirection,
     backLabel: String,
+    onOpenDebugPoc: (() -> Unit)?,
 ) {
     // Navigate to ActiveWorkout when a workout session is started
     LaunchedEffect(Unit) {
@@ -583,6 +588,7 @@ private fun ChampionNavDisplay(
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
+                onOpenDebugPoc = onOpenDebugPoc,
             )
             is AppDestination.ExerciseDetail -> ExercisesScreen(
                 viewModel = exercisesViewModel,

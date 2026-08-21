@@ -42,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -143,6 +144,7 @@ fun ExercisesScreen(
             ViewModelProvider(activity)[ExercisesViewModel::class.java]
         }
     },
+    onOpenDebugPoc: (() -> Unit)? = null,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by viewModel.state.collectAsState()
@@ -192,6 +194,9 @@ fun ExercisesScreen(
         ) {
             if (openedActivityId == null) {
                 ExercisesHeader(state = state)
+                onOpenDebugPoc?.let { openDebugPoc ->
+                    ExercisesDebugPocCard(onOpenDebugPoc = openDebugPoc)
+                }
                 ExercisesImportCard(
                     state = state,
                     onStartImport = { viewModel.onIntent(ExercisesIntent.StartImport) },
@@ -279,6 +284,42 @@ private fun ExercisesHeader(state: ExercisesUiState) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.82f),
             )
+        }
+    }
+}
+
+@Composable
+private fun ExercisesDebugPocCard(
+    onOpenDebugPoc: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        border = BorderStroke(1.dp, exerciseTertiaryAccent()),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text(
+                text = "PoC técnica de debug",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Acesso técnico para testar GPS + MapLibre. Não inicia treino nem salva dados.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = onOpenDebugPoc,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Abrir PoC GPS + MapLibre (debug)")
+            }
         }
     }
 }

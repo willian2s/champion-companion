@@ -69,6 +69,14 @@
 - `Phase003PrivacyGuardTest` preserva o bloqueio de termos de localização/rota em áreas sensíveis; não contorne ou renomeie termos para burlar o guard.
 - `DebugStructuredLoggerTest` valida logs diagnósticos só em debug e apenas campos aprovados. Não exponha payload BLE, dados de saúde, tokens, credenciais ou identificadores pessoais.
 
+### Exceção isolada da Spec 026
+
+- A Spec `026-maplibre-openfreemap-gps-route-poc.md` é a única autorização vigente para uma PoC técnica de GPS + mapa; ela não reabre a Fase 013 nem altera sua classificação `closed` / `partially_delivered` / `product_reorientation`.
+- A exceção é estritamente `debug-only`, limitada ao source set `app/src/debug`, com rota somente em memória e sem promoção a fluxo de produto. Para permitir teste externo, a única affordance manual autorizada é um botão técnico na página de Exercícios, visível somente no build debug, que dispara um `Intent` explícito para a Activity da PoC. Esse CTA não inicia treino phone nem constitui feature de produto. Não adicionar destino permanente à navegação, CTA em Home, Saúde, Dispositivo ou Configurações, nem expor botão, `Intent` executável ou entrypoint da PoC na variante release. ADB pode permanecer como fallback diagnóstico, mas não substitui o CTA. Não alterar `PhoneWorkoutPolicy`, não usar `WorkoutRecordingService` e não criar persistência, Health Connect ou BLE.
+- MapLibre Compose é o renderizador experimental e OpenFreeMap é o mapa-base inicial da PoC. A decisão não implica disponibilidade, SLA ou escolha de produção; atribuição cartográfica permanece obrigatória e termos, disponibilidade e política do provedor devem ser revalidados antes da execução.
+- A escolha anterior de Mapbox foi abandonada antes da implementação por exigir configuração de billing/forma de pagamento incompatível com a premissa da PoC. Não introduzir conta, token, API key, credencial ou segredo de mapa.
+- A aprovação da PoC não autoriza feature de produção. Qualquer efetivação exige nova spec e nova decisão explícita.
+
 ## Diretriz autoritativa após encerramento da Fase 013
 
 - Não continuar implementando ou corrigindo treinos iniciados pelo celular como direção de produto.
