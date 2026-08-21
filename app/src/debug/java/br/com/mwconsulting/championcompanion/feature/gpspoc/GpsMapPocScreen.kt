@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePoint
+import br.com.mwconsulting.championcompanion.core.model.WorkoutRoutePointRejectionReason
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.expressions.dsl.const
@@ -87,11 +88,10 @@ fun GpsMapPocScreen(
                 cameraState.animateTo(
                     currentCamera.copy(
                         target = point.toMapPosition(),
-                        zoom = if (state.routePoints.size == 1) {
-                            URBAN_ACTIVITY_ZOOM
-                        } else {
-                            currentCamera.zoom.forLocation()
-                        },
+                        zoom = cameraZoomForAcceptedPointCount(
+                            acceptedPointCount = state.routePoints.size,
+                            currentZoom = currentCamera.zoom,
+                        ),
                     ),
                     duration = RECENTER_ANIMATION_MILLIS.milliseconds,
                 )
@@ -114,7 +114,10 @@ fun GpsMapPocScreen(
                 cameraState.animateTo(
                     currentCamera.copy(
                         target = point.toMapPosition(),
-                        zoom = URBAN_ACTIVITY_ZOOM,
+                        zoom = cameraZoomForAcceptedPointCount(
+                            acceptedPointCount = state.routePoints.size,
+                            currentZoom = currentCamera.zoom,
+                        ),
                     ),
                     duration = FINAL_ROUTE_ANIMATION_MILLIS.milliseconds,
                 )
@@ -131,7 +134,10 @@ fun GpsMapPocScreen(
         cameraState.animateTo(
             currentCamera.copy(
                 target = point.toMapPosition(),
-                zoom = if (state.routePoints.size == 1) URBAN_ACTIVITY_ZOOM else currentCamera.zoom.forLocation(),
+                zoom = cameraZoomForAcceptedPointCount(
+                    acceptedPointCount = state.routePoints.size,
+                    currentZoom = currentCamera.zoom,
+                ),
             ),
             duration = FOLLOW_ANIMATION_MILLIS.milliseconds,
         )
@@ -259,6 +265,8 @@ fun GpsMapPocScreen(
                     onStart = coordinator::start,
                     onStop = coordinator::stop,
                     onClear = coordinator::clear,
+                    onSimulateMapFailure = coordinator::simulateMapFailure,
+                    onRestoreMap = coordinator::markMapReady,
                 )
             }
         }
@@ -333,6 +341,21 @@ private fun GpsMapPocMetricsCard(state: GpsMapPocUiState) {
             StatusRow(label = "Distância", value = state.distanceMeters.formatDistance())
             StatusRow(label = "Pontos aceitos", value = state.acceptedPointCount.toString())
             StatusRow(label = "Pontos rejeitados", value = state.rejectedPointCount.toString())
+            Text("Diagnóstico debug", style = MaterialTheme.typography.titleSmall)
+            Text("Rejeições por motivo", style = MaterialTheme.typography.bodyMedium)
+            WorkoutRoutePointRejectionReason.entries.forEach { reason ->
+                StatusRow(
+                    label = reason.label(),
+                    value = (state.rejectionCounts[reason] ?: 0).toString(),
+                )
+            }
+            Text("Distribuição de precisão", style = MaterialTheme.typography.bodyMedium)
+            GpsMapPocAccuracyBucket.entries.forEach { bucket ->
+                StatusRow(
+                    label = bucket.label,
+                    value = (state.accuracyBucketCounts[bucket] ?: 0).toString(),
+                )
+            }
         }
     }
 }
@@ -345,8 +368,35 @@ private fun GpsMapPocActions(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onClear: () -> Unit,
+    onSimulateMapFailure: () -> Unit,
+    onRestoreMap: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Smoke debug do mapa",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = "Simulação local: não testa rede real nem faz novo carregamento.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        when {
+            state.mapStatus is GpsMapPocMapStatus.Ready -> OutlinedButton(
+                onClick = onSimulateMapFailure,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Simular erro do mapa")
+            }
+
+            state.mapStatus is GpsMapPocMapStatus.Error &&
+                state.mapFailureIsSimulated -> OutlinedButton(
+                onClick = onRestoreMap,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Restaurar mapa")
+            }
+        }
         OutlinedButton(
             onClick = onPrepareLocation,
             enabled = state.status != GpsMapPocStatus.Tracking,
@@ -452,6 +502,20 @@ private fun GpsMapPocStatus.canClear(): Boolean = this in setOf(
     GpsMapPocStatus.Stopped,
 ) || this is GpsMapPocStatus.Error
 
+private fun WorkoutRoutePointRejectionReason.label(): String = when (this) {
+    WorkoutRoutePointRejectionReason.LATE_RUNTIME_GENERATION -> "Geração de runtime atrasada"
+    WorkoutRoutePointRejectionReason.INVALID_COORDINATE -> "Coordenada inválida"
+    WorkoutRoutePointRejectionReason.INVALID_MEASUREMENT -> "Medição inválida"
+    WorkoutRoutePointRejectionReason.ROUTE_MISMATCH -> "Rota incompatível"
+    WorkoutRoutePointRejectionReason.OUT_OF_ORDER -> "Fora de ordem"
+    WorkoutRoutePointRejectionReason.STALE -> "Fix antigo"
+    WorkoutRoutePointRejectionReason.INSUFFICIENT_ACCURACY -> "Precisão insuficiente"
+    WorkoutRoutePointRejectionReason.IMPOSSIBLE_HUMAN_SPEED -> "Velocidade humana impossível"
+    WorkoutRoutePointRejectionReason.DUPLICATE -> "Duplicado"
+    WorkoutRoutePointRejectionReason.BELOW_NOISE_FLOOR -> "Abaixo do piso de ruído"
+    WorkoutRoutePointRejectionReason.MOCK -> "Localização mock"
+}
+
 private fun Float.formatMeters(): String = "%.0f".format(java.util.Locale.ROOT, this)
 
 private fun Double.formatDistance(): String = when {
@@ -522,6 +586,15 @@ private const val FOLLOW_ANIMATION_MILLIS = 350L
 private const val RECENTER_ANIMATION_MILLIS = 450L
 private const val FINAL_ROUTE_ANIMATION_MILLIS = 600L
 private val FINAL_ROUTE_PADDING = PaddingValues(48.dp)
+
+private fun cameraZoomForAcceptedPointCount(
+    acceptedPointCount: Int,
+    currentZoom: Double,
+): Double = if (acceptedPointCount <= 1) {
+    URBAN_ACTIVITY_ZOOM
+} else {
+    currentZoom.forLocation()
+}
 
 private fun Double.forLocation(): Double = if (this < MIN_USABLE_LOCATION_ZOOM) {
     URBAN_ACTIVITY_ZOOM

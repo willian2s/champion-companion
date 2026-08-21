@@ -9,6 +9,7 @@ import java.util.UUID
 data class GpsMapPocUiState(
     val status: GpsMapPocStatus = GpsMapPocStatus.PermissionRequired,
     val mapStatus: GpsMapPocMapStatus = GpsMapPocMapStatus.Loading,
+    val mapFailureIsSimulated: Boolean = false,
     val gpsReadiness: GpsMapPocGpsReadiness = GpsMapPocGpsReadiness.PermissionRequired,
     val gpsAccuracyQuality: GpsAccuracyQuality = GpsAccuracyQuality.UNKNOWN,
     val horizontalAccuracyMeters: Float? = null,
@@ -17,12 +18,22 @@ data class GpsMapPocUiState(
     val acceptedPointCount: Int = 0,
     val rejectedPointCount: Int = 0,
     val rejectionCounts: Map<WorkoutRoutePointRejectionReason, Int> = emptyMap(),
+    val accuracyBucketCounts: Map<GpsMapPocAccuracyBucket, Int> = emptyMap(),
     val routePoints: List<WorkoutRoutePoint> = emptyList(),
     val currentPoint: WorkoutRoutePoint? = null,
     val currentPosition: GpsMapPocCurrentPosition? = null,
     val followUser: Boolean = false,
     val recenterRequestId: Long = 0L,
 )
+
+enum class GpsMapPocAccuracyBucket(val label: String) {
+    UP_TO_3_METERS("<=3 m"),
+    OVER_3_TO_5_METERS(">3–5 m"),
+    OVER_5_TO_10_METERS(">5–10 m"),
+    OVER_10_TO_20_METERS(">10–20 m"),
+    OVER_20_METERS(">20 m"),
+    INVALID("inválida"),
+}
 
 data class GpsMapPocCurrentPosition(
     val id: UUID,

@@ -80,6 +80,7 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
                 acceptedPointCount = 0,
                 rejectedPointCount = 0,
                 rejectionCounts = emptyMap(),
+                accuracyBucketCounts = emptyMap(),
                 routePoints = emptyList(),
                 currentPoint = null,
                 followUser = true,
@@ -137,6 +138,12 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
         mutableState.update {
             it.copy(
                 status = it.status.statusAfterClear(),
+                mapStatus = if (current.mapFailureIsSimulated) {
+                    GpsMapPocMapStatus.Ready
+                } else {
+                    it.mapStatus
+                },
+                mapFailureIsSimulated = false,
                 gpsReadiness = it.gpsReadiness.afterClear(),
                 gpsAccuracyQuality = GpsAccuracyQuality.UNKNOWN,
                 horizontalAccuracyMeters = null,
@@ -145,6 +152,7 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
                 acceptedPointCount = 0,
                 rejectedPointCount = 0,
                 rejectionCounts = emptyMap(),
+                accuracyBucketCounts = emptyMap(),
                 routePoints = emptyList(),
                 currentPoint = null,
                 currentPosition = null,
@@ -156,13 +164,31 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
     }
 
     fun markMapReady() {
-        mutableState.update { it.copy(mapStatus = GpsMapPocMapStatus.Ready) }
+        mutableState.update {
+            it.copy(
+                mapStatus = GpsMapPocMapStatus.Ready,
+                mapFailureIsSimulated = false,
+            )
+        }
+    }
+
+    /** Simula falha local do mapa sem tocar no estado GPS ou no ciclo da PoC. */
+    fun simulateMapFailure() {
+        mutableState.update {
+            it.copy(
+                mapStatus = GpsMapPocMapStatus.Error(GpsMapPocError.MapUnavailable),
+                mapFailureIsSimulated = true,
+            )
+        }
     }
 
     /** Remove detalhes do provider e URLs da UI. */
     fun markMapError() {
         mutableState.update {
-            it.copy(mapStatus = GpsMapPocMapStatus.Error(GpsMapPocError.MapUnavailable))
+            it.copy(
+                mapStatus = GpsMapPocMapStatus.Error(GpsMapPocError.MapUnavailable),
+                mapFailureIsSimulated = false,
+            )
         }
     }
 
@@ -290,6 +316,11 @@ class GpsMapPocCoordinator(context: Context) : AutoCloseable {
             it.copy(
                 horizontalAccuracyMeters = candidate.horizontalAccuracyMeters.toFloat(),
                 receivedFixCount = it.receivedFixCount + 1,
+                accuracyBucketCounts = if (captureActive) {
+                    it.accuracyBucketCounts.increment(candidate.accuracyBucket())
+                } else {
+                    it.accuracyBucketCounts
+                },
                 currentPosition = nextPosition ?: it.currentPosition,
                 followUser = when {
                     nextPosition == null -> it.followUser
@@ -458,3 +489,20 @@ private fun Map<WorkoutRoutePointRejectionReason, Int>.increment(
 ): Map<WorkoutRoutePointRejectionReason, Int> = toMutableMap().apply {
     this[reason] = (this[reason] ?: 0) + 1
 }
+
+private fun Map<GpsMapPocAccuracyBucket, Int>.increment(
+    bucket: GpsMapPocAccuracyBucket,
+): Map<GpsMapPocAccuracyBucket, Int> = toMutableMap().apply {
+    this[bucket] = (this[bucket] ?: 0) + 1
+}
+
+private fun WorkoutRoutePointCandidate.accuracyBucket():
+    GpsMapPocAccuracyBucket = when {
+        !horizontalAccuracyMeters.isFinite() || horizontalAccuracyMeters <= 0.0 ->
+            GpsMapPocAccuracyBucket.INVALID
+        horizontalAccuracyMeters <= 3.0 -> GpsMapPocAccuracyBucket.UP_TO_3_METERS
+        horizontalAccuracyMeters <= 5.0 -> GpsMapPocAccuracyBucket.OVER_3_TO_5_METERS
+        horizontalAccuracyMeters <= 10.0 -> GpsMapPocAccuracyBucket.OVER_5_TO_10_METERS
+        horizontalAccuracyMeters <= 20.0 -> GpsMapPocAccuracyBucket.OVER_10_TO_20_METERS
+        else -> GpsMapPocAccuracyBucket.OVER_20_METERS
+    }

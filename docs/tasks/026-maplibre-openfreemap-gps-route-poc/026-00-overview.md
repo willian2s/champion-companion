@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [026-maplibre-openfreemap-gps-route-poc.md](../../specs/026-maplibre-openfreemap-gps-route-poc.md)
-- **Progresso:** 6/8 subtarefas concluídas
+- **Progresso:** 7/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -49,7 +49,7 @@ Premissas atuais:
 - [x] [026-04-integrar-gps-readiness-e-filtro.md](026-04-integrar-gps-readiness-e-filtro.md)
 - [x] [026-05-renderizar-mapa-posicao-e-rota.md](026-05-renderizar-mapa-posicao-e-rota.md)
 - [x] [026-06-implementar-camera-stop-e-reset.md](026-06-implementar-camera-stop-e-reset.md)
-- [ ] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
+- [x] [026-07-validar-fisicamente-e-casos-negativos.md](026-07-validar-fisicamente-e-casos-negativos.md)
 - [ ] [026-08-fechar-poc-e-registrar-decisao.md](026-08-fechar-poc-e-registrar-decisao.md)
 
 ## Observações
@@ -132,14 +132,131 @@ Validação física debug com localização mock no `SM-S901E` confirmou rota vi
 linha azul, início verde e fim vermelho após parada; posição corrente laranja
 durante tracking. Primeiro ciclo registrou 8 fixes, 8 pontos aceitos e 54 m;
 segundo ciclo, após limpar, registrou 6 fixes, 6 pontos aceitos e 39 m. Reset
-final zerou pontos aceitos e distância. Evidência mock não substitui percurso
+ final zerou pontos aceitos e distância. Evidência mock não substitui percurso
 real; `026-07` permanece desmarcada.
+
+Comparação de duas atividades reais no mesmo estacionamento mostrou variância
+visual entre execuções: primeira com 529 m, 414 fixes, 144 aceitos e 270
+rejeitados; segunda com 544 m, 386 fixes, 145 aceitos e 241 rejeitados. Ambas
+reportaram precisão de 5 m. A segunda apresenta zigue-zagues mais acentuados,
+mas métricas agregadas não indicam degradação clara; a diferença é compatível
+com multipercurso e variação do fused em ambiente de estacionamento.
 
 Atualização visual da `026-07`: a rota usa linha azul com contraste sobre
 `Positron`; o início fica verde, o fim fica vermelho após `Parar` e a posição
 corrente fica laranja durante tracking. Fontes GeoJSON e camadas foram
 separadas para evitar sobreposição semântica dos marcadores. Checklist permanece
 desmarcado.
+
+Diagnóstico debug para próximas tentativas foi adicionado em `026-07`: a UI
+exibe todos os motivos de rejeição e buckets de precisão com zeros visíveis,
+enquanto o coordinator conta precisão somente durante `captureActive` e zera as
+contagens em `start()`/`clear()`. `git diff --check` e
+`./gradlew app:compileDebugKotlin app:lintDebug app:assembleDebug` passaram. O
+gate físico, casos negativos, Logcat sanitizado e `026-08` continuam bloqueados;
+progresso permanece `6/8`.
+
+Correção de câmera em `026-07`: primeiro posicionamento real observado com
+`mock_location_app` nulo centralizou em zoom urbano `16.0`, igual à regra de
+Recentralizar para zero/um ponto aceito. Com dois ou mais pontos, zoom manual
+continua preservado. Builds completos, instalação debug e `git diff --check`
+passaram; checklist permanece desmarcado.
+
+Novas atividades reais com diagnóstico debug: atividade 3 registrou 538 m, 183
+fixes, 122 aceitos e 61 rejeitados; atividade 4 registrou 557 m, 188 fixes, 122
+aceitos e 66 rejeitados. Atividade 4 teve rejeições exclusivamente em
+`Abaixo do piso de ruído`; atividade 3 teve 60 rejeições nessa categoria e uma
+rejeição não classificada no card. Atividade 3 teve 2 fixes em `<=3 m`, 138 em `>3–5 m`
+e 43 em `>5–10 m`; atividade 4 teve 0, 48 e 140 respectivamente. A segunda
+execução confirma distribuição de precisão pior, sem evidência de velocidade
+impossível, stale, duplicação ou erro de ordem. Evidências visuais foram
+removidas após análise; somente métricas agregadas permanecem.
+
+Consolidação: pan/zoom, follow e Recentralizar foram confirmados; follow só
+retorna após Recentralizar, conforme esperado. Evidências visuais removidas
+mostravam fit bounds após parada. Smoke de permissão negada mostrou `Permissão
+necessária`; smoke de localização desligada exibiu aviso do Android e restaurou
+modo `3`. Logcat mostrou solicitações Fused de alta precisão atribuídas à PoC,
+sem telemetria da aplicação, coordenadas ou motivos de rejeição. Smoke de
+localização aproximada mostrou `Precisão insuficiente` e bloqueou `Iniciar`;
+networking isolado do pacote não derrubou mapa já cacheado; perda temporária e
+stop precoce continuam sem classificação. Progresso permanece `6/8`.
+
+Tentativa adicional sem atividade externa não conseguiu executar stop precoce ou
+perda temporária: GPS real não atingiu readiness e fake GPS externo exigiu
+configuração obrigatória, que não foi realizada. Nenhum resultado foi inventado;
+aparelho foi restaurado. Progresso permanece `6/8`.
+
+Nova tentativa encontrou fake GPS ativo com providers mock confirmados, mas o
+joystick não produziu fix mock novo via input ADB; `Iniciar` permaneceu
+desabilitado. Stop precoce e perda temporária continuam sem classificação.
+
+Após movimento manual do joystick, tracking mock ficou ativo; localização foi
+desligada por aproximadamente 5 s e restaurada sem crash, com contadores
+retomando após recuperação. Esse smoke confirma resiliência básica, mas não
+classifica explicitamente o estado `GPS perdido` nem cobre stop precoce ou
+segundo ciclo. Evidência permanece mock/debug; progresso `6/8`.
+
+Segundo ciclo mock foi executado sem reiniciar Activity: `Limpar` → `Preparar`
+→ `Iniciar` → `Parar`; diagnóstico registrou 29 fixes `<=3 m` e 2 em `>3–5 m`,
+sem contaminação. Novo `Limpar` zerou buckets. Stop precoce imediato terminou
+com zero buckets e sem crash. Evidência cobre isolamento/robustez mock, não fecha
+gate GPS real; progresso permanece `6/8`.
+
+Tentativa de rede após limpeza de cache excedeu timeout do shell sem estado UI
+classificável; networking, localização e permissões foram restaurados. Rede
+indisponível permanece inconclusiva; `026-07` não deve ser fechada ainda.
+
+Pausa do joystick durante tracking mock manteve distância em 60 m e pontos
+aceitos em 9, mas fixes subiram de 29 para 42 e rejeitados de 20 para 33 em 10 s;
+UI não mostrou `GPS perdido`/`fraco`. Rota ficou contida, porém caso negativo não
+foi aprovado porque Fused continuou emitindo callbacks mock/stale.
+
+Após limpeza manual de cache, rede do pacote foi bloqueada e Activity reiniciada;
+UI permaneceu `Mapa-base: Pronto`, sem crash. Networking foi restaurado. Resultado
+prova estabilidade offline, mas não prova falha visual do mapa por possível cache
+remanescente; requisito de erro de mapa continua inconclusivo.
+
+Confirmação do operador: atividades 3 e 4 usaram GPS real, sem fake GPS; fit
+bounds foi considerado aprovado nas capturas pós-parada. A divergência de uma
+rejeição na atividade 3 foi aceita como resíduo de observabilidade, sem alterar
+filtro ou suavização. Prints foram removidos após análise.
+
+Decisão: não repetir atividade 3. O percurso e diagnóstico permanecem evidência
+útil; atividade 4 no mesmo contexto confirma a hipótese de ruído. Próximo passo:
+smoke de casos negativos restantes; progresso permanece `6/8`.
+
+Correção de câmera da `026-07` centralizou em helper explícito a regra de zoom:
+zero ou um ponto aceito usa exatamente `URBAN_ACTIVITY_ZOOM` no primeiro
+posicionamento, follow, Recentralizar e ponto único após parada; com dois ou mais
+pontos, o zoom manual atual recebe somente o piso de `forLocation()`. `git diff
+--check` e `./gradlew app:compileDebugKotlin app:lintDebug` passaram. O gate
+físico, casos negativos, Logcat sanitizado e `026-08` continuam bloqueados;
+progresso permanece `6/8`.
+
+Repetição de localização desligada com ADB reconectado confirmou
+`ProviderRequest[OFF]` sem crash; dump sanitizado mostrou `GPS: Localização
+desativada` e `PoC: GPS perdido`, com 37 fixes e 457 m. Localização aguarda
+restauração operacional; progresso `6/8`.
+
+Smoke debug controlado de mapa executado no aparelho: `Simular erro do mapa`
+mostrou `Mapa-base: Indisponível` sem converter GPS/PoC em erro; `Restaurar mapa`
+restaurou sinteticamente somente `mapStatus`; GPS/PoC permaneceram
+independentes, sem alteração de rota ou métricas. Dump posterior observou
+GPS/PoC `Pronto`, sem atribuir essa transição ao restore sintético.
+Isolamento mapa/GPS aprovado;
+falha real de rede continua limitada por cache. Progresso permanece `6/8`.
+
+Regressão `Simular erro do mapa` → `Limpar` passou no `SM-S901E`: botão voltou a
+`Simular erro do mapa`, sem estado preso ou restauração sintética disponível para
+erro real. Progresso permanece `6/8`.
+
+`026-07` concluída com aceitação explícita da limitação de rede: mapa permaneceu
+`Pronto` offline por cache, enquanto smoke controlado confirmou isolamento entre
+erro de mapa e GPS. GPS real, câmera, rota, reset, ciclos e casos negativos
+principais foram validados; rejeição não classificada foi aceita como resíduo de
+observabilidade. Progresso atualizado para `7/8`. `026-08` é única subtarefa
+pendente e não foi iniciada automaticamente.
 
 ## Ordem
 
