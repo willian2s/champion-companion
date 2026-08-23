@@ -100,6 +100,12 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   snapshots D4 elegíveis com intervalos canônicos; publicação permanece
   independente de passos/créditos e usa mapper, payload congelado, midpoint,
   retry e permissão já existentes.
+- Durante `027-06`, a primeira tentativa física de sincronizar uma atividade
+  encerrou o app por exceção não tratada antes de concluir o Gate A. Foram
+  adicionadas boundaries seguras no mapper/coordinator e validação explícita dos
+  limites públicos de passos/cadência do SDK. O run CI `32674172016` passou
+  `./gradlew lint assembleDebug assembleRelease` e gerou APK debug para repetir
+  a validação física. A task continua `pending` até o reteste.
 - Validação física Health Connect/Health Sync/Strava permanece em `027-06`;
   timeline 1 Hz não foi iniciada.
 - Revisão independente de `027-05` aprovada sem bloqueadores; permanecem apenas
