@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `03`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-01`, `027-02`
 
 ## Objetivo
