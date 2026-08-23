@@ -1,149 +1,80 @@
-# 027-00 — Overview: passos, cadência e timeline 1 Hz
+# 027 — Passos, cadência e timeline 1 Hz
+
+- **Status geral:** `pending`
+- **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
+- **Progresso:** `0/11` subtarefas concluídas
 
 ## Objetivo
 
-Executar a Spec 027 em dois gates independentes:
+Executar a Spec 027 em dois gates sequenciais:
 
-- **Gate A:** publicar passos/cadência de atividades no Health Connect sem inflar o acumulado diário;
+- **Gate A:** publicar passos e cadência de atividades no Health Connect sem
+  inflar o acumulado diário;
 - **Gate B:** produzir timeline derivada comum de 1 Hz para BPM e cadência.
 
 ## Pré-condições
 
-Antes de qualquer task:
+Antes de executar qualquer subtarefa:
 
 1. ler `AGENTS.md`;
 2. ler `docs/baseline/current-baseline.md`;
-3. ler `docs/specs/027-workout-steps-cadence-1hz-timeline.md`;
-4. para Gate A, ler também `docs/specs/016-health-connect-incremental-daily-steps.md` e ADRs Health Connect vigentes;
+3. ler a Spec 027;
+4. para o Gate A, ler a Spec 016 e ADRs vigentes de Health Connect;
 5. auditar o código real da branch antes de assumir schema, identidades ou APIs.
 
-## Invariantes
+## Invariantes e guard rails
 
-- `DailySummary.steps` permanece cumulativo e autoritativo para o total diário observado;
-- passos enviados por atividade não podem ser somados novamente pelo próximo incremento diário;
-- crédito só é válido após aceite remoto do `StepsRecord` da atividade;
-- retry não duplica record nem crédito;
-- atividade já coberta por Daily sincronizado não publica novo `StepsRecord`;
-- `StepsCadenceRecord` não participa do crédito de passos;
-- dados D4 de origem nunca são substituídos pela timeline 1 Hz;
+- `DailySummary.steps` permanece cumulativo e autoritativo;
+- passos publicados pela atividade não podem ser contados novamente pelo Daily;
+- crédito só existe após aceite remoto do `StepsRecord` da atividade;
+- retry não duplica record, crédito ou contagem;
+- atividade já coberta por Daily sincronizado não publica outro `StepsRecord`;
+- `StepsCadenceRecord` não participa da contabilidade de passos;
+- dados D4 de origem permanecem intactos;
 - gaps estruturais permanecem gaps;
 - sync continua manual, foreground e write-only;
-- nenhuma task reativa treino phone, GPS, mapa ou rota.
+- nenhuma subtarefa reativa treino phone, GPS, mapa ou rota;
+- não criar nem executar testes automatizados sem pedido explícito.
 
-## Gate A — Integridade de passos e interoperabilidade
+## Checklist
 
-### 027-01 — Auditar pipeline e fechar decisão
+- [ ] [027-01-auditar-passos-d4-daily-health-connect.md](027-01-auditar-passos-d4-daily-health-connect.md)
+- [ ] [027-02-modelar-passos-cadencia-e-creditos.md](027-02-modelar-passos-cadencia-e-creditos.md)
+- [ ] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
+- [ ] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
+- [ ] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
+- [ ] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
+- [ ] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
+- [ ] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
+- [ ] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
+- [ ] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
+- [ ] [027-11-validar-e-fechar-spec.md](027-11-validar-e-fechar-spec.md)
 
-Auditar:
-
-- Spec 016 e checkpoint incremental;
-- `DailyStepsSyncPayload` e persistência;
-- `HealthSyncOperation`/filhos congelados;
-- mapper/gateway/permissões;
-- `WorkoutActivity`, intervalos D4 e total de passos;
-- cobertura temporal já sincronizada;
-- semântica oficial de `StepsRecord` e `StepsCadenceRecord`.
-
-Saída: documento de auditoria + ADR-025 se continuar sendo o próximo número livre.
-
-### 027-02 — Modelar passos/cadência e crédito
-
-Criar contratos persistentes mínimos para:
-
-- filho de passos da atividade;
-- filho de cadência;
-- estado idempotente de crédito/cobertura;
-- payload congelado e identidade estável.
-
-Migration apenas se necessária após auditoria.
-
-### 027-03 — Publicar passos da atividade
-
-Adicionar `StepsRecord` elegível de `WorkoutActivity`, sem ainda alterar silenciosamente o Daily Summary.
-
-Aceite remoto deve ativar crédito idempotente. Falha não ativa crédito.
-
-### 027-04 — Integrar crédito ao Daily Summary
-
-Calcular residual diário seguro:
+## Dependências
 
 ```text
-grossDelta - acceptedWorkoutCredits = residualDailySteps
+027-01 → 027-02 → 027-03 → 027-04 → 027-05 → 027-06
+                                                    ↓
+027-07 → 027-08 → 027-09 → 027-10 → 027-11
 ```
 
-Preservar checkpoint cumulativo real do relógio, sem valor negativo, sem crédito cruzando dia e sem sobreposição/duplicidade remota.
-
-### 027-05 — Publicar cadência por intervalos D4
-
-Derivar `steps/min` por intervalo válido e publicar `StepsCadenceRecord` independente da contabilidade diária.
-
-### 027-06 — Validar fisicamente HC -> Health Sync -> Strava
-
-Validar pelo menos:
-
-- atividade primeiro, Daily depois;
-- Daily primeiro, atividade depois;
-- retry;
-- total diário final correto;
-- cadência no Health Connect;
-- resultado real no Strava via Health Sync.
-
-Classificar `go`, `go_with_adjustments` ou `no_go`.
-
-## Gate B — Timeline derivada 1 Hz
-
-### 027-07 — Definir contrato/versionamento temporal
-
-Formalizar SOURCE / DERIVED / RESAMPLED_1HZ, parâmetros, política de gaps e autoridade estatística.
-
-### 027-08 — BPM 1 Hz
-
-Implementar validação robusta, suavização temporal e interpolação somente em regiões elegíveis.
-
-### 027-09 — Cadência 1 Hz
-
-Implementar derivação/suavização temporal da cadência e reamostragem na mesma grade de 1 segundo.
-
-### 027-10 — Integrar timeline e avaliar projeção HC
-
-Usar a timeline comum em detalhes/gráficos e decidir, com base na evidência do Gate A, se `StepsCadenceRecord` deve permanecer por bucket ou migrar para série 1 Hz versionada.
-
-### 027-11 — Validação final e fechamento
-
-Validar integridade temporal, gaps, estatísticas, UI afetada, Health Connect e documentação final.
-
-## Ordem
-
-```text
-027-01
-  ↓
-027-02
-  ↓
-027-03
-  ↓
-027-04
-  ↓
-027-05
-  ↓
-027-06   Gate A
-  ↓
-027-07
-  ↓
-027-08
-  ↓
-027-09
-  ↓
-027-10
-  ↓
-027-11   Gate B / fechamento
-```
+O Gate B só inicia após o Gate A ser fechado sem risco de duplicidade ou
+subcontagem de passos.
 
 ## Verificação
 
-Para tasks com código ou Gradle:
+Para subtarefas com código, schema ou Gradle:
 
 ```bash
+git diff --check
 ./gradlew lint assembleDebug assembleRelease
 ```
 
-Não criar nem executar testes automatizados sem pedido explícito do usuário.
+Para validações físicas, registrar somente evidência observada e sanitizada.
+
+## Observações
+
+- Spec, pasta, overview e subtarefas usam ticker `027`.
+- Planejamento foi normalizado para uma única seção `## Checklist`, com um item
+  por subtarefa.
+- Nenhuma subtarefa foi iniciada por esta normalização documental.

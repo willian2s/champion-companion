@@ -1,5 +1,10 @@
 # 027-06 — Validar Health Sync, Strava e total diário
 
+- **Ticker:** `027`
+- **Número:** `06`
+- **Status:** `pending`
+- **Depends on:** `027-01` a `027-05`
+
 ## Objetivo
 
 Executar o Gate A em hardware/contas reais e registrar somente comportamento observado.

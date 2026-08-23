@@ -1,5 +1,10 @@
 # 027-10 — Integrar timeline e avaliar cadência 1 Hz no Health Connect
 
+- **Ticker:** `027`
+- **Número:** `10`
+- **Status:** `pending`
+- **Depends on:** `027-06`, `027-07`, `027-08`, `027-09`
+
 ## Objetivo
 
 Usar a timeline comum de BPM/cadência nas superfícies locais adequadas e decidir se a projeção de cadência do Health Connect deve permanecer por bucket D4 ou migrar para série 1 Hz derivada.

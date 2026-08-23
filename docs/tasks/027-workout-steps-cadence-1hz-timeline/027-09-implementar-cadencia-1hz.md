@@ -1,5 +1,10 @@
 # 027-09 — Implementar cadência derivada em 1 Hz
 
+- **Ticker:** `027`
+- **Número:** `09`
+- **Status:** `pending`
+- **Depends on:** `027-07`, `027-08`
+
 ## Objetivo
 
 Gerar série temporal de cadência na mesma grade de 1 segundo usada pelo BPM.

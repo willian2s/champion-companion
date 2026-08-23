@@ -1,5 +1,10 @@
 # 027-02 — Modelar passos, cadência e créditos de atividade
 
+- **Ticker:** `027`
+- **Número:** `02`
+- **Status:** `pending`
+- **Depends on:** `027-01`
+
 ## Objetivo
 
 Adicionar os contratos mínimos necessários para representar passos/cadência da atividade e o crédito idempotente contra o próximo Daily Summary, sem ainda alterar o comportamento remoto completo.

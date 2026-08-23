@@ -1,5 +1,10 @@
 # 027-11 — Validar e fechar a Spec 027
 
+- **Ticker:** `027`
+- **Número:** `11`
+- **Status:** `pending`
+- **Depends on:** `027-10`
+
 ## Objetivo
 
 Executar validação final integrada e fechar a spec com baseline factual.

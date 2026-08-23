@@ -1,5 +1,10 @@
 # 027-08 — Implementar BPM derivado em 1 Hz
 
+- **Ticker:** `027`
+- **Número:** `08`
+- **Status:** `pending`
+- **Depends on:** `027-07`
+
 ## Objetivo
 
 Gerar uma série de BPM suavizada e reamostrada em grade de 1 segundo sem reescrever as amostras D4 de origem.

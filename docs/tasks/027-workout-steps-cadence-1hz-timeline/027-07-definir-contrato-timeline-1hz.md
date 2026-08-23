@@ -1,5 +1,10 @@
 # 027-07 — Definir contrato e versionamento da timeline 1 Hz
 
+- **Ticker:** `027`
+- **Número:** `07`
+- **Status:** `pending`
+- **Depends on:** `027-06`
+
 ## Objetivo
 
 Formalizar a camada derivada temporal antes de implementar algoritmos de BPM/cadência.

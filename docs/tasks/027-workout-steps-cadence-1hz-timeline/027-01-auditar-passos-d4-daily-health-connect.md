@@ -1,5 +1,10 @@
 # 027-01 — Auditar passos D4, Daily Summary e Health Connect
 
+- **Ticker:** `027`
+- **Número:** `01`
+- **Status:** `pending`
+- **Depends on:** nenhuma
+
 ## Objetivo
 
 Mapear o estado real antes de qualquer mudança de schema ou comportamento remoto e fechar a decisão arquitetural da Spec 027.

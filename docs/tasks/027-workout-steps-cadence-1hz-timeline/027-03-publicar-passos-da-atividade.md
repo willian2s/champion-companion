@@ -1,5 +1,10 @@
 # 027-03 — Publicar passos da atividade no Health Connect
 
+- **Ticker:** `027`
+- **Número:** `03`
+- **Status:** `pending`
+- **Depends on:** `027-01`, `027-02`
+
 ## Objetivo
 
 Adicionar `StepsRecord` como projeção da `WorkoutActivity` quando os passos ainda não estiverem cobertos por um Daily Summary previamente sincronizado.

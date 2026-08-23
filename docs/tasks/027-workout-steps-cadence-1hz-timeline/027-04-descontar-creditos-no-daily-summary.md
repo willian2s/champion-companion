@@ -1,5 +1,10 @@
 # 027-04 — Descontar créditos no Daily Summary
 
+- **Ticker:** `027`
+- **Número:** `04`
+- **Status:** `pending`
+- **Depends on:** `027-01`, `027-02`, `027-03`
+
 ## Objetivo
 
 Integrar passos de atividades já aceitos remotamente ao cálculo incremental da Spec 016 sem inflar o total diário.

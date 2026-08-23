@@ -1,5 +1,10 @@
 # 027-05 — Publicar cadência por intervalos D4
 
+- **Ticker:** `027`
+- **Número:** `05`
+- **Status:** `pending`
+- **Depends on:** `027-01`, `027-02`, `027-03`, `027-04`
+
 ## Objetivo
 
 Adicionar `StepsCadenceRecord` à projeção Health Connect da atividade usando somente intervalos D4 válidos, sem depender da timeline de 1 Hz.
