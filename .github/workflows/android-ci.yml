@@ -8,9 +8,39 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  apk:
+    name: Assemble debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: champion-companion-027-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
   verify:
     name: Lint and assemble
     runs-on: ubuntu-latest
@@ -34,23 +64,3 @@ jobs:
 
       - name: Run full project verification
         run: ./gradlew lint assembleDebug assembleRelease
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: champion-companion-027-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Persist temporary run id
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/spec/027-workout-steps-cadence-1hz-timeline'
-        shell: bash
-        run: |
-          mkdir -p .ci
-          printf '%s\n' "$GITHUB_RUN_ID" > .ci/027-apk-run-id.txt
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .ci/027-apk-run-id.txt
-          git commit -m "ci(027): registrar run temporário ${GITHUB_RUN_ID}" || exit 0
-          git push
