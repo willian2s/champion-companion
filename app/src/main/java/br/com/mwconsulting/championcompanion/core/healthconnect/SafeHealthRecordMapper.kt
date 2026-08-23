@@ -1,7 +1,6 @@
 package br.com.mwconsulting.championcompanion.core.healthconnect
 
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
-import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayloadResult
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
