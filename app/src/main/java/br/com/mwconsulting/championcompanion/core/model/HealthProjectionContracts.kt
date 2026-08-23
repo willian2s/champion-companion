@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.core.model
 
+import java.time.Instant
 import kotlinx.serialization.Serializable
 
 /**
@@ -51,6 +52,18 @@ sealed interface HealthProjectionChildKey {
         override val recordTypeName: String = HealthSyncRecordType.TOTAL_CALORIES_BURNED.name
     }
 
+    /** Passos da atividade, separado da operação cumulativa do Daily Summary. */
+    data object WorkoutSteps : HealthProjectionChildKey {
+        override val stableValue: String = "workout-steps"
+        override val recordTypeName: String = HealthSyncRecordType.STEPS.name
+    }
+
+    /** Série de cadência da atividade, sem participação no crédito diário. */
+    data object StepsCadenceSeries : HealthProjectionChildKey {
+        override val stableValue: String = "steps-cadence-series"
+        override val recordTypeName: String = HealthSyncRecordType.STEPS_CADENCE.name
+    }
+
     companion object {
         val Exercise = ExerciseSession
         val Speed = SpeedSeries
@@ -68,6 +81,8 @@ sealed interface HealthProjectionChildKey {
             value == SpeedSeries.stableValue -> SpeedSeries
             value == HeartRateSeries.stableValue -> HeartRateSeries
             value == TotalCaloriesBurned.stableValue -> TotalCaloriesBurned
+            value == WorkoutSteps.stableValue -> WorkoutSteps
+            value == StepsCadenceSeries.stableValue -> StepsCadenceSeries
             value.startsWith("interval-") -> value
                 .removePrefix("interval-")
                 .toIntOrNull()
@@ -121,7 +136,8 @@ data class HealthSyncFrozenPayload(
     init {
         require(
             schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION ||
-                schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION,
+                schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION ||
+                schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION,
         )
         require(serializedPayload.isNotBlank())
     }
@@ -129,6 +145,8 @@ data class HealthSyncFrozenPayload(
 
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION: Int = 1
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 2
+/** Schema reservado para payloads de passos e cadência da atividade. */
+const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION: Int = 3
 
 const val HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED: String = "WATCH_DERIVED"
 const val HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION: String =
@@ -170,6 +188,17 @@ data class HealthSyncFrozenHeartRateSample(
     }
 }
 
+/** Amostra de cadência congelada para retry de StepsCadenceRecord. */
+@Serializable
+data class HealthSyncFrozenStepsCadenceSample(
+    val sampledAt: HealthSyncFrozenInstant,
+    val stepsPerMinute: Double,
+) {
+    init {
+        require(stepsPerMinute.isFinite() && stepsPerMinute >= 0.0)
+    }
+}
+
 /**
  * Conteúdo imutável de um filho de treino. Identidade fica na operação; este
  * payload contém somente dados necessários para recriar record em retry.
@@ -191,6 +220,10 @@ data class HealthSyncFrozenProjectionPayload(
     val heartRateSamples: List<HealthSyncFrozenHeartRateSample> = emptyList(),
     /** Ausente em payloads legados e em filhos sem métrica de distância/velocidade. */
     val metricProvenance: String? = null,
+    /** Preenchido somente pelo filho [HealthProjectionChildKey.WorkoutSteps]. */
+    val steps: Long? = null,
+    /** Preenchido somente pelo filho [HealthProjectionChildKey.StepsCadenceSeries]. */
+    val stepsCadenceSamples: List<HealthSyncFrozenStepsCadenceSample> = emptyList(),
 ) {
     init {
         require(recordType.isNotBlank())
@@ -200,8 +233,40 @@ data class HealthSyncFrozenProjectionPayload(
         require(distanceMeters?.let { it.isFinite() && it >= 0.0 } != false)
         require(caloriesKilocalories?.let { it.isFinite() && it >= 0.0 } != false)
         require(metricProvenance == null || metricProvenance in HEALTH_SYNC_ALLOWED_METRIC_PROVENANCES)
+        require(
+            when (projectionChildKey) {
+                HealthProjectionChildKey.WorkoutSteps.stableValue ->
+                    recordType == HealthSyncRecordType.STEPS.name &&
+                        steps != null && steps > 0L && stepsCadenceSamples.isEmpty()
+
+                HealthProjectionChildKey.StepsCadenceSeries.stableValue ->
+                    recordType == HealthSyncRecordType.STEPS_CADENCE.name &&
+                        steps == null && stepsCadenceSamples.isNotEmpty()
+
+                else -> steps == null && stepsCadenceSamples.isEmpty()
+            },
+        )
+        require(
+            stepsCadenceSamples.zipWithNext().all { (first, second) ->
+                first.sampledAt.toInstantOrNull()?.isBefore(second.sampledAt.toInstantOrNull()) == true
+            },
+        )
+        if (stepsCadenceSamples.isNotEmpty()) {
+            val startInstant = start.toInstantOrNull()
+            val endInstant = end.toInstantOrNull()
+            require(startInstant != null && endInstant != null && startInstant.isBefore(endInstant))
+            require(stepsCadenceSamples.all { sample ->
+                sample.sampledAt.toInstantOrNull()?.let { sampledAt ->
+                    !sampledAt.isBefore(startInstant) && sampledAt.isBefore(endInstant)
+                } == true
+            })
+        }
     }
 }
+
+private fun HealthSyncFrozenInstant.toInstantOrNull(): Instant? = runCatching {
+    Instant.ofEpochSecond(epochSecond, nano.toLong())
+}.getOrNull()
 
 /** Vínculo imutável com snapshot de derivação ou projeção que originou filho. */
 data class HealthProjectionOrigin(

@@ -262,6 +262,7 @@ class SettingsViewModel @Inject constructor(
 
     private fun br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.toFriendlyLabel(): String = when (this) {
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.STEPS -> "Passos"
+        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.STEPS_CADENCE -> "Cadência de passos"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.DISTANCE -> "Distância"

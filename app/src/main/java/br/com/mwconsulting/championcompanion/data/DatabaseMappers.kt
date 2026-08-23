@@ -23,6 +23,7 @@ import br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEnti
 import br.com.mwconsulting.championcompanion.core.database.StepLengthCalibrationEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutWorkflowSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
+import br.com.mwconsulting.championcompanion.core.database.WorkoutStepsCreditEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationRecord
 import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationSnapshotEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
@@ -143,11 +144,18 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCredit
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditBlockReason
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditState
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionIdentity
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsPublicationState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.Base64
 import java.util.UUID
 
@@ -1394,6 +1402,60 @@ internal fun WorkoutRoutePointEntity.toDomain(): WorkoutRoutePoint? {
         speedMetersPerSecond = speedMetersPerSecond,
         bearingDegrees = bearingDegrees,
         segmentIndex = segmentIndex,
+    ).successOrNull()
+}
+
+internal fun WorkoutStepsCredit.toEntity() = WorkoutStepsCreditEntity(
+    id = id.value.toString(),
+    activityId = activityId.value.toString(),
+    localDateIso = localDate.toString(),
+    steps = steps,
+    windowStartEpochMillis = window.start.toEpochMilli(),
+    windowEndEpochMillis = window.end.toEpochMilli(),
+    timeZoneId = timeZoneId.id,
+    workoutStepsOperationId = projectionIdentity.operationId.value.toString(),
+    workoutStepsClientRecordId = projectionIdentity.clientRecordId,
+    workoutStepsClientRecordVersion = projectionIdentity.clientRecordVersion,
+    publicationState = publicationState.name,
+    state = state.name,
+    blockedReason = blockedReason?.name,
+    consumedDailyOperationOrdinal = consumedDailyOperationOrdinal,
+    createdAtEpochMillis = createdAt.toEpochMilli(),
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
+internal fun WorkoutStepsCreditEntity.toDomain(): WorkoutStepsCredit? {
+    val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
+    val mappedOperationId = uuid(workoutStepsOperationId)?.let(::HealthSyncOperationId) ?: return null
+    val mappedIdentity = WorkoutStepsProjectionIdentity.fromPersisted(
+        activityId = mappedActivityId,
+        operationId = mappedOperationId,
+        clientRecordId = workoutStepsClientRecordId,
+        clientRecordVersion = workoutStepsClientRecordVersion,
+    ).successOrNull() ?: return null
+    val mappedLocalDate = runCatching { LocalDate.parse(localDateIso) }.getOrNull() ?: return null
+    val mappedZoneId = runCatching { ZoneId.of(timeZoneId) }.getOrNull() ?: return null
+    val mappedWindow = WorkoutIntervalWindow.create(
+        start = Instant.ofEpochMilli(windowStartEpochMillis),
+        end = Instant.ofEpochMilli(windowEndEpochMillis),
+    ).successOrNull() ?: return null
+    val mappedState = enum<WorkoutStepsCreditState>(state) ?: return null
+    val mappedPublicationState = enum<WorkoutStepsPublicationState>(publicationState) ?: return null
+    val mappedBlockedReason = blockedReason?.let { enum<WorkoutStepsCreditBlockReason>(it) ?: return null }
+    return WorkoutStepsCredit.create(
+        id = uuid(id)?.let(::WorkoutStepsCreditId) ?: return null,
+        activityId = mappedActivityId,
+        localDate = mappedLocalDate,
+        steps = steps,
+        window = mappedWindow,
+        timeZoneId = mappedZoneId,
+        projectionIdentity = mappedIdentity,
+        publicationState = mappedPublicationState,
+        state = mappedState,
+        blockedReason = mappedBlockedReason,
+        consumedDailyOperationOrdinal = consumedDailyOperationOrdinal,
+        createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
     ).successOrNull()
 }
 

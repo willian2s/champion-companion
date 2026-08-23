@@ -218,6 +218,41 @@ data class WorkoutActivityEntity(
     val manualDistanceMeters: Double? = null,
 )
 
+/** Ledger local de crédito de passos; não representa efeito remoto por si só. */
+@Entity(
+    tableName = "workout_steps_credits",
+    foreignKeys = [ForeignKey(
+        entity = WorkoutActivityEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["activityId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [
+        Index(value = ["activityId", "localDateIso"], unique = true),
+        Index(value = ["state", "localDateIso"]),
+        Index(value = ["workoutStepsOperationId"]),
+        Index(value = ["workoutStepsClientRecordId"], unique = true),
+    ],
+)
+data class WorkoutStepsCreditEntity(
+    @PrimaryKey val id: String,
+    val activityId: String,
+    val localDateIso: String,
+    val steps: Long,
+    val windowStartEpochMillis: Long,
+    val windowEndEpochMillis: Long,
+    val timeZoneId: String,
+    val workoutStepsOperationId: String,
+    val workoutStepsClientRecordId: String,
+    val workoutStepsClientRecordVersion: Long,
+    val publicationState: String,
+    val state: String,
+    val blockedReason: String?,
+    val consumedDailyOperationOrdinal: Long?,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
 @Entity(
     tableName = "diagnostic_payloads",
     foreignKeys = [ForeignKey(
@@ -710,6 +745,7 @@ class ChampionDatabaseConverters {
         DailySummaryEntity::class,
         HeartRateMeasurementEntity::class,
         WorkoutActivityEntity::class,
+        WorkoutStepsCreditEntity::class,
         WatchWorkoutImportEntity::class,
         WorkoutIntervalEntity::class,
         WorkoutDerivationSnapshotEntity::class,
@@ -724,7 +760,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 13,
+    version = 14,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -744,6 +780,7 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun dailySummaryDao(): DailySummaryDao
     abstract fun heartRateDao(): HeartRateDao
     abstract fun workoutActivityDao(): WorkoutActivityDao
+    abstract fun workoutStepsCreditDao(): WorkoutStepsCreditDao
     abstract fun watchWorkoutImportDao(): WatchWorkoutImportDao
     abstract fun workoutDetailDao(): WorkoutDetailDao
     abstract fun workoutDerivationDao(): WorkoutDerivationDao

@@ -419,6 +419,37 @@ data class PhoneWorkoutCorrelationCandidateRecord(
     val associatedDeviceId: String?,
 )
 
+@Dao
+interface WorkoutStepsCreditDao {
+    @Query("SELECT * FROM workout_steps_credits WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): WorkoutStepsCreditEntity?
+
+    @Query(
+        "SELECT * FROM workout_steps_credits " +
+            "WHERE activityId = :activityId AND localDateIso = :localDateIso LIMIT 1",
+    )
+    suspend fun findByActivityAndLocalDate(activityId: String, localDateIso: String): WorkoutStepsCreditEntity?
+
+    @Query("SELECT * FROM workout_steps_credits WHERE workoutStepsOperationId = :operationId LIMIT 1")
+    suspend fun findByWorkoutStepsOperationId(operationId: String): WorkoutStepsCreditEntity?
+
+    @Query("SELECT * FROM workout_steps_credits WHERE workoutStepsClientRecordId = :clientRecordId LIMIT 1")
+    suspend fun findByWorkoutStepsClientRecordId(clientRecordId: String): WorkoutStepsCreditEntity?
+
+    @Query(
+        "SELECT * FROM workout_steps_credits " +
+            "WHERE localDateIso = :localDateIso AND state = :state " +
+            "ORDER BY windowStartEpochMillis, activityId, id",
+    )
+    suspend fun findByLocalDateAndState(localDateIso: String, state: String): List<WorkoutStepsCreditEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(credit: WorkoutStepsCreditEntity)
+
+    @Update
+    suspend fun update(credit: WorkoutStepsCreditEntity): Int
+}
+
 data class HealthSyncSummaryRecord(
     val pendingCount: Int,
     val syncingCount: Int,

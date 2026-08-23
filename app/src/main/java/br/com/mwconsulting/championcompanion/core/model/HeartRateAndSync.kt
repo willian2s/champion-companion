@@ -176,6 +176,8 @@ data class HeartRateMeasurement private constructor(
 
 enum class HealthSyncRecordType {
     STEPS,
+    /** StepsCadenceRecord; provider permission is the shared WRITE_STEPS grant. */
+    STEPS_CADENCE,
     HEART_RATE,
     EXERCISE_SESSION,
     DISTANCE,
@@ -827,6 +829,8 @@ data class HealthSyncOperation private constructor(
                 is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
                 is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
                 is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
+                    HealthSyncRecordType.STEPS,
+                    HealthSyncRecordType.STEPS_CADENCE,
                     HealthSyncRecordType.EXERCISE_SESSION,
                     HealthSyncRecordType.DISTANCE,
                     HealthSyncRecordType.TOTAL_CALORIES_BURNED,
@@ -843,7 +847,11 @@ data class HealthSyncOperation private constructor(
         private fun supportsProjectionChild(key: HealthSyncOperationKey): Boolean = when (
             val child = key.projectionChildKey
         ) {
-            null -> key.recordType != HealthSyncRecordType.SPEED
+            null -> key.recordType !in setOf(
+                HealthSyncRecordType.SPEED,
+                HealthSyncRecordType.STEPS,
+                HealthSyncRecordType.STEPS_CADENCE,
+            )
             HealthProjectionChildKey.ExerciseSession -> key.recordType == HealthSyncRecordType.EXERCISE_SESSION
             is HealthProjectionChildKey.DistanceInterval -> key.recordType == HealthSyncRecordType.DISTANCE
             HealthProjectionChildKey.ManualDistance -> key.recordType == HealthSyncRecordType.DISTANCE
@@ -851,6 +859,8 @@ data class HealthSyncOperation private constructor(
             HealthProjectionChildKey.HeartRateSeries -> key.recordType == HealthSyncRecordType.HEART_RATE
             HealthProjectionChildKey.TotalCaloriesBurned ->
                 key.recordType == HealthSyncRecordType.TOTAL_CALORIES_BURNED
+            HealthProjectionChildKey.WorkoutSteps -> key.recordType == HealthSyncRecordType.STEPS
+            HealthProjectionChildKey.StepsCadenceSeries -> key.recordType == HealthSyncRecordType.STEPS_CADENCE
         }
 
         private fun isValidIdentityMetadata(

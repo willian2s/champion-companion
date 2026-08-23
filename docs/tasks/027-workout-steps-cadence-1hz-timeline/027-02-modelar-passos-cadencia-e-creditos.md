@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `02`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-01`
 
 ## Objetivo
@@ -85,3 +85,28 @@ Se houver código/schema:
 ```
 
 Não criar nem executar testes automatizados sem pedido explícito.
+
+## Resultado da execução
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HealthProjectionContracts.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WorkoutStepsContracts.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionMigrations.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/DatabaseModule.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthRecordMapper.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectGateway.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/settings/SettingsViewModel.kt`;
+  - `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/14.json`.
+- **Decisões:** filhos `WorkoutSteps` e `StepsCadenceSeries` usam identidades estáveis distintas do Daily; payload de retry usa schema 3; ledger separado persiste identidade, janela, fuso, publicação e consumo; migration aditiva `13 -> 14`; `WRITE_STEPS` é compartilhada pelo provider sem nova solicitação; cadência aceita valor zero e não gera crédito.
+- **Desvios:** nenhum requisito funcional. Filhos novos não foram adicionados à lista de elegibilidade automática; round-trip de mapper e guards foram preparados sem iniciar fluxo remoto, conforme fora de escopo.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`; `./gradlew lint`; `./gradlew assembleDebug assembleRelease`. Não foram criados nem executados testes automatizados, conforme `AGENTS.md` e Spec 027.
+- **Resultados e evidências:** todos os comandos finais passaram. Uma execução combinada de `./gradlew lint assembleDebug assembleRelease` falhou transitoriamente no lint por arquivo Hilt gerado ausente durante análise paralela; `./gradlew lint` isolado e os builds separados passaram. Schema 14 foi regenerado; revisão independente final aprovou sem bloqueadores.
+- **Riscos residuais:** aceite remoto, ativação transacional do crédito, desconto no Daily, cobertura temporal e publicação efetiva dos filhos pertencem às subtarefas `027-03` a `027-05`; compatibilidade Health Sync/Strava permanece sem validação física; testes automatizados continuam fora do escopo.

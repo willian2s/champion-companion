@@ -4470,7 +4470,11 @@ private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = wh
         HealthSyncRecordType.TOTAL_CALORIES_BURNED.name,
         HealthSyncRecordType.HEART_RATE.name,
     ) || recordType == HealthSyncRecordType.SPEED.name &&
-        projectionChildKey == HealthProjectionChildKey.SpeedSeries.stableValue
+        projectionChildKey == HealthProjectionChildKey.SpeedSeries.stableValue ||
+        recordType == HealthSyncRecordType.STEPS.name &&
+            projectionChildKey == HealthProjectionChildKey.WorkoutSteps.stableValue ||
+        recordType == HealthSyncRecordType.STEPS_CADENCE.name &&
+            projectionChildKey == HealthProjectionChildKey.StepsCadenceSeries.stableValue
     HealthSyncAggregateType.WEIGHT_MEASUREMENT.name -> recordType == HealthSyncRecordType.WEIGHT.name
     HealthSyncAggregateType.USER_PROFILE_HEIGHT.name -> recordType == HealthSyncRecordType.HEIGHT.name
     else -> false
@@ -4502,6 +4506,8 @@ private fun isSemanticallyResolved(
                 HealthSyncRecordType.TOTAL_CALORIES_BURNED -> isWorkoutActivityEligibleForCalories(activity, operation)
                 HealthSyncRecordType.HEART_RATE -> isWorkoutActivityEligibleForHeartRate(activity, operation)
                 HealthSyncRecordType.SPEED -> isWorkoutActivityEligibleForSpeed(activity, operation)
+                HealthSyncRecordType.STEPS -> isWorkoutActivityEligibleForSteps(activity, operation)
+                HealthSyncRecordType.STEPS_CADENCE -> isWorkoutActivityEligibleForCadence(activity, operation)
                 else -> false
             }
         } == true
@@ -4591,6 +4597,28 @@ private fun isWorkoutActivityEligibleForSpeed(
     activity.confirmedType != WorkoutType.CYCLING &&
     activity.derivationSnapshot?.isEligibleForHealthProjection == true &&
     operation.key.projectionChildKey == HealthProjectionChildKey.SpeedSeries &&
+    operation.frozenPayload != null
+
+private fun isWorkoutActivityEligibleForSteps(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
+    activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+    activity.confirmedType != WorkoutType.CYCLING &&
+    activity.metrics.stepsAvailable &&
+    activity.metrics.steps > 0L &&
+    operation.key.projectionChildKey == HealthProjectionChildKey.WorkoutSteps &&
+    operation.frozenPayload != null
+
+private fun isWorkoutActivityEligibleForCadence(
+    activity: WorkoutActivity,
+    operation: HealthSyncOperation,
+): Boolean = isWorkoutActivityBaseEligible(activity, operation) &&
+    activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+    activity.confirmedType != WorkoutType.CYCLING &&
+    activity.derivationSnapshot?.isEligibleForHealthProjection == true &&
+    activity.canonicalSeries?.intervals?.isNotEmpty() == true &&
+    operation.key.projectionChildKey == HealthProjectionChildKey.StepsCadenceSeries &&
     operation.frozenPayload != null
 
 private fun isWorkoutActivityEligibleForHeartRate(

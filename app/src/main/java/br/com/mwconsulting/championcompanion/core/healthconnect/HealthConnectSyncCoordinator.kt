@@ -1105,6 +1105,7 @@ private fun RepositoryResult<Int>.successOrZero(): Int = (this as? RepositoryRes
 
 private fun permissionFor(recordType: HealthSyncRecordType): HealthConnectWritePermission = when (recordType) {
     HealthSyncRecordType.STEPS -> HealthConnectWritePermission.STEPS
+    HealthSyncRecordType.STEPS_CADENCE -> HealthConnectWritePermission.STEPS
     HealthSyncRecordType.HEART_RATE -> HealthConnectWritePermission.HEART_RATE
     HealthSyncRecordType.EXERCISE_SESSION -> HealthConnectWritePermission.EXERCISE
     HealthSyncRecordType.DISTANCE -> HealthConnectWritePermission.DISTANCE
