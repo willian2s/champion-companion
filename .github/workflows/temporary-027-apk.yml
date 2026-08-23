@@ -6,7 +6,7 @@ on:
       - spec/027-workout-steps-cadence-1hz-timeline
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify-and-package:
@@ -38,3 +38,15 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Persist temporary run id
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p .ci
+          printf '%s\n' "$GITHUB_RUN_ID" > .ci/027-apk-run-id.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .ci/027-apk-run-id.txt
+          git commit -m "ci(027): registrar run temporário ${GITHUB_RUN_ID}" || exit 0
+          git push
