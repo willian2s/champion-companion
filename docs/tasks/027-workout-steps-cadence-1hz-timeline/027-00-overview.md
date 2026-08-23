@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `4/11` subtarefas concluídas
+- **Progresso:** `5/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -42,7 +42,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-02-modelar-passos-cadencia-e-creditos.md](027-02-modelar-passos-cadencia-e-creditos.md)
 - [x] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
 - [x] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
-- [ ] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
+- [x] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
 - [ ] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
 - [ ] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
 - [ ] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
@@ -96,3 +96,11 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   reservas pós-aceite; payload residual foi versionado como
   `RESIDUAL_INCREMENTAL`, sem reinterpretar incrementos antigos. Migration
   aditiva `14 -> 15` e schema 15 foram atualizados.
+- `027-05` ativou a criação normal da projeção filha `StepsCadenceSeries` para
+  snapshots D4 elegíveis com intervalos canônicos; publicação permanece
+  independente de passos/créditos e usa mapper, payload congelado, midpoint,
+  retry e permissão já existentes.
+- Validação física Health Connect/Health Sync/Strava permanece em `027-06`;
+  timeline 1 Hz não foi iniciada.
+- Revisão independente de `027-05` aprovada sem bloqueadores; permanecem apenas
+  riscos de interoperabilidade física e ausência de testes automatizados.

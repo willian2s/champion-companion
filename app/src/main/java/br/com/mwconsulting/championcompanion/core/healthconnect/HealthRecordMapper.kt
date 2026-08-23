@@ -635,6 +635,9 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
             if (snapshot?.isEligibleForHealthProjection == true) {
                 val series = snapshot.canonicalSeries
                 if (series != null) {
+                    if (series.intervals.isNotEmpty()) {
+                        children += HealthProjectionChildKey.StepsCadenceSeries
+                    }
                     series.intervals
                         .filter { interval ->
                             interval.canonicalIntervalDistanceMeters.isFinite() &&
