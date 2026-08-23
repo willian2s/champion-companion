@@ -1,8 +1,8 @@
 # 027 — Passos, cadência e timeline 1 Hz
 
-- **Status geral:** `pending`
+- **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `0/11` subtarefas concluídas
+- **Progresso:** `1/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -38,7 +38,7 @@ Antes de executar qualquer subtarefa:
 
 ## Checklist
 
-- [ ] [027-01-auditar-passos-d4-daily-health-connect.md](027-01-auditar-passos-d4-daily-health-connect.md)
+- [x] [027-01-auditar-passos-d4-daily-health-connect.md](027-01-auditar-passos-d4-daily-health-connect.md)
 - [ ] [027-02-modelar-passos-cadencia-e-creditos.md](027-02-modelar-passos-cadencia-e-creditos.md)
 - [ ] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
 - [ ] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
@@ -77,4 +77,9 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
 - Spec, pasta, overview e subtarefas usam ticker `027`.
 - Planejamento foi normalizado para uma única seção `## Checklist`, com um item
   por subtarefa.
-- Nenhuma subtarefa foi iniciada por esta normalização documental.
+- `027-01` confirmou que Daily já usa payload incremental e checkpoint de total
+  enfileirado, mas não há passos/cadência de atividade nem crédito pós-aceite.
+- `ADR-025` fechou cobertura conservadora por janelas locais próprias, residual
+  fail-closed e ledger Room separado. Nenhuma escrita remota nova foi feita.
+- `027-02` permanece próxima subtarefa elegível; não foi iniciada
+  automaticamente.
