@@ -76,6 +76,16 @@ data class WorkoutStepsProjectionIdentity private constructor(
     }
 }
 
+/** Dados locais necessários para preparar o filho de passos sem efeito remoto. */
+data class WorkoutStepsProjectionContext(
+    val steps: Long,
+    val window: WorkoutIntervalWindow,
+) {
+    init {
+        require(steps > 0L)
+    }
+}
+
 /** Estado único do ledger, cobrindo publicação e consumo sem contador global. */
 enum class WorkoutStepsCreditState {
     PENDING,
@@ -136,6 +146,44 @@ data class WorkoutStepsCredit private constructor(
             state = WorkoutStepsCreditState.ACTIVE,
             updatedAt = at,
         ))
+    }
+
+    /** Prepara retry sem transformar operação pendente em crédito diário. */
+    fun prepareForRetry(at: Instant): DomainResult<WorkoutStepsCredit> = when {
+        state == WorkoutStepsCreditState.PENDING && !at.isBefore(updatedAt) ->
+            DomainResult.Success(copy(
+                publicationState = WorkoutStepsPublicationState.NOT_PUBLISHED,
+                updatedAt = at,
+            ))
+
+        state == WorkoutStepsCreditState.BLOCKED &&
+            blockedReason != WorkoutStepsCreditBlockReason.ALREADY_COVERED &&
+            !at.isBefore(updatedAt) ->
+            DomainResult.Success(copy(
+                publicationState = WorkoutStepsPublicationState.NOT_PUBLISHED,
+                state = WorkoutStepsCreditState.PENDING,
+                blockedReason = null,
+                updatedAt = at,
+            ))
+
+        else -> DomainResult.Failure(DomainValidationError.INVALID_STATE)
+    }
+
+    /** Registra aceite local antes de ativar crédito na mesma transação. */
+    fun markAccepted(at: Instant): DomainResult<WorkoutStepsCredit> = when {
+        state == WorkoutStepsCreditState.PENDING && !at.isBefore(updatedAt) ->
+            DomainResult.Success(copy(
+                publicationState = WorkoutStepsPublicationState.ACCEPTED,
+                updatedAt = at,
+            ))
+
+        state == WorkoutStepsCreditState.ACTIVE &&
+            publicationState == WorkoutStepsPublicationState.ACCEPTED -> DomainResult.Success(this)
+
+        state == WorkoutStepsCreditState.CONSUMED &&
+            publicationState == WorkoutStepsPublicationState.ACCEPTED -> DomainResult.Success(this)
+
+        else -> DomainResult.Failure(DomainValidationError.INVALID_STATE)
     }
 
     fun consume(dailyOperationOrdinal: Long, at: Instant): DomainResult<WorkoutStepsCredit> = when {

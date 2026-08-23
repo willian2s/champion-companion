@@ -84,6 +84,9 @@ import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconcil
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationState
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenInstant
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenProjectionPayload
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
@@ -149,6 +152,13 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCredit
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditBlockReason
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditId
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditState
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionContext
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionIdentity
+import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Duration
 import java.time.DateTimeException
@@ -172,6 +182,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 private const val SQLITE_IN_CLAUSE_CHUNK_SIZE = 500
 private const val ROUTE_METRIC_EPSILON = 1e-9
@@ -192,6 +204,12 @@ private class ReferenceCalibrationAborted :
 private class ActivityDeletionAborted :
     IllegalStateException("Watch activity deletion could not be completed")
 
+private class WorkoutStepsPreparationAborted :
+    IllegalStateException("Workout steps projection could not be prepared")
+
+private class WorkoutStepsCreditCommitAborted :
+    IllegalStateException("Workout steps credit could not be committed")
+
 @Singleton
 class RoomRepositories @Inject constructor(
     private val database: ChampionDatabase,
@@ -200,6 +218,10 @@ class RoomRepositories @Inject constructor(
     TreadmillCalibrationRepository, AppWorkoutSessionRepository, HealthSyncRepository, DiagnosticPayloadRepository,
     PersonalMetricsRepository, WorkoutRouteRepository {
     private val ids = UuidV7Generator()
+    private val frozenProjectionJson = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = true
+    }
 
     override fun observeAssociatedDevice(): Flow<Device?> = database.deviceAssociationDao().observeAssociated()
         .map { it?.toDomain() }
@@ -2022,61 +2044,410 @@ class RoomRepositories @Inject constructor(
         frozenPayload: HealthSyncFrozenPayload,
         clientRecordVersion: Long,
         projectionOrigin: HealthProjectionOrigin,
-    ): RepositoryResult<HealthSyncOperation> = write {
-        if (key.projectionChildKey == null || key.aggregate !is HealthSyncAggregate.WorkoutActivity) {
-            return@write RepositoryResult.UnexpectedState
-        }
-        if (key.projectionChildKey.recordTypeName != key.recordType.name) {
-            return@write RepositoryResult.UnexpectedState
-        }
-        if (clientRecordVersion < 0L) return@write RepositoryResult.UnexpectedState
+        workoutStepsContext: WorkoutStepsProjectionContext?,
+    ): RepositoryResult<HealthSyncOperation> = try {
+        write {
+            if (key.projectionChildKey == null || key.aggregate !is HealthSyncAggregate.WorkoutActivity) {
+                return@write RepositoryResult.UnexpectedState
+            }
+            if (key.projectionChildKey.recordTypeName != key.recordType.name) {
+                return@write RepositoryResult.UnexpectedState
+            }
+            if (clientRecordVersion < 0L) return@write RepositoryResult.UnexpectedState
+            if (key.projectionChildKey == HealthProjectionChildKey.WorkoutSteps && workoutStepsContext == null) {
+                throw WorkoutStepsPreparationAborted()
+            }
 
-        val metadata = resolveSyncMetadata(key) ?: return@write RepositoryResult.NotFound
-        val preparedMetadata = metadata.copy(clientRecordVersion = clientRecordVersion)
-        val syncDao = database.healthSyncOperationDao()
-        val existing = syncDao.findByNaturalKey(
-            aggregateId = key.aggregate.id.toString(),
-            aggregateType = key.aggregate.type.name,
-            recordType = key.recordType.name,
-            projectionChildKey = key.projectionChildKey.stableValue,
-        )
-
-        if (existing == null) {
-            val entity = newPendingOperationEntity(key, preparedMetadata).copy(
-                action = action.name,
-                frozenPayload = frozenPayload.serializedPayload,
-                frozenPayloadVersion = frozenPayload.schemaVersion,
-                projectionOriginId = projectionOrigin.originId,
-                projectionOriginVersion = projectionOrigin.originVersion,
+            val metadata = resolveSyncMetadata(key) ?: return@write RepositoryResult.NotFound
+            val preparedMetadata = metadata.copy(clientRecordVersion = clientRecordVersion)
+            val syncDao = database.healthSyncOperationDao()
+            val existing = syncDao.findByNaturalKey(
+                aggregateId = key.aggregate.id.toString(),
+                aggregateType = key.aggregate.type.name,
+                recordType = key.recordType.name,
+                projectionChildKey = key.projectionChildKey.stableValue,
             )
-            val operation = entity.toDomain() ?: return@write RepositoryResult.UnexpectedState
-            syncDao.insert(entity)
-            return@write RepositoryResult.Success(operation)
+
+            val next = if (existing == null) {
+                val entity = newPendingOperationEntity(key, preparedMetadata).copy(
+                    action = action.name,
+                    frozenPayload = frozenPayload.serializedPayload,
+                    frozenPayloadVersion = frozenPayload.schemaVersion,
+                    projectionOriginId = projectionOrigin.originId,
+                    projectionOriginVersion = projectionOrigin.originVersion,
+                )
+                val operation = entity.toDomain() ?: return@write RepositoryResult.UnexpectedState
+                syncDao.insert(entity)
+                operation
+            } else {
+                val current = existing.toDomain() ?: return@write RepositoryResult.UnexpectedState
+                val projectionChanged = current.action != action ||
+                    current.frozenPayload != frozenPayload ||
+                    current.projectionOrigin != projectionOrigin
+                val nextClientRecordVersion = if (projectionChanged) {
+                    val currentVersion = current.clientRecordVersion ?: -1L
+                    if (currentVersion == Long.MAX_VALUE) return@write RepositoryResult.UnexpectedState
+                    maxOf(clientRecordVersion, currentVersion + 1L)
+                } else {
+                    current.clientRecordVersion ?: clientRecordVersion
+                }
+                val prepared = current.freezeProjection(
+                    action = action,
+                    frozenPayload = frozenPayload,
+                    clientRecordId = stableClientRecordId(key),
+                    clientRecordVersion = nextClientRecordVersion,
+                    projectionOrigin = projectionOrigin,
+                    updatedAt = preparedMetadata.updatedAtEpochMillis?.let(Instant::ofEpochMilli),
+                ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+                if (prepared != current && syncDao.update(prepared.toEntity()) != 1) {
+                    return@write RepositoryResult.UnexpectedState
+                }
+                prepared
+            }
+
+            if (key.projectionChildKey == HealthProjectionChildKey.WorkoutSteps &&
+                !prepareWorkoutStepsCredit(
+                    operation = next,
+                    context = workoutStepsContext ?: throw WorkoutStepsPreparationAborted(),
+                )
+            ) {
+                throw WorkoutStepsPreparationAborted()
+            }
+            RepositoryResult.Success(next)
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: WorkoutStepsPreparationAborted) {
+        RepositoryResult.UnexpectedState
+    }
+
+    override suspend fun findWorkoutStepsCredit(
+        operationId: HealthSyncOperationId,
+    ): RepositoryResult<WorkoutStepsCredit?> = read {
+        val entity = database.workoutStepsCreditDao()
+            .findByWorkoutStepsOperationId(operationId.value.toString())
+            ?: return@read RepositoryResult.Success(null)
+        val credit = entity.toDomain() ?: return@read RepositoryResult.UnexpectedState
+        RepositoryResult.Success(credit)
+    }
+
+    /** Prepara crédito ou bloqueio local antes de qualquer efeito remoto. */
+    private suspend fun prepareWorkoutStepsCredit(
+        operation: HealthSyncOperation,
+        context: WorkoutStepsProjectionContext,
+    ): Boolean {
+        val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity ?: return false
+        if (operation.key != HealthSyncOperationKey(
+                aggregate = aggregate,
+                recordType = HealthSyncRecordType.STEPS,
+                projectionChildKey = HealthProjectionChildKey.WorkoutSteps,
+            ) || operation.action != HealthSyncOperationAction.INSERT
+        ) return false
+
+        val activity = database.workoutActivityDao().findById(aggregate.activityId.value.toString()) ?: return false
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
+            activity.deviceId == null ||
+            activity.parserValidity != ParserValidity.VALID.name ||
+            activity.workflowState == ActivityWorkflowState.DISCARDED.name ||
+            activity.confirmedType == null ||
+            activity.confirmedType == WorkoutType.UNKNOWN.name ||
+            activity.confirmedType == WorkoutType.CYCLING.name ||
+            !activity.stepsAvailable ||
+            activity.steps != context.steps
+        ) return false
+
+        val zoneId = operation.timeZoneId
+            .validZoneIdOrNull()
+            ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: return false
+        val windowEndInclusive = runCatching { context.window.end.minusNanos(1L) }.getOrNull() ?: return false
+        val localDate = context.window.start.atZone(zoneId).toLocalDate()
+        if (windowEndInclusive.atZone(zoneId).toLocalDate() != localDate ||
+            context.window.start.toEpochMilli() >= context.window.end.toEpochMilli()
+        ) return false
+
+        val identity = WorkoutStepsProjectionIdentity.fromOperation(operation).valueOrNull() ?: return false
+        val creditDao = database.workoutStepsCreditDao()
+        val clientRecordId = operation.clientRecordId
+        val clientRecordCredit = if (clientRecordId == null) {
+            null
+        } else {
+            creditDao.findByWorkoutStepsClientRecordId(clientRecordId)
+        }
+        val candidates = listOfNotNull(
+            creditDao.findByActivityAndLocalDate(activity.id, localDate.toString()),
+            creditDao.findByWorkoutStepsOperationId(operation.id.value.toString()),
+            clientRecordCredit,
+        ).distinctBy { it.id }
+        if (candidates.size > 1) return false
+        val existingEntity = candidates.singleOrNull()
+        val existing = existingEntity?.toDomain()
+        if (existingEntity != null && existing == null) return false
+        val now = Instant.now()
+        val operationAccepted = operation.state == SyncOperationState.SYNCED &&
+            operation.action == HealthSyncOperationAction.INSERT &&
+            operation.reconciliationState == HealthProjectionReconciliationState.SENT &&
+            operation.reconciliationCheckpoint == HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
+
+        if (operationAccepted) {
+            return activateOrRecoverWorkoutStepsCredit(
+                existing = existing,
+                identity = identity,
+                context = context,
+                localDate = localDate,
+                zoneId = zoneId,
+                at = now,
+                creditDao = creditDao,
+            )
         }
 
-        val current = existing.toDomain() ?: return@write RepositoryResult.UnexpectedState
-        val projectionChanged = current.action != action ||
-            current.frozenPayload != frozenPayload ||
-            current.projectionOrigin != projectionOrigin
-        val nextClientRecordVersion = if (projectionChanged) {
-            val currentVersion = current.clientRecordVersion ?: -1L
-            if (currentVersion == Long.MAX_VALUE) return@write RepositoryResult.UnexpectedState
-            maxOf(clientRecordVersion, currentVersion + 1L)
+        if (existing?.state == WorkoutStepsCreditState.ACTIVE ||
+            existing?.state == WorkoutStepsCreditState.CONSUMED
+        ) return false
+
+        val blockReason = workoutStepsDailyCoverageBlockReason(
+            activity = activity,
+            localDate = localDate,
+            window = context.window,
+            zoneId = zoneId,
+        )
+        val prepared = (if (existing == null) {
+            createWorkoutStepsCredit(
+                id = WorkoutStepsCreditId(ids.next()),
+                identity = identity,
+                context = context,
+                localDate = localDate,
+                zoneId = zoneId,
+                createdAt = now,
+                updatedAt = now,
+            )
+        } else if (existing.projectionIdentity.clientRecordId != identity.clientRecordId ||
+            existing.projectionIdentity.clientRecordVersion != identity.clientRecordVersion ||
+            existing.steps != context.steps ||
+            existing.window != context.window ||
+            existing.timeZoneId != zoneId ||
+            existing.localDate != localDate
+        ) {
+            if (existing.state == WorkoutStepsCreditState.ACTIVE ||
+                existing.state == WorkoutStepsCreditState.CONSUMED
+            ) return false
+            createWorkoutStepsCredit(
+                id = existing.id,
+                identity = identity,
+                context = context,
+                localDate = localDate,
+                zoneId = zoneId,
+                createdAt = existing.createdAt,
+                updatedAt = now,
+            )
         } else {
-            current.clientRecordVersion ?: clientRecordVersion
+            val retry = existing.prepareForRetry(now).valueOrNull()
+            if (retry != null) {
+                retry
+            } else if (existing.state == WorkoutStepsCreditState.BLOCKED &&
+                existing.blockedReason == WorkoutStepsCreditBlockReason.ALREADY_COVERED
+            ) {
+                existing
+            } else {
+                return false
+            }
+        }) ?: return false
+
+        val next = if (blockReason == null) {
+            prepared
+        } else if (prepared.state == WorkoutStepsCreditState.BLOCKED &&
+            prepared.blockedReason == blockReason
+        ) {
+            prepared
+        } else {
+            prepared.block(blockReason, now).valueOrNull() ?: return false
         }
-        val next = current.freezeProjection(
-            action = action,
-            frozenPayload = frozenPayload,
-            clientRecordId = stableClientRecordId(key),
-            clientRecordVersion = nextClientRecordVersion,
-            projectionOrigin = projectionOrigin,
-            updatedAt = preparedMetadata.updatedAtEpochMillis?.let(Instant::ofEpochMilli),
-        ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
-        if (next != current && syncDao.update(next.toEntity()) != 1) {
-            return@write RepositoryResult.UnexpectedState
+        return if (existing == null) {
+            creditDao.insert(next.toEntity())
+            true
+        } else {
+            creditDao.update(next.toEntity()) == 1
         }
-        RepositoryResult.Success(next)
+    }
+
+    private suspend fun activateOrRecoverWorkoutStepsCredit(
+        existing: WorkoutStepsCredit?,
+        identity: WorkoutStepsProjectionIdentity,
+        context: WorkoutStepsProjectionContext,
+        localDate: LocalDate,
+        zoneId: ZoneId,
+        at: Instant,
+        creditDao: br.com.mwconsulting.championcompanion.core.database.WorkoutStepsCreditDao,
+    ): Boolean {
+        if (existing?.projectionIdentity?.clientRecordId == identity.clientRecordId &&
+            existing.projectionIdentity.clientRecordVersion == identity.clientRecordVersion &&
+            existing.steps == context.steps &&
+            existing.window == context.window &&
+            existing.timeZoneId == zoneId &&
+            existing.localDate == localDate
+        ) {
+            if (existing.state == WorkoutStepsCreditState.ACTIVE ||
+                existing.state == WorkoutStepsCreditState.CONSUMED
+            ) return true
+        } else if (existing?.state == WorkoutStepsCreditState.ACTIVE ||
+            existing?.state == WorkoutStepsCreditState.CONSUMED
+        ) return false
+
+        val pending = createWorkoutStepsCredit(
+            id = existing?.id ?: WorkoutStepsCreditId(ids.next()),
+            identity = identity,
+            context = context,
+            localDate = localDate,
+            zoneId = zoneId,
+            createdAt = existing?.createdAt ?: at,
+            updatedAt = at,
+        ) ?: return false
+        val active = pending
+            .markAccepted(at)
+            .valueOrNull()
+            ?.markActive(at)
+            ?.valueOrNull()
+            ?: return false
+        return if (existing == null) {
+            creditDao.insert(active.toEntity())
+            true
+        } else {
+            creditDao.update(active.toEntity()) == 1
+        }
+    }
+
+    private fun createWorkoutStepsCredit(
+        id: WorkoutStepsCreditId,
+        identity: WorkoutStepsProjectionIdentity,
+        context: WorkoutStepsProjectionContext,
+        localDate: LocalDate,
+        zoneId: ZoneId,
+        createdAt: Instant,
+        updatedAt: Instant,
+    ): WorkoutStepsCredit? = WorkoutStepsCredit.create(
+        id = id,
+        activityId = identity.activityId,
+        localDate = localDate,
+        steps = context.steps,
+        window = context.window,
+        timeZoneId = zoneId,
+        projectionIdentity = identity,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    ).valueOrNull()
+
+    private suspend fun workoutStepsDailyCoverageBlockReason(
+        activity: WorkoutActivityEntity,
+        localDate: LocalDate,
+        window: br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow,
+        zoneId: ZoneId,
+    ): WorkoutStepsCreditBlockReason? {
+        val summary = database.dailySummaryDao().findByNaturalKey(
+            deviceId = activity.deviceId,
+            origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
+            localDateIso = localDate.toString(),
+        ) ?: return null
+        val operations = database.healthSyncOperationDao().findByAggregate(
+            aggregateId = summary.id,
+            aggregateType = HealthSyncAggregateType.DAILY_SUMMARY.name,
+        ).filter { it.recordType == HealthSyncRecordType.STEPS.name }
+        if (operations.isEmpty()) return null
+        if (summary.origin != DataOrigin.WATCH_DAILY_SUMMARY.name ||
+            summary.validity != DataValidity.VALID.name ||
+            summary.deviceId != activity.deviceId
+        ) return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+
+        val summaryDate = runCatching { LocalDate.parse(summary.localDateIso) }.getOrNull()
+            ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+        val summaryZone = summary.collectedZoneId.validZoneIdOrNull()
+            ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+        if (summaryDate != localDate || summaryZone != zoneId) {
+            return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+        }
+        val payloadOperations = operations
+            .filter { it.action == HealthSyncOperationAction.INSERT.name }
+            .map { entity ->
+                val operation = entity.toDomain() ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+                val payload = operation.dailyStepsPayload
+                    ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+                entity to payload
+            }
+        if (!payloadOperations.isValidDailyStepsChain()) {
+            return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+        }
+        for ((entity, payload) in payloadOperations) {
+            if (entity.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY) {
+                return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            }
+            val operation = entity.toDomain() ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            val payloadZone = payload.timeZoneId.validZoneIdOrNull()
+                ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+                ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            val payloadEndInclusive = runCatching { payload.endTime.minusNanos(1L) }.getOrNull()
+                ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            if (payloadZone != summaryZone ||
+                operation.timeZoneId.validZoneIdOrNull()?.let { runCatching { ZoneId.of(it) }.getOrNull() } != payloadZone ||
+                payload.startTime.atZone(payloadZone).toLocalDate() != summaryDate ||
+                payloadEndInclusive.atZone(payloadZone).toLocalDate() != summaryDate
+            ) return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            if (payload.currentTotalSteps > summary.steps) {
+                return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            }
+            val operationAccepted = operation.state == SyncOperationState.SYNCED &&
+                operation.reconciliationState == HealthProjectionReconciliationState.SENT &&
+                operation.reconciliationCheckpoint == HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
+            if (!operationAccepted) {
+                if (operation.state == SyncOperationState.PENDING ||
+                    operation.state == SyncOperationState.FAILED
+                ) continue
+                return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+            }
+            if (window.start.isBefore(payload.endTime) && payload.startTime.isBefore(window.end)) {
+                return WorkoutStepsCreditBlockReason.ALREADY_COVERED
+            }
+        }
+        return null
+    }
+
+    /** Confirma operação e crédito no mesmo commit Room após `Accepted`. */
+    private suspend fun activateWorkoutStepsCreditForAcceptedOperation(
+        operationEntity: HealthSyncOperationEntity,
+        at: Instant,
+    ): Boolean {
+        val operation = operationEntity.toDomain() ?: return false
+        if (operation.key.aggregate !is HealthSyncAggregate.WorkoutActivity) return false
+        val identity = WorkoutStepsProjectionIdentity.fromOperation(operation).valueOrNull() ?: return false
+        val zoneId = operation.timeZoneId
+            .validZoneIdOrNull()
+            ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: return false
+        val payload = operation.frozenPayload
+            ?.takeIf { it.schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION }
+            ?.let { runCatching { frozenProjectionJson.decodeFromString<HealthSyncFrozenProjectionPayload>(it.serializedPayload) }.getOrNull() }
+            ?: return false
+        if (payload.projectionChildKey != HealthProjectionChildKey.WorkoutSteps.stableValue ||
+            payload.recordType != HealthSyncRecordType.STEPS.name ||
+            payload.steps == null ||
+            payload.steps <= 0L
+        ) return false
+        val start = payload.start.toInstantOrNull() ?: return false
+        val end = payload.end.toInstantOrNull() ?: return false
+        val window = WorkoutIntervalWindow.create(start, end).valueOrNull() ?: return false
+        val context = WorkoutStepsProjectionContext(payload.steps, window)
+        val localDate = start.atZone(zoneId).toLocalDate()
+        val existingEntity = database.workoutStepsCreditDao()
+            .findByWorkoutStepsOperationId(operation.id.value.toString())
+        val existing = existingEntity?.toDomain() ?: if (existingEntity == null) null else return false
+        return activateOrRecoverWorkoutStepsCredit(
+            existing = existing,
+            identity = identity,
+            context = context,
+            localDate = localDate,
+            zoneId = zoneId,
+            at = at,
+            creditDao = database.workoutStepsCreditDao(),
+        )
     }
 
     override suspend fun inspectLegacyWorkoutDistanceProjection(
@@ -2284,6 +2655,13 @@ class RoomRepositories @Inject constructor(
         val repaired = database.healthSyncOperationDao().findProcessable(limit)
             .mapNotNull { entity ->
                 if (isBlockedWatchWorkoutOperation(entity)) return@mapNotNull null
+                if (entity.isWorkoutStepsOperationEntity()) {
+                    val credit = database.workoutStepsCreditDao()
+                        .findByWorkoutStepsOperationId(entity.id)
+                        ?.toDomain()
+                        ?: return@mapNotNull null
+                    if (credit.state == WorkoutStepsCreditState.BLOCKED) return@mapNotNull null
+                }
                 val aggregate = entity.toAggregateOrNull()
                     ?: run {
                         unreconstructableAggregate = true
@@ -2544,29 +2922,44 @@ class RoomRepositories @Inject constructor(
         }
     }
 
-    override suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> =
-        transitionSync(operationId) { operation ->
-            if (operation.state != SyncOperationState.SYNCING.name) null
-            else if (
-                operation.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
-                    operation.reconciliationCheckpoint !in setOf(
+    override suspend fun markSynced(operationId: HealthSyncOperationId, at: Instant): RepositoryResult<Unit> = try {
+        write {
+            val syncDao = database.healthSyncOperationDao()
+            val current = syncDao.findById(operationId.value.toString())
+                ?: return@write RepositoryResult.NotFound
+            if (current.state != SyncOperationState.SYNCING.name ||
+                current.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY &&
+                    current.reconciliationCheckpoint !in setOf(
                         HealthProjectionReconciliationCheckpoint.BEFORE_REMOTE_EFFECT.name,
                         HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name,
                     )
-            ) null
-            else operation.copy(
+            ) return@write RepositoryResult.UnexpectedState
+
+            val next = current.copy(
                 state = SyncOperationState.SYNCED.name,
                 lastError = null,
                 syncedAtEpochMillis = at.toEpochMilli(),
                 updatedAtEpochMillis = at.toEpochMilli(),
-                reconciliationState = if (operation.action == HealthSyncOperationAction.DELETE.name) {
+                reconciliationState = if (current.action == HealthSyncOperationAction.DELETE.name) {
                     HealthProjectionReconciliationState.OBSOLETE.name
                 } else {
                     HealthProjectionReconciliationState.SENT.name
                 },
                 reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name,
             )
+            if (current.isWorkoutStepsOperationEntity() &&
+                !activateWorkoutStepsCreditForAcceptedOperation(next, at)
+            ) {
+                throw WorkoutStepsCreditCommitAborted()
+            }
+            if (syncDao.update(next) != 1) throw WorkoutStepsCreditCommitAborted()
+            RepositoryResult.Success(Unit)
         }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: WorkoutStepsCreditCommitAborted) {
+        RepositoryResult.UnexpectedState
+    }
 
     override suspend fun markFailed(
         operationId: HealthSyncOperationId,
@@ -4726,6 +5119,10 @@ private fun String?.toHealthSyncZoneIdOrSystemDefault(): ZoneId = try {
 private fun String?.validZoneIdOrNull(): String? =
     this?.takeIf { runCatching { ZoneId.of(it) }.isSuccess }
 
+private fun HealthSyncFrozenInstant.toInstantOrNull(): Instant? = runCatching {
+    Instant.ofEpochSecond(epochSecond, nano.toLong())
+}.getOrNull()
+
 private inline fun <T> mapAggregateSafely(mapper: () -> T?): T? = try {
     mapper()
 } catch (_: DateTimeException) {
@@ -4761,6 +5158,12 @@ private data class DailyStepsEnqueueResult(
 private fun HealthSyncOperationEntity.isDailyStepsOperationEntity(): Boolean =
     aggregateType == HealthSyncAggregateType.DAILY_SUMMARY.name &&
         recordType == HealthSyncRecordType.STEPS.name
+
+private fun HealthSyncOperationEntity.isWorkoutStepsOperationEntity(): Boolean =
+    aggregateType == HealthSyncAggregateType.WORKOUT_ACTIVITY.name &&
+        recordType == HealthSyncRecordType.STEPS.name &&
+        projectionChildKey == HealthProjectionChildKey.WorkoutSteps.stableValue &&
+        action == HealthSyncOperationAction.INSERT.name
 
 private fun HealthSyncOperationEntity.isUnfrozenLegacyDailyStepsOperation(): Boolean =
     isDailyStepsOperationEntity() &&

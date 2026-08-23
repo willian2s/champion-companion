@@ -622,6 +622,15 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                 children += HealthProjectionChildKey.ManualDistance
             }
         } else {
+            val session = activity.sessionWindowOrNull()
+            if (activity.metrics.stepsAvailable &&
+                activity.metrics.steps > 0L &&
+                activity.parserValidity == ParserValidity.VALID &&
+                session != null &&
+                session.isContainedInLocalDate(ZoneId.systemDefault())
+            ) {
+                children += HealthProjectionChildKey.WorkoutSteps
+            }
             val snapshot = activity.derivationSnapshot
             if (snapshot?.isEligibleForHealthProjection == true) {
                 val series = snapshot.canonicalSeries
@@ -1138,6 +1147,10 @@ private data class SessionWindow(
     val start: Instant,
     val end: Instant,
 )
+
+private fun SessionWindow.isContainedInLocalDate(zoneId: ZoneId): Boolean = runCatching {
+    start.atZone(zoneId).toLocalDate() == end.minusNanos(1L).atZone(zoneId).toLocalDate()
+}.getOrDefault(false)
 
 private fun HealthSyncOperation.identityOrNull(): RecordIdentity? {
     val clientRecordId = clientRecordId?.takeIf(String::isNotBlank) ?: return null

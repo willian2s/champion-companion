@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `2/11` subtarefas concluídas
+- **Progresso:** `3/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -40,7 +40,7 @@ Antes de executar qualquer subtarefa:
 
 - [x] [027-01-auditar-passos-d4-daily-health-connect.md](027-01-auditar-passos-d4-daily-health-connect.md)
 - [x] [027-02-modelar-passos-cadencia-e-creditos.md](027-02-modelar-passos-cadencia-e-creditos.md)
-- [ ] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
+- [x] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
 - [ ] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
 - [ ] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
 - [ ] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
@@ -84,6 +84,10 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
 - `027-02` modelou contratos, payload congelado schema 3, ledger Room e
   migration `13 -> 14`, sem iniciar escrita remota, crédito no Daily ou
   timeline 1 Hz.
+- `027-03` publicou `StepsRecord` de atividade com elegibilidade fail-closed,
+  cobertura Daily comprovada, crédito pós-aceite idempotente e retry por
+  identidade/payload congelados. Desconto no Daily e cadência permanecem fora
+  desta subtarefa.
 - A verificação combinada de lint/build teve falha transitória do lint por
   arquivo Hilt gerado ausente durante análise paralela; lint isolado e builds
   separados passaram. Revisão independente final aprovou a subtarefa sem

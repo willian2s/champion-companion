@@ -77,3 +77,36 @@ Se o efeito remoto for aceito e ocorrer falha local posterior, preservar identid
 ```
 
 Não executar testes automatizados sem pedido explícito.
+
+## Resultado da execução
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthRecordMapper.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WorkoutStepsContracts.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+  - este arquivo;
+  - `docs/tasks/027-workout-steps-cadence-1hz-timeline/027-00-overview.md`.
+- **Decisões:** `WorkoutSteps` entra como filho independente; elegibilidade exige
+  parser `VALID`, passos positivos, tipo não ciclismo, janela válida contida no
+  dia local e cobertura Daily comprovadamente compatível. `ALREADY_COVERED` e
+  `COVERAGE_UNKNOWN` permanecem bloqueados sem escrita remota. Crédito é ativado
+  somente após `Accepted`, com operação `SYNCED` e checkpoint pós-efeito na mesma
+  transação Room.
+- **Desvios:** nenhum requisito funcional. A execução combinada inicial teve
+  falha transitória do lint por arquivo Hilt gerado ausente; execução final do
+  comando exigido passou.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`;
+  `./gradlew lint`; `./gradlew assembleDebug assembleRelease`; `./gradlew lint
+  assembleDebug assembleRelease`. Não foram criados nem executados testes
+  automatizados, conforme `AGENTS.md` e Spec 027.
+- **Resultados e evidências:** compilação Kotlin, lint, assemble Debug, assemble
+  Release e verificação combinada passaram. Revisão independente final aprovou
+  sem bloqueadores. Cobertura Daily valida cadeia completa, fuso, data, payload e
+  metadata antes de permitir `StepsRecord`.
+- **Riscos residuais:** Daily ainda não consome créditos; isso pertence a
+  `027-04`. Cadência pertence a `027-05`. Health Connect permanece write-only e
+  sem readback; validação física Health Sync/Strava pertence a `027-06`. Não há
+  testes automatizados por requisito explícito da Spec 027.
