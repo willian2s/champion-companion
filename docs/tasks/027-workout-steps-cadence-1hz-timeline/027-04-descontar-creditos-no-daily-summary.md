@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `04`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-01`, `027-02`, `027-03`
 
 ## Objetivo
@@ -70,3 +70,22 @@ Se `DailyStepsSyncPayload` precisar mudar, versionar/migrar de forma compatível
 ```
 
 Não criar nem executar testes automatizados sem pedido explícito.
+
+## Resultado da execução
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionMigrations.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/DatabaseModule.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+  - `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/15.json`;
+  - este arquivo;
+  - `docs/tasks/027-workout-steps-cadence-1hz-timeline/027-00-overview.md`.
+- **Decisões:** checkpoint técnico separado permite residual zero sem `StepsRecord` zero; reservas ligam créditos ativos à operação Daily; consumo ocorre após aceite remoto no `markSynced`; residual usa `RESIDUAL_INCREMENTAL`, mantendo validação estrita de payloads `INCREMENTAL` antigos; cobertura pendente, falha, sobreposição, inconsistência de ledger e contador reduzido falham fechadas.
+- **Desvios:** nenhum requisito funcional. Migration aditiva `14 -> 15` inclui checkpoint e reservas necessários para preservar checkpoint cumulativo e consumo pós-aceite.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`; `./gradlew lint assembleDebug assembleRelease`.
+- **Resultados e evidências:** todos os comandos passaram. Lint emite somente avisos preexistentes de índice Room e overrides deprecated. Schema 15 contém `daily_steps_checkpoints` e `daily_steps_credit_reservations`. Nenhum teste automatizado foi criado ou executado, conforme `AGENTS.md` e Spec 027.
+- **Riscos residuais:** Health Connect continua write-only, sem readback; validação física Health Sync/Strava permanece em `027-06`; não há testes automatizados para concorrência, retry ou migration; créditos com cobertura ambígua permanecem bloqueados por fail-closed.

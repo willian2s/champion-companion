@@ -10,6 +10,8 @@ import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
+import br.com.mwconsulting.championcompanion.core.database.DailyStepsCheckpointEntity
+import br.com.mwconsulting.championcompanion.core.database.DailyStepsCreditReservationEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
@@ -389,7 +391,8 @@ class RoomRepositories @Inject constructor(
         RepositoryResult.Success(Unit)
     }
 
-    override suspend fun mergeWatchDailySummary(input: MergeWatchDailySummaryInput): RepositoryResult<DailySummary> = write {
+    override suspend fun mergeWatchDailySummary(input: MergeWatchDailySummaryInput): RepositoryResult<DailySummary> = try {
+        write {
         val deviceId = input.deviceId.value.toString()
         val device = database.deviceDao().findById(deviceId) ?: return@write RepositoryResult.NotFound
         val existing = database.dailySummaryDao().findByNaturalKey(
@@ -436,7 +439,12 @@ class RoomRepositories @Inject constructor(
                 importParserVersion = input.parserVersion.value,
             ),
         )
-        RepositoryResult.Success(persistedSummary)
+            RepositoryResult.Success(persistedSummary)
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: WorkoutStepsCreditCommitAborted) {
+        RepositoryResult.UnexpectedState
     }
 
     override suspend fun import(measurements: List<HeartRateMeasurement>): RepositoryResult<Unit> = write {
@@ -2365,15 +2373,31 @@ class RoomRepositories @Inject constructor(
         if (summaryDate != localDate || summaryZone != zoneId) {
             return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
         }
+        if (operations.any { it.action != HealthSyncOperationAction.INSERT.name }) {
+            return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
+        }
         val payloadOperations = operations
-            .filter { it.action == HealthSyncOperationAction.INSERT.name }
+            .sortedBy { it.operationSequence }
             .map { entity ->
                 val operation = entity.toDomain() ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
                 val payload = operation.dailyStepsPayload
                     ?: return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
                 entity to payload
             }
-        if (!payloadOperations.isValidDailyStepsChain()) {
+        val checkpoint = activity.deviceId?.let { deviceId ->
+            database.dailyStepsCheckpointDao().findByNaturalKey(
+                deviceId = deviceId,
+                origin = summary.origin,
+                localDateIso = summary.localDateIso,
+                timeZoneId = summaryZone.id,
+            )
+        }
+        if (
+            !payloadOperations.isValidDailyStepsChain(allowPositiveFirstPreviousTotal = checkpoint != null) ||
+                ((payloadOperations.firstOrNull()?.second?.previousTotalSteps ?: 0L) > 0L && checkpoint == null) ||
+                (checkpoint != null && payloadOperations.isNotEmpty() &&
+                    checkpoint.effectiveTotalSteps < payloadOperations.last().second.currentTotalSteps)
+        ) {
             return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
         }
         for ((entity, payload) in payloadOperations) {
@@ -2398,9 +2422,6 @@ class RoomRepositories @Inject constructor(
                 operation.reconciliationState == HealthProjectionReconciliationState.SENT &&
                 operation.reconciliationCheckpoint == HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT
             if (!operationAccepted) {
-                if (operation.state == SyncOperationState.PENDING ||
-                    operation.state == SyncOperationState.FAILED
-                ) continue
                 return WorkoutStepsCreditBlockReason.COVERAGE_UNKNOWN
             }
             if (window.start.isBefore(payload.endTime) && payload.startTime.isBefore(window.end)) {
@@ -2947,6 +2968,11 @@ class RoomRepositories @Inject constructor(
                 },
                 reconciliationCheckpoint = HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name,
             )
+            if (current.isDailyStepsOperationEntity() &&
+                !consumeDailyStepsCreditReservations(next, at)
+            ) {
+                throw WorkoutStepsCreditCommitAborted()
+            }
             if (current.isWorkoutStepsOperationEntity() &&
                 !activateWorkoutStepsCreditForAcceptedOperation(next, at)
             ) {
@@ -4273,7 +4299,7 @@ class RoomRepositories @Inject constructor(
             summary.steps <= 0L
         ) return DailyStepsEnqueueResult()
         val syncDao = database.healthSyncOperationDao()
-        val entities = findDailyStepsEntities(summary.id)
+        var entities = findDailyStepsEntities(summary.id)
         val persistedTimeZoneId = entities.asSequence()
             .mapNotNull { it.timeZoneId.validZoneIdOrNull() }
             .firstOrNull()
@@ -4287,7 +4313,7 @@ class RoomRepositories @Inject constructor(
         }.getOrNull() ?: return DailyStepsEnqueueResult()
 
         val legacyEntities = entities.filter { it.isUnfrozenLegacyDailyStepsOperation() }
-        val payloadOperations = entities.mapNotNull { entity ->
+        var payloadOperations = entities.mapNotNull { entity ->
             entity.toDomain()?.dailyStepsPayload?.let { payload -> entity to payload }
         }
         if (legacyEntities.size > 1 ||
@@ -4299,6 +4325,14 @@ class RoomRepositories @Inject constructor(
         if (legacy != null) {
             if (legacy.state == SyncOperationState.SYNCING.name || !windowEnd.isAfter(dayStart)) {
                 return DailyStepsEnqueueResult(operation = legacy.toDomain())
+            }
+            val legacyCreditEvaluation = findEligibleDailyWorkoutCredits(summary, zoneId)
+                ?: return DailyStepsEnqueueResult()
+            if (legacyCreditEvaluation.credits.isNotEmpty()) {
+                // A legacy cumulative identity cannot safely be repartitioned
+                // around an already accepted activity. Preserve both payloads
+                // and wait for explicit reconciliation instead of inflating.
+                return DailyStepsEnqueueResult()
             }
             val payload = DailyStepsSyncPayload(
                 kind = DailyStepsSyncPayloadKind.LEGACY_BRIDGE,
@@ -4338,39 +4372,115 @@ class RoomRepositories @Inject constructor(
                 stepEndTimeEpochMillis = payload.endTime.toEpochMilli(),
             )
             if (syncDao.update(bridge) != 1) return DailyStepsEnqueueResult()
-            return DailyStepsEnqueueResult(
-                operation = bridge.toDomain(),
-                repaired = true,
-            )
+            entities = listOf(bridge)
+            payloadOperations = entities.mapNotNull { entity ->
+                entity.toDomain()?.dailyStepsPayload?.let { payload -> entity to payload }
+            }
         }
 
         val orderedPayloadOperations = payloadOperations.sortedBy { (_, payload) -> payload.sequence }
-        if (!orderedPayloadOperations.isValidDailyStepsChain()) return DailyStepsEnqueueResult()
+        val checkpoint = resolveDailyStepsCheckpoint(
+            summary = summary,
+            zoneId = zoneId,
+            dayStart = dayStart,
+            payloadOperations = orderedPayloadOperations,
+        ) ?: return DailyStepsEnqueueResult()
+
+        val creditEvaluation = findEligibleDailyWorkoutCredits(summary, zoneId)
+            ?: return DailyStepsEnqueueResult()
+        val activeCredits = creditEvaluation.credits
         val latest = orderedPayloadOperations.lastOrNull()
-        if (orderedPayloadOperations.any { (_, payload) -> payload.kind == DailyStepsSyncPayloadKind.LEGACY_BRIDGE }) {
-            return if (orderedPayloadOperations.size == 1) {
-                DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
-            } else {
-                DailyStepsEnqueueResult()
+        val pendingOperation = orderedPayloadOperations.firstOrNull { (entity, _) ->
+            entity.state == SyncOperationState.PENDING.name ||
+                entity.state == SyncOperationState.FAILED.name ||
+                entity.state == SyncOperationState.SYNCING.name
+        }
+        if (pendingOperation != null) {
+            val (entity, _) = pendingOperation
+            val reservations = database.dailyStepsCreditReservationDao()
+                .findByDailyOperationId(entity.id)
+            if (entity.state == SyncOperationState.SYNCING.name) {
+                return DailyStepsEnqueueResult(operation = entity.toDomain())
             }
+            if (reservations.isNotEmpty()) {
+                if (!isValidDailyStepsReservationSet(
+                        operation = entity,
+                        reservations = reservations,
+                        activeCredits = activeCredits,
+                    )
+                ) return DailyStepsEnqueueResult()
+                return DailyStepsEnqueueResult(operation = entity.toDomain())
+            }
+            // An unaccepted Daily operation is already the only safe retry
+            // candidate. Never create a second interval around active credits.
+            if (activeCredits.isNotEmpty()) return DailyStepsEnqueueResult()
+            return DailyStepsEnqueueResult(operation = entity.toDomain())
         }
-        val previousTotalSteps = latest?.second?.currentTotalSteps ?: 0L
+
+        if (hasUnacceptedWorkoutStepsForDaily(summary, zoneId, dayStart)) {
+            // A pending workout StepsRecord may still become the remote effect
+            // that Daily must credit. Do not publish Daily before that outcome.
+            return DailyStepsEnqueueResult()
+        }
+
+        if (hasAcceptedDailyCoverageOverlap(orderedPayloadOperations, activeCredits)) {
+            return DailyStepsEnqueueResult()
+        }
+
+        val grossDelta = summary.steps.subtractOrNull(checkpoint.effectiveTotalSteps)
+            ?: return DailyStepsEnqueueResult()
+        if (grossDelta < 0L) return DailyStepsEnqueueResult()
+        val creditSteps = activeCredits.sumOfOrNull { it.steps } ?: return DailyStepsEnqueueResult()
+        val residualDelta = grossDelta.subtractOrNull(creditSteps) ?: return DailyStepsEnqueueResult()
+        if (residualDelta < 0L) return DailyStepsEnqueueResult()
+        if (grossDelta == 0L && activeCredits.isEmpty()) {
+            persistDailyStepsCheckpoint(checkpoint)
+            return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
+        }
+
+        val maximumCreditEnd = activeCredits.maxOfOrNull { it.window.end } ?: dayStart
+        val safeWindowStart = maxOf(
+            Instant.ofEpochMilli(checkpoint.lastWindowEndEpochMillis),
+            maximumCreditEnd,
+            dayStart,
+        )
+        if (residualDelta == 0L) {
+            val at = Instant.ofEpochMilli(updatedAtEpochMillis)
+            if (checkpoint.nextOperationOrdinal == Long.MAX_VALUE) return DailyStepsEnqueueResult()
+            consumeDailyWorkoutCredits(activeCredits, checkpoint.nextOperationOrdinal, at)
+            persistDailyStepsCheckpoint(
+                checkpoint.copy(
+                    effectiveTotalSteps = summary.steps,
+                    lastWindowEndEpochMillis = maxOf(
+                        checkpoint.lastWindowEndEpochMillis,
+                        maximumCreditEnd.toEpochMilli(),
+                    ),
+                    updatedAtEpochMillis = maxOf(checkpoint.updatedAtEpochMillis, updatedAtEpochMillis),
+                ),
+            )
+            return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
+        }
         if (latest == null && !allowNewOperation) return DailyStepsEnqueueResult()
-        if (summary.steps <= previousTotalSteps) {
+        if (!windowEnd.isAfter(safeWindowStart)) {
             return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
         }
-        val windowStart = latest?.second?.endTime ?: dayStart
-        if (!windowEnd.isAfter(windowStart)) {
-            return DailyStepsEnqueueResult(operation = latest?.first?.toDomain())
+        if (checkpoint.nextOperationOrdinal == Long.MAX_VALUE) return DailyStepsEnqueueResult()
+        val sequence = checkpoint.nextOperationOrdinal
+        val nextOperationOrdinal = sequence + 1L
+        val startsChainAfterCheckpointWithoutOperation = orderedPayloadOperations.isEmpty() &&
+            checkpoint.effectiveTotalSteps > 0L
+        val kind = if (residualDelta == grossDelta && !startsChainAfterCheckpointWithoutOperation) {
+            DailyStepsSyncPayloadKind.INCREMENTAL
+        } else {
+            DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL
         }
-        val sequence = (latest?.second?.sequence ?: 0L) + 1L
         val payload = DailyStepsSyncPayload(
-            kind = DailyStepsSyncPayloadKind.INCREMENTAL,
+            kind = kind,
             sequence = sequence,
-            previousTotalSteps = previousTotalSteps,
+            previousTotalSteps = checkpoint.effectiveTotalSteps,
             currentTotalSteps = summary.steps,
-            stepDelta = summary.steps - previousTotalSteps,
-            startTime = windowStart,
+            stepDelta = residualDelta,
+            startTime = safeWindowStart,
             endTime = windowEnd,
             timeZoneId = zoneId.id,
         )
@@ -4399,11 +4509,393 @@ class RoomRepositories @Inject constructor(
             stepEndTimeEpochMillis = payload.endTime.toEpochMilli(),
         )
         syncDao.insert(operation)
+        val at = Instant.ofEpochMilli(updatedAtEpochMillis)
+        reserveDailyWorkoutCredits(
+            operation = operation,
+            payload = payload,
+            credits = activeCredits,
+            at = at,
+        )
+        persistDailyStepsCheckpoint(
+            checkpoint.copy(
+                effectiveTotalSteps = summary.steps,
+                nextOperationOrdinal = nextOperationOrdinal,
+                lastWindowEndEpochMillis = maxOf(
+                    checkpoint.lastWindowEndEpochMillis,
+                    payload.endTime.toEpochMilli(),
+                ),
+                updatedAtEpochMillis = maxOf(checkpoint.updatedAtEpochMillis, updatedAtEpochMillis),
+            ),
+        )
         return DailyStepsEnqueueResult(
             operation = operation.toDomain(),
             created = true,
         )
     }
+
+    private suspend fun resolveDailyStepsCheckpoint(
+        summary: DailySummaryEntity,
+        zoneId: ZoneId,
+        dayStart: Instant,
+        payloadOperations: List<Pair<HealthSyncOperationEntity, DailyStepsSyncPayload>>,
+    ): DailyStepsCheckpointEntity? {
+        val summaryDeviceId = summary.deviceId ?: return null
+        val localDate = runCatching { LocalDate.parse(summary.localDateIso) }.getOrNull() ?: return null
+        val dayEnd = runCatching { localDate.plusDays(1L).atStartOfDay(zoneId).toInstant() }.getOrNull()
+            ?: return null
+        val latest = payloadOperations.maxByOrNull { (_, payload) -> payload.sequence }
+        val chainEnd = latest?.second?.endTime ?: dayStart
+        val checkpointDao = database.dailyStepsCheckpointDao()
+        val existing = checkpointDao.findByNaturalKey(
+            deviceId = summaryDeviceId,
+            origin = summary.origin,
+            localDateIso = summary.localDateIso,
+            timeZoneId = zoneId.id,
+        )
+        if (existing != null && (
+                existing.effectiveTotalSteps < 0L ||
+                    existing.nextOperationOrdinal < 1L ||
+                    existing.lastWindowEndEpochMillis < dayStart.toEpochMilli() ||
+                    existing.lastWindowEndEpochMillis > dayEnd.toEpochMilli()
+            )
+        ) return null
+        if (!payloadOperations.isValidDailyStepsChain(allowPositiveFirstPreviousTotal = existing != null)) {
+            return null
+        }
+        if (payloadOperations.any { (entity, payload) ->
+                entity.action != HealthSyncOperationAction.INSERT.name ||
+                    entity.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY ||
+                    entity.timeZoneId != zoneId.id ||
+                    payload.timeZoneId != zoneId.id ||
+                    payload.startTime.atZone(zoneId).toLocalDate() != localDate ||
+                    payload.endTime.minusNanos(1L).atZone(zoneId).toLocalDate() != localDate ||
+                    payload.endTime.isAfter(dayEnd)
+            }
+        ) return null
+        val chainTotal = latest?.second?.currentTotalSteps ?: 0L
+        val chainNextOrdinal = latest?.second?.sequence?.let {
+            if (it == Long.MAX_VALUE) return null
+            it + 1L
+        } ?: 1L
+        if (existing != null && latest != null && existing.nextOperationOrdinal != chainNextOrdinal) {
+            return null
+        }
+        if (existing != null && existing.effectiveTotalSteps < chainTotal) return null
+        if (existing == null && latest != null && latest.second.previousTotalSteps > 0L) return null
+        val now = summary.updatedAtEpochMillis
+        return (existing ?: DailyStepsCheckpointEntity(
+            id = ids.next().toString(),
+            deviceId = summaryDeviceId,
+            origin = summary.origin,
+            localDateIso = summary.localDateIso,
+            timeZoneId = zoneId.id,
+            effectiveTotalSteps = chainTotal,
+            nextOperationOrdinal = chainNextOrdinal,
+            lastWindowEndEpochMillis = chainEnd.toEpochMilli(),
+            createdAtEpochMillis = now,
+            updatedAtEpochMillis = now,
+        )).let { checkpoint ->
+            checkpoint.copy(
+                effectiveTotalSteps = maxOf(checkpoint.effectiveTotalSteps, chainTotal),
+                nextOperationOrdinal = maxOf(checkpoint.nextOperationOrdinal, chainNextOrdinal),
+                lastWindowEndEpochMillis = maxOf(checkpoint.lastWindowEndEpochMillis, chainEnd.toEpochMilli()),
+            )
+        }
+    }
+
+    private suspend fun persistDailyStepsCheckpoint(checkpoint: DailyStepsCheckpointEntity) {
+        val dao = database.dailyStepsCheckpointDao()
+        val existing = dao.findByNaturalKey(
+            deviceId = checkpoint.deviceId,
+            origin = checkpoint.origin,
+            localDateIso = checkpoint.localDateIso,
+            timeZoneId = checkpoint.timeZoneId,
+        )
+        if (existing == null) {
+            dao.insert(checkpoint)
+        } else if (dao.update(checkpoint.copy(id = existing.id, createdAtEpochMillis = existing.createdAtEpochMillis)) != 1) {
+            throw WorkoutStepsCreditCommitAborted()
+        }
+    }
+
+    private suspend fun findEligibleDailyWorkoutCredits(
+        summary: DailySummaryEntity,
+        zoneId: ZoneId,
+    ): DailyWorkoutCreditEvaluation? {
+        val summaryDeviceId = summary.deviceId ?: return null
+        val localDate = runCatching { LocalDate.parse(summary.localDateIso) }.getOrNull() ?: return null
+        val creditEntities = database.workoutStepsCreditDao().findByLocalDateAndState(
+            localDateIso = localDate.toString(),
+            state = WorkoutStepsCreditState.ACTIVE.name,
+        )
+        val eligible = buildList {
+            for (entity in creditEntities) {
+                val credit = entity.toDomain() ?: return null
+                val activity = database.workoutActivityDao().findById(credit.activityId.value.toString())
+                    ?: return null
+                val activityDeviceId = activity.deviceId ?: return null
+                if (activityDeviceId != summaryDeviceId) continue
+
+                // Accepted ledger identity is frozen. Mutable activity snapshots
+                // are used only to establish same-device ownership, never to
+                // recalculate or silently discard accepted steps.
+                if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) return null
+                val operationEntity = database.healthSyncOperationDao()
+                    .findById(credit.projectionIdentity.operationId.value.toString())
+                    ?: return null
+                val operation = operationEntity.toDomain() ?: return null
+                val identity = WorkoutStepsProjectionIdentity.fromOperation(operation).valueOrNull()
+                    ?: return null
+                val context = acceptedWorkoutStepsContext(operation) ?: return null
+                if (
+                    operation.state != SyncOperationState.SYNCED ||
+                        operation.action != HealthSyncOperationAction.INSERT ||
+                        operation.reconciliationState != HealthProjectionReconciliationState.SENT ||
+                        operation.reconciliationCheckpoint != HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT ||
+                        identity != credit.projectionIdentity ||
+                        context.steps != credit.steps ||
+                        context.window != credit.window ||
+                        operation.timeZoneId.validZoneIdOrNull()?.let(ZoneId::of) != credit.timeZoneId
+                ) return null
+
+                val reservation = database.dailyStepsCreditReservationDao()
+                    .findByCreditId(credit.id.value.toString())
+                if (reservation != null) {
+                    val dailyOperation = database.healthSyncOperationDao().findById(reservation.dailyOperationId)
+                        ?: return null
+                    val dailyPayload = dailyOperation.toDomain()?.dailyStepsPayload ?: return null
+                    if (
+                        !dailyOperation.isDailyStepsOperationEntity() ||
+                        dailyOperation.aggregateId != summary.id ||
+                        dailyOperation.projectionChildKey != HealthSyncOperationEntity.LEGACY_PROJECTION_CHILD_KEY ||
+                        dailyOperation.action != HealthSyncOperationAction.INSERT.name ||
+                        dailyPayload.kind != DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL ||
+                        reservation.dailyOperationOrdinal != dailyPayload.sequence ||
+                        reservation.reservedSteps != credit.steps ||
+                        dailyOperation.state == SyncOperationState.SYNCED.name ||
+                        dailyOperation.state !in setOf(
+                            SyncOperationState.PENDING.name,
+                            SyncOperationState.FAILED.name,
+                            SyncOperationState.SYNCING.name,
+                        )
+                    ) return null
+                }
+
+                if (credit.localDate != localDate || credit.timeZoneId != zoneId) continue
+                val endInclusive = credit.window.end.minusNanos(1L)
+                if (
+                    credit.window.start.atZone(zoneId).toLocalDate() != localDate ||
+                        endInclusive.atZone(zoneId).toLocalDate() != localDate
+                ) return null
+                add(credit)
+            }
+        }.sortedBy { it.window.start }
+
+        var latestEnd: Instant? = null
+        for (credit in eligible) {
+            if (latestEnd != null && credit.window.start.isBefore(latestEnd)) return null
+            latestEnd = maxOf(latestEnd ?: credit.window.end, credit.window.end)
+        }
+        return DailyWorkoutCreditEvaluation(eligible)
+    }
+
+    private fun acceptedWorkoutStepsContext(operation: HealthSyncOperation): WorkoutStepsProjectionContext? {
+        if (
+            operation.key.projectionChildKey != HealthProjectionChildKey.WorkoutSteps ||
+            operation.key.recordType != HealthSyncRecordType.STEPS ||
+            operation.action != HealthSyncOperationAction.INSERT
+        ) return null
+        val payload = operation.frozenPayload
+            ?.takeIf { it.schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION }
+            ?.let {
+                runCatching {
+                    frozenProjectionJson.decodeFromString<HealthSyncFrozenProjectionPayload>(it.serializedPayload)
+                }.getOrNull()
+            }
+            ?: return null
+        if (
+            payload.projectionChildKey != HealthProjectionChildKey.WorkoutSteps.stableValue ||
+            payload.recordType != HealthSyncRecordType.STEPS.name ||
+            payload.steps == null || payload.steps <= 0L
+        ) return null
+        val start = payload.start.toInstantOrNull() ?: return null
+        val end = payload.end.toInstantOrNull() ?: return null
+        return WorkoutIntervalWindow.create(start, end).valueOrNull()?.let { window ->
+            WorkoutStepsProjectionContext(payload.steps, window)
+        }
+    }
+
+    private fun hasAcceptedDailyCoverageOverlap(
+        operations: List<Pair<HealthSyncOperationEntity, DailyStepsSyncPayload>>,
+        credits: List<WorkoutStepsCredit>,
+    ): Boolean = credits.any { credit ->
+        operations.any { (entity, payload) ->
+            entity.state == SyncOperationState.SYNCED.name &&
+                entity.action == HealthSyncOperationAction.INSERT.name &&
+                entity.reconciliationState == HealthProjectionReconciliationState.SENT.name &&
+                entity.reconciliationCheckpoint == HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name &&
+                credit.window.start.isBefore(payload.endTime) &&
+                payload.startTime.isBefore(credit.window.end)
+        }
+    }
+
+    private suspend fun hasUnacceptedWorkoutStepsForDaily(
+        summary: DailySummaryEntity,
+        zoneId: ZoneId,
+        dayStart: Instant,
+    ): Boolean {
+        val deviceId = summary.deviceId ?: return true
+        val localDate = runCatching { LocalDate.parse(summary.localDateIso) }.getOrNull() ?: return true
+        val dayEnd = runCatching { localDate.plusDays(1L).atStartOfDay(zoneId).toInstant() }.getOrNull()
+            ?: return true
+        val operations = database.healthSyncOperationDao().findUnacceptedWorkoutStepsForDevice(deviceId)
+        for (entity in operations) {
+            val operation = entity.toDomain() ?: return true
+            val activity = database.workoutActivityDao().findById(entity.aggregateId) ?: return true
+            if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name) return true
+            val operationZone = operation.timeZoneId.validZoneIdOrNull()
+                ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+                ?: return true
+            val context = acceptedWorkoutStepsContext(operation) ?: return true
+            val endInclusive = context.window.end.minusNanos(1L)
+            val operationStartDate = context.window.start.atZone(operationZone).toLocalDate()
+            val operationEndDate = endInclusive.atZone(operationZone).toLocalDate()
+            if (operationStartDate != operationEndDate) return true
+            if (operationZone != zoneId || operationStartDate != localDate) continue
+            if (context.window.start.isBefore(dayStart) || context.window.end.isAfter(dayEnd)) return true
+            return true
+        }
+        return false
+    }
+
+    private suspend fun isValidDailyStepsReservationSet(
+        operation: HealthSyncOperationEntity,
+        reservations: List<DailyStepsCreditReservationEntity>,
+        activeCredits: List<WorkoutStepsCredit>,
+    ): Boolean {
+        val payload = operation.toDomain()?.dailyStepsPayload ?: return false
+        if (
+            !operation.isDailyStepsOperationEntity() ||
+            operation.action != HealthSyncOperationAction.INSERT.name ||
+            payload.kind != DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL ||
+            payload.sequence != operation.operationSequence ||
+            activeCredits.isEmpty() ||
+            reservations.map { it.creditId }.toSet() != activeCredits.map { it.id.value.toString() }.toSet()
+        ) return false
+        for (reservation in reservations) {
+            if (
+                reservation.dailyOperationId != operation.id ||
+                reservation.dailyOperationOrdinal != payload.sequence ||
+                reservation.reservedSteps <= 0L
+            ) return false
+            val credit = database.workoutStepsCreditDao().findById(reservation.creditId)?.toDomain() ?: return false
+            if (
+                credit.state != WorkoutStepsCreditState.ACTIVE ||
+                credit.steps != reservation.reservedSteps ||
+                activeCredits.none { it.id == credit.id }
+            ) return false
+        }
+        return true
+    }
+
+    private suspend fun reserveDailyWorkoutCredits(
+        operation: HealthSyncOperationEntity,
+        payload: DailyStepsSyncPayload,
+        credits: List<WorkoutStepsCredit>,
+        at: Instant,
+    ) {
+        if (credits.isEmpty()) return
+        val reservationDao = database.dailyStepsCreditReservationDao()
+        for (credit in credits) {
+            if (credit.state != WorkoutStepsCreditState.ACTIVE) {
+                throw WorkoutStepsCreditCommitAborted()
+            }
+            val creditId = credit.id.value.toString()
+            val existing = reservationDao.findByCreditId(creditId)
+            if (existing != null) {
+                if (
+                    existing.dailyOperationId != operation.id ||
+                    existing.dailyOperationOrdinal != payload.sequence ||
+                    existing.reservedSteps != credit.steps
+                ) throw WorkoutStepsCreditCommitAborted()
+                continue
+            }
+            reservationDao.insert(
+                DailyStepsCreditReservationEntity(
+                    id = ids.next().toString(),
+                    creditId = creditId,
+                    dailyOperationId = operation.id,
+                    dailyOperationOrdinal = payload.sequence,
+                    reservedSteps = credit.steps,
+                    createdAtEpochMillis = at.toEpochMilli(),
+                    updatedAtEpochMillis = at.toEpochMilli(),
+                ),
+            )
+        }
+    }
+
+    /** Consome reservas somente no commit local posterior ao aceite remoto. */
+    private suspend fun consumeDailyStepsCreditReservations(
+        operation: HealthSyncOperationEntity,
+        at: Instant,
+    ): Boolean {
+        val reservations = database.dailyStepsCreditReservationDao()
+            .findByDailyOperationId(operation.id)
+        if (reservations.isEmpty()) return true
+        val payload = operation.toDomain()?.dailyStepsPayload ?: return false
+        if (
+            !operation.isDailyStepsOperationEntity() ||
+            operation.state != SyncOperationState.SYNCED.name ||
+            operation.action != HealthSyncOperationAction.INSERT.name ||
+            payload.kind != DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL ||
+            operation.reconciliationState != HealthProjectionReconciliationState.SENT.name ||
+            operation.reconciliationCheckpoint != HealthProjectionReconciliationCheckpoint.AFTER_REMOTE_EFFECT.name ||
+            payload.sequence != operation.operationSequence
+        ) return false
+        val creditDao = database.workoutStepsCreditDao()
+        for (reservation in reservations) {
+            if (
+                reservation.dailyOperationId != operation.id ||
+                reservation.dailyOperationOrdinal != payload.sequence ||
+                reservation.reservedSteps <= 0L
+            ) return false
+            val credit = creditDao.findById(reservation.creditId)?.toDomain() ?: return false
+            if (credit.steps != reservation.reservedSteps) return false
+            val consumed = when (credit.state) {
+                WorkoutStepsCreditState.ACTIVE -> credit.consume(payload.sequence, at).valueOrNull()
+                WorkoutStepsCreditState.CONSUMED -> credit.takeIf {
+                    it.consumedDailyOperationOrdinal == payload.sequence
+                }
+
+                else -> null
+            } ?: return false
+            if (consumed != credit && creditDao.update(consumed.toEntity()) != 1) return false
+        }
+        return true
+    }
+
+    private suspend fun consumeDailyWorkoutCredits(
+        credits: List<WorkoutStepsCredit>,
+        dailyOperationOrdinal: Long,
+        at: Instant,
+    ) {
+        for (credit in credits) {
+            val consumed = credit.consume(dailyOperationOrdinal, at).valueOrNull()
+                ?: throw WorkoutStepsCreditCommitAborted()
+            if (database.workoutStepsCreditDao().update(consumed.toEntity()) != 1) {
+                throw WorkoutStepsCreditCommitAborted()
+            }
+        }
+    }
+
+    private fun List<WorkoutStepsCredit>.sumOfOrNull(selector: (WorkoutStepsCredit) -> Long): Long? =
+        fold(0L) { total, credit ->
+            try {
+                Math.addExact(total, selector(credit))
+            } catch (_: ArithmeticException) {
+                return null
+            }
+        }
 
     private suspend fun findDailyStepsEntities(summaryId: String): List<HealthSyncOperationEntity> =
         database.healthSyncOperationDao()
@@ -5155,6 +5647,10 @@ private data class DailyStepsEnqueueResult(
     val repaired: Boolean = false,
 )
 
+private data class DailyWorkoutCreditEvaluation(
+    val credits: List<WorkoutStepsCredit>,
+)
+
 private fun HealthSyncOperationEntity.isDailyStepsOperationEntity(): Boolean =
     aggregateType == HealthSyncAggregateType.DAILY_SUMMARY.name &&
         recordType == HealthSyncRecordType.STEPS.name
@@ -5175,21 +5671,41 @@ private fun HealthSyncOperationEntity.isUnfrozenLegacyDailyStepsOperation(): Boo
         stepStartTimeEpochMillis == null &&
         stepEndTimeEpochMillis == null
 
-private fun List<Pair<HealthSyncOperationEntity, DailyStepsSyncPayload>>.isValidDailyStepsChain(): Boolean {
+private fun List<Pair<HealthSyncOperationEntity, DailyStepsSyncPayload>>.isValidDailyStepsChain(
+    allowPositiveFirstPreviousTotal: Boolean = false,
+): Boolean {
     if (isEmpty()) return true
     val payloads = map { it.second }
     val first = payloads.first()
     val chainTimeZoneId = first.timeZoneId
     if (payloads.any { it.timeZoneId != chainTimeZoneId }) return false
-    if (first.previousTotalSteps != 0L) return false
-    if (first.kind == DailyStepsSyncPayloadKind.LEGACY_BRIDGE && first.sequence != 0L) return false
-    if (first.kind == DailyStepsSyncPayloadKind.INCREMENTAL && first.sequence != 1L) return false
-    if (payloads.drop(1).any { it.kind != DailyStepsSyncPayloadKind.INCREMENTAL }) return false
+    when (first.kind) {
+        DailyStepsSyncPayloadKind.LEGACY_BRIDGE -> {
+            if (first.sequence != 0L || first.previousTotalSteps != 0L) return false
+        }
+
+        DailyStepsSyncPayloadKind.INCREMENTAL -> {
+            if (first.sequence != 1L || first.previousTotalSteps != 0L) return false
+        }
+
+        DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL -> {
+            if (first.sequence != 1L ||
+                (!allowPositiveFirstPreviousTotal && first.previousTotalSteps != 0L)
+            ) return false
+        }
+    }
+    if (payloads.drop(1).any { it.kind == DailyStepsSyncPayloadKind.LEGACY_BRIDGE }) return false
     return payloads.zipWithNext().all { (previous, current) ->
         current.sequence == previous.sequence + 1L &&
             current.previousTotalSteps == previous.currentTotalSteps &&
-            current.startTime == previous.endTime
+            !current.startTime.isBefore(previous.endTime)
     }
+}
+
+private fun Long.subtractOrNull(other: Long): Long? = try {
+    Math.subtractExact(this, other)
+} catch (_: ArithmeticException) {
+    null
 }
 
 internal data class PlannedWatchWorkoutPersistence(

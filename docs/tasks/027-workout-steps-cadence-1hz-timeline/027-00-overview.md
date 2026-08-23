@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `3/11` subtarefas concluídas
+- **Progresso:** `4/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -41,7 +41,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-01-auditar-passos-d4-daily-health-connect.md](027-01-auditar-passos-d4-daily-health-connect.md)
 - [x] [027-02-modelar-passos-cadencia-e-creditos.md](027-02-modelar-passos-cadencia-e-creditos.md)
 - [x] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
-- [ ] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
+- [x] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
 - [ ] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
 - [ ] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
 - [ ] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
@@ -92,3 +92,7 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   arquivo Hilt gerado ausente durante análise paralela; lint isolado e builds
   separados passaram. Revisão independente final aprovou a subtarefa sem
   bloqueadores.
+- `027-04` integrou residual Daily com créditos aceitos, checkpoint técnico e
+  reservas pós-aceite; payload residual foi versionado como
+  `RESIDUAL_INCREMENTAL`, sem reinterpretar incrementos antigos. Migration
+  aditiva `14 -> 15` e schema 15 foram atualizados.

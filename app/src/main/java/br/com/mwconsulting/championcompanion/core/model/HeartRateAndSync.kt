@@ -481,6 +481,7 @@ enum class SafeSyncError {
 
 enum class DailyStepsSyncPayloadKind {
     INCREMENTAL,
+    RESIDUAL_INCREMENTAL,
     LEGACY_BRIDGE,
 }
 
@@ -498,13 +499,24 @@ data class DailyStepsSyncPayload(
         require(sequence >= 0L)
         require(previousTotalSteps >= 0L)
         require(currentTotalSteps > previousTotalSteps)
-        require(stepDelta == currentTotalSteps - previousTotalSteps)
-        require(stepDelta > 0L)
+        require(
+            when (kind) {
+                DailyStepsSyncPayloadKind.INCREMENTAL,
+                DailyStepsSyncPayloadKind.LEGACY_BRIDGE,
+                -> stepDelta == currentTotalSteps - previousTotalSteps
+
+                DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL ->
+                    stepDelta in 1L..(currentTotalSteps - previousTotalSteps)
+            },
+        )
         require(endTime.isAfter(startTime))
         require(runCatching { ZoneId.of(timeZoneId) }.isSuccess)
         require(
             when (kind) {
-                DailyStepsSyncPayloadKind.INCREMENTAL -> sequence > 0L
+                DailyStepsSyncPayloadKind.INCREMENTAL,
+                DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL,
+                -> sequence > 0L
+
                 DailyStepsSyncPayloadKind.LEGACY_BRIDGE -> sequence == 0L && previousTotalSteps == 0L
             },
         )

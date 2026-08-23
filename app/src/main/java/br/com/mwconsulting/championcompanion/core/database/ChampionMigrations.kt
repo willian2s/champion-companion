@@ -575,6 +575,61 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
     }
 }
 
+/** Migration aditiva: guarda checkpoint real do total diário sem payload zero. */
+val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_steps_checkpoints (
+                id TEXT NOT NULL,
+                deviceId TEXT NOT NULL,
+                origin TEXT NOT NULL,
+                localDateIso TEXT NOT NULL,
+                timeZoneId TEXT NOT NULL,
+                effectiveTotalSteps INTEGER NOT NULL,
+                nextOperationOrdinal INTEGER NOT NULL,
+                lastWindowEndEpochMillis INTEGER NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                updatedAtEpochMillis INTEGER NOT NULL,
+                PRIMARY KEY(id)
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "index_daily_steps_checkpoints_deviceId_origin_localDateIso_timeZoneId " +
+                "ON daily_steps_checkpoints(deviceId, origin, localDateIso, timeZoneId)",
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_steps_credit_reservations (
+                id TEXT NOT NULL,
+                creditId TEXT NOT NULL,
+                dailyOperationId TEXT NOT NULL,
+                dailyOperationOrdinal INTEGER NOT NULL,
+                reservedSteps INTEGER NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                updatedAtEpochMillis INTEGER NOT NULL,
+                PRIMARY KEY(id),
+                FOREIGN KEY(creditId) REFERENCES workout_steps_credits(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_daily_steps_credit_reservations_creditId " +
+                "ON daily_steps_credit_reservations(creditId)",
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_daily_steps_credit_reservations_dailyOperationId_creditId " +
+                "ON daily_steps_credit_reservations(dailyOperationId, creditId)",
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_daily_steps_credit_reservations_dailyOperationId " +
+                "ON daily_steps_credit_reservations(dailyOperationId)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

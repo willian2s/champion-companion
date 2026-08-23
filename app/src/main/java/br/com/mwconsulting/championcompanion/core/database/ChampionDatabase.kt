@@ -253,6 +253,51 @@ data class WorkoutStepsCreditEntity(
     val updatedAtEpochMillis: Long,
 )
 
+/** Checkpoint técnico do total observado, separado da fila Health Connect. */
+@Entity(
+    tableName = "daily_steps_checkpoints",
+    indices = [
+        Index(value = ["deviceId", "origin", "localDateIso", "timeZoneId"], unique = true),
+    ],
+)
+data class DailyStepsCheckpointEntity(
+    @PrimaryKey val id: String,
+    val deviceId: String,
+    val origin: String,
+    val localDateIso: String,
+    val timeZoneId: String,
+    val effectiveTotalSteps: Long,
+    val nextOperationOrdinal: Long,
+    val lastWindowEndEpochMillis: Long,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
+/** Reserva explícita que liga crédito ativo a incremento Daily congelado. */
+@Entity(
+    tableName = "daily_steps_credit_reservations",
+    foreignKeys = [ForeignKey(
+        entity = WorkoutStepsCreditEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["creditId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [
+        Index(value = ["creditId"], unique = true),
+        Index(value = ["dailyOperationId", "creditId"], unique = true),
+        Index(value = ["dailyOperationId"]),
+    ],
+)
+data class DailyStepsCreditReservationEntity(
+    @PrimaryKey val id: String,
+    val creditId: String,
+    val dailyOperationId: String,
+    val dailyOperationOrdinal: Long,
+    val reservedSteps: Long,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
 @Entity(
     tableName = "diagnostic_payloads",
     foreignKeys = [ForeignKey(
@@ -746,6 +791,8 @@ class ChampionDatabaseConverters {
         HeartRateMeasurementEntity::class,
         WorkoutActivityEntity::class,
         WorkoutStepsCreditEntity::class,
+        DailyStepsCheckpointEntity::class,
+        DailyStepsCreditReservationEntity::class,
         WatchWorkoutImportEntity::class,
         WorkoutIntervalEntity::class,
         WorkoutDerivationSnapshotEntity::class,
@@ -760,7 +807,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 14,
+    version = 15,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -781,6 +828,8 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun heartRateDao(): HeartRateDao
     abstract fun workoutActivityDao(): WorkoutActivityDao
     abstract fun workoutStepsCreditDao(): WorkoutStepsCreditDao
+    abstract fun dailyStepsCheckpointDao(): DailyStepsCheckpointDao
+    abstract fun dailyStepsCreditReservationDao(): DailyStepsCreditReservationDao
     abstract fun watchWorkoutImportDao(): WatchWorkoutImportDao
     abstract fun workoutDetailDao(): WorkoutDetailDao
     abstract fun workoutDerivationDao(): WorkoutDerivationDao
