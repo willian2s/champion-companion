@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `8/11` subtarefas concluídas
+- **Progresso:** `9/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -46,7 +46,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
 - [x] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
 - [x] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
-- [ ] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
+- [x] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
 - [ ] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
 - [ ] [027-11-validar-e-fechar-spec.md](027-11-validar-e-fechar-spec.md)
 
@@ -131,6 +131,11 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
 - `027-08` implementou BPM 1 Hz sob demanda em `core/model`, sem persistência,
   UI ou Health Connect. A série preserva SOURCE, expõe identidade/fingerprint,
   Hampel, EMA, continuidade defensiva, gaps e provenance da grade.
-- `027-09` é a próxima subtarefa elegível. Integração/promoção ao Health Connect
-  (`027-10`) e validação/fechamento (`027-11`) permanecem dependentes das etapas
-  anteriores.
+- `027-09` implementou cadência 1 Hz sob demanda sobre intervalos normalizados,
+  com Hampel, EMA por midpoint, continuidade/gaps defensivos, ausência por
+  canal e identidade/fingerprint versionados. Parser parcial, `CYCLING`,
+  intervalos sem passos decodificados e janelas sem adjacência não geram
+  observações sintéticas.
+- Revisão independente de `027-09` aprovou implementação sem bloqueadores.
+  Integração/promoção ao Health Connect (`027-10`) e validação/fechamento
+  (`027-11`) permanecem pendentes.

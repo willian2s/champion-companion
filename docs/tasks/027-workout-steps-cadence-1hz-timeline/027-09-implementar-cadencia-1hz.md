@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `09`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-07`, `027-08`
 
 ## Objetivo
@@ -64,3 +64,42 @@ Não alterar automaticamente a projeção `StepsCadenceRecord` nesta task. A dec
 ```
 
 Não criar nem executar testes automatizados sem pedido explícito.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/Workout1HzTimeline.kt`;
+- este arquivo de subtarefa;
+- `docs/tasks/027-workout-steps-cadence-1hz-timeline/027-00-overview.md`.
+
+## Decisões e desvios
+
+- cadência é calculada sob demanda sobre `temporalResolution` do snapshot
+  imutável, sem persistência, UI ou Health Connect;
+- somente atividades `WATCH_D3_D4` com parser `d4-v3`, validade `VALID` e tipo
+  com semântica de passos são elegíveis; `CYCLING` permanece excluído;
+- cada intervalo usa `decodedSteps / duração normalizada * 60`, com midpoint,
+  Hampel, EMA temporal de 5 s, continuidade por índice/adjacência e fallback
+  temporal limitado a 90 s;
+- intervalos sem passos decodificados encerram segmento e preservam buckets
+  `ABSENT`, sem preencher com total da atividade; passos e cadência zero são
+  preservados como valores válidos;
+- não houve desvio funcional do contrato ADR-026. A grade permanece
+  `[startedAt, endedAt)`, com bucket final parcial, ausência sem extrapolação,
+  provenance e identidade/fingerprint versionados.
+
+## Comandos executados e evidências
+
+- `./gradlew app:compileDebugKotlin` — `BUILD SUCCESSFUL`;
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`;
+- `git diff --check` — passou, sem erros de whitespace;
+- revisão independente — aprovada, sem bloqueadores;
+- nenhum teste automatizado foi criado ou executado, conforme regra explícita.
+
+## Riscos residuais e bloqueios
+
+- integração da timeline à UI/gráficos e decisão sobre promoção de cadência 1 Hz
+  ao Health Connect permanecem em `027-10`;
+- validação física e fechamento da Spec permanecem em `027-11`;
+- comportamento interoperável da cadência 1 Hz ainda depende de evidência física.
+
+Próxima subtarefa elegível: `027-10`.
