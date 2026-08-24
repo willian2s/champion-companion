@@ -212,6 +212,32 @@ com segurança quando a nova atividade não mantém ordem temporal válida. Ver
 
 Fechamento factual da Fase 12 em 2026-07-28: correção de identidade por variante concluída, Gate C físico concluído no Galaxy S22 com Health Connect real e builds debug/release validados. Integração permanece write-only, foreground e local-first; leitura remota, `WorkManager`, foreground service da sessão e rotas continuam ausentes do código da Fase 12. Backup e device transfer continuam negados.
 
+## Estado factual da Spec 027 em 2026-08-24
+
+Gate A da Spec 027 permanece `go_with_adjustments`: atividade antes do Daily e
+Daily antes da atividade foram observados sem inflação, retry não criou segundo
+crédito, `StepsCadenceRecord` permaneceu independente e Health Sync/Strava exibiu
+cadência. A timeline 1 Hz foi integrada localmente até `027-10`, sem substituir
+SOURCE, estatísticas históricas ou a projeção Health Connect por buckets D4.
+
+A validação final tentou importar as duas atividades disponíveis no relógio
+(uma longa e uma curta) no `SM-S901E`, mas o fluxo BLE expirou após cerca de 35
+segundos e a UI registrou zero atividades inseridas; foi confirmado que o
+relógio estava descarregado. Após recarga, duas atividades foram importadas e
+sincronizadas individualmente: uma de `32:17` com `4.605` passos e outra de
+`05:30` com `639` passos; ambas terminaram `SYNCED`. A validação física foi
+concluída com limitações: mudança de dia não foi exercitada, Health Sync/Strava
+não foi repetido para essas duas atividades e `SYNCED` não é readback do Health
+Connect. Os achados de timeline 1 Hz foram corrigidos em `027-12`, e a
+implementação/UI do Gate B foi removida em `027-15` por decisão de produto. O
+fechamento documental foi concluído em `027-16`: Gate A permanece
+`go_with_adjustments` e Gate B está `retired_by_product_decision`. Não há
+implementação, estado ou UI ativos da timeline local 1 Hz. BPM raw continua
+projetado para `HeartRateRecord`, cadência D4 para `StepsCadenceRecord`, e
+identidades, payloads, retry, Daily e crédito de Gate A permanecem inalterados.
+Health Connect continua write-only, sem nova sincronização física ou readback;
+o histórico de timeline permanece preservado em documentação e screenshot.
+
 ## Política histórica autorizada da Fase 13 — não vigente
 
 A ADR-014 autoriza rota persistida somente para caminhada/corrida iniciada

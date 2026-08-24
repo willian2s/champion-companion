@@ -1,8 +1,8 @@
 # 027 — Passos, cadência e timeline 1 Hz
 
-- **Status geral:** `in_progress`
+- **Status geral:** `completed`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `10/11` subtarefas concluídas
+- **Progresso:** `13/16` subtarefas concluídas
 
 ## Objetivo
 
@@ -10,7 +10,7 @@ Executar a Spec 027 em dois gates sequenciais:
 
 - **Gate A:** publicar passos e cadência de atividades no Health Connect sem
   inflar o acumulado diário;
-- **Gate B:** produzir timeline derivada comum de 1 Hz para BPM e cadência.
+- **Gate B:** aposentado por decisão de produto; não faz parte do fluxo vigente.
 
 ## Pré-condições
 
@@ -49,17 +49,24 @@ Antes de executar qualquer subtarefa:
 - [x] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
 - [x] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
 - [ ] [027-11-validar-e-fechar-spec.md](027-11-validar-e-fechar-spec.md)
+- [x] [027-12-corrigir-bloqueadores-timeline-1hz.md](027-12-corrigir-bloqueadores-timeline-1hz.md)
+- [ ] [027-13-calibrar-suavizacao-bpm-1hz.md](027-13-calibrar-suavizacao-bpm-1hz.md)
+- [ ] [027-14-revalidar-e-fechar-spec.md](027-14-revalidar-e-fechar-spec.md)
+- [x] [027-15-remover-gate-b-timeline-1hz.md](027-15-remover-gate-b-timeline-1hz.md)
+- [x] [027-16-revalidar-gate-a-e-fechar-spec.md](027-16-revalidar-gate-a-e-fechar-spec.md)
 
 ## Dependências
 
 ```text
 027-01 → 027-02 → 027-03 → 027-04 → 027-05 → 027-06
                                                     ↓
-027-07 → 027-08 → 027-09 → 027-10 → 027-11
+027-07 → 027-08 → 027-09 → 027-10 ──→ 027-12 ──→ 027-15 ──→ 027-16
+                              027-11 ──→ (achados)
+                              027-13/14 canceladas por decisão de produto
 ```
 
-O Gate B só inicia após o Gate A ser fechado sem risco de duplicidade ou
-subcontagem de passos.
+Gate A permanece vigente e independente. Gate B foi removido por `027-15`;
+`027-16` revalidou Gate A e fechou a Spec.
 
 ## Verificação
 
@@ -108,8 +115,11 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   mantêm a proteção no boundary do mapper. O run CI `32680327755` passou
   `./gradlew lint assembleDebug assembleRelease` e publicou novo APK debug. Esse
   registro descreve estado anterior ao reteste físico final.
-- Validação física Health Connect/Health Sync/Strava permanece em `027-06`;
-  timeline 1 Hz não foi iniciada.
+- Validação física Health Connect/Health Sync/Strava permanece registrada em
+  `027-06`; `027-08` a `027-10` implementaram e integraram a timeline 1 Hz
+  local. Validação física final foi executada em `027-11`; naquele registro,
+  fechamento documental permaneceu bloqueado por lacunas identificadas na
+  implementação da timeline 1 Hz.
 - Revisão independente de `027-05` aprovada sem bloqueadores; permanecem apenas
   riscos de interoperabilidade física e ausência de testes automatizados.
 - `027-06` reproduziu atividade → Daily sem inflação: passos e cadência foram
@@ -136,8 +146,12 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   canal e identidade/fingerprint versionados. Parser parcial, `CYCLING`,
   intervalos sem passos decodificados e janelas sem adjacência não geram
   observações sintéticas.
-- Revisão independente de `027-09` aprovou implementação sem bloqueadores.
-  Validação/fechamento (`027-11`) permanece pendente.
+- Revisão independente anterior de `027-09` aprovou a implementação, mas a
+  revisão final de `027-11` identificou lacunas ainda não cobertas: intervalo
+  estrutural inválido falha a série de cadência inteira em vez de preservar gap,
+  BPM aceita parser `PARTIAL` e `fallbackGapSeconds` de BPM não limita `90 s`.
+  `027-12` corrigiu esses pontos; o Gate B foi posteriormente aposentado por
+  decisão de produto.
 - `027-10` integrou timeline comum derivada ao detalhe da atividade, preservando
   gráfico BPM raw, métricas históricas, gaps e provenance interpolada. Screenshot
   sanitizado está em `docs/integration/027-10-detail-timeline.png`.
@@ -146,3 +160,30 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   concreto, consumidor real ou estabilidade de série 1 Hz interpolada. Nenhuma
   sincronização adicional com Health Connect foi feita durante a validação visual.
   `ADR-026` registra decisão autoritativa e requisitos para eventual promoção futura.
+- A validação de Gate A já cobre Health Connect e Health Sync/Strava, com
+  classificação `go_with_adjustments`. A tentativa de importar as duas
+  atividades relatadas no relógio em `027-11` terminou com `Operação Bluetooth
+  expirou; foi confirmado que o relógio estava descarregado. Após recarga, UI
+  observou `Inseridos 2, duplicados 0, inválidos 0, ausentes 0`; a atividade
+  longa (`32:17`, `4.605` passos) e a curta (`05:30`, `639` passos) foram
+  sincronizadas individualmente e terminaram `SYNCED`. Health Connect não foi
+  lido; evidência em `docs/integration/027-11-final-validation.md`. Mudança de
+  dia/reset e repetição Health Sync/Strava dessas duas atividades permanecem
+  limitações documentadas. Naquele registro, o fechamento aguardava remoção do
+  Gate B e revalidação de Gate A em `027-15`/`027-16`; o fechamento atual está
+  registrado abaixo.
+- `027-12` corrigiu continuidade estrutural, parser BPM parcial e limite de
+  fallback. `027-13` e `027-14` foram canceladas por decisão de produto. `027-15`
+  removeu código/UI da timeline 1 Hz sem tocar BPM raw, cadência D4 ou Health
+  Connect; `027-16` concluiu revalidação e fechamento. Histórico documental foi
+  preservado.
+- `027-16` revalidou Gate A como `go_with_adjustments` e classificou Gate B como
+  `retired_by_product_decision`. A auditoria encontrou ausência de implementação,
+  estado e UI ativos da timeline 1 Hz; BPM raw segue `HeartRateRecord` e
+  cadência D4 segue `StepsCadenceRecord`. Identidades, payloads, retry, Daily e
+  crédito de Gate A permanecem inalterados. Não houve nova sincronização física;
+  Health Connect continua write-only. Limitações de mudança de dia/reset,
+  readback e repetição Health Sync/Strava permanecem registradas.
+- Verificação final de `027-16`: `git diff --check` passou e
+  `./gradlew lint assembleDebug assembleRelease` terminou com `BUILD SUCCESSFUL`.
+  Nenhum teste automatizado foi criado ou executado.

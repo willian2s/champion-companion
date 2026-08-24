@@ -2,7 +2,10 @@
 
 ## Status
 
-Aceita para implementação incremental na Spec 027.
+Contrato histórico concluído; Gate B aposentado por decisão de produto após
+`027-12`.
+Implementação e UI removidas em `027-15`; Gate A, BPM raw e cadência D4
+permanecem vigentes.
 
 ## Data
 
@@ -241,8 +244,40 @@ versão produz série separada, preservando as séries anteriores.
   continuidade quando o índice estrutural está ausente;
 - interpolação pode deixar canais parcialmente ausentes e não representa
   medições do relógio;
-- interoperabilidade física da cadência 1 Hz ainda depende da `027-10` e da
-  validação final da `027-11`.
+- interoperabilidade física da cadência 1 Hz permanece limitada à evidência de
+  `027-06`; em `027-11`, duas atividades foram importadas e sincronizadas
+  localmente após recarga do relógio, sem readback Health Connect e sem nova
+  execução Health Sync/Strava. `StepsCadenceRecord` continua por buckets D4, e
+  a promoção para 1 Hz segue não autorizada.
+- A revisão final de `027-11` identificou três correções necessárias antes do
+  fechamento do Gate B: intervalo estrutural inválido deve preservar gaps em vez
+  de falhar a série de cadência inteira; BPM deve exigir parser `VALID`; e
+  `fallbackGapSeconds` de BPM deve respeitar limite máximo de `90 s`. Essas
+  correções exigem subtarefa explícita e não alteram SOURCE nem Gate A.
+
+### Correção `027-12`
+
+`deriveCadence1Hz` trata intervalo estrutural inválido como fronteira de
+segmento, preservando buckets ausentes e impedindo interpolação através da
+ruptura. `deriveBpm1Hz` exige `ParserValidity.VALID`, e o fallback temporal de
+BPM aceita somente `1..90 s`. Essas correções não alteram SOURCE, snapshots,
+estatísticas, identidade existente, projeções Health Connect ou Gate A.
+
+### Aposentadoria posterior do Gate B
+
+Por decisão de produto registrada após `027-12`, a timeline local 1 Hz, sua UI e
+seus derivados foram removidos em `027-15`. O fluxo vigente não usa essa camada:
+Health Connect recebe BPM raw e `StepsCadenceRecord` por buckets D4. Esta ADR e
+as tasks anteriores preservam o contrato como histórico; a remoção não promove
+cadência 1 Hz, não altera Gate A e não apaga evidências anteriores.
+
+### Fechamento em `027-16`
+
+Gate A foi revalidado como `go_with_adjustments`; Gate B foi encerrado como
+`retired_by_product_decision`. A auditoria confirmou ausência de implementação,
+estado e UI ativos de 1 Hz, preservação de identidades, payloads, retry, Daily e
+crédito de Gate A, além de Health Connect write-only. Não houve nova
+sincronização física nem readback.
 
 ## Alternativas rejeitadas
 

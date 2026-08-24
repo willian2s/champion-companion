@@ -15,8 +15,6 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgre
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import java.time.Instant
-import br.com.mwconsulting.championcompanion.core.model.Workout1HzTimeline
-import br.com.mwconsulting.championcompanion.core.model.Workout1HzTimelinePoint
 
 interface ExercisesFeatureContract : UiStateStore<ExercisesUiState> {
     fun onIntent(intent: ExercisesIntent)
@@ -45,13 +43,6 @@ data class ExercisesUiState(
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
     val workoutPreparation: WorkoutPreparationUiState = WorkoutPreparationUiState(),
-    val workout1HzTimeline: Workout1HzTimelineUiState = Workout1HzTimelineUiState(),
-)
-
-data class Workout1HzTimelineUiState(
-    val isLoading: Boolean = false,
-    val timeline: Workout1HzTimeline? = null,
-    val renderPoints: List<Workout1HzTimelinePoint> = emptyList(),
 )
 
 enum class WorkoutPreparationPhase {

@@ -63,7 +63,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -108,9 +107,6 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
-import br.com.mwconsulting.championcompanion.core.model.Workout1HzProvenance
-import br.com.mwconsulting.championcompanion.core.model.Workout1HzTimeline
-import br.com.mwconsulting.championcompanion.core.model.Workout1HzTimelinePoint
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutSplit
@@ -1022,7 +1018,6 @@ private fun ExerciseDetailShell(
                 } else {
                     WorkoutActivityDetailContent(
                         activity = activity,
-                        workout1HzTimeline = state.workout1HzTimeline,
                         latestCalibration = detailState.latestCalibration,
                         reviewFormState = state.reviewFormState,
                         calibrationFormState = state.calibrationFormState,
@@ -1160,7 +1155,6 @@ private fun ExerciseDetailShell(
 @Composable
 private fun WorkoutActivityDetailContent(
     activity: WorkoutActivity,
-    workout1HzTimeline: Workout1HzTimelineUiState,
     latestCalibration: TreadmillCalibrationSnapshot?,
     reviewFormState: ExerciseReviewFormState,
     calibrationFormState: ExerciseCalibrationFormState,
@@ -1225,7 +1219,6 @@ private fun WorkoutActivityDetailContent(
         DetailSectionHeading("Tendências")
         ActivityCanonicalChartSection(activity)
         ActivityHeartRateChartSection(activity)
-        ActivityDerivedTimelineSection(workout1HzTimeline)
         if (!activity.isCycling) {
             DetailSectionHeading("Detalhamento")
             ActivityIntervalsSection(activity)
@@ -1698,228 +1691,6 @@ private fun ActivityHeartRateChartSection(activity: WorkoutActivity) {
             }
         }
     }
-}
-
-@Composable
-private fun ActivityDerivedTimelineSection(state: Workout1HzTimelineUiState) {
-    val timeline = state.timeline
-    if (timeline == null) {
-        if (state.isLoading) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ChampionShapeLarge,
-            ) {
-                Text(
-                    text = "Preparando timeline derivada de BPM e cadência…",
-                    modifier = Modifier.padding(ChampionSpacing.large),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        return
-    }
-
-    val points = state.renderPoints
-    val hasBpm = timeline.bpmIdentity != null
-    val hasCadence = timeline.cadenceIdentity != null
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text("Timeline derivada 1 Hz", style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = "Grade temporal comum local. O gráfico BPM raw e métricas históricas permanecem inalterados.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (!hasBpm && !hasCadence) {
-                Text(
-                    text = "Nenhum canal derivado suportado para esta atividade.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Workout1HzTimelineChart(
-                    timeline = timeline,
-                    points = points,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-                ) {
-                    if (hasBpm) TimelineLegendItem(exercisePrimaryAccent(), "BPM derivado")
-                    if (hasCadence) TimelineLegendItem(exerciseSecondaryAccent(), "Cadência derivada")
-                }
-                Text(
-                    text = "Linha contínua: suporte observado tratado. Linha tracejada: interpolado. Lacunas: ausência de suporte; não são zero.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimelineLegendItem(color: Color, label: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(color, ChampionShapeMedium),
-        )
-        Text(label, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun Workout1HzTimelineChart(
-    timeline: Workout1HzTimeline,
-    points: List<Workout1HzTimelinePoint>,
-) {
-    if (points.isEmpty()) return
-    val bpmValues = points.mapNotNull { it.bpm }.map(Double::toFloat)
-    val cadenceValues = points.mapNotNull { it.cadenceSpm }.map(Double::toFloat)
-    val bpmRange = timelineChartRange(bpmValues, fallback = 30f..220f)
-    val cadenceRange = timelineChartRange(cadenceValues, fallback = 0f..200f)
-    val bpmColor = exercisePrimaryAccent()
-    val cadenceColor = exerciseSecondaryAccent()
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val sourcePointCount = timeline.points.size
-    val gapCount = timeline.points.count { point ->
-        (timeline.bpmIdentity != null && point.bpm == null) ||
-            (timeline.cadenceIdentity != null && point.cadenceSpm == null)
-    }
-    val description = buildString {
-        append("Timeline derivada local de 1 Hz com eixo temporal comum. ")
-        append("${sourcePointCount} buckets, ${points.size} pontos renderizados")
-        if (gapCount > 0) append(", lacunas preservadas")
-        append(". BPM e cadência não são métricas históricas.")
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(230.dp)
-                .semantics { contentDescription = description },
-        ) {
-            val leftPadding = ExerciseHeartRateChartLeftPadding.toPx()
-            val topPadding = 18.dp.toPx()
-            val rightPadding = ExerciseHeartRateChartRightPadding.toPx()
-            val bottomPadding = 22.dp.toPx()
-            val chartWidth = (size.width - leftPadding - rightPadding).coerceAtLeast(1f)
-            val chartHeight = (size.height - topPadding - bottomPadding).coerceAtLeast(1f)
-            val bottom = size.height - bottomPadding
-            val durationMillis = timeline.sessionWindow.duration.toMillis().coerceAtLeast(1L)
-            val interpolatedEffect = PathEffect.dashPathEffect(
-                floatArrayOf(10.dp.toPx(), 6.dp.toPx()),
-            )
-
-            drawLine(
-                color = onSurfaceVariant.copy(alpha = 0.45f),
-                start = Offset(leftPadding, bottom),
-                end = Offset(size.width - rightPadding, bottom),
-                strokeWidth = 1.dp.toPx(),
-            )
-            drawLine(
-                color = onSurfaceVariant.copy(alpha = 0.2f),
-                start = Offset(leftPadding, topPadding),
-                end = Offset(leftPadding, bottom),
-                strokeWidth = 1.dp.toPx(),
-            )
-
-            fun xFor(point: Workout1HzTimelinePoint): Float {
-                val elapsed = Duration.between(timeline.sessionWindow.start, point.instant).toMillis()
-                return leftPadding + (elapsed.toFloat() / durationMillis.toFloat()).coerceIn(0f, 1f) * chartWidth
-            }
-
-            fun yFor(value: Float, range: ClosedFloatingPointRange<Float>): Float =
-                bottom - (((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f) * chartHeight)
-
-            points.zipWithNext().forEach { (previous, current) ->
-                if (previous.bpm != null && current.bpm != null) {
-                    drawLine(
-                        color = bpmColor,
-                        start = Offset(xFor(previous), yFor(previous.bpm.toFloat(), bpmRange)),
-                        end = Offset(xFor(current), yFor(current.bpm.toFloat(), bpmRange)),
-                        strokeWidth = 3.dp.toPx(),
-                        pathEffect = if (previous.bpmProvenance == Workout1HzProvenance.INTERPOLATED ||
-                            current.bpmProvenance == Workout1HzProvenance.INTERPOLATED
-                        ) interpolatedEffect else null,
-                    )
-                }
-                if (previous.cadenceSpm != null && current.cadenceSpm != null) {
-                    drawLine(
-                        color = cadenceColor,
-                        start = Offset(xFor(previous), yFor(previous.cadenceSpm.toFloat(), cadenceRange)),
-                        end = Offset(xFor(current), yFor(current.cadenceSpm.toFloat(), cadenceRange)),
-                        strokeWidth = 3.dp.toPx(),
-                        pathEffect = if (previous.cadenceProvenance == Workout1HzProvenance.INTERPOLATED ||
-                            current.cadenceProvenance == Workout1HzProvenance.INTERPOLATED
-                        ) interpolatedEffect else null,
-                    )
-                }
-            }
-            points.forEach { point ->
-                point.bpm?.let { value ->
-                    drawCircle(
-                        color = bpmColor,
-                        radius = 3.dp.toPx(),
-                        center = Offset(xFor(point), yFor(value.toFloat(), bpmRange)),
-                        style = if (point.bpmProvenance == Workout1HzProvenance.INTERPOLATED) {
-                            Stroke(width = 1.5.dp.toPx())
-                        } else {
-                            androidx.compose.ui.graphics.drawscope.Fill
-                        },
-                    )
-                }
-                point.cadenceSpm?.let { value ->
-                    drawCircle(
-                        color = cadenceColor,
-                        radius = 3.dp.toPx(),
-                        center = Offset(xFor(point), yFor(value.toFloat(), cadenceRange)),
-                        style = if (point.cadenceProvenance == Workout1HzProvenance.INTERPOLATED) {
-                            Stroke(width = 1.5.dp.toPx())
-                        } else {
-                            androidx.compose.ui.graphics.drawscope.Fill
-                        },
-                    )
-                }
-            }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .absolutePadding(
-                    left = ExerciseHeartRateChartLeftPadding,
-                    right = ExerciseHeartRateChartRightPadding,
-                ),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(timeline.sessionWindow.start.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
-            Text(timeline.sessionWindow.end.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
-        }
-    }
-}
-
-private fun timelineChartRange(
-    values: List<Float>,
-    fallback: ClosedFloatingPointRange<Float>,
-): ClosedFloatingPointRange<Float> {
-    if (values.isEmpty()) return fallback
-    val minimum = values.minOrNull() ?: fallback.start
-    val maximum = values.maxOrNull() ?: fallback.endInclusive
-    val padding = ((maximum - minimum) * 0.12f).coerceAtLeast(8f)
-    return (minimum - padding).coerceAtLeast(0f)..(maximum + padding)
 }
 
 @Composable

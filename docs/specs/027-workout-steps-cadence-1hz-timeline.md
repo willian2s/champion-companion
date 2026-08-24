@@ -2,7 +2,11 @@
 
 ## Status
 
-Draft para execução independente após a Spec 026.
+`completed`. Gate A: `go_with_adjustments`. Gate B:
+`retired_by_product_decision`. Health Connect recebe BPM raw e cadência D4,
+sem necessidade da timeline local 1 Hz. As duas atividades disponíveis no
+relógio foram importadas e sincronizadas em `027-11`; `SYNCED` não implica
+readback do Health Connect.
 
 ## Ticker
 
@@ -30,7 +34,10 @@ Existe ainda um fluxo independente de passos diários: a Spec 016 migrou `DailyS
 
 Como a sincronização é manual, é possível sincronizar uma atividade antes do próximo `DailySummary`. Isso permite que passos do treino sejam publicados primeiro, desde que o próximo incremento diário desconte exatamente os passos da atividade já aceitos pelo Health Connect. A ordem inversa precisa falhar fechada para não duplicar contagem.
 
-Após a interoperabilidade de passos/cadência, esta spec também criará uma timeline derivada comum de 1 Hz para BPM e cadência, preservando integralmente os dados D4 de origem.
+Historicamente, após a interoperabilidade de passos/cadência, esta spec previu
+uma timeline derivada comum de 1 Hz para BPM e cadência, preservando
+integralmente os dados D4 de origem. Essa camada foi aposentada e não faz parte
+do fluxo vigente.
 
 ## Objetivos
 
@@ -43,9 +50,9 @@ Após a interoperabilidade de passos/cadência, esta spec também criará uma ti
 - validar fisicamente o caminho `Champion Companion -> Health Connect -> Health Sync -> Strava` sem assumir suporte não comprovado do Health Sync;
 - manter o sync manual e explícito.
 
-### Gate B — Timeline derivada de 1 Hz
+### Gate B — Timeline derivada de 1 Hz (contrato histórico)
 
-Gerar uma timeline temporal comum:
+O contrato histórico previa gerar uma timeline temporal comum:
 
 ```text
 segundo | BPM | cadência
@@ -479,15 +486,19 @@ Crédito não atravessa silenciosamente reset diário do relógio. Atividade que
 
 Gate A bloqueia Gate B se houver risco de inflar passos.
 
-### Gate B — timeline 1 Hz
+### Gate B — timeline 1 Hz (histórico, aposentado)
 
-`027-07 -> 027-11`
+`027-07 -> 027-12`
 
-7. definir contrato/versionamento do algoritmo temporal;
-8. implementar BPM tratado + reamostragem 1 Hz;
-9. implementar cadência tratada + reamostragem 1 Hz;
-10. integrar timeline comum ao detalhe/gráficos e avaliar promoção da cadência 1 Hz para HC;
-11. validar fisicamente e fechar documentação.
+7. definir contrato/versionamento do algoritmo temporal (histórico);
+8. implementar BPM tratado + reamostragem 1 Hz (histórico);
+9. implementar cadência tratada + reamostragem 1 Hz (histórico);
+10. integrar timeline comum ao detalhe/gráficos (histórico);
+11. validar fisicamente e registrar limitações (histórico);
+12. corrigir bloqueadores identificados antes da aposentadoria (histórico).
+
+Nenhuma nova implementação ou promoção do Gate B será feita. `027-15` removeu o
+código/UI restante e `027-16` revalidou somente Gate A.
 
 ## Critérios finais de aceite
 
@@ -499,12 +510,53 @@ Gate A bloqueia Gate B se houver risco de inflar passos.
 - cadência por intervalos é publicada independentemente do crédito;
 - resultado Health Sync -> Strava é registrado com evidência factual, sem inferência;
 - dados D4 de origem permanecem intactos;
-- timeline 1 Hz preserva gaps e distingue estimativa de observação;
-- BPM e cadência usam a mesma grade temporal quando ambos existem;
 - nenhuma mudança reativa treino phone/GPS/rota;
 - mudanças de código/Gradle passam `./gradlew lint assembleDebug assembleRelease`;
 - nenhum teste é criado ou executado sem pedido explícito.
 
+## Decisão posterior a `027-12`
+
+Gate B/timeline local 1 Hz não tem finalidade no fluxo atual e foi removido sem
+apagar histórico documental:
+
+- `027-15`: removeu código, estado e UI da timeline 1 Hz;
+- `027-16`: revalidou Gate A e fechou Spec.
+
+`027-13` e `027-14` foram canceladas. `027-12` permanece como histórico da
+correção implementada antes da decisão de remoção.
+
 ## Ordem das tasks
 
-`027-01 -> 027-02 -> 027-03 -> 027-04 -> 027-05 -> 027-06 -> 027-07 -> 027-08 -> 027-09 -> 027-10 -> 027-11`.
+`027-01 -> 027-02 -> 027-03 -> 027-04 -> 027-05 -> 027-06 -> 027-07 -> 027-08 -> 027-09 -> 027-10 -> 027-11 -> 027-12 -> 027-15 -> 027-16`.
+
+## Fechamento factual de `027-11`
+
+- integridade de passos: Gate A `go_with_adjustments`, sem inflação nos cenários
+  já reproduzidos; as duas atividades atuais foram importadas e sincronizadas
+  individualmente, terminando `SYNCED`;
+- Health Connect: `StepsRecord` e `StepsCadenceRecord` aceitos nos cenários do
+  Gate A; as duas novas atividades terminaram `SYNCED` localmente, sem readback;
+- Health Sync/Strava: atividades e cadência observadas no Gate A, com diferença
+  de representação documentada e sem inferência;
+- timeline local 1 Hz: implementação histórica, removida por decisão de produto
+  em `027-15`; não faz parte do fechamento vigente;
+- fechamento físico: concluído com limitações externas documentadas; a promoção
+  da cadência 1 Hz ao Health Connect permanece não autorizada;
+- fechamento documental: concluído em `027-16`; Gate A permanece
+  `go_with_adjustments` e Gate B permanece `retired_by_product_decision`.
+
+## Fechamento factual de `027-16`
+
+- não há implementação, estado ou UI ativos da timeline local 1 Hz; referências
+  a `Workout1HzTimeline`, `deriveBpm1Hz` e `deriveCadence1Hz` permanecem apenas
+  no histórico documental;
+- BPM raw elegível continua preservado e projetado para `HeartRateRecord`;
+- cadência continua derivada diretamente dos intervalos D4 e projetada para
+  `StepsCadenceRecord`, independente de crédito de passos;
+- identidades, payloads congelados, retry, `DailySummary` e crédito de Gate A
+  não foram alterados pela remoção;
+- Health Connect continua write-only, sem readback ou nova sincronização física;
+- as limitações de mudança de dia/reset e de repetição Health Sync/Strava para as
+  duas atividades finais permanecem em `027-06` e `027-11`;
+- o histórico de `027-01` a `027-15`, inclusive bloqueios e cancelamentos
+  históricos, permanece preservado.

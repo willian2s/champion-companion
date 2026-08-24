@@ -11,7 +11,11 @@ Formalizar a camada derivada temporal antes de implementar algoritmos de BPM/cad
 
 ## Pré-condição
 
-Gate A (`027-01` a `027-06`) fechado sem risco de integridade de passos.
+Gate A (`027-01` a `027-06`) fechado como `go_with_adjustments`: integridade
+de passos passou sem inflação nos cenários exercitados localmente e no Health
+Connect. Health Sync/Strava preservou as atividades e exibiu cadência, mas o
+total de passos não ficou visível no Strava. Mudança de dia não foi exercitada
+e permanece risco residual.
 
 ## Contrato
 
@@ -100,21 +104,37 @@ Contrato final registrado antes de `027-08`.
 
 ## Validação e evidências
 
-- Comando executado: `git diff --check`.
+- Comandos executados: `git diff --check`; validação estrutural do overview com
+  `rg` para seção, itens e subtarefas.
 - Resultado: passou, sem whitespace errors.
-- Evidência: diff documental limitado ao ADR-026, à Spec 027, a esta task e ao
+- Evidência: atualização documental limitada à Spec 027, a esta task e ao
   overview; nenhum arquivo de produção, teste ou Gradle foi alterado.
+- A evidência física de Gate A já está registrada em
+  `docs/integration/027-06-health-sync-strava-validation.md`: `StepsRecord`,
+  `StepsCadenceRecord`, crédito, checkpoint e cenário inverso foram observados
+  no Health Connect/estado local; Health Sync/Strava exibiu as atividades e a
+  cadência, mas não exibiu o total de passos na tela observada. Nenhuma
+  sincronização adicional é necessária para fechar o contrato desta subtarefa.
+- As duas atividades atualmente disponíveis no relógio não foram usadas como
+  evidência desta subtarefa documental. Eventual importação e validação final
+  pertencem exclusivamente à `027-11`.
+- Revisão independente final aprovou o diff documental; manteve como ressalvas
+  a validação final pendente em `027-11` e a referência histórica a screenshots
+  não presentes no workspace no relatório de `027-06`.
 
 ## Riscos residuais e bloqueios
 
-- parâmetros iniciais e comportamento físico da timeline ainda dependem de
-  implementação e validação em `027-08` a `027-11`;
+- parâmetros iniciais e comportamento físico da timeline ainda dependem da
+  validação final em `027-11`;
 - sessão com `endedAt <= startedAt` falha fechada e não gera buckets;
-- decisão de promover cadência 1 Hz ao Health Connect permanece bloqueada até
-  `027-10`;
-- fallback temporal de `90 s` não substitui prova estrutural por índice.
+- `027-10` decidiu manter `StepsCadenceRecord` por buckets D4; promoção de
+  cadência 1 Hz ao Health Connect não foi autorizada;
+- fallback temporal de `90 s` não substitui prova estrutural por índice;
+- o relatório de `027-06` referencia screenshots em
+  `docs/tasks/027-workout-steps-cadence-1hz-timeline/antes-daily/`, diretório
+  não encontrado no workspace atual.
 
-Próxima subtarefa elegível: `027-08`.
+Próxima subtarefa elegível: `027-11`.
 
 ## Fora de escopo
 
