@@ -76,42 +76,54 @@ Criar documento sanitizado em `docs/integration/` com:
 
 Não registrar dados sensíveis desnecessários.
 
-## Intercorrência observada durante o Gate A
+## Intercorrências observadas durante o Gate A
 
-Na primeira execução física desta task, a importação da atividade concluiu
-normalmente, mas a ação explícita de sincronizar a atividade encerrou o app por
-exceção não tratada. A validação física foi interrompida antes de afirmar aceite
-de `StepsRecord`, `StepsCadenceRecord`, crédito ou interoperabilidade.
+A primeira execução física importou a atividade normalmente, mas a ação explícita
+de sincronizar encerrou o app por exceção não tratada. A validação foi interrompida
+antes de afirmar aceite de `StepsRecord`, `StepsCadenceRecord`, crédito ou
+interoperabilidade.
 
-A auditoria estática mostrou que os construtores estritos de records do SDK
-Health Connect eram alcançados antes da boundary de exceções do gateway. Isso
-permitia que `IllegalArgumentException` ou `IllegalStateException` de dados
-locais incompatíveis escapassem até a coroutine de UI. A correção adicionou:
+A primeira correção adicionou uma boundary defensiva no mapper para converter
+falhas dos construtores estritos do SDK em `INVALID_LOCAL_DATA`. O reteste com
+essa APK não crashou no mesmo ponto, porém revelou duas regressões adicionais:
 
-- `SafeHealthRecordMapper`, convertendo exceções de validação do SDK em
-  `INVALID_LOCAL_DATA` controlado;
-- validação explícita dos limites públicos do SDK para `StepsRecord` (`1` a
-  `1.000.000`) e amostras de `StepsCadenceRecord` (`0` a `10.000` spm) antes de
-  congelar novas projeções;
-- `SafeHealthConnectSyncCoordinator` como última boundary foreground para que
-  exceções residuais virem `HealthConnectSyncOutcome.Failed`, preservando
-  `CancellationException`;
-- bindings Hilt atualizados para usar as boundaries seguras sem alterar Room,
-  migrations, créditos ou semântica de sync.
+1. o calendário passou a exibir `Dados parciais` porque a validação de
+   `projectionChildKey` passou a rejeitar globalmente `STEPS` sem filho, incluindo
+   o caso legítimo `DailySummary + STEPS`;
+2. a sincronização da atividade retornou erro de projeção porque os payloads de
+   `WorkoutSteps` e `StepsCadenceSeries` eram criados como payload base e somente
+   depois completados por `.copy(...)`. O `init` de
+   `HealthSyncFrozenProjectionPayload` exige esses campos no construtor, então a
+   instância falhava antes do `.copy()`.
 
-### Verificação da correção
+## Correções aplicadas antes do próximo reteste
 
-A branch foi validada em GitHub Actions com o comando autoritativo:
+- `DailySummary + STEPS` voltou a aceitar `projectionChildKey = null`; a
+  obrigatoriedade de `WorkoutSteps`/`StepsCadenceSeries` fica restrita ao
+  agregado `WorkoutActivity`;
+- `WorkoutSteps` e `StepsCadenceSeries` agora são congelados atomicamente já com
+  `steps` ou `stepsCadenceSamples` preenchidos no construtor;
+- limites públicos usados pelo SDK permanecem validados antes da projeção:
+  `StepsRecord` de `1` a `1.000.000` e cadência de `0` a `10.000` spm;
+- funções de elegibilidade não transformam mais exceção em lista/conjunto vazio;
+- a boundary global `SafeHealthConnectSyncCoordinator` foi removida; a proteção
+  permanece no mapper, junto da operação que pode lançar por contrato do SDK,
+  evitando esconder estado inconsistente de fila.
+
+### Verificação da correção atual
+
+GitHub Actions run `32680327755` executou com sucesso:
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
 ```
 
-O run `32674172016` concluiu o passo de verificação com sucesso e publicou o APK
-debug da correção. Nenhum teste automatizado foi criado ou executado.
+O mesmo run publicou `champion-companion-027-debug` como APK de validação.
+Nenhum teste automatizado foi criado ou executado.
 
-A task permanece `pending`: é obrigatório repetir o cenário físico com o APK
-corrigido antes de classificar o Gate A ou iniciar `027-07`.
+A task permanece `pending`: é obrigatório repetir primeiro a abertura do
+calendário e depois a sincronização física da atividade com esta nova APK antes
+de classificar o Gate A ou iniciar `027-07`.
 
 ## Saída
 
