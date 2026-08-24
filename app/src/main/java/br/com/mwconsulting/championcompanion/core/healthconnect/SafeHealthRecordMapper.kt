@@ -4,6 +4,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayloadResult
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.UserProfile
@@ -99,23 +100,11 @@ class SafeHealthRecordMapper @Inject constructor(
 
     override fun findEligibleWorkoutProjectionChildren(
         activity: WorkoutActivity,
-    ): List<HealthProjectionChildKey> = try {
-        delegate.findEligibleWorkoutProjectionChildren(activity)
-    } catch (_: IllegalArgumentException) {
-        emptyList()
-    } catch (_: IllegalStateException) {
-        emptyList()
-    }
+    ): List<HealthProjectionChildKey> = delegate.findEligibleWorkoutProjectionChildren(activity)
 
     override fun findEligibleWorkoutRecordTypes(
         activity: WorkoutActivity,
-    ): Set<HealthSyncRecordType> = try {
-        delegate.findEligibleWorkoutRecordTypes(activity)
-    } catch (_: IllegalArgumentException) {
-        emptySet()
-    } catch (_: IllegalStateException) {
-        emptySet()
-    }
+    ): Set<HealthSyncRecordType> = delegate.findEligibleWorkoutRecordTypes(activity)
 
     private inline fun mapSafely(
         block: () -> HealthRecordMappingResult,
