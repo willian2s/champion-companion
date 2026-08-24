@@ -30,6 +30,6 @@ abstract class HealthConnectModule {
     @Binds
     @Singleton
     abstract fun bindHealthConnectSyncCoordinator(
-        coordinator: SafeHealthConnectSyncCoordinator,
+        coordinator: DefaultHealthConnectSyncCoordinator,
     ): HealthConnectSyncCoordinator
 }
