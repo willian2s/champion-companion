@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - spec/027-workout-steps-cadence-1hz-timeline
   pull_request:
 
 permissions:
@@ -32,4 +33,11 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
 
       - name: Run lint and assemble
-        run: ./gradlew lint assembleDebug
+        run: ./gradlew lint assembleDebug assembleRelease
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: champion-companion-027-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
