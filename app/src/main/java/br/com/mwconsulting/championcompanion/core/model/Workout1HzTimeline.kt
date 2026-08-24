@@ -184,12 +184,143 @@ data class WorkoutCadence1HzTimeline(
     }
 }
 
+/** Grade comum local que compõe canais independentes sem alterar SOURCE. */
+data class Workout1HzTimelinePoint(
+    val offsetSeconds: Int,
+    val instant: Instant,
+    val bucketDuration: Duration,
+    val bpm: Double?,
+    val bpmProvenance: Workout1HzProvenance,
+    val cadenceSpm: Double?,
+    val cadenceProvenance: Workout1HzProvenance,
+    val layer: Workout1HzLayer = Workout1HzLayer.RESAMPLED_1HZ,
+)
+
+data class Workout1HzTimeline(
+    val sessionWindow: WorkoutIntervalWindow,
+    val bpmIdentity: Workout1HzSeriesIdentity?,
+    val cadenceIdentity: Workout1HzSeriesIdentity?,
+    val points: List<Workout1HzTimelinePoint>,
+) {
+    init {
+        require(points.isNotEmpty())
+        require(points.zipWithNext().all { (previous, current) ->
+            current.offsetSeconds == previous.offsetSeconds + 1 && current.instant.isAfter(previous.instant)
+        })
+        require(points.all { it.layer == Workout1HzLayer.RESAMPLED_1HZ })
+    }
+
+    /** Reduz custo de desenho sem conectar pontos através de uma ausência. */
+    fun downsampleForRendering(maxPoints: Int = 720): List<Workout1HzTimelinePoint> {
+        require(maxPoints >= 2)
+        if (points.size <= maxPoints) return points
+
+        return List(maxPoints) { bucketIndex ->
+            val startIndex = bucketIndex * points.size / maxPoints
+            val endIndex = ((bucketIndex + 1) * points.size / maxPoints).coerceAtLeast(startIndex + 1)
+            val representative = points[(startIndex + endIndex - 1) / 2]
+            var bpmHasGap = false
+            var bpmHasInterpolation = false
+            var cadenceHasGap = false
+            var cadenceHasInterpolation = false
+            for (index in startIndex until endIndex.coerceAtMost(points.size)) {
+                val point = points[index]
+                if (bpmIdentity != null) {
+                    if (point.bpm == null) bpmHasGap = true
+                    if (point.bpmProvenance == Workout1HzProvenance.INTERPOLATED) bpmHasInterpolation = true
+                }
+                if (cadenceIdentity != null) {
+                    if (point.cadenceSpm == null) cadenceHasGap = true
+                    if (point.cadenceProvenance == Workout1HzProvenance.INTERPOLATED) cadenceHasInterpolation = true
+                }
+            }
+            representative.copy(
+                bpm = representative.bpm.takeUnless { bpmIdentity != null && bpmHasGap },
+                bpmProvenance = if (bpmIdentity == null) {
+                    Workout1HzProvenance.UNSUPPORTED
+                } else if (bpmHasGap) {
+                    Workout1HzProvenance.ABSENT
+                } else if (bpmHasInterpolation) {
+                    Workout1HzProvenance.INTERPOLATED
+                } else {
+                    representative.bpmProvenance
+                },
+                cadenceSpm = representative.cadenceSpm.takeUnless { cadenceIdentity != null && cadenceHasGap },
+                cadenceProvenance = if (cadenceIdentity == null) {
+                    Workout1HzProvenance.UNSUPPORTED
+                } else if (cadenceHasGap) {
+                    Workout1HzProvenance.ABSENT
+                } else if (cadenceHasInterpolation) {
+                    Workout1HzProvenance.INTERPOLATED
+                } else {
+                    representative.cadenceProvenance
+                },
+            )
+        }
+    }
+}
+
+/** Deriva canais e os compõe uma única vez sobre a mesma grade temporal. */
+fun WorkoutActivity.deriveWorkout1HzTimeline(
+    bpmParameters: Workout1HzBpmParameterSet = Workout1HzBpmParameterSet.CURRENT,
+    cadenceParameters: Workout1HzCadenceParameterSet = Workout1HzCadenceParameterSet.CURRENT,
+    cancellationCheck: (() -> Unit)? = null,
+): DomainResult<Workout1HzTimeline> {
+    cancellationCheck?.invoke()
+    val window = when (val result = WorkoutIntervalWindow.create(metrics.startedAt, metrics.endedAt)) {
+        is DomainResult.Success -> result.value
+        is DomainResult.Failure -> return result
+    }
+    val bpmTimeline = deriveBpm1Hz(
+        parameters = bpmParameters,
+        cancellationCheck = cancellationCheck,
+    ).valueOrNull()
+    cancellationCheck?.invoke()
+    val cadenceTimeline = deriveCadence1Hz(
+        parameters = cadenceParameters,
+        cancellationCheck = cancellationCheck,
+    ).valueOrNull()
+    cancellationCheck?.invoke()
+    val pointCount = maxOf(bpmTimeline?.points?.size ?: 0, cadenceTimeline?.points?.size ?: 0)
+    if (pointCount == 0) return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+
+    val points = List(pointCount) { index ->
+        cancellationCheck?.invoke()
+        val bpmPoint = bpmTimeline?.points?.getOrNull(index)
+        val cadencePoint = cadenceTimeline?.points?.getOrNull(index)
+        val baseOffset = bpmPoint?.offsetSeconds ?: cadencePoint?.offsetSeconds ?: return@List null
+        val baseInstant = bpmPoint?.instant ?: cadencePoint?.instant ?: return@List null
+        val baseDuration = bpmPoint?.bucketDuration ?: cadencePoint?.bucketDuration ?: return@List null
+        Workout1HzTimelinePoint(
+            offsetSeconds = baseOffset,
+            instant = baseInstant,
+            bucketDuration = baseDuration,
+            bpm = bpmPoint?.bpm,
+            bpmProvenance = bpmPoint?.provenance ?: Workout1HzProvenance.UNSUPPORTED,
+            cadenceSpm = cadencePoint?.cadenceSpm,
+            cadenceProvenance = cadencePoint?.provenance ?: Workout1HzProvenance.UNSUPPORTED,
+            layer = Workout1HzLayer.RESAMPLED_1HZ,
+        )
+    }.filterNotNull()
+
+    return DomainResult.Success(
+        Workout1HzTimeline(
+            sessionWindow = window,
+            bpmIdentity = bpmTimeline?.identity,
+            cadenceIdentity = cadenceTimeline?.identity,
+            points = points,
+        ),
+    )
+}
+
 /** Deriva BPM sob demanda sem alterar samples, snapshots ou métricas existentes. */
 fun WorkoutActivity.deriveBpm1Hz(
     sourceParserVersion: String? = null,
     sourceDerivationVersion: String? = null,
     parameters: Workout1HzBpmParameterSet = Workout1HzBpmParameterSet.CURRENT,
+    cancellationCheck: (() -> Unit)? = null,
 ): DomainResult<WorkoutBpm1HzTimeline> {
+    cancellationCheck?.invoke()
     val importContext = watchImportContext ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
     val actualParserVersion = importContext.parserVersion.value
     val actualDerivationVersion = derivationSnapshot?.derivationVersion
@@ -224,16 +355,20 @@ fun WorkoutActivity.deriveBpm1Hz(
         samples = heartRateSamples,
         window = window,
         fallbackGapSeconds = parameters.fallbackGapSeconds,
+        cancellationCheck = cancellationCheck,
     )
-    val supports = deriveSupports(segments, parameters)
+    cancellationCheck?.invoke()
+    val supports = deriveSupports(segments, parameters, cancellationCheck)
     val bucketCount = bucketCount(window)
         ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
     val points = ArrayList<WorkoutBpm1HzPoint>(bucketCount.toInt())
     var supportIndex = 0
     repeat(bucketCount.toInt()) { offset ->
+        cancellationCheck?.invoke()
         val bucketStart = window.start.plusSeconds(offset.toLong())
         val bucketEnd = minInstant(window.end, bucketStart.plusSeconds(1L))
         while (supportIndex + 1 < supports.size && !supports[supportIndex + 1].instant.isAfter(bucketStart)) {
+            cancellationCheck?.invoke()
             supportIndex++
         }
         val previous = supports.getOrNull(supportIndex)
@@ -266,7 +401,9 @@ fun WorkoutActivity.deriveCadence1Hz(
     sourceParserVersion: String? = null,
     sourceDerivationVersion: String? = null,
     parameters: Workout1HzCadenceParameterSet = Workout1HzCadenceParameterSet.CURRENT,
+    cancellationCheck: (() -> Unit)? = null,
 ): DomainResult<WorkoutCadence1HzTimeline> {
+    cancellationCheck?.invoke()
     val importContext = watchImportContext ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
     val actualParserVersion = importContext.parserVersion.value
     val actualDerivationVersion = derivationSnapshot?.derivationVersion
@@ -311,16 +448,20 @@ fun WorkoutActivity.deriveCadence1Hz(
         intervals = temporalResolution.intervals,
         window = window,
         fallbackGapSeconds = parameters.fallbackGapSeconds,
+        cancellationCheck = cancellationCheck,
     )
-    val supports = deriveCadenceSupports(segments, parameters)
+    cancellationCheck?.invoke()
+    val supports = deriveCadenceSupports(segments, parameters, cancellationCheck)
     val bucketCount = bucketCount(window)
         ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
     val points = ArrayList<WorkoutCadence1HzPoint>(bucketCount.toInt())
     var supportIndex = 0
     repeat(bucketCount.toInt()) { offset ->
+        cancellationCheck?.invoke()
         val bucketStart = window.start.plusSeconds(offset.toLong())
         val bucketEnd = minInstant(window.end, bucketStart.plusSeconds(1L))
         while (supportIndex + 1 < supports.size && !supports[supportIndex + 1].instant.isAfter(bucketStart)) {
+            cancellationCheck?.invoke()
             supportIndex++
         }
         val previous = supports.getOrNull(supportIndex)
@@ -407,8 +548,10 @@ private fun buildCadenceSourceSegments(
     intervals: List<MeasuredWorkoutInterval>,
     window: WorkoutIntervalWindow,
     fallbackGapSeconds: Int,
+    cancellationCheck: (() -> Unit)?,
 ): List<List<CadenceSourceRecord>> {
     val inSession = intervals.mapIndexedNotNull { sourceOrder, interval ->
+        cancellationCheck?.invoke()
         val intervalWindow = interval.effectiveWindow ?: return@mapIndexedNotNull null
         val intervalDuration = interval.effectiveDuration
         if (
@@ -440,6 +583,7 @@ private fun buildCadenceSourceSegments(
     var current = mutableListOf<CadenceSourceRecord>()
     var previous: CadenceSourceRecord? = null
     inSession.forEach { originalRecord ->
+        cancellationCheck?.invoke()
         val record = originalRecord.copy(
             structurallyInvalid = originalRecord.structurallyInvalid ||
                 originalRecord.sourceIndex in duplicateIndexes,
@@ -463,6 +607,7 @@ private fun buildCadenceSourceSegments(
     }
     if (current.isNotEmpty()) segments += current
     return segments.mapIndexed { segmentId, segment ->
+        cancellationCheck?.invoke()
         segment.map { it.copy(segmentId = segmentId) }
     }
 }
@@ -491,15 +636,19 @@ private fun Duration?.orZeroIsPositiveAndMatches(window: WorkoutIntervalWindow):
 private fun deriveCadenceSupports(
     segments: List<List<CadenceSourceRecord>>,
     parameters: Workout1HzCadenceParameterSet,
+    cancellationCheck: (() -> Unit)?,
 ): List<DerivedSupport> {
     val supports = mutableListOf<DerivedSupport>()
     segments.forEach { segment ->
+        cancellationCheck?.invoke()
         val outliers = segment.mapIndexed { index, candidate ->
-            index to isCadenceHampelOutlier(segment, index, candidate, parameters)
+            cancellationCheck?.invoke()
+            index to isCadenceHampelOutlier(segment, index, candidate, parameters, cancellationCheck)
         }.toMap()
         var previousValue: Double? = null
         var previousInstant: Instant? = null
         segment.forEachIndexed { index, record ->
+            cancellationCheck?.invoke()
             val currentValue = record.cadenceSpm ?: return@forEachIndexed
             val currentInstant = record.midpoint ?: return@forEachIndexed
             if (outliers[index] == true) return@forEachIndexed
@@ -524,20 +673,28 @@ private fun isCadenceHampelOutlier(
     candidateIndex: Int,
     candidate: CadenceSourceRecord,
     parameters: Workout1HzCadenceParameterSet,
+    cancellationCheck: (() -> Unit)?,
 ): Boolean {
     val candidateValue = candidate.cadenceSpm ?: return false
     if (candidate.structurallyInvalid) return false
     val validIndexes = segment.mapIndexedNotNull { index, record ->
+        cancellationCheck?.invoke()
         if (!record.structurallyInvalid && record.cadenceSpm != null) index else null
     }
     val neighbors = validIndexes
         .filter { it < candidateIndex }
         .takeLast(parameters.hampelRadius)
-        .mapNotNull { segment[it].cadenceSpm } +
+        .mapNotNull {
+            cancellationCheck?.invoke()
+            segment[it].cadenceSpm
+        } +
         validIndexes
             .filter { it > candidateIndex }
             .take(parameters.hampelRadius)
-            .mapNotNull { segment[it].cadenceSpm }
+            .mapNotNull {
+                cancellationCheck?.invoke()
+                segment[it].cadenceSpm
+            }
     if (neighbors.size < 2) return false
     val median = median(neighbors)
     val mad = median(neighbors.map { abs(it - median) })
@@ -552,9 +709,13 @@ private fun buildSourceSegments(
     samples: List<WorkoutHeartRateSample>,
     window: WorkoutIntervalWindow,
     fallbackGapSeconds: Int,
+    cancellationCheck: (() -> Unit)?,
 ): List<List<SourceRecord>> {
     val inSession = samples
-        .filter { window.contains(it.sampledAt) }
+        .filter {
+            cancellationCheck?.invoke()
+            window.contains(it.sampledAt)
+        }
         .mapIndexed { index, sample -> SourceRecord(sample = sample, sourceOrder = index) }
         .sortedWith(compareBy<SourceRecord> { it.sample.sampledAt }.thenBy { it.sourceOrder })
     if (inSession.isEmpty()) return emptyList()
@@ -567,6 +728,7 @@ private fun buildSourceSegments(
     val segments = mutableListOf<MutableList<SourceRecord>>()
     var current = mutableListOf<SourceRecord>()
     inSession.forEachIndexed { index, record ->
+        cancellationCheck?.invoke()
         val previous = inSession.getOrNull(index - 1)
         val recordDuplicate = record.sample.sourceSampleIndex in duplicateIndexes
         val previousDuplicate = previous?.sample?.sourceSampleIndex in duplicateIndexes
@@ -587,6 +749,7 @@ private fun buildSourceSegments(
     }
     if (current.isNotEmpty()) segments += current
     return segments.mapIndexed { segmentId, segment ->
+        cancellationCheck?.invoke()
         segment.map { it.copy(segmentId = segmentId) }
     }
 }
@@ -612,15 +775,19 @@ private fun isContinuous(
 private fun deriveSupports(
     segments: List<List<SourceRecord>>,
     parameters: Workout1HzBpmParameterSet,
+    cancellationCheck: (() -> Unit)?,
 ): List<DerivedSupport> {
     val supports = mutableListOf<DerivedSupport>()
     segments.forEach { segment ->
+        cancellationCheck?.invoke()
         val outliers = segment.mapIndexed { index, candidate ->
-            index to isHampelOutlier(segment, index, candidate, parameters)
+            cancellationCheck?.invoke()
+            index to isHampelOutlier(segment, index, candidate, parameters, cancellationCheck)
         }.toMap()
         var previousValue: Double? = null
         var previousInstant: Instant? = null
         segment.forEachIndexed { index, record ->
+            cancellationCheck?.invoke()
             if (record.structurallyInvalid || !record.isValidBpm || outliers[index] == true) return@forEachIndexed
             val currentValue = record.sample.bpm.toDouble()
             val value = if (previousValue == null || previousInstant == null) {
@@ -644,19 +811,27 @@ private fun isHampelOutlier(
     candidateIndex: Int,
     candidate: SourceRecord,
     parameters: Workout1HzBpmParameterSet,
+    cancellationCheck: (() -> Unit)?,
 ): Boolean {
     if (candidate.structurallyInvalid || !candidate.isValidBpm) return false
     val validIndexes = segment.mapIndexedNotNull { index, record ->
+        cancellationCheck?.invoke()
         if (!record.structurallyInvalid && record.isValidBpm) index else null
     }
     val neighbors = validIndexes
         .filter { it < candidateIndex }
         .takeLast(parameters.hampelRadius)
-        .map { segment[it].sample.bpm.toDouble() } +
+        .map {
+            cancellationCheck?.invoke()
+            segment[it].sample.bpm.toDouble()
+        } +
         validIndexes
             .filter { it > candidateIndex }
             .take(parameters.hampelRadius)
-            .map { segment[it].sample.bpm.toDouble() }
+            .map {
+                cancellationCheck?.invoke()
+                segment[it].sample.bpm.toDouble()
+            }
     if (neighbors.size < 2) return false
     val median = median(neighbors)
     val mad = median(neighbors.map { abs(it - median) })

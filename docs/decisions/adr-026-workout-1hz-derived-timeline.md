@@ -189,9 +189,19 @@ A grade 1 Hz não recalcula silenciosamente médias, mínimos, máximos ou outra
 estatísticas autoritativas. Não substitui BPM `SOURCE`/Health Connect nem a
 cadência já derivada/publicada no Health Connect por buckets 1 Hz.
 
-A decisão de promover cadência 1 Hz para Health Connect pertence à `027-10`.
-Qualquer uso futuro da série para estatística ou projeção deve preservar a
-distinção entre observado, derivado e interpolado e receber decisão explícita.
+#### Decisão `027-10` — Health Connect
+
+`StepsCadenceRecord` permanece publicado por buckets D4. A validação de `027-06`
+observou aceite no Health Connect e cadência preservada no Health Sync/Strava,
+mas não demonstrou benefício concreto de uma série 1 Hz, consumidor real,
+estabilidade para payload significativamente maior ou segurança de atualização
+da identidade/versionamento remoto. A série 1 Hz permanece somente local,
+derivada e explicitamente distinguida de observações.
+
+Não houve nova sincronização com Health Connect durante a validação visual de
+`027-10`; a atividade foi apenas aberta localmente. Qualquer promoção futura
+exige nova decisão explícita, evidência de interoperabilidade e revisão dos
+contratos de identidade, retry, tamanho e proveniência.
 
 ### 8. Persistência e cache
 

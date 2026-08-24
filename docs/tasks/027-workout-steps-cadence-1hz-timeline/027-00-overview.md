@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `9/11` subtarefas concluídas
+- **Progresso:** `10/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -47,7 +47,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
 - [x] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
 - [x] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
-- [ ] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
+- [x] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
 - [ ] [027-11-validar-e-fechar-spec.md](027-11-validar-e-fechar-spec.md)
 
 ## Dependências
@@ -137,5 +137,12 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   intervalos sem passos decodificados e janelas sem adjacência não geram
   observações sintéticas.
 - Revisão independente de `027-09` aprovou implementação sem bloqueadores.
-  Integração/promoção ao Health Connect (`027-10`) e validação/fechamento
-  (`027-11`) permanecem pendentes.
+  Validação/fechamento (`027-11`) permanece pendente.
+- `027-10` integrou timeline comum derivada ao detalhe da atividade, preservando
+  gráfico BPM raw, métricas históricas, gaps e provenance interpolada. Screenshot
+  sanitizado está em `docs/integration/027-10-detail-timeline.png`.
+- A decisão de `027-10` é manter `StepsCadenceRecord` por buckets D4: Gate A
+  demonstrou aceite e cadência no Health Sync/Strava, mas não comprovou benefício
+  concreto, consumidor real ou estabilidade de série 1 Hz interpolada. Nenhuma
+  sincronização adicional com Health Connect foi feita durante a validação visual.
+  `ADR-026` registra decisão autoritativa e requisitos para eventual promoção futura.

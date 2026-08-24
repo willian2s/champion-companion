@@ -60,6 +60,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthCalibrationSummary
 import br.com.mwconsulting.championcompanion.core.model.StepLengthResolutionPolicy
+import br.com.mwconsulting.championcompanion.core.model.deriveWorkout1HzTimeline
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
@@ -91,7 +92,10 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val COUNTDOWN_TICK_MILLIS = 1_000L
 private const val FINISH_ACK_TIMEOUT_MILLIS = 10_000L
@@ -225,6 +229,7 @@ class ExercisesViewModel internal constructor(
         br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS,
     )
     private val workoutPreparation = MutableStateFlow(WorkoutPreparationUiState())
+    private val workout1HzTimeline = MutableStateFlow(Workout1HzTimelineUiState())
 
     private var preparationVisible = false
     private var locationSource: WorkoutLocationSource? = null
@@ -278,6 +283,8 @@ class ExercisesViewModel internal constructor(
     private var recoverySessionObserverJob: Job? = null
     private var finishAcknowledgementJob: Job? = null
     private var deletionEligibilityJob: Job? = null
+    private var workout1HzTimelineJob: Job? = null
+    @Volatile private var workout1HzTimelineGeneration = 0L
     private var displaySessionRevision: Long? = null
     private var displaySessionState: AppWorkoutSessionState? = null
     private var displayRuntimeGeneration: Long? = null
@@ -324,6 +331,7 @@ class ExercisesViewModel internal constructor(
                 activityDeletionAllowed.value = false
                 deletionAllowedActivityId.value = null
                 selectedActivity.value = activity
+                refreshWorkout1HzTimeline(activity)
                 detailState.value = when {
                     selectedActivityId.value == null -> ExerciseDetailState.Loading
                     activity == null -> ExerciseDetailState.NotFound
@@ -437,6 +445,7 @@ class ExercisesViewModel internal constructor(
                 dailyStepsGoal,
                 associatedDevice,
                 workoutPreparation,
+                workout1HzTimeline,
             ) { values ->
                 val currentImportState = values[0] as WatchWorkoutImportSurfaceState
                 val metadata = values[1] as WatchWorkoutImportMetadata?
@@ -457,6 +466,7 @@ class ExercisesViewModel internal constructor(
                 val goal = values[16] as Int
                 val device = values[17] as Device?
                 val preparation = values[18] as WorkoutPreparationUiState
+                val timeline = values[19] as Workout1HzTimelineUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -489,6 +499,7 @@ class ExercisesViewModel internal constructor(
                     hasAssociatedDevice = device != null,
                     associatedDeviceName = device?.name,
                     workoutPreparation = preparation,
+                    workout1HzTimeline = timeline,
                 )
             }.collect { mutableState.value = it }
         }
@@ -537,6 +548,9 @@ class ExercisesViewModel internal constructor(
             is ExercisesIntent.SelectFilter -> selectedFilter.value = intent.filter
             is ExercisesIntent.OpenActivity -> {
                 isDeletingSelectedActivity.value = false
+                if (selectedActivityId.value != intent.activityId) {
+                    invalidateWorkout1HzTimeline()
+                }
                 selectedActivityId.value = intent.activityId
             }
             ExercisesIntent.CloseActivity -> closeSelectedActivity()
@@ -582,6 +596,7 @@ class ExercisesViewModel internal constructor(
         cancelCountdownInternal()
         activeSessionObserverJob?.cancel()
         durationTimerJob?.cancel()
+        workout1HzTimelineJob?.cancel()
         _activeLiveMetrics.value = null
         if (ownsScope) {
             scope.cancel()
@@ -1584,6 +1599,8 @@ class ExercisesViewModel internal constructor(
     }
 
     private fun closeSelectedActivity() {
+        invalidateWorkout1HzTimeline()
+        workout1HzTimeline.value = Workout1HzTimelineUiState()
         selectedActivityId.value = null
         selectedActivity.value = null
         latestCalibration.value = null
@@ -1596,6 +1613,43 @@ class ExercisesViewModel internal constructor(
         calibrationFormState.value = ExerciseCalibrationFormState()
         operationError.value = null
         isReprocessing.value = false
+    }
+
+    private fun refreshWorkout1HzTimeline(activity: WorkoutActivity?) {
+        invalidateWorkout1HzTimeline()
+        val generation = workout1HzTimelineGeneration
+        if (activity?.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+            workout1HzTimeline.value = Workout1HzTimelineUiState()
+            workout1HzTimelineJob = null
+            return
+        }
+
+        workout1HzTimeline.value = Workout1HzTimelineUiState(isLoading = true)
+        val activityId = activity.id
+        workout1HzTimelineJob = scope.launch(Dispatchers.Default) {
+            val coroutineContext = currentCoroutineContext()
+            val timeline = activity.deriveWorkout1HzTimeline(
+                cancellationCheck = { coroutineContext.ensureActive() },
+            ).valueOrNull()
+            withContext(Dispatchers.Main.immediate) {
+                if (generation != workout1HzTimelineGeneration ||
+                    selectedActivityId.value != activityId ||
+                    selectedActivity.value?.id != activityId
+                ) {
+                    return@withContext
+                }
+                workout1HzTimeline.value = Workout1HzTimelineUiState(
+                    timeline = timeline,
+                    renderPoints = timeline?.downsampleForRendering().orEmpty(),
+                )
+            }
+        }
+    }
+
+    private fun invalidateWorkout1HzTimeline() {
+        workout1HzTimelineGeneration += 1
+        workout1HzTimelineJob?.cancel()
+        workout1HzTimelineJob = null
     }
 
     private fun deleteSelectedActivity() {

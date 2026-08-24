@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `10`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-06`, `027-07`, `027-08`, `027-09`
 
 ## Objetivo
@@ -63,3 +63,55 @@ Esta task não deve substituir automaticamente as amostras de BPM da atividade p
 ```
 
 Mudança visual exige evidência visual; não criar nem executar testes automatizados sem pedido explícito.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/Workout1HzTimeline.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`;
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`;
+- `docs/decisions/adr-026-workout-1hz-derived-timeline.md`;
+- `docs/integration/027-10-detail-timeline.png`;
+- este arquivo;
+- `docs/tasks/027-workout-steps-cadence-1hz-timeline/027-00-overview.md`.
+
+## Decisões e desvios
+
+- timeline comum foi integrada somente no detalhe da atividade, após gráfico BPM
+  original;
+- BPM raw, SOURCE D4, métricas históricas, intervalos e estatísticas existentes
+  permanecem inalterados;
+- cálculo ocorre sob demanda em `Dispatchers.Default`, com invalidação por
+  atividade/geração e downsample de renderização para treinos longos;
+- gaps permanecem ausentes, sem conversão para zero; provenance interpolada é
+  indicada por linha tracejada;
+- `StepsCadenceRecord` permanece publicado por buckets D4. A evidência de
+  `027-06` confirma aceite e cadência no Health Sync/Strava, mas não demonstra
+  benefício concreto de série 1 Hz, consumidor real, estabilidade para payload
+  maior ou segurança de versionamento remoto. Migração para 1 Hz não foi
+  promovida;
+- não houve sincronização adicional com Health Connect durante a validação
+  visual. A atividade foi apenas aberta localmente no dispositivo.
+
+## Comandos executados e resultados
+
+- `./gradlew app:compileDebugKotlin` — `BUILD SUCCESSFUL`;
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`;
+- `./gradlew installDebug` — `BUILD SUCCESSFUL`;
+- `git diff --check` — passou, sem erros de whitespace;
+- `adb devices`, `adb shell getprop`, `adb shell pm path` — dispositivo
+  `SM-S901E`, Android 16, APK debug instalada;
+- validação visual local — detalhe de atividade abriu e exibiu timeline comum
+  BPM/cadência, legenda e política de gaps;
+- screenshot sanitizado: `docs/integration/027-10-detail-timeline.png`;
+- nenhum teste automatizado foi criado ou executado, conforme regra do projeto.
+
+## Riscos residuais e bloqueios
+
+- não foi feita nova validação de interoperabilidade Health Connect/Health Sync
+  para série 1 Hz; decisão conservadora mantém buckets D4;
+- screenshot cobre atividade local existente e não valida comportamento de todos
+  os tipos, gaps ou treinos longos;
+- validação física final e fechamento documental da Spec permanecem em `027-11`.
+
+Próxima subtarefa elegível: `027-11`.
