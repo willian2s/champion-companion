@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `7/11` subtarefas concluídas
+- **Progresso:** `8/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -45,7 +45,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
 - [x] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
 - [x] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
-- [ ] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
+- [x] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
 - [ ] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
 - [ ] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
 - [ ] [027-11-validar-e-fechar-spec.md](027-11-validar-e-fechar-spec.md)
@@ -128,6 +128,9 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   `watch-d3-d4-1hz-v1`, grade `[startedAt, endedAt)`, políticas versionadas de
   BPM/cadência, continuidade por índice, ausência por canal e cache somente em
   memória.
-- A timeline 1 Hz ainda não foi implementada nem promovida ao Health Connect;
-  `027-08` é a próxima subtarefa elegível e decisões/validações posteriores
-  continuam bloqueadas até suas dependências.
+- `027-08` implementou BPM 1 Hz sob demanda em `core/model`, sem persistência,
+  UI ou Health Connect. A série preserva SOURCE, expõe identidade/fingerprint,
+  Hampel, EMA, continuidade defensiva, gaps e provenance da grade.
+- `027-09` é a próxima subtarefa elegível. Integração/promoção ao Health Connect
+  (`027-10`) e validação/fechamento (`027-11`) permanecem dependentes das etapas
+  anteriores.

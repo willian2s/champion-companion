@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `08`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-07`
 
 ## Objetivo
@@ -72,4 +72,45 @@ Se a UI mostrar valores provenientes da série derivada, o contrato visual deve 
 ./gradlew lint assembleDebug assembleRelease
 ```
 
-Não criar nem executar testes automatizados sem pedido explícito.
+Validação executada:
+
+```bash
+./gradlew app:compileDebugKotlin
+```
+
+Resultado: `BUILD SUCCESSFUL`. `git diff --check` também passou. Nenhum teste
+automatizado foi criado ou executado.
+
+Evidência: `core/model/Workout1HzTimeline.kt` implementa derivação sob demanda
+em memória, identidade/fingerprint versionados, grade `[startedAt, endedAt)`,
+Hampel, EMA temporal, continuidade defensiva e reamostragem sem mutar SOURCE.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/Workout1HzTimeline.kt`;
+- este arquivo de subtarefa;
+- `docs/tasks/027-workout-steps-cadence-1hz-timeline/027-00-overview.md`.
+
+## Decisões e desvios
+
+- cálculo permanece sob demanda e somente em memória, sem tabela, migration,
+  UI, Health Connect ou alteração de estatísticas existentes;
+- identidade deriva parser e versão da derivação do contexto/snapshot da
+  atividade; versões divergentes falham fechadas;
+- nenhum desvio do contrato 027-07 foi registrado.
+
+## Comandos executados e evidências
+
+- `./gradlew app:compileDebugKotlin` — `BUILD SUCCESSFUL`;
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`;
+- `git diff --check` — passou, sem erros de whitespace;
+- revisão independente — aprovada, sem bloqueadores.
+
+## Riscos residuais e bloqueios
+
+- parâmetros e comportamento físico da série ainda precisam de validação futura;
+- cadência 1 Hz permanece na subtarefa `027-09`;
+- integração Health Connect e validação final permanecem em `027-10` e `027-11`;
+- não há testes automatizados, conforme regra explícita do projeto.
+
+Próxima subtarefa elegível: `027-09`.
