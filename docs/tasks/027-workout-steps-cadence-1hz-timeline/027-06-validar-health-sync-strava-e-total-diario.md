@@ -2,7 +2,7 @@
 
 - **Ticker:** `027`
 - **Número:** `06`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `027-01` a `027-05`
 
 ## Objetivo
@@ -121,10 +121,63 @@ GitHub Actions run `32680327755` executou com sucesso:
 O mesmo run publicou `champion-companion-027-debug` como APK de validação.
 Nenhum teste automatizado foi criado ou executado.
 
-A task permanece `pending`: é obrigatório repetir primeiro a abertura do
-calendário e depois a sincronização física da atividade com esta nova APK antes
-de classificar o Gate A ou iniciar `027-07`.
+Esse era o estado antes do reteste físico final. A repetição foi concluída e o
+Gate A foi classificado abaixo.
+
+## Reteste físico atual
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  - `docs/integration/027-06-health-sync-strava-validation.md`;
+  - este arquivo;
+  - `docs/tasks/027-workout-steps-cadence-1hz-timeline/027-00-overview.md`.
+- **Decisões:** Gate A foi classificado como
+  `go_with_adjustments`: `StepsRecord`, `StepsCadenceRecord`, crédito e
+  checkpoint local foram observados sem inflação; no cenário Daily → atividade,
+  `StepsRecord` ficou bloqueado por `ALREADY_COVERED` e `StepsCadenceRecord`
+  foi aceito independentemente. Strava exibiu as atividades e cadência.
+- **Desvios:** nenhum código alterado. Mudança de dia não foi exercitada.
+- **Comandos executados:** `adb devices`; `./gradlew installDebug`;
+  `adb shell getprop ro.product.model`; `adb shell getprop ro.build.version.release`;
+  `adb shell pm path br.com.mwconsulting.championcompanion.dev`; consultas
+  somente leitura ao banco local via `run-as`; abertura de Health Connect via
+  `android.health.connect.action.MANAGE_HEALTH_DATA`.
+- **Resultados e evidências:** APK instalada com sucesso no `SM-S901E`; app
+  abriu sem crash. A evidência sanitizada está em
+  `docs/integration/027-06-health-sync-strava-validation.md`. Strava mostrou
+  `Caminhada matinal`, `0,01 km`, `6:26`, `2 Kcal`, `111 bpm` médio e `143 bpm`
+  máximo; após rolagem, mostrou gráfico de cadência, média `16 ppm` e máxima
+  `16 ppm`. O valor diferiu da representação Health Connect observada
+  (`2,308 passos/min`, vírgula decimal compatível com 16 passos em 6:56); a
+  diferença entre destinos foi registrada sem classificar Health Connect como
+  incorreto.
+- **Riscos residuais:** Health Sync/Strava exibiu cadência, mas a diferença
+  entre `2,308 passos/min` no Health Connect e `16 ppm` no primeiro registro
+  permanece sem causa inferida; o valor exato da segunda atividade não foi
+  preservado. Mudança de dia não foi exercitada.
+
+## Reteste Daily antes da atividade
+
+- Daily foi sincronizado antes da atividade e total passou de `16` para `201`.
+- Nova atividade foi revisada como `WALKING`, com `132` passos e janela
+  `06:24:59–06:30:38`.
+- Crédito local ficou `BLOCKED` com motivo `ALREADY_COVERED`, conforme esperado.
+- `STEPS` ficou `PENDING` com bloqueio `ALREADY_COVERED`; `STEPS_CADENCE`,
+  `SPEED`, sessão, BPM, distância e calorias terminaram `SYNCED` com
+  `AFTER_REMOTE_EFFECT`; atividade terminou `SYNCED`.
+- Health Sync publicou atividade no Strava com `0,13 km`, `5:15`, `7 Kcal`,
+  `111 bpm` médio e `152 bpm` máximo; cadência foi confirmada na tela durante
+  validação, sem preservar valor exato no relatório sanitizado.
+- **Conclusão:** cenário de cobertura Daily passou; passos não foram duplicados,
+  crédito não foi criado e cadência foi aceita independentemente.
+
+## Classificação final
+
+`go_with_adjustments`: integridade de passos e independência da cadência
+passaram; Health Sync/Strava preservou cadência com diferença de representação
+observada. Gate A concluído. `027-07` é próxima subtarefa elegível.
 
 ## Saída
 
-Gate A fechado antes de iniciar `027-07`.
+Gate A fechado com classificação `go_with_adjustments`. Mudança de dia segue
+como risco não exercitado.

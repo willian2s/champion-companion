@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `5/11` subtarefas concluídas
+- **Progresso:** `6/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -43,7 +43,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-03-publicar-passos-da-atividade.md](027-03-publicar-passos-da-atividade.md)
 - [x] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
 - [x] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
-- [ ] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
+- [x] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
 - [ ] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
 - [ ] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
 - [ ] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
@@ -106,9 +106,20 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   atuais restauram Daily sem child, congelam `WorkoutSteps` e
   `StepsCadenceSeries` atomicamente, preservam falhas reais de elegibilidade e
   mantêm a proteção no boundary do mapper. O run CI `32680327755` passou
-  `./gradlew lint assembleDebug assembleRelease` e publicou novo APK debug. A
-  task continua `pending` até o novo reteste físico.
+  `./gradlew lint assembleDebug assembleRelease` e publicou novo APK debug. Esse
+  registro descreve estado anterior ao reteste físico final.
 - Validação física Health Connect/Health Sync/Strava permanece em `027-06`;
   timeline 1 Hz não foi iniciada.
 - Revisão independente de `027-05` aprovada sem bloqueadores; permanecem apenas
   riscos de interoperabilidade física e ausência de testes automatizados.
+- `027-06` reproduziu atividade → Daily sem inflação: passos e cadência foram
+  aceitos, crédito de 16 passos foi consumido uma vez e checkpoint terminou em
+  16. Strava exibiu atividade, gráfico de cadência, média e máxima em `16 ppm`;
+  o valor diferiu da representação observada no Health Connect (`2,308
+  passos/min`, vírgula decimal compatível com 16 passos em 6:56). Daily →
+  atividade também passou, com passos bloqueados e cadência independente; Gate A
+  fechou com ajustes.
+- No reteste Daily → atividade, Daily chegou a `201` antes da atividade de `132`
+  passos; crédito ficou `BLOCKED/ALREADY_COVERED`, `STEPS_CADENCE` foi aceito
+  independentemente e demais filhos terminaram sincronizados. Gate A fechou
+  como `go_with_adjustments`; mudança de dia não foi exercitada.
