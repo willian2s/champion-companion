@@ -859,11 +859,12 @@ data class HealthSyncOperation private constructor(
         private fun supportsProjectionChild(key: HealthSyncOperationKey): Boolean = when (
             val child = key.projectionChildKey
         ) {
-            null -> key.recordType !in setOf(
-                HealthSyncRecordType.SPEED,
-                HealthSyncRecordType.STEPS,
-                HealthSyncRecordType.STEPS_CADENCE,
-            )
+            null -> key.aggregate !is HealthSyncAggregate.WorkoutActivity ||
+                key.recordType !in setOf(
+                    HealthSyncRecordType.SPEED,
+                    HealthSyncRecordType.STEPS,
+                    HealthSyncRecordType.STEPS_CADENCE,
+                )
             HealthProjectionChildKey.ExerciseSession -> key.recordType == HealthSyncRecordType.EXERCISE_SESSION
             is HealthProjectionChildKey.DistanceInterval -> key.recordType == HealthSyncRecordType.DISTANCE
             HealthProjectionChildKey.ManualDistance -> key.recordType == HealthSyncRecordType.DISTANCE
