@@ -261,9 +261,111 @@ Média, mínimo, máximo e outras estatísticas autoritativas existentes não de
 - estado idempotente de crédito/cobertura de passos;
 - versão da derivação temporal 1 Hz.
 
-Se persistência nova for necessária, criar migration aditiva a partir do Room v13 e schema exportado correspondente. Não reutilizar campos com semântica incompatível.
+Se persistência nova for necessária, criar migration aditiva a partir da versão
+vigente do Room e schema exportado correspondente. Não reutilizar campos com
+semântica incompatível.
 
 Qualquer algoritmo derivado persistido deve carregar versão suficiente para permitir reprocessamento futuro sem confundir série antiga e nova.
+
+### Contrato fechado em `027-07`
+
+`027-07` fechou as decisões do Gate B antes de `027-08`. O contrato detalhado
+está em [ADR-026](../decisions/adr-026-workout-1hz-derived-timeline.md) e é
+integrado aqui para orientar as implementações seguintes.
+
+As camadas semânticas são:
+
+```text
+SOURCE
+  D4 persistido/normalizado
+DERIVED
+  tratamento somente sobre suporte da fonte
+RESAMPLED_1HZ
+  grade comum de um segundo
+```
+
+`SOURCE` não pode ser alterado, e a timeline não ganha autoridade sobre totais,
+amostras, intervalos ou estatísticas existentes. A versão do parser continua
+`d4-v3`; snapshots e derivações existentes, inclusive `watch-d3-d4-v2` e
+`watch-d3-d4-v3`, são preservados. A série nova usa a versão independente
+`watch-d3-d4-1hz-v1`. Sua identidade inclui versão do parser/source, versão
+efetiva da derivação da fonte, versão do algoritmo 1 Hz e o conjunto de
+parâmetros `workout-1hz-params-v1` e seu fingerprint; sem versão efetiva da
+fonte, a série não é gerada. Algoritmo e parâmetros são determinísticos;
+`median` usa o centro ordenado ou a média dos dois centros, conforme a
+cardinalidade. O fingerprint usa manifesto UTF-8 sem BOM, com uma linha
+`key=value` por parâmetro, sem linha final, chaves ASCII `[a-z0-9._-]`
+ordenadas por bytes e valores em tokens ASCII sem espaço ou números decimais em
+base 10, ponto como separador, sem expoente, zeros à esquerda ou zeros finais;
+inclui algoritmo, conjunto e parâmetros efetivos, e aplica SHA-256 hexadecimal
+minúsculo.
+
+Uma sessão exige `endedAt > startedAt`; janela vazia ou invertida falha fechada e
+não cria buckets. A grade de sessão válida é `[startedAt, endedAt)`, em
+`Instant` absoluto/UTC, com offset inteiro
+relativo em segundos. Inclui offset `0`; cada bucket começa em `startedAt +
+offset s`; só existe quando seu início é menor que `endedAt`; a duração final
+parcial é mantida; `endedAt` nunca é ponto. Zona local serve apenas à associação
+civil existente. Valores fora da sessão são descartados, sem extrapolação.
+Atividades que cruzam meia-noite preservam o eixo `Instant` e seguem as regras
+existentes de atividade e Health Connect.
+
+Para BPM, a entrada é somente BPM D4 válido atual em `30..220`. `sampledAt`
+normalizado é `DERIVED`, não medido. O outlier robusto é Hampel local com radius
+`2`, multiplier `3` e floor `12 BPM`: usar até dois vizinhos válidos de cada
+lado, exigir pelo menos dois vizinhos combinados, calcular `MAD` pela mediana dos
+desvios absolutos e rejeitar quando
+`abs(candidate - median) > max(floor, 1.4826 * multiplier * MAD)`. O conjunto de
+vizinhos é congelado antes da passagem. A EMA usa
+`alpha = 1 - exp(-deltaT / tau)`, inicializa cada segmento com o primeiro valor
+elegível, usa `deltaT` entre timestamps derivados consecutivos, tem `tau`
+versionado de `5 s`, não usa interpolados e reinicia em segmentos. A precisão
+derivada é mantida até o consumidor; quando BPM inteiro for necessário,
+arredonda-se deterministicamente ao inteiro mais próximo, com empate em `0,5`
+para cima, sem alterar `SOURCE`. O valor do bucket é avaliado no início dele;
+timestamp derivado coincidente recebe `OBSERVED_DERIVED`, e valor entre suportes,
+`INTERPOLATED`. Interpolação linear só ocorre em região contínua elegível, sem
+extrapolação antes/depois do suporte.
+
+Para cadência, somente tipos D4 com semântica de passos são elegíveis;
+`CYCLING` fica explicitamente fora. A fórmula é:
+
+```text
+cadenceSpm = intervalSteps / durationSeconds * 60
+```
+
+Passos zero e cadência zero podem ser válidos quando intervalo e duração forem
+válidos. A cadência usa Hampel equivalente, com a mesma fórmula e vizinhança,
+radius `2`, multiplier `3`, floor `20 spm`, `tau` inicial de `5 s`, primeiro
+valor elegível de cada segmento inicializando a EMA sem suavização e `deltaT`
+calculado pelos midpoints dos intervalos. Mantém a mesma política de EMA,
+segmentos, interpolação e gaps do BPM.
+
+`sourceSampleIndex`/índice do intervalo é a autoridade de continuidade. Índice
+ausente, duplicado, fora de ordem ou bucket estrutural ausente encerra segmento
+e não pode ser atravessado. Sem índice, fallback temporal versionado aceita no
+máximo `90 s`, nunca atravessa marcador estrutural e não substitui o índice
+quando este existe. Outlier e valor ausente não são observações; interpolação só
+é permitida quando a continuidade estrutural permanecer comprovada.
+
+A grade mantém cada bucket, e cada canal fica independente: ausência é
+`null`/`UNSUPPORTED`, nunca zero. Provenance por canal deve distinguir
+`OBSERVED_DERIVED`, `INTERPOLATED` e `ABSENT/UNSUPPORTED`, além da camada
+`RESAMPLED_1HZ`.
+
+A série 1 Hz não recalcula silenciosamente médias, mínimos, máximos ou outras
+estatísticas autoritativas, nem substitui BPM SOURCE/Health Connect ou cadência
+Health Connect por buckets. A promoção de cadência 1 Hz para Health Connect é
+decisão da `027-10`.
+
+Não haverá tabela nem migration nesta etapa. O cálculo ocorre sob demanda sobre
+snapshot imutável e o cache é somente em memória, indexado por
+`activityId`/snapshot/versões/parâmetros; mudança de identidade invalida o cache.
+Persistência futura exige ADR/migration aditiva, vínculo `activityId + version`,
+regeneração determinística e exclusão sem tocar `SOURCE`. Reprocessamento é
+somente explícito: não muta snapshots antigos ou atividade sincronizada
+silenciosamente, não faz resync automático e gera série separada para cada
+versão.
 
 ## Health Connect
 

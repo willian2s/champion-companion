@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [027-workout-steps-cadence-1hz-timeline.md](../../specs/027-workout-steps-cadence-1hz-timeline.md)
-- **Progresso:** `6/11` subtarefas concluídas
+- **Progresso:** `7/11` subtarefas concluídas
 
 ## Objetivo
 
@@ -44,7 +44,7 @@ Antes de executar qualquer subtarefa:
 - [x] [027-04-descontar-creditos-no-daily-summary.md](027-04-descontar-creditos-no-daily-summary.md)
 - [x] [027-05-publicar-cadencia-por-intervalos-d4.md](027-05-publicar-cadencia-por-intervalos-d4.md)
 - [x] [027-06-validar-health-sync-strava-e-total-diario.md](027-06-validar-health-sync-strava-e-total-diario.md)
-- [ ] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
+- [x] [027-07-definir-contrato-timeline-1hz.md](027-07-definir-contrato-timeline-1hz.md)
 - [ ] [027-08-implementar-bpm-1hz.md](027-08-implementar-bpm-1hz.md)
 - [ ] [027-09-implementar-cadencia-1hz.md](027-09-implementar-cadencia-1hz.md)
 - [ ] [027-10-integrar-timeline-e-avaliar-cadencia-hc.md](027-10-integrar-timeline-e-avaliar-cadencia-hc.md)
@@ -123,3 +123,11 @@ Para validações físicas, registrar somente evidência observada e sanitizada.
   passos; crédito ficou `BLOCKED/ALREADY_COVERED`, `STEPS_CADENCE` foi aceito
   independentemente e demais filhos terminaram sincronizados. Gate A fechou
   como `go_with_adjustments`; mudança de dia não foi exercitada.
+- `027-07` concluiu o contrato documental do Gate B em `ADR-026` e integrou a
+  decisão à Spec 027 antes de `027-08`: camadas semânticas, identidade
+  `watch-d3-d4-1hz-v1`, grade `[startedAt, endedAt)`, políticas versionadas de
+  BPM/cadência, continuidade por índice, ausência por canal e cache somente em
+  memória.
+- A timeline 1 Hz ainda não foi implementada nem promovida ao Health Connect;
+  `027-08` é a próxima subtarefa elegível e decisões/validações posteriores
+  continuam bloqueadas até suas dependências.
