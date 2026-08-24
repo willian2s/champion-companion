@@ -10,6 +10,7 @@ import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeightRecord
 import androidx.health.connect.client.records.SpeedRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.StepsCadenceRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
@@ -201,6 +202,7 @@ class AndroidHealthConnectGateway @Inject constructor(
 
 private fun HealthSyncRecordType.toHealthConnectRecordClass() = when (this) {
     HealthSyncRecordType.STEPS -> StepsRecord::class
+    HealthSyncRecordType.STEPS_CADENCE -> StepsCadenceRecord::class
     HealthSyncRecordType.HEART_RATE -> HeartRateRecord::class
     HealthSyncRecordType.EXERCISE_SESSION -> ExerciseSessionRecord::class
     HealthSyncRecordType.DISTANCE -> DistanceRecord::class

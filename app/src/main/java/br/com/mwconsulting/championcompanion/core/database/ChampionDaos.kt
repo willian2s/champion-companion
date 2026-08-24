@@ -419,6 +419,73 @@ data class PhoneWorkoutCorrelationCandidateRecord(
     val associatedDeviceId: String?,
 )
 
+@Dao
+interface WorkoutStepsCreditDao {
+    @Query("SELECT * FROM workout_steps_credits WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): WorkoutStepsCreditEntity?
+
+    @Query(
+        "SELECT * FROM workout_steps_credits " +
+            "WHERE activityId = :activityId AND localDateIso = :localDateIso LIMIT 1",
+    )
+    suspend fun findByActivityAndLocalDate(activityId: String, localDateIso: String): WorkoutStepsCreditEntity?
+
+    @Query("SELECT * FROM workout_steps_credits WHERE workoutStepsOperationId = :operationId LIMIT 1")
+    suspend fun findByWorkoutStepsOperationId(operationId: String): WorkoutStepsCreditEntity?
+
+    @Query("SELECT * FROM workout_steps_credits WHERE workoutStepsClientRecordId = :clientRecordId LIMIT 1")
+    suspend fun findByWorkoutStepsClientRecordId(clientRecordId: String): WorkoutStepsCreditEntity?
+
+    @Query(
+        "SELECT * FROM workout_steps_credits " +
+            "WHERE localDateIso = :localDateIso AND state = :state " +
+            "ORDER BY windowStartEpochMillis, activityId, id",
+    )
+    suspend fun findByLocalDateAndState(localDateIso: String, state: String): List<WorkoutStepsCreditEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(credit: WorkoutStepsCreditEntity)
+
+    @Update
+    suspend fun update(credit: WorkoutStepsCreditEntity): Int
+}
+
+@Dao
+interface DailyStepsCheckpointDao {
+    @Query(
+        "SELECT * FROM daily_steps_checkpoints " +
+            "WHERE deviceId = :deviceId AND origin = :origin " +
+            "AND localDateIso = :localDateIso AND timeZoneId = :timeZoneId LIMIT 1",
+    )
+    suspend fun findByNaturalKey(
+        deviceId: String,
+        origin: String,
+        localDateIso: String,
+        timeZoneId: String,
+    ): DailyStepsCheckpointEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(checkpoint: DailyStepsCheckpointEntity)
+
+    @Update
+    suspend fun update(checkpoint: DailyStepsCheckpointEntity): Int
+}
+
+@Dao
+interface DailyStepsCreditReservationDao {
+    @Query(
+        "SELECT * FROM daily_steps_credit_reservations " +
+            "WHERE dailyOperationId = :dailyOperationId ORDER BY creditId",
+    )
+    suspend fun findByDailyOperationId(dailyOperationId: String): List<DailyStepsCreditReservationEntity>
+
+    @Query("SELECT * FROM daily_steps_credit_reservations WHERE creditId = :creditId LIMIT 1")
+    suspend fun findByCreditId(creditId: String): DailyStepsCreditReservationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(reservation: DailyStepsCreditReservationEntity)
+}
+
 data class HealthSyncSummaryRecord(
     val pendingCount: Int,
     val syncingCount: Int,
@@ -793,6 +860,18 @@ interface HealthSyncOperationDao {
 
     @Query("SELECT * FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType ORDER BY recordType, projectionChildKey, operationSequence, id")
     suspend fun findByAggregate(aggregateId: String, aggregateType: String): List<HealthSyncOperationEntity>
+
+    @Query(
+        "SELECT operation.* FROM health_sync_operations operation " +
+            "INNER JOIN workout_activities activity ON activity.id = operation.aggregateId " +
+            "WHERE operation.aggregateType = 'WORKOUT_ACTIVITY' " +
+            "AND operation.recordType = 'STEPS' " +
+            "AND operation.action = 'INSERT' " +
+            "AND operation.state IN ('PENDING', 'FAILED', 'SYNCING') " +
+            "AND activity.deviceId = :deviceId " +
+            "ORDER BY operation.operationSequence, operation.id",
+    )
+    suspend fun findUnacceptedWorkoutStepsForDevice(deviceId: String): List<HealthSyncOperationEntity>
 
     @Query("DELETE FROM health_sync_operations WHERE aggregateId = :aggregateId AND aggregateType = :aggregateType")
     suspend fun deleteByAggregate(aggregateId: String, aggregateType: String): Int

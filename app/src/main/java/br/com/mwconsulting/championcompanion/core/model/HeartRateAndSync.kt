@@ -176,6 +176,8 @@ data class HeartRateMeasurement private constructor(
 
 enum class HealthSyncRecordType {
     STEPS,
+    /** StepsCadenceRecord; provider permission is the shared WRITE_STEPS grant. */
+    STEPS_CADENCE,
     HEART_RATE,
     EXERCISE_SESSION,
     DISTANCE,
@@ -479,6 +481,7 @@ enum class SafeSyncError {
 
 enum class DailyStepsSyncPayloadKind {
     INCREMENTAL,
+    RESIDUAL_INCREMENTAL,
     LEGACY_BRIDGE,
 }
 
@@ -496,13 +499,24 @@ data class DailyStepsSyncPayload(
         require(sequence >= 0L)
         require(previousTotalSteps >= 0L)
         require(currentTotalSteps > previousTotalSteps)
-        require(stepDelta == currentTotalSteps - previousTotalSteps)
-        require(stepDelta > 0L)
+        require(
+            when (kind) {
+                DailyStepsSyncPayloadKind.INCREMENTAL,
+                DailyStepsSyncPayloadKind.LEGACY_BRIDGE,
+                -> stepDelta == currentTotalSteps - previousTotalSteps
+
+                DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL ->
+                    stepDelta in 1L..(currentTotalSteps - previousTotalSteps)
+            },
+        )
         require(endTime.isAfter(startTime))
         require(runCatching { ZoneId.of(timeZoneId) }.isSuccess)
         require(
             when (kind) {
-                DailyStepsSyncPayloadKind.INCREMENTAL -> sequence > 0L
+                DailyStepsSyncPayloadKind.INCREMENTAL,
+                DailyStepsSyncPayloadKind.RESIDUAL_INCREMENTAL,
+                -> sequence > 0L
+
                 DailyStepsSyncPayloadKind.LEGACY_BRIDGE -> sequence == 0L && previousTotalSteps == 0L
             },
         )
@@ -827,6 +841,8 @@ data class HealthSyncOperation private constructor(
                 is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
                 is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
                 is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
+                    HealthSyncRecordType.STEPS,
+                    HealthSyncRecordType.STEPS_CADENCE,
                     HealthSyncRecordType.EXERCISE_SESSION,
                     HealthSyncRecordType.DISTANCE,
                     HealthSyncRecordType.TOTAL_CALORIES_BURNED,
@@ -843,7 +859,12 @@ data class HealthSyncOperation private constructor(
         private fun supportsProjectionChild(key: HealthSyncOperationKey): Boolean = when (
             val child = key.projectionChildKey
         ) {
-            null -> key.recordType != HealthSyncRecordType.SPEED
+            null -> key.aggregate !is HealthSyncAggregate.WorkoutActivity ||
+                key.recordType !in setOf(
+                    HealthSyncRecordType.SPEED,
+                    HealthSyncRecordType.STEPS,
+                    HealthSyncRecordType.STEPS_CADENCE,
+                )
             HealthProjectionChildKey.ExerciseSession -> key.recordType == HealthSyncRecordType.EXERCISE_SESSION
             is HealthProjectionChildKey.DistanceInterval -> key.recordType == HealthSyncRecordType.DISTANCE
             HealthProjectionChildKey.ManualDistance -> key.recordType == HealthSyncRecordType.DISTANCE
@@ -851,6 +872,8 @@ data class HealthSyncOperation private constructor(
             HealthProjectionChildKey.HeartRateSeries -> key.recordType == HealthSyncRecordType.HEART_RATE
             HealthProjectionChildKey.TotalCaloriesBurned ->
                 key.recordType == HealthSyncRecordType.TOTAL_CALORIES_BURNED
+            HealthProjectionChildKey.WorkoutSteps -> key.recordType == HealthSyncRecordType.STEPS
+            HealthProjectionChildKey.StepsCadenceSeries -> key.recordType == HealthSyncRecordType.STEPS_CADENCE
         }
 
         private fun isValidIdentityMetadata(

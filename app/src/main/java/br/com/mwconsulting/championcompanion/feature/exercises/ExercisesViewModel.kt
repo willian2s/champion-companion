@@ -2092,6 +2092,7 @@ class ExercisesViewModel internal constructor(
 
     private fun HealthSyncRecordType.toFriendlyLabel(): String = when (this) {
         HealthSyncRecordType.STEPS -> "Passos"
+        HealthSyncRecordType.STEPS_CADENCE -> "Cadência de passos"
         HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
         HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
         HealthSyncRecordType.DISTANCE -> "Distância"

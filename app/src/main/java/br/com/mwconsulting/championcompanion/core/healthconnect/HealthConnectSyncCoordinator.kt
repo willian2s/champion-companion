@@ -17,6 +17,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
+import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
@@ -25,8 +26,13 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditState
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionContext
+import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -291,6 +297,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                             operations = result.value.operations,
                             workoutActivityRepository = workoutActivityRepository,
                             healthRecordMapper = healthRecordMapper,
+                            healthSyncRepository = healthSyncRepository,
                         )
                     }
 
@@ -704,6 +711,15 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                     return PreparedActivityOperations.Failed(result.error, result.reason)
                 }
             }
+            val workoutStepsContext = if (child == HealthProjectionChildKey.WorkoutSteps) {
+                activity.workoutStepsProjectionContextOrNull()
+                    ?: return PreparedActivityOperations.Failed(
+                        error = SafeSyncError.INVALID_LOCAL_DATA,
+                        reason = "Janela local de passos da atividade inválida.",
+                    )
+            } else {
+                null
+            }
             val existing = existingChildOperations[child]
             when (
                 val prepared = healthSyncRepository.prepareProjectionChild(
@@ -712,6 +728,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                     frozenPayload = frozen,
                     clientRecordVersion = clientRecordVersion,
                     projectionOrigin = origin,
+                    workoutStepsContext = workoutStepsContext,
                 )
             ) {
                 is RepositoryResult.Success -> operations += prepared.value
@@ -760,12 +777,25 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             }
         }
 
-        val processable = operations.filter { operation ->
-            operation.isPending && when {
-                operation.isLegacyWorkoutDistanceDelete() -> canReconcileLegacyDistance
-                operation.isProjectionChild -> true
-                else -> false
+        val processable = operations.mapNotNull { operation ->
+            if (!operation.isPending || when {
+                    operation.isLegacyWorkoutDistanceDelete() -> !canReconcileLegacyDistance
+                    operation.isProjectionChild -> false
+                    else -> true
+                }
+            ) {
+                return@mapNotNull null
             }
+            if (operation.key.projectionChildKey == HealthProjectionChildKey.WorkoutSteps) {
+                val credit = when (val result = healthSyncRepository.findWorkoutStepsCredit(operation.id)) {
+                    is RepositoryResult.Success -> result.value
+                    else -> return@mapNotNull null
+                }
+                if (credit == null || credit.state == WorkoutStepsCreditState.BLOCKED) {
+                    return@mapNotNull null
+                }
+            }
+            operation
         }
         val representedChildren = operations
             .filter { operation -> operation.action == HealthSyncOperationAction.INSERT }
@@ -873,7 +903,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             workoutActivityRepository.markSyncFailed(activityId)
             return
         }
-        if (operations.all { it.state == SyncOperationState.SYNCED }) {
+        if (operations.all { operation -> operation.isLocallyResolved() }) {
             if (activity.workflowState == ActivityWorkflowState.SYNCED) return
             if (activity.workflowState != ActivityWorkflowState.SYNCING) {
                 when (workoutActivityRepository.startSync(activityId)) {
@@ -884,6 +914,15 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             workoutActivityRepository.markSynced(activityId)
         } else {
             workoutActivityRepository.markSyncFailed(activityId)
+        }
+    }
+
+    private suspend fun HealthSyncOperation.isLocallyResolved(): Boolean {
+        if (state == SyncOperationState.SYNCED) return true
+        if (key.projectionChildKey != HealthProjectionChildKey.WorkoutSteps) return false
+        return when (val result = healthSyncRepository.findWorkoutStepsCredit(id)) {
+            is RepositoryResult.Success -> result.value?.state == WorkoutStepsCreditState.BLOCKED
+            else -> false
         }
     }
 
@@ -901,7 +940,7 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                 )) {
                     is RepositoryResult.Success -> if (
                         result.value.isNotEmpty() &&
-                            result.value.all { it.state == SyncOperationState.SYNCED }
+                            result.value.all { operation -> operation.isLocallyResolved() }
                     ) {
                         updateWorkoutWorkflowFromOperations(activity.id, grantedPermissions)
                     }
@@ -916,6 +955,7 @@ private suspend fun filterProcessableOperations(
     operations: List<HealthSyncOperation>,
     workoutActivityRepository: WorkoutActivityRepository,
     healthRecordMapper: HealthRecordMapper,
+    healthSyncRepository: HealthSyncRepository,
 ): List<HealthSyncOperation> {
     val expectedChildrenByActivity = mutableMapOf<WorkoutActivityId, Set<HealthProjectionChildKey>>()
     val filtered = mutableListOf<HealthSyncOperation>()
@@ -935,10 +975,18 @@ private suspend fun filterProcessableOperations(
             continue
         }
         if (operation.action == HealthSyncOperationAction.INSERT &&
+            child != HealthProjectionChildKey.WorkoutSteps &&
             activity.confirmedType != WorkoutType.CYCLING &&
             activity.derivationSnapshot?.isEligibleForHealthProjection != true
         ) {
             continue
+        }
+        if (child == HealthProjectionChildKey.WorkoutSteps) {
+            val credit = when (val result = healthSyncRepository.findWorkoutStepsCredit(operation.id)) {
+                is RepositoryResult.Success -> result.value
+                else -> null
+            }
+            if (credit == null || credit.state == WorkoutStepsCreditState.BLOCKED) continue
         }
         val expectedChildren = expectedChildrenByActivity.getOrPut(aggregate.activityId) {
             healthRecordMapper.findEligibleWorkoutProjectionChildren(activity).toSet()
@@ -1103,8 +1151,29 @@ private fun <T> RepositoryResult<T>.successOrNull(): T? = (this as? RepositoryRe
 
 private fun RepositoryResult<Int>.successOrZero(): Int = (this as? RepositoryResult.Success)?.value ?: 0
 
+private fun br.com.mwconsulting.championcompanion.core.model.WorkoutActivity.workoutStepsProjectionContextOrNull(): WorkoutStepsProjectionContext? {
+    if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+        parserValidity != ParserValidity.VALID ||
+        workflowState == ActivityWorkflowState.DISCARDED ||
+        confirmedType == null ||
+        confirmedType == WorkoutType.UNKNOWN ||
+        confirmedType == WorkoutType.CYCLING ||
+        !metrics.stepsAvailable ||
+        metrics.steps <= 0L ||
+        metrics.duration.isZero ||
+        metrics.duration.isNegative
+    ) return null
+    val end = runCatching { metrics.startedAt.plus(metrics.duration) }.getOrNull() ?: return null
+    val window = WorkoutIntervalWindow.create(metrics.startedAt, end).valueOrNull() ?: return null
+    val zoneId = ZoneId.systemDefault()
+    val endInclusive = runCatching { end.minusNanos(1L) }.getOrNull() ?: return null
+    if (metrics.startedAt.atZone(zoneId).toLocalDate() != endInclusive.atZone(zoneId).toLocalDate()) return null
+    return WorkoutStepsProjectionContext(steps = metrics.steps, window = window)
+}
+
 private fun permissionFor(recordType: HealthSyncRecordType): HealthConnectWritePermission = when (recordType) {
     HealthSyncRecordType.STEPS -> HealthConnectWritePermission.STEPS
+    HealthSyncRecordType.STEPS_CADENCE -> HealthConnectWritePermission.STEPS
     HealthSyncRecordType.HEART_RATE -> HealthConnectWritePermission.HEART_RATE
     HealthSyncRecordType.EXERCISE_SESSION -> HealthConnectWritePermission.EXERCISE
     HealthSyncRecordType.DISTANCE -> HealthConnectWritePermission.DISTANCE

@@ -766,7 +766,12 @@ interface HealthSyncRepository {
         frozenPayload: HealthSyncFrozenPayload,
         clientRecordVersion: Long,
         projectionOrigin: HealthProjectionOrigin,
+        workoutStepsContext: WorkoutStepsProjectionContext? = null,
     ): RepositoryResult<HealthSyncOperation> = RepositoryResult.UnexpectedState
+    /** Consulta estado local do crédito; ausência bloqueia publicação fail-closed. */
+    suspend fun findWorkoutStepsCredit(
+        operationId: HealthSyncOperationId,
+    ): RepositoryResult<WorkoutStepsCredit?> = RepositoryResult.Success(null)
     suspend fun findProcessable(limit: Int = 100): RepositoryResult<List<HealthSyncOperation>>
     suspend fun findProcessableWithIntegrity(
         limit: Int = 100,

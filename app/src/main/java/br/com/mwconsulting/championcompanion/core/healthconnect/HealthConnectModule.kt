@@ -24,7 +24,7 @@ abstract class HealthConnectModule {
     @Binds
     @Singleton
     abstract fun bindHealthRecordMapper(
-        mapper: DefaultHealthRecordMapper,
+        mapper: SafeHealthRecordMapper,
     ): HealthRecordMapper
 
     @Binds
