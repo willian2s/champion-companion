@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.core.healthconnect
 
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import java.time.Instant
@@ -14,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 @Singleton
 class SafeHealthConnectSyncCoordinator @Inject constructor(
     private val delegate: DefaultHealthConnectSyncCoordinator,
+    private val healthSyncRepository: HealthSyncRepository,
 ) : HealthConnectSyncCoordinator {
     override suspend fun syncPending(limit: Int): HealthConnectSyncOutcome =
         runSafely(limit) { delegate.syncPending(limit) }
@@ -35,6 +37,7 @@ class SafeHealthConnectSyncCoordinator @Inject constructor(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
+            recoverInterruptedOperations()
             HealthConnectSyncOutcome.Failed(
                 report = HealthConnectSyncReport(
                     startedAt = startedAt,
@@ -45,6 +48,17 @@ class SafeHealthConnectSyncCoordinator @Inject constructor(
                 error = SafeSyncError.INTERNAL,
                 reason = "Falha interna controlada durante a sincronização com o Health Connect.",
             )
+        }
+    }
+
+    private suspend fun recoverInterruptedOperations() {
+        try {
+            healthSyncRepository.resetInterrupted(Instant.now())
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            // A boundary continua retornando falha controlada mesmo se a
+            // recuperação local não puder ser concluída nesta tentativa.
         }
     }
 }
