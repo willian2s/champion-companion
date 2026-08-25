@@ -2,7 +2,7 @@
 
 - **Ticker:** `028`
 - **Número:** `07`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `028-06`
 
 ## Objetivo
@@ -59,3 +59,63 @@ git diff --check
 ```
 
 Não criar nem executar testes automatizados sem solicitação explícita.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HeartRateHistoryChart.kt`;
+- `docs/integration/028-07-heart-rate-history-final.png`;
+- este arquivo;
+- `docs/tasks/028-unified-interactive-charts/028-00-overview.md`.
+
+## Decisões e desvios
+
+- `HeartRateHistoryChart` passou a adaptar `HeartRateChartSeries` para
+  `ChampionCartesianChartData` e renderizar com `ChampionTimeSeriesChart`.
+- O eixo Y usa intervalo BPM válido (`30..220`) e unidade explícita `bpm`; o
+  tooltip compartilhado usa horário/data do ponto e BPM real.
+- Pontos intradia usam segundos decorridos desde primeira amostra como
+  coordenada X, preservando espaçamento temporal real; `xLabel` e formatter
+  continuam derivados dos timestamps reais, sem alterar a série consolidada
+  nem reamostrar dados. Amostras com timestamp empatado usam séries visuais
+  paralelas sem deslocar o tempo original.
+- Pontos diários ausentes são materializados somente no adapter como
+  `y = null`, preservando gaps sem alterar read model, agrupamento ou
+  persistência.
+- Scroll permanece opt-in e só é habilitado acima de 12 buckets visuais;
+  zoom continua desabilitado.
+- O arquivo `HealthChart` não foi removido: não era renderer vigente do
+  histórico BPM e ainda possui consumidores técnicos em previews e testes.
+
+## Comandos executados
+
+- `./gradlew :app:compileDebugKotlin` — passou.
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — passou (`BUILD SUCCESSFUL`).
+- `./gradlew installDebug` — passou no `SM-S901E`.
+- Não foram criados nem executados testes automatizados.
+
+## Validação física e evidências
+
+- `SM-S901E`: série intradia densa com 70 pontos e eixo em horários reais —
+  passou.
+- `SM-S901E`: série curta de 7 dias, com buckets presentes e gaps visíveis —
+  passou.
+- `SM-S901E`: série mais densa de 30 dias, com buckets e gaps preservados —
+  passou.
+- `SM-S901E`: scroll horizontal da série de 30 dias até buckets com dados —
+  passou.
+- `SM-S901E`: rolagem vertical da tela durante consulta do gráfico — passou.
+- `SM-S901E`: tema escuro observado; marcador/tooltip foram configurados pelo
+  renderer compartilhado, mas não houve captura física reproduzível do tooltip
+  durante o gesto nesta sessão.
+- Tema claro, fonte ampliada e estado vazio não foram exercitados nesta sessão.
+- Screenshot sanitizado: `docs/integration/028-07-heart-rate-history-final.png`.
+
+## Riscos residuais
+
+- Tap/drag e tooltip permanecem sem evidência física reproduzível nesta sessão;
+  dependem do comportamento compartilhado já implementado em `028-04`.
+- Tema claro, fonte ampliada e estado vazio ainda exigem validação física
+  dedicada.
+- O marker/tooltip e cenários de lacuna ainda dependem de validação física mais
+  ampla; a coordenada intradia agora preserva espaçamento temporal real.

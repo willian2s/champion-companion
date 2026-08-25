@@ -1,11 +1,6 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.absolutePadding
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,41 +8,33 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
-import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionTimeSeriesChart
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCartesianChartData
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartAxisSpec
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartFormatters
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartInteractionPolicy
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartPoint
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartSeries
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartUnit
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisFormatter
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartPoint
+import br.com.mwconsulting.championcompanion.core.model.HeartRateChartResolution
 import br.com.mwconsulting.championcompanion.core.model.HeartRateChartSeries
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val VisualGuideBands = listOf(
-    HeartRateGuideBand(166f, Color(0xFFE57373)),
-    HeartRateGuideBand(135f, Color(0xFFFFB74D)),
-    HeartRateGuideBand(110f, Color(0xFF66BB6A)),
-    HeartRateGuideBand(71f, Color(0xFF4FC3F7)),
-    HeartRateGuideBand(30f, Color(0xFF29B6F6)),
-)
-
-private val HeartRateChartLeftPadding = 12.dp
-private val HeartRateChartRightPadding = 40.dp
+private const val MIN_HEART_RATE_BPM = 30.0
+private const val MAX_HEART_RATE_BPM = 220.0
 
 @Composable
 internal fun HeartRateHistoryChart(
@@ -55,340 +42,228 @@ internal fun HeartRateHistoryChart(
     period: HeartRateHistoryPeriod,
     modifier: Modifier = Modifier,
 ) {
-    val points = series.points
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val primaryColor = heartRateChartAccent()
-    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-
-    if (points.isEmpty()) {
-        Column(modifier = modifier.fillMaxWidth()) {
-            Text(
-                text = "Sem dados",
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "Use medição manual, importação D1 ou atividades do relógio para ver tendências.",
-                modifier = Modifier.padding(top = ChampionSpacing.small),
-                color = onSurfaceVariant,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            EmptyXAxis(period = period)
-        }
-        return
-    }
-
-    val valueSet = points.flatMap { point ->
-        listOfNotNull(point.minimumBpm?.toFloat(), point.maximumBpm?.toFloat(), point.bpm.toFloat())
-    } + VisualGuideBands.map { it.value }
-    val minValue = valueSet.minOrNull() ?: 30f
-    val maxValue = valueSet.maxOrNull() ?: 166f
-    val range = (maxValue - minValue).takeIf { it > 0f } ?: 1f
-    val chartDescription = points.joinToString(separator = "; ") { point -> chartPointLabel(point, period) }
+    val locale = LocalConfiguration.current.locales[0]
+    val zoneId = ZoneId.systemDefault()
+    val chartSeries = buildChartSeries(series, period, zoneId, locale)
+    val chartPoints = chartSeries.flatMap { it.points }
+    val intradayStart = series.points.minOfOrNull { it.timestamp }
+    val xBounds = chartXBounds(period, chartPoints)
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM", locale)
+    val chartPointCount = chartPoints.count { it.y != null }
+    val gapCount = chartPoints.count { it.y == null }
+    val sampleCount = series.points.sumOf { it.sampleCount }
+    val chartData = ChampionCartesianChartData(
+        series = chartSeries,
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                formatXAxisValue(value, period, intradayStart, zoneId, locale)
+            },
+            title = if (period == HeartRateHistoryPeriod.TODAY) "Horário" else "Data",
+            minimum = xBounds.first,
+            maximum = xBounds.second,
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Frequência cardíaca",
+            formatter = ChampionChartFormatters.integer(),
+            unit = ChampionChartUnit("bpm"),
+            minimum = MIN_HEART_RATE_BPM,
+            maximum = MAX_HEART_RATE_BPM,
+        ),
+        interaction = ChampionChartInteractionPolicy(
+            scrollEnabled = chartPoints.size > 12,
+        ),
+        accessibilitySummary = "Gráfico de frequência cardíaca para ${periodToLabel(period)}. " +
+            "$chartPointCount ponto(s) com dados e $sampleCount amostra(s) disponíveis. " +
+            "$gapCount lacuna(s) sem dados. Valores representam BPM reais; lacunas não representam zero BPM.",
+    )
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Canvas(
+        ChampionTimeSeriesChart(
+            data = chartData,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
-                .semantics {
-                    contentDescription = "Gráfico de frequência cardíaca para ${periodToLabel(period)}. $chartDescription"
-                },
-        ) {
-            val leftPadding = HeartRateChartLeftPadding.toPx()
-            val rightPadding = HeartRateChartRightPadding.toPx()
-            val topPadding = 14.dp.toPx()
-            val bottomPadding = 22.dp.toPx()
-            val width = size.width - leftPadding - rightPadding
-            val height = size.height - topPadding - bottomPadding
-            val zoneId = ZoneId.systemDefault()
-
-            VisualGuideBands.forEach { band ->
-                val y = yForValue(
-                    value = band.value,
-                    minValue = minValue,
-                    range = range,
-                    chartHeight = height,
-                    topPadding = topPadding,
-                    bottom = size.height - bottomPadding,
-                )
-                drawDottedHorizontalLine(
-                    color = band.color,
-                    startX = leftPadding,
-                    endX = size.width - rightPadding,
-                    y = y,
-                    radius = 2.dp.toPx(),
-                    gap = 10.dp.toPx(),
-                )
-                drawIntoCanvas { canvas ->
-                    canvas.nativeCanvas.drawText(
-                        band.value.roundToInt().toString(),
-                        size.width - rightPadding + 8.dp.toPx(),
-                        y + 4.dp.toPx(),
-                        android.graphics.Paint().apply {
-                            color = onSurfaceVariant.toArgbCompat()
-                            textSize = 12.dp.toPx()
-                            isAntiAlias = true
-                        },
-                    )
-                }
-            }
-
-            if (period == HeartRateHistoryPeriod.TODAY) {
-                points.forEach { point ->
-                    val x = xForPoint(
-                        point = point,
-                        period = period,
-                        zoneId = zoneId,
-                        chartWidth = width,
-                        leftPadding = leftPadding,
-                    )
-                    val y = yForValue(point.bpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
-                    drawCircle(
-                        color = primaryColor,
-                        radius = 2.5.dp.toPx(),
-                        center = Offset(x, y),
-                    )
-                    drawCircle(
-                        color = surfaceVariant,
-                        radius = 4.5.dp.toPx(),
-                        center = Offset(x, y),
-                        style = Stroke(width = 0.8.dp.toPx()),
-                    )
-                }
+                .height(210.dp),
+        )
+        Text(
+            text = if (chartPointCount == 0) {
+                "Use medição manual, importação D1 ou atividades do relógio para ver tendências."
+            } else if (period == HeartRateHistoryPeriod.TODAY) {
+                "Linha: BPM por amostra • marcador: ponto mais próximo"
             } else {
-                val path = Path()
-                points.forEachIndexed { index, point ->
-                    val x = xForPoint(
-                        point = point,
-                        period = period,
-                        zoneId = zoneId,
-                        chartWidth = width,
-                        leftPadding = leftPadding,
-                    )
-                    val y = yForValue(point.bpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
-                    val previousPoint = points.getOrNull(index - 1)
-                    if (index == 0 || previousPoint?.let { chartHasGap(it, point, period) } == true) {
-                        path.moveTo(x, y)
-                    } else {
-                        path.lineTo(x, y)
-                    }
-                    if (point.minimumBpm != null && point.maximumBpm != null) {
-                        val minY = yForValue(point.minimumBpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
-                        val maxY = yForValue(point.maximumBpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
-                        drawLine(
-                            color = primaryColor.copy(alpha = 0.45f),
-                            start = Offset(x, minY),
-                            end = Offset(x, maxY),
-                            strokeWidth = 3.dp.toPx(),
-                        )
-                    }
+                "Linha: BPM médio por período • marcador: ponto mais próximo"
+            },
+            modifier = Modifier.padding(top = ChampionSpacing.small),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        if (gapCount > 0 && period != HeartRateHistoryPeriod.TODAY) {
+            val gapLabels = chartPoints
+                .filter { it.y == null }
+                .joinToString(limit = 5, truncated = "…") { point ->
+                    point.xLabel ?: dateFormatter.format(Instant.ofEpochMilli(point.x.roundToLong()).atZone(zoneId))
                 }
-                drawPath(
-                    path = path,
-                    color = primaryColor,
-                    style = Stroke(width = 3.dp.toPx()),
-                )
-                points.forEach { point ->
-                    val x = xForPoint(
-                        point = point,
-                        period = period,
-                        zoneId = zoneId,
-                        chartWidth = width,
-                        leftPadding = leftPadding,
-                    )
-                    val y = yForValue(point.bpm.toFloat(), minValue, range, height, topPadding, size.height - bottomPadding)
-                    drawCircle(
-                        color = primaryColor,
-                        radius = 2.5.dp.toPx(),
-                        center = Offset(x, y),
-                    )
-                }
-            }
-        }
-
-        XAxisLabels(points = points, period = period)
-    }
-}
-
-@Composable
-private fun EmptyXAxis(period: HeartRateHistoryPeriod) {
-    XAxisLabels(points = emptyList(), period = period)
-}
-
-@Composable
-private fun XAxisLabels(
-    points: List<HeartRateChartPoint>,
-    period: HeartRateHistoryPeriod,
-) {
-    val labels = buildXAxisLabels(points, period)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .absolutePadding(
-                left = HeartRateChartLeftPadding,
-                top = ChampionSpacing.small,
-                right = HeartRateChartRightPadding,
-            ),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        labels.forEach { label ->
             Text(
-                text = label,
+                text = "Lacunas: $gapLabels (sem dados; não representam zero BPM)",
+                modifier = Modifier.padding(top = ChampionSpacing.extraSmall),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
     }
 }
 
-private fun DrawScope.drawDottedHorizontalLine(
-    color: Color,
-    startX: Float,
-    endX: Float,
-    y: Float,
-    radius: Float,
-    gap: Float,
-) {
-    var x = startX
-    while (x <= endX) {
-        drawCircle(color = color, radius = radius, center = Offset(x, y))
-        x += gap
-    }
-}
-
-private fun yForValue(
-    value: Float,
-    minValue: Float,
-    range: Float,
-    chartHeight: Float,
-    topPadding: Float,
-    bottom: Float,
-): Float {
-    val normalized = ((value - minValue) / range).coerceIn(0f, 1f)
-    return bottom - (normalized * chartHeight).coerceIn(0f, chartHeight) + topPadding - topPadding
-}
-
-private fun xForPoint(
-    point: HeartRateChartPoint,
+private fun buildChartSeries(
+    series: HeartRateChartSeries,
     period: HeartRateHistoryPeriod,
     zoneId: ZoneId,
-    chartWidth: Float,
-    leftPadding: Float,
-): Float {
-    val fraction = when (period) {
-        HeartRateHistoryPeriod.TODAY -> {
-            val localTime = point.timestamp.atZone(zoneId).toLocalTime()
-            localTime.toSecondOfDay().toFloat() / (24f * 60f * 60f - 1f)
+    locale: Locale,
+): List<ChampionChartSeries> = when (series.resolution) {
+    HeartRateChartResolution.INTRADAY -> {
+        val timeFormatter = DateTimeFormatter.ofPattern("dd/MM HH:mm", locale)
+        val sortedPoints = series.points.sortedBy { it.timestamp }
+        val start = sortedPoints.firstOrNull()?.timestamp
+        val lanes = mutableListOf<MutableList<ChampionChartPoint>>()
+        sortedPoints.forEach { point ->
+            val x = start?.let { ChronoUnit.MILLIS.between(it, point.timestamp).toDouble() / 1_000.0 }
+                ?: 0.0
+            val chartPoint = point.toChampionPoint(
+                x = x,
+                xLabel = timeFormatter.format(point.timestamp.atZone(zoneId)),
+                period = period,
+            )
+            lanes.firstOrNull { lane -> lane.lastOrNull()?.x?.let { it < x } != false }
+                ?.add(chartPoint)
+                ?: lanes.add(mutableListOf(chartPoint))
         }
-
-        HeartRateHistoryPeriod.LAST_7_DAYS,
-        HeartRateHistoryPeriod.LAST_30_DAYS,
-        -> {
-            val localDate = point.timestamp.atZone(zoneId).toLocalDate()
-            val windowDays = period.windowDays
-            val end = LocalDate.now(zoneId)
-            val start = end.minusDays(windowDays - 1)
-            ChronoUnit.DAYS.between(start, localDate)
-                .toFloat()
-                .div((windowDays - 1).coerceAtLeast(1).toFloat())
+        if (lanes.isEmpty()) {
+            listOf(
+                ChampionChartSeries(
+                    key = "heart-rate",
+                    label = "Frequência cardíaca",
+                    points = listOf(
+                        ChampionChartPoint(
+                            x = 0.0,
+                            y = null,
+                            xLabel = "Hoje",
+                            contentDescription = "Hoje: sem dados.",
+                        ),
+                    ),
+                ),
+            )
+        } else {
+            lanes.mapIndexed { index, points ->
+                ChampionChartSeries(
+                    key = if (index == 0) "heart-rate" else "heart-rate-$index",
+                    label = "Frequência cardíaca",
+                    points = points,
+                )
+            }
         }
-    }.coerceIn(0f, 1f)
+    }
 
-    return leftPadding + (fraction * chartWidth)
+    HeartRateChartResolution.DAILY -> {
+        val points = buildDailyChartPoints(series, period, zoneId, locale)
+        listOf(
+            ChampionChartSeries(
+                key = "heart-rate",
+                label = "Frequência cardíaca",
+                points = points,
+            ),
+        )
+    }
 }
 
-private fun buildXAxisLabels(
-    points: List<HeartRateChartPoint>,
+private fun buildDailyChartPoints(
+    series: HeartRateChartSeries,
     period: HeartRateHistoryPeriod,
-): List<String> = when (period) {
-    HeartRateHistoryPeriod.TODAY -> listOf("0", "4", "8", "12", "16", "20", "23")
-    HeartRateHistoryPeriod.LAST_7_DAYS -> {
-        val formatter = DateTimeFormatter.ofPattern("EEEEE", Locale.forLanguageTag("pt-BR"))
-        pickEvenlySpaced(lastSevenDaysDates(), count = 4).map(formatter::format)
+    zoneId: ZoneId,
+    locale: Locale,
+): List<ChampionChartPoint> {
+    val shortDateFormatter = DateTimeFormatter.ofPattern("dd/MM", locale)
+    val pointsByDate = series.points.associateBy { point ->
+        point.timestamp.atZone(zoneId).toLocalDate()
     }
-    HeartRateHistoryPeriod.LAST_30_DAYS -> {
-        val formatter = DateTimeFormatter.ofPattern("d", Locale.forLanguageTag("pt-BR"))
-        pickEvenlySpaced(lastThirtyDaysDates(), count = 4).map(formatter::format)
+    val endDate = LocalDate.now(zoneId)
+    val startDate = endDate.minusDays(period.windowDays - 1)
+    return (0 until period.windowDays.toInt()).map { index ->
+        val date = startDate.plusDays(index.toLong())
+        val point = pointsByDate[date]
+        val x = ChronoUnit.DAYS.between(startDate, date).toDouble()
+        point?.toChampionPoint(
+            x = x,
+            xLabel = shortDateFormatter.format(date),
+            period = period,
+        ) ?: ChampionChartPoint(
+            x = x,
+            y = null,
+            xLabel = shortDateFormatter.format(date),
+            contentDescription = "${shortDateFormatter.format(date)}: sem dados.",
+        )
     }
 }
 
-private fun chartHasGap(
-    previous: HeartRateChartPoint,
-    current: HeartRateChartPoint,
+private fun HeartRateChartPoint.toChampionPoint(
+    x: Double,
+    xLabel: String,
     period: HeartRateHistoryPeriod,
-): Boolean = when (period) {
-    HeartRateHistoryPeriod.TODAY -> false
-    HeartRateHistoryPeriod.LAST_7_DAYS,
-    HeartRateHistoryPeriod.LAST_30_DAYS,
-    -> ChronoUnit.DAYS.between(
-        previous.timestamp.atZone(ZoneId.systemDefault()).toLocalDate(),
-        current.timestamp.atZone(ZoneId.systemDefault()).toLocalDate(),
-    ) > 1
-}
-
-private fun lastSevenDaysDates() = List(7) { index ->
-    java.time.LocalDate.now(ZoneId.systemDefault()).minusDays((6 - index).toLong())
-}
-
-private fun lastThirtyDaysDates() = List(30) { index ->
-    java.time.LocalDate.now(ZoneId.systemDefault()).minusDays((29 - index).toLong())
-}
-
-private fun <T> pickEvenlySpaced(values: List<T>, count: Int): List<T> {
-    if (values.isEmpty()) return emptyList()
-    if (values.size <= count) return values
-    return (0 until count).map { step ->
-        val fraction = step.toFloat() / (count - 1).coerceAtLeast(1)
-        val index = (fraction * values.lastIndex).roundToInt().coerceIn(0, values.lastIndex)
-        values[index]
-    }
-}
-
-private fun periodToLabel(period: HeartRateHistoryPeriod): String = when (period) {
-    HeartRateHistoryPeriod.TODAY -> "Hoje"
-    HeartRateHistoryPeriod.LAST_7_DAYS -> "7 dias"
-    HeartRateHistoryPeriod.LAST_30_DAYS -> "30 dias"
-}
-
-private fun chartPointLabel(
-    point: HeartRateChartPoint,
-    period: HeartRateHistoryPeriod,
-): String {
-    val timestamp = if (period == HeartRateHistoryPeriod.TODAY) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-            .withLocale(Locale.getDefault())
-            .withZone(ZoneId.systemDefault())
-            .format(point.timestamp)
-    } else {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
-            .withLocale(Locale.getDefault())
-            .withZone(ZoneId.systemDefault())
-            .format(point.timestamp)
-    }
-    val range = if (point.minimumBpm != null && point.maximumBpm != null) {
-        " • mínimo ${point.minimumBpm} • máximo ${point.maximumBpm}"
+): ChampionChartPoint {
+    val bpm = bpm.roundToInt()
+    val sampleLabel = if (sampleCount == 1) "1 amostra" else "$sampleCount amostras"
+    val range = if (minimumBpm != null && maximumBpm != null && minimumBpm != maximumBpm) {
+        " mínimo $minimumBpm e máximo $maximumBpm"
     } else {
         ""
     }
-    return "$timestamp • média ${point.bpm.roundToInt()} BPM • ${point.sampleCount} registro(s)$range"
+    return ChampionChartPoint(
+        x = x,
+        y = this.bpm,
+        xLabel = xLabel,
+        contentDescription = "${periodToLabel(period)} — $xLabel: $bpm bpm, $sampleLabel$range.",
+    )
 }
 
-private data class HeartRateGuideBand(
-    val value: Float,
-    val color: Color,
-)
+private fun formatXAxisValue(
+    value: Double,
+    period: HeartRateHistoryPeriod,
+    intradayStart: Instant?,
+    zoneId: ZoneId,
+    locale: Locale,
+): String {
+    val formatter = if (period == HeartRateHistoryPeriod.TODAY) {
+        DateTimeFormatter.ofPattern("HH:mm", locale)
+    } else {
+        DateTimeFormatter.ofPattern("dd/MM", locale)
+    }
 
-private fun Color.toArgbCompat(): Int = android.graphics.Color.argb(
-    (alpha * 255).roundToInt(),
-    (red * 255).roundToInt(),
-    (green * 255).roundToInt(),
-    (blue * 255).roundToInt(),
-)
+    if (period == HeartRateHistoryPeriod.TODAY) {
+        return intradayStart
+            ?.plusMillis(value.roundToLong() * 1_000L)
+            ?.atZone(zoneId)
+            ?.let(formatter::format)
+            ?: "--:--"
+    }
 
-@Composable
-private fun heartRateChartAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.primary
-} else {
-    LightColorScheme.primary
+    val endDate = LocalDate.now(zoneId)
+    val instant = endDate.minusDays(period.windowDays - 1)
+        .atStartOfDay(zoneId)
+        .toInstant()
+        .plusMillis(value.roundToLong() * 24L * 60L * 60L * 1_000L)
+    return formatter.format(instant.atZone(zoneId))
 }
+
+private fun chartXBounds(period: HeartRateHistoryPeriod, points: List<ChampionChartPoint>): Pair<Double, Double> {
+    val maximum = if (period == HeartRateHistoryPeriod.TODAY) {
+        points.maxOfOrNull { it.x }?.coerceAtLeast(1.0) ?: 1.0
+    } else {
+        (period.windowDays - 1).toDouble()
+    }
+    return 0.0 to maximum
+}
+
+private fun periodToLabel(period: HeartRateHistoryPeriod): String = when (period) {
+    HeartRateHistoryPeriod.TODAY -> "hoje"
+    HeartRateHistoryPeriod.LAST_7_DAYS -> "últimos 7 dias"
+    HeartRateHistoryPeriod.LAST_30_DAYS -> "últimos 30 dias"
+}
+
+private fun Double.roundToLong(): Long = kotlin.math.round(this).toLong()

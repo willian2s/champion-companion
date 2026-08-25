@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `6/10` subtarefas concluídas
+- **Progresso:** `7/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 - [x] `028-04` — implementar eixos, formatters, marker e interação
 - [x] `028-05` — migrar histórico de passos
 - [x] `028-06` — migrar histórico de distância
-- [ ] `028-07` — migrar histórico de frequência cardíaca
+- [x] `028-07` — migrar histórico de frequência cardíaca
 - [ ] `028-08` — migrar gráficos do detalhe do treino
 - [ ] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
 - [ ] `028-10` — remover legado, validar e fechar
@@ -72,7 +72,15 @@ As migrações de tela são deliberadamente sequenciais para permitir revisão v
   ausência. Validação física registrou 7/30/90 dias, gaps, rolagem vertical,
   eixo em km, temas claro/escuro e fonte ampliada no `SM-S901E`; scroll
   horizontal e tap/drag permanecem riscos residuais documentados na subtarefa.
-- Próxima subtarefa elegível: `028-07`.
+- `HeartRateHistoryChart` foi migrado para `ChampionTimeSeriesChart`, preservando
+  manual, D1, amostras de atividades, buckets diários e gaps. Eixo Y usa BPM
+  real; eixo X e tooltip usam horários/datas disponíveis; 7/30 dias preservam
+  lacunas como ausência. Validação física observou série intradia densa, 7/30
+  dias, scroll horizontal e rolagem vertical no `SM-S901E`. Tema claro, fonte
+  ampliada, estado vazio e evidência reproduzível de tooltip permanecem riscos
+  documentados na subtarefa. Screenshot:
+  `docs/integration/028-07-heart-rate-history-final.png`.
+- Nenhum bloqueio ativo em `028-07`. Próxima subtarefa elegível: `028-08`.
 
 ## Verificação
 
