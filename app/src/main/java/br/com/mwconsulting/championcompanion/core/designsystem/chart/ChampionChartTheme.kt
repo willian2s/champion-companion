@@ -4,6 +4,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 
 /** Tokens visuais compartilhados, independentes do renderer de gráficos. */
 @Immutable
@@ -27,14 +30,17 @@ data class ChampionChartTheme(
 @Composable
 fun championChartTheme(): ChampionChartTheme {
     val colors = MaterialTheme.colorScheme
+    val stableSeriesColors = if (colors.surface.luminance() < 0.5f) DarkColorScheme else LightColorScheme
     return ChampionChartTheme(
-        primarySeries = colors.primary,
-        secondarySeries = colors.secondary,
-        tertiarySeries = colors.tertiary,
+        // Stable Champion accents avoid dynamic palettes resolving series to
+        // achromatic black/white while axes and surfaces still follow theme.
+        primarySeries = stableSeriesColors.primary,
+        secondarySeries = stableSeriesColors.secondary,
+        tertiarySeries = stableSeriesColors.tertiary,
         axis = colors.onSurfaceVariant,
         grid = colors.outlineVariant.copy(alpha = 0.55f),
-        reference = colors.primary.copy(alpha = 0.72f),
-        marker = colors.primary,
+        reference = stableSeriesColors.primary.copy(alpha = 0.72f),
+        marker = stableSeriesColors.primary,
         markerContainer = colors.surfaceContainerHighest,
         onMarkerContainer = colors.onSurface,
         gap = colors.outline,

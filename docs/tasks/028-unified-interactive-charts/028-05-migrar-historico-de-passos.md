@@ -2,7 +2,7 @@
 
 - **Ticker:** `028`
 - **Número:** `05`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `028-04`
 
 ## Objetivo
@@ -59,3 +59,53 @@ git diff --check
 ```
 
 Não criar nem executar testes automatizados sem solicitação explícita.
+
+## Evidências
+
+- `StepsHistoryChart` agora usa `ChampionBarChart` e contratos de `core/designsystem/chart`.
+- Pontos usam índice ordenável no período, data real em `xLabel`/descrição e `null` para lacunas.
+- Eixo Y e tooltip mostram somente valores reais, começa em zero e inclui o máximo entre meta e registro; meta usa linha de referência compartilhada.
+- Eixo X usa `dd/MM` para manter labels legíveis em 7, 30 e 90 dias; tooltip mantém data completa.
+- Scroll horizontal fica opt-in somente para 30/90 dias; 7 dias permanece sem scroll/zoom.
+- Lista de lacunas mostra todas as datas em períodos curtos e resume períodos densos para preservar legibilidade.
+- Tema compartilhado usa acentos Champion estáveis para manter barras, marker e meta coloridos mesmo com dynamic color acromático.
+- Lista acessível, read model, Room e estados de issue não foram alterados.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/StepsHistoryChart.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/chart/ChampionChartTheme.kt`
+- `docs/integration/028-05-steps-history-final.png`
+- `docs/integration/028-05-steps-history-marker-final.png`
+- este arquivo;
+- `docs/tasks/028-unified-interactive-charts/028-00-overview.md`.
+
+## Decisões e desvios
+
+- Unidade foi removida do eixo Y e do tooltip conforme revisão visual; série e textos de apoio continuam identificando métrica como `Passos`.
+- Dynamic color permanece aplicado a superfícies, eixos e tooltip. Séries usam paleta Champion já existente para evitar barras pretas/brancas em temas dinâmicos acromáticos.
+- Scroll horizontal foi ativado apenas quando período excede 7 dias, por densidade de buckets; zoom permanece desativado.
+- Não houve alteração de Room, read model, ViewModel, lista acessível, domínio ou contratos persistentes.
+
+## Comandos executados
+
+- `git diff --check` — passou.
+- `./gradlew :app:compileDebugKotlin` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — passou.
+- `./gradlew installDebug` — passou no `SM-S901E`.
+- Validação física 30/90 — passou com scroll horizontal até buckets registrados e lista paginada coerente.
+- Não foram criados nem executados testes automatizados.
+
+## Validação física e evidências
+
+- `SM-S901E`: 7 dias com dados e gaps, rolagem vertical e gráfico colorido — passou.
+- `SM-S901E`: tap/drag exibiu marker e tooltip com `Passos`, data completa e valor real — passou.
+- `SM-S901E`: períodos 30 e 90 dias selecionados e agregados/lista coerentes — passou.
+- Screenshots sanitizados:
+  - `docs/integration/028-05-steps-history-final.png`
+  - `docs/integration/028-05-steps-history-marker-final.png`
+
+## Riscos residuais
+
+- Tema claro e fonte ampliada não foram exercitados fisicamente nesta sessão.
+- Densidade de labels em matrizes de idioma diferentes de `pt-BR` permanece dependente do formatter `dd/MM` e deve ser observada nas próximas migrações.

@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `4/10` subtarefas concluídas
+- **Progresso:** `5/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -25,7 +25,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 - [x] `028-02` — adotar Vico e registrar decisão arquitetural
 - [x] `028-03` — criar contratos e tema compartilhados
 - [x] `028-04` — implementar eixos, formatters, marker e interação
-- [ ] `028-05` — migrar histórico de passos
+- [x] `028-05` — migrar histórico de passos
 - [ ] `028-06` — migrar histórico de distância
 - [ ] `028-07` — migrar histórico de frequência cardíaca
 - [ ] `028-08` — migrar gráficos do detalhe do treino
@@ -56,9 +56,18 @@ As migrações de tela são deliberadamente sequenciais para permitir revisão v
 - `028-02` adotou Vico `3.2.3` com módulos Compose + Material 3 e registrou ADR-027.
 - `028-03` criou a boundary neutra e `028-04` entregou renderer Vico com eixos,
   formatters, marker, tooltip, gaps, acessibilidade e interação opt-in.
-- A infraestrutura permanece sem consumidor de feature por enquanto; a primeira
-  migração está planejada em `028-05`.
+- `StepsHistoryChart` foi migrado para `ChampionBarChart`, preservando pontos,
+  lacunas, meta, acessibilidade e lista do histórico. Eixo Y mostra valores sem
+  unidade redundante; eixo X usa datas compactas e tema compartilhado mantém
+  barras/marker coloridos. Períodos 30/90 habilitam scroll horizontal; 7 dias
+  permanece sem scroll/zoom.
 - GitHub Actions run `32845432177` passou `./gradlew lint assembleDebug assembleRelease` após correção de uma edição acidental do ID do plugin Hilt durante a integração inicial.
+
+## Observações
+
+- Nenhum bloqueio ativo em `028-05`.
+- Validação física registrou 7 dias, gaps, tap/drag, tooltip, 30/90 dias, scroll horizontal e rolagem vertical no `SM-S901E`; tema claro e fonte ampliada permanecem riscos residuais documentados na subtarefa.
+- Próxima subtarefa elegível: `028-06`.
 
 ## Verificação
 
