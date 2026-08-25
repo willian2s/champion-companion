@@ -2,7 +2,7 @@
 
 - **Ticker:** `028`
 - **Número:** `03`
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Depends on:** `028-02`
 
 ## Objetivo
@@ -45,6 +45,24 @@ core/designsystem/chart
 
 A API deve ser pequena o bastante para continuar estável durante as primeiras migrações.
 
+## Implementação realizada
+
+- `ChampionChartPoint` preserva X ordenável e permite `y = null` como gap explícito.
+- `ChampionChartSeries` exige identidade, label e ordem estritamente crescente dos pontos.
+- `ChampionChartUnit` e `ChampionChartValueFormatter` representam unidade e formatação de valores sem tipos de domínio.
+- `ChampionChartXAxisFormatter` mantém formatter temporal/categórico separado do formatter de valores.
+- `ChampionChartReferenceLine`, `ChampionChartInteractionPolicy` e `ChampionCartesianChartData` completam referências, interação, scroll/zoom opt-in e descrição acessível.
+- `ChampionChartTheme` deriva tokens de `MaterialTheme.colorScheme`, sem duplicar paletas.
+
+Nenhuma tela, ViewModel, domínio, persistência, BLE ou Health Connect foi alterado.
+
+## Decisões e desvios
+
+- O eixo X recebeu contrato próprio para deixar explícita a distinção entre formatter temporal/categórico e formatter numérico de valores.
+- Scroll e zoom permanecem desabilitados por padrão; seleção por ponto mais próximo permanece o comportamento inicial.
+- Contratos que expõem `List` ou formatter foram mantidos sem `@Immutable`, evitando declarar imutabilidade que a API pública não garante.
+- Não foram criados nem executados testes automatizados, conforme regra da task e `AGENTS.md`.
+
 ## Critérios de aceite
 
 1. Features podem representar uma série sem importar Vico.
@@ -64,6 +82,17 @@ git diff --check
 ```
 
 Não criar nem executar testes automatizados sem solicitação explícita.
+
+## Evidências
+
+- `git diff --check`: aprovado.
+- `./gradlew lint assembleDebug assembleRelease`: aprovado (`BUILD SUCCESSFUL`, execução final após revisão).
+- Busca por consumidores em `feature/`: nenhum consumidor de `core.designsystem.chart`; nenhuma tela foi migrada.
+
+## Riscos residuais
+
+- O adapter Vico, eixos, marker e interação ainda serão implementados na `028-04`.
+- Os contratos não possuem consumidores até as migrações sequenciais das próximas subtarefas.
 
 ## Saída esperada
 

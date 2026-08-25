@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `2/10` subtarefas concluídas
+- **Progresso:** `3/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -23,7 +23,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 
 - [x] `028-01` — auditar todos os gráficos atuais
 - [x] `028-02` — adotar Vico e registrar decisão arquitetural
-- [ ] `028-03` — criar contratos e tema compartilhados
+- [x] `028-03` — criar contratos e tema compartilhados
 - [ ] `028-04` — implementar eixos, formatters, marker e interação
 - [ ] `028-05` — migrar histórico de passos
 - [ ] `028-06` — migrar histórico de distância

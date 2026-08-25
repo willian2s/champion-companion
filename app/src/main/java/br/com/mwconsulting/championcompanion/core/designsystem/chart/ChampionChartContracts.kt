@@ -24,7 +24,6 @@ data class ChampionChartPoint(
 }
 
 /** Série ordenada que uma feature entrega à infraestrutura de gráficos. */
-@Immutable
 data class ChampionChartSeries(
     val key: String,
     val label: String,
@@ -42,11 +41,43 @@ fun interface ChampionChartValueFormatter {
     fun format(value: Double): String
 }
 
-/** Configuração semântica comum de um eixo cartesiano. */
+/** Unidade exibida junto ao valor, sem conhecer métricas de domínio. */
 @Immutable
+data class ChampionChartUnit(
+    val symbol: String,
+) {
+    init {
+        require(symbol.isNotBlank())
+    }
+}
+
+/** Formatter do eixo X para instantes ou categorias representados por [Double]. */
+fun interface ChampionChartXAxisFormatter {
+    fun format(value: Double): String
+}
+
+/** Configuração semântica comum de um eixo cartesiano. */
 data class ChampionChartAxisSpec(
     val title: String? = null,
     val formatter: ChampionChartValueFormatter,
+    val unit: ChampionChartUnit? = null,
+    val minimum: Double? = null,
+    val maximum: Double? = null,
+    val visible: Boolean = true,
+    val gridLinesVisible: Boolean = true,
+) {
+    init {
+        require(title?.isNotBlank() != false)
+        require(minimum?.isFinite() != false)
+        require(maximum?.isFinite() != false)
+        require(minimum == null || maximum == null || minimum < maximum)
+    }
+}
+
+/** Configuração do eixo X com formatter temporal ou categórico. */
+data class ChampionChartXAxisSpec(
+    val formatter: ChampionChartXAxisFormatter,
+    val title: String? = null,
     val minimum: Double? = null,
     val maximum: Double? = null,
     val visible: Boolean = true,
@@ -94,10 +125,9 @@ data class ChampionChartInteractionPolicy(
 )
 
 /** Estado neutro completo consumido por line/column charts compartilhados. */
-@Immutable
 data class ChampionCartesianChartData(
     val series: List<ChampionChartSeries>,
-    val xAxis: ChampionChartAxisSpec,
+    val xAxis: ChampionChartXAxisSpec,
     val yAxis: ChampionChartAxisSpec,
     val referenceLines: List<ChampionChartReferenceLine> = emptyList(),
     val interaction: ChampionChartInteractionPolicy = ChampionChartInteractionPolicy(),
