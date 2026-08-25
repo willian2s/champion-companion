@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `1/10` subtarefas concluídas
+- **Progresso:** `2/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -22,7 +22,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 ## Checklist
 
 - [x] `028-01` — auditar todos os gráficos atuais
-- [ ] `028-02` — adotar Vico e registrar decisão arquitetural
+- [x] `028-02` — adotar Vico e registrar decisão arquitetural
 - [ ] `028-03` — criar contratos e tema compartilhados
 - [ ] `028-04` — implementar eixos, formatters, marker e interação
 - [ ] `028-05` — migrar histórico de passos
@@ -49,6 +49,13 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 ```
 
 As migrações de tela são deliberadamente sequenciais para permitir revisão visual isolada e remoção segura do legado somente após substituição comprovada.
+
+## Estado atual
+
+- `028-01` confirmou cinco implementações manuais relevantes e duplicação de engine Canvas entre superfícies.
+- `028-02` adotou Vico `3.2.3` com módulos Compose + Material 3 e registrou ADR-027.
+- A dependência ficou sem consumidor de feature por enquanto; `028-03` criará a boundary neutra antes da primeira migração.
+- GitHub Actions run `32845432177` passou `./gradlew lint assembleDebug assembleRelease` após correção de uma edição acidental do ID do plugin Hilt durante a integração inicial.
 
 ## Verificação
 
