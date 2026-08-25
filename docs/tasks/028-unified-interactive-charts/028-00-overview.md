@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `5/10` subtarefas concluídas
+- **Progresso:** `6/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -26,7 +26,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 - [x] `028-03` — criar contratos e tema compartilhados
 - [x] `028-04` — implementar eixos, formatters, marker e interação
 - [x] `028-05` — migrar histórico de passos
-- [ ] `028-06` — migrar histórico de distância
+- [x] `028-06` — migrar histórico de distância
 - [ ] `028-07` — migrar histórico de frequência cardíaca
 - [ ] `028-08` — migrar gráficos do detalhe do treino
 - [ ] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
@@ -67,7 +67,12 @@ As migrações de tela são deliberadamente sequenciais para permitir revisão v
 
 - Nenhum bloqueio ativo em `028-05`.
 - Validação física registrou 7 dias, gaps, tap/drag, tooltip, 30/90 dias, scroll horizontal e rolagem vertical no `SM-S901E`; tema claro e fonte ampliada permanecem riscos residuais documentados na subtarefa.
-- Próxima subtarefa elegível: `028-06`.
+- `DistanceHistoryChart` foi migrado para `ChampionBarChart`, preservando
+  `estimatedDistanceMeters`, gaps, períodos 7/30/90, lista acessível e texto de
+  ausência. Validação física registrou 7/30/90 dias, gaps, rolagem vertical,
+  eixo em km, temas claro/escuro e fonte ampliada no `SM-S901E`; scroll
+  horizontal e tap/drag permanecem riscos residuais documentados na subtarefa.
+- Próxima subtarefa elegível: `028-07`.
 
 ## Verificação
 
