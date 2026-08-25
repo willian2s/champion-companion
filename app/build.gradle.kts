@@ -105,6 +105,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.health.connect.client)
     implementation(libs.androidx.room3.runtime)
+    implementation(libs.vico.compose)
+    implementation(libs.vico.compose.m3)
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room3.compiler)
     testImplementation(libs.junit)
