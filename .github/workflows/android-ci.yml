@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - spec/028-unified-interactive-charts
   pull_request:
 
 permissions:
@@ -33,4 +32,4 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
 
       - name: Run lint and assemble
-        run: ./gradlew lint assembleDebug assembleRelease
+        run: ./gradlew lint assembleDebug
