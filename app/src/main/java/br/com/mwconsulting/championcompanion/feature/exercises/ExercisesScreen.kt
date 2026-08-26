@@ -125,6 +125,8 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 private val ExerciseHeartRateGuideBands = listOf(166.0, 135.0, 110.0, 71.0, 30.0)
+private val ExerciseCadenceChartValueFormatter =
+    ChampionChartFormatters.decimal(maximumFractionDigits = 1)
 
 @Composable
 fun ExercisesScreen(
@@ -1211,6 +1213,7 @@ private fun WorkoutActivityDetailContent(
         ActivityMetricsSection(activity, latestCalibration)
         DetailSectionHeading("Tendências")
         ActivityCanonicalChartSection(activity)
+        ActivityCadenceChartSection(activity)
         ActivityHeartRateChartSection(activity)
         if (!activity.isCycling) {
             DetailSectionHeading("Detalhamento")
@@ -1583,6 +1586,143 @@ private fun WorkoutCanonicalDistanceChart(series: CanonicalWorkoutSeries) {
 
 private fun canonicalChartAccessibleSummary(series: CanonicalWorkoutSeries): String =
     "Resumo acessível: ${series.intervals.size} intervalos, término em ${series.intervals.last().cumulativeDistanceMeters.toDistanceLabel()} acumulados."
+
+@Composable
+private fun ActivityCadenceChartSection(activity: WorkoutActivity) {
+    if (!activity.isWatchWorkout || activity.isCycling) return
+    val snapshot = activity.derivationSnapshot
+    val series = activity.canonicalSeries
+    val intervals = if (snapshot?.canonicalSeriesEligible == true) {
+        series?.intervals.orEmpty()
+    } else {
+        emptyList()
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text("Cadência D4", style = MaterialTheme.typography.titleLarge)
+            when {
+                snapshot?.canonicalSeriesEligible != true -> Text(
+                    text = "Gráfico indisponível: ${activity.canonicalStatusMessage()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                series == null -> Text(
+                    text = "Gráfico indisponível: série canônica ausente.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                intervals.isEmpty() -> Text(
+                    text = "Gráfico indisponível: não há intervalos D4 elegíveis para cadência.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                else -> {
+                    Text(
+                        text = if (activity.canonicalReadStatus == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED) {
+                            "Cadência D4 por intervalo real para diagnóstico; a série contém valores implausíveis e não é confiável."
+                        } else {
+                            "Cadência D4 por intervalo real, sem interpolação, suavização ou reamostragem."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    WorkoutCadenceChart(series)
+                    Text(
+                        text = cadenceChartAccessibleSummary(intervals),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutCadenceChart(series: CanonicalWorkoutSeries) {
+    val intervals = series.intervals
+    if (intervals.isEmpty()) return
+    val first = intervals.first().effectiveWindow.start
+    val points = intervals.map { interval ->
+        val midpoint = interval.effectiveWindow.start.plus(interval.effectiveDuration.dividedBy(2))
+        ChampionChartPoint(
+            x = elapsedSeconds(first, midpoint),
+            y = interval.cadenceStepsPerMinute,
+            xLabel = cadenceIntervalChartLabel(interval),
+            contentDescription = cadenceIntervalAccessibleDescription(interval),
+        )
+    }
+    val durationSeconds = elapsedSeconds(first, intervals.last().effectiveWindow.end).coerceAtLeast(1.0)
+    val maximumCadence = points.maxOf { it.y ?: 0.0 }.coerceAtLeast(1.0)
+    val axisPadding = (chartAxisPadding(points) / 2.0).coerceAtLeast(0.5)
+    val chartData = ChampionCartesianChartData(
+        series = listOf(
+            ChampionChartSeries(
+                key = "workout-cadence",
+                label = "Cadência D4",
+                points = points,
+            ),
+        ),
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                Duration.ofMillis((value * 1_000.0).roundToLong()).toDurationLabel()
+            },
+            title = "Tempo",
+            minimum = 0.0,
+            maximum = durationSeconds + axisPadding,
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Cadência",
+            formatter = ExerciseCadenceChartValueFormatter,
+            unit = ChampionChartUnit("spm"),
+            minimum = 0.0,
+            maximum = maximumCadence,
+        ),
+        interaction = ChampionChartInteractionPolicy(
+            scrollEnabled = intervals.size > 6,
+        ),
+        accessibilitySummary = cadenceChartAccessibleSummary(intervals) +
+            " Cada ponto representa o ponto médio da janela efetiva do intervalo; não há pontos sintéticos.",
+    )
+    ChampionTimeSeriesChart(
+        data = chartData,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp),
+    )
+}
+
+private fun cadenceIntervalChartLabel(interval: DerivedWorkoutInterval): String {
+    val measuredSteps = interval.decodedSteps?.let { " · ${numberLabel(it)} passos" }.orEmpty()
+    return "${interval.effectiveWindow.start.formatChartTime()}–" +
+        "${interval.effectiveWindow.end.formatChartTime()}$measuredSteps"
+}
+
+private fun cadenceIntervalAccessibleDescription(interval: DerivedWorkoutInterval): String =
+    "Intervalo ${interval.index + 1}, período ${interval.effectiveWindow.start.formatDateTime()} a " +
+        "${interval.effectiveWindow.end.formatDateTime()}, cadência " +
+        "${ExerciseCadenceChartValueFormatter.format(interval.cadenceStepsPerMinute)} spm, " +
+        (interval.decodedSteps?.let { "${numberLabel(it)} passos medidos" } ?: "passos medidos indisponíveis") + "."
+
+private fun cadenceChartAccessibleSummary(intervals: List<DerivedWorkoutInterval>): String {
+    if (intervals.isEmpty()) return "Resumo acessível: nenhum intervalo D4 elegível para cadência."
+    val cadenceValues = intervals.map(DerivedWorkoutInterval::cadenceStepsPerMinute)
+    return "Resumo acessível: ${intervals.size} intervalos D4 reais, de " +
+        "${intervals.first().effectiveWindow.start.formatDateTime()} a " +
+        "${intervals.last().effectiveWindow.end.formatDateTime()}, cadência entre " +
+        "${ExerciseCadenceChartValueFormatter.format(cadenceValues.min())} e " +
+        "${ExerciseCadenceChartValueFormatter.format(cadenceValues.max())} spm."
+}
 
 @Composable
 private fun ActivityMetricsSection(

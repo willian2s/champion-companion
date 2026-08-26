@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `8/10` subtarefas concluídas
+- **Progresso:** `9/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -29,7 +29,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 - [x] `028-06` — migrar histórico de distância
 - [x] `028-07` — migrar histórico de frequência cardíaca
 - [x] `028-08` — migrar gráficos do detalhe do treino
-- [ ] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
+- [x] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
 - [ ] `028-10` — remover legado, validar e fechar
 
 ## Dependências
@@ -92,7 +92,17 @@ As migrações de tela são deliberadamente sequenciais para permitir revisão v
   confirmou tempos completos e tooltip BPM/distância foi revalidado no package `.dev`. Tema
   claro e fonte ampliada foram observados; não havia fixture real para estado indisponível/parcial,
   preservado por inspeção em `028-08`. Subtarefa `028-08` concluída.
-- Próxima subtarefa elegível: nenhuma; `028-08` precisa ser concluída antes de `028-09`.
+- `028-09` concluiu `Cadência D4` usando um ponto por intervalo canônico elegível, no ponto
+  médio da janela efetiva, com eixo `spm`, período/passos no tooltip compartilhado e descrição
+  acessível. Fixture real curta exibiu 6 pontos e a corrida real exibiu 33 intervalos; a série
+  longa confirmou eixo relativo com labels `00:00` a `04:53`; screenshot:
+  `docs/integration/028-09-workout-cadence-final.png`.
+- Revisão independente encontrou inicialmente eixo X absoluto; correção para `mm:ss`/`hh:mm:ss`
+  foi aplicada e confirmada em nova build/validação física.
+- Tap/drag do marker/tooltip foi tentado via ADB sem evidência reproduzível nesta sessão; fica
+  como risco residual para revisão física independente. Estado vazio inelegível foi preservado
+  por inspeção, sem fixture real disponível.
+- Próxima subtarefa elegível: `028-10`, após revisão independente final de `028-09`.
 
 ## Verificação
 
