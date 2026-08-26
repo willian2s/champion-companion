@@ -1,8 +1,8 @@
 # 028 — Sistema unificado de gráficos interativos
 
-- **Status geral:** `in_progress`
+- **Status geral:** `completed`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `9/10` subtarefas concluídas
+- **Progresso:** `10/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -21,16 +21,16 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 
 ## Checklist
 
-- [x] `028-01` — auditar todos os gráficos atuais
-- [x] `028-02` — adotar Vico e registrar decisão arquitetural
-- [x] `028-03` — criar contratos e tema compartilhados
-- [x] `028-04` — implementar eixos, formatters, marker e interação
-- [x] `028-05` — migrar histórico de passos
-- [x] `028-06` — migrar histórico de distância
-- [x] `028-07` — migrar histórico de frequência cardíaca
-- [x] `028-08` — migrar gráficos do detalhe do treino
-- [x] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
-- [ ] `028-10` — remover legado, validar e fechar
+- [x] [`028-01-auditar-graficos-atuais.md`](028-01-auditar-graficos-atuais.md) — auditar todos os gráficos atuais
+- [x] [`028-02-adotar-vico-e-registrar-adr.md`](028-02-adotar-vico-e-registrar-adr.md) — adotar Vico e registrar decisão arquitetural
+- [x] [`028-03-criar-contratos-e-tema-compartilhados.md`](028-03-criar-contratos-e-tema-compartilhados.md) — criar contratos e tema compartilhados
+- [x] [`028-04-implementar-eixos-formatters-marker-interacao.md`](028-04-implementar-eixos-formatters-marker-interacao.md) — implementar eixos, formatters, marker e interação
+- [x] [`028-05-migrar-historico-de-passos.md`](028-05-migrar-historico-de-passos.md) — migrar histórico de passos
+- [x] [`028-06-migrar-historico-de-distancia.md`](028-06-migrar-historico-de-distancia.md) — migrar histórico de distância
+- [x] [`028-07-migrar-historico-de-frequencia-cardiaca.md`](028-07-migrar-historico-de-frequencia-cardiaca.md) — migrar histórico de frequência cardíaca
+- [x] [`028-08-migrar-graficos-do-detalhe-do-treino.md`](028-08-migrar-graficos-do-detalhe-do-treino.md) — migrar gráficos do detalhe do treino
+- [x] [`028-09-adicionar-grafico-de-cadencia-d4.md`](028-09-adicionar-grafico-de-cadencia-d4.md) — adicionar gráfico de cadência D4 ao detalhe do treino
+- [x] [`028-10-remover-legado-validar-e-fechar.md`](028-10-remover-legado-validar-e-fechar.md) — remover legado, validar e fechar
 
 ## Dependências
 
@@ -102,7 +102,34 @@ As migrações de tela são deliberadamente sequenciais para permitir revisão v
 - Tap/drag do marker/tooltip foi tentado via ADB sem evidência reproduzível nesta sessão; fica
   como risco residual para revisão física independente. Estado vazio inelegível foi preservado
   por inspeção, sem fixture real disponível.
-- Próxima subtarefa elegível: `028-10`, após revisão independente final de `028-09`.
+- `028-10` removeu `HealthChart`, `HealthChartPoint` e `normalizedChartY` de
+  `ChampionDisplayComponents.kt` após retirar os dois blocos de preview e somente
+  os testes específicos do legado em `ChampionDisplayComponentsTest.kt`; o teste
+  dedicado `HealthChartScaleTest.kt` foi excluído. `HealthCard` e `MetricCard`
+  foram preservados.
+- Inventário final não encontrou `Canvas`/`nativeCanvas` de visualização de dados
+  nas features migradas. Não houve remoção de Canvas decorativo. Vico permanece
+  encapsulado em `core/designsystem/chart/ChampionCharts.kt`; dependências Vico
+  não foram alteradas.
+- Validação técnica de fechamento passou em `git diff --check` e em
+  `./gradlew lint assembleDebug assembleRelease`. Não foram criados nem executados
+  testes automatizados.
+- Smoke integrado foi repetido no `SM-S901E`, build `.dev`, após `installDebug`:
+  histórico de passos, histórico de distância e histórico de BPM exibiram os
+  gráficos compartilhados com gaps; detalhe de treino exibiu distância canônica,
+  BPM e cadência D4; rolagem vertical foi exercitada. Screenshots sanitizados:
+  `docs/integration/028-10-final-steps.png`,
+  `docs/integration/028-10-final-distance.png`,
+  `docs/integration/028-10-final-health.png`,
+  `docs/integration/028-10-final-health-scrolled.png`,
+  `docs/integration/028-10-final-workout.png` e
+  `docs/integration/028-10-final-workout-cadence-hr.png`.
+- A interação marker/tooltip não teve captura reproduzível nesta repetição; as
+  evidências anteriores de `028-08` permanecem válidas para BPM/distância.
+- Revisão independente final: aprovado com ressalvas. Não foram encontrados
+  bloqueios técnicos; permanecem ressalvas de evidência física para
+  marker/tooltip, tema claro, fonte ampliada e estados vazios.
+- Spec `028` encerrada. Não há próxima subtarefa elegível.
 
 ## Verificação
 

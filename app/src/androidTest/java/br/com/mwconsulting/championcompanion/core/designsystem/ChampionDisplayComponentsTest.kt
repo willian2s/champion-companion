@@ -26,31 +26,4 @@ class ChampionDisplayComponentsTest {
         composeRule.onNodeWithContentDescription("Passos, 8.420, Hoje").assertIsDisplayed()
     }
 
-    @Test
-    fun chart_exposes_caller_descriptions() {
-        composeRule.setContent {
-            ChampionCompanionTheme(useDynamicColors = false) {
-                HealthChart(
-                    title = "Medições",
-                    points = listOf(
-                        HealthChartPoint(10f, "08:00, 10"),
-                        HealthChartPoint(20f, "12:00, 20"),
-                    ),
-                )
-            }
-        }
-
-        composeRule.onNodeWithContentDescription("Medições: 08:00, 10, 12:00, 20").assertIsDisplayed()
-    }
-
-    @Test
-    fun chart_without_points_has_clear_empty_state() {
-        composeRule.setContent {
-            ChampionCompanionTheme(useDynamicColors = false) {
-                HealthChart(title = "Medições", points = emptyList())
-            }
-        }
-
-        composeRule.onNodeWithContentDescription("Medições: Sem dados para exibir").assertIsDisplayed()
-    }
 }
