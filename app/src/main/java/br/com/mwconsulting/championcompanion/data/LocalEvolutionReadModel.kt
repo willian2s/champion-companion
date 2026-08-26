@@ -64,15 +64,7 @@ class LocalEvolutionReadModel @Inject constructor(
             }
 
     private fun List<WorkoutActivity>.toEvolutionReadState(query: EvolutionQuery): EvolutionReadState {
-        val activities = asSequence()
-            .filter { activity -> activity.isEligibleForEvolution(query) }
-            .mapNotNull(WorkoutActivity::toEvolutionActivitySnapshot)
-            .sortedWith(
-                compareBy<EvolutionActivitySnapshot> { it.startedAt }
-                    .thenBy { it.activityId.value.toString() },
-            )
-            .distinctBy(EvolutionActivitySnapshot::activityId)
-            .toList()
+        val activities = selectEvolutionPopulation(query)
 
         return if (activities.isEmpty()) {
             EvolutionReadState.Empty(query)
@@ -85,7 +77,24 @@ class LocalEvolutionReadModel @Inject constructor(
             )
         }
     }
+
+    /**
+     * Seleciona e ordena população uma vez, antes de qualquer agregação futura.
+     * IDs repetidos não são deduplicados: o contrato do snapshot os trata como
+     * dado local inválido, evitando descartar silenciosamente uma atividade.
+     */
+    private fun List<WorkoutActivity>.selectEvolutionPopulation(
+        query: EvolutionQuery,
+    ): List<EvolutionActivitySnapshot> = asSequence()
+        .filter { activity -> activity.isEligibleForEvolution(query) }
+        .mapNotNull(WorkoutActivity::toEvolutionActivitySnapshot)
+        .sortedWith(EVOLUTION_ACTIVITY_ORDER)
+        .toList()
 }
+
+private val EVOLUTION_ACTIVITY_ORDER: Comparator<EvolutionActivitySnapshot> =
+    compareBy<EvolutionActivitySnapshot> { it.startedAt }
+        .thenBy { it.activityId.value.toString() }
 
 private fun WorkoutActivity.isEligibleForEvolution(query: EvolutionQuery): Boolean {
     val type = confirmedType ?: return false

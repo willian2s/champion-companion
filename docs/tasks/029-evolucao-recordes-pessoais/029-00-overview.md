@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [029-evolucao-recordes-pessoais.md](../../specs/029-evolucao-recordes-pessoais.md)
-- **Progresso:** `2/10` subtarefas concluídas
+- **Progresso:** `3/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 
 - [x] `029-01` — auditar métricas, elegibilidade e pontos de persistência
 - [x] `029-02` — criar contratos e read model de evolução
-- [ ] `029-03` — implementar períodos e filtros por esporte
+- [x] `029-03` — implementar períodos e filtros por esporte
 - [ ] `029-04` — implementar volume e consistência
 - [ ] `029-05` — implementar tendências e fórmulas agregadas
 - [ ] `029-06` — implementar comparação entre períodos
@@ -67,6 +67,9 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 `029-02` concluída com contratos neutros e read model local em
 `core/model/EvolutionContracts.kt` e `data/LocalEvolutionReadModel.kt`.
 
+`029-03` concluída com seleção/ordenação encapsulada no read model e tratamento
+fail-closed para IDs duplicados.
+
 Decisões factuais da auditoria:
 
 - workflows elegíveis: `READY_TO_SYNC`, `SYNCING`, `SYNCED`, `SYNC_FAILED`;
@@ -79,7 +82,7 @@ Decisões factuais da auditoria:
 - `AppDestination.Evolution` será subárvore de Exercícios, sem nova aba inferior;
 - nenhuma migration Room é necessária neste desenho.
 
-Próxima subtarefa elegível: `029-03`.
+Próxima subtarefa elegível: `029-04`.
 
 ## Observações
 
@@ -88,6 +91,8 @@ Próxima subtarefa elegível: `029-03`.
   exigir projeção temporal limitada se o volume histórico crescer;
 - leitura all-history de recordes e fórmula agregada de frequência cardíaca
   permanecem explicitamente nas subtarefas posteriores.
+- `029-03` não deixou bloqueio adicional; nenhuma alteração de Room/DAO foi
+  necessária.
 
 ## Guard rails
 

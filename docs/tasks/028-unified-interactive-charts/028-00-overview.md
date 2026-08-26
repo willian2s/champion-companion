@@ -1,8 +1,8 @@
 # 028 — Sistema unificado de gráficos interativos
 
-- **Status geral:** `in_progress`
+- **Status geral:** `completed`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `9/10` subtarefas concluídas
+- **Progresso:** `10/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -30,7 +30,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 - [x] `028-07` — migrar histórico de frequência cardíaca
 - [x] `028-08` — migrar gráficos do detalhe do treino
 - [x] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
-- [ ] `028-10` — remover legado, validar e fechar
+- [x] `028-10` — remover legado, validar e fechar
 
 ## Dependências
 
