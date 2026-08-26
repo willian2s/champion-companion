@@ -320,6 +320,8 @@ data class EvolutionVolumeSnapshot(
     val distanceActivityCount: Int = 0,
     val durationActivityCount: Int = 0,
     val stepsActivityCount: Int = 0,
+    /** Séries diárias de volume; lacunas não representam zero. */
+    val series: List<EvolutionMetricSeries> = emptyList(),
 ) {
     init {
         require(activityCount >= 0)
@@ -333,8 +335,28 @@ data class EvolutionVolumeSnapshot(
         require(totalDuration == null || (!totalDuration.isNegative && !totalDuration.isZero))
         require((totalSteps == null) == (stepsActivityCount == 0))
         require(totalSteps == null || totalSteps > 0L)
+        require(series.map(EvolutionMetricSeries::metric).distinct().size == series.size)
+        require(series.all { it.metric in EVOLUTION_VOLUME_METRICS })
+        require(series.all { it.granularity == EvolutionSeriesGranularity.DAY })
+        require(series.all { it.points.size == query.period.windowDays.toInt() })
+        require(series.all { points ->
+            points.points.map { it.startedAt } == query.currentWindow.dateRange.dates.map {
+                it.atStartOfDay(query.zoneId).toInstant()
+            }
+        })
     }
+
+    val volumeSeries: List<EvolutionMetricSeries>
+        get() = series
 }
+
+private val EVOLUTION_VOLUME_METRICS: Set<EvolutionMetric> = setOf(
+    EvolutionMetric.ACTIVITY_COUNT,
+    EvolutionMetric.DISTANCE,
+    EvolutionMetric.DURATION,
+    EvolutionMetric.STEPS,
+    EvolutionMetric.ACTIVE_DAYS,
+)
 
 enum class EvolutionComparisonDirection {
     INCREASED,
