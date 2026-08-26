@@ -2,47 +2,59 @@
 
 - **Ticker:** `029`
 - **Número:** `01`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
 Mapear os fatos disponíveis, as fórmulas agregáveis e todos os pontos que podem tornar uma atividade elegível ou alterar sua métrica final antes de implementar evolução e recordes.
 
-## Escopo
+## Resultado
 
-Auditar pelo menos:
+Auditoria concluída e congelada em:
 
-- `WorkoutActivity` e snapshots derivados;
-- workflows `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `SYNCED`, `SYNC_FAILED`, `DISCARDED` e validade `PARTIAL`;
-- distância final por `RUNNING`, `WALKING`, `TREADMILL`, `CYCLING` e demais tipos;
-- passos elegíveis por tipo;
-- duração oficial;
-- BPM e cadência D4 disponíveis para tendências;
-- operações de revisão, distância manual de bicicleta, calibração e rederivação pré-sync;
-- repositories/DAOs já capazes de fornecer histórico sem nova tabela;
-- ponto exato em que a UI pode obter snapshot anterior e snapshot novo persistido.
+`docs/integration/029-01-evolution-records-audit.md`.
 
-## Entregáveis
+## Decisões principais
 
-- matriz `métrica × tipo × origem × elegibilidade`;
-- tabela de workflows incluídos/excluídos;
-- fórmulas aceitas para agregação;
-- lista de mutações que podem disparar avaliação pós-save;
-- riscos de re-save, mudança de tipo, atividade antiga e rederivação;
-- decisão sobre navegação inicial da superfície Evolução.
+- a primeira versão da 029 usa somente atividades `WATCH_D3_D4`;
+- `READY_TO_SYNC`, `SYNCING`, `SYNCED` e `SYNC_FAILED` são elegíveis quando a métrica específica for válida;
+- `PENDING_REVIEW`, `PENDING_CALIBRATION`, `DISCARDED` e tipo `UNKNOWN` ficam fora;
+- `PARTIAL` pode participar depois de revisão final, conforme política vigente da Spec 011;
+- corrida/caminhada usam distância canônica ativa;
+- esteira usa distância calibrada após calibração concluída;
+- bicicleta usa distância manual opcional e nunca usa passos D4 como performance;
+- `FREE_WORKOUT` não participa do recorde inicial de maior distância;
+- duração usa `metrics.duration` e período usa `metrics.startedAt`, nunca data de importação;
+- cadência agregada deriva de passos/tempo elegíveis, sem média simples de intervalos;
+- pace agregado, quando usado, deriva de tempo total / distância total;
+- recordes iniciais: maior distância, maior duração e mais passos conforme modalidade elegível;
+- maior BPM e maior cadência não são recordes de performance;
+- pontos de avaliação pós-save: `submitReview`, `calibrateImportedActivity`, `applyReferenceDistanceCalibration` e rederivação/reprocessamento explícito quando alterarem métrica final elegível;
+- importação/reimportação e transições de Health Connect não disparam conquista;
+- navegação planejada: `AppDestination.Evolution` como subárvore de Exercícios, sem nova aba inferior;
+- nenhuma migration Room é necessária na arquitetura atual.
 
-## Guard rails
+## Idempotência congelada
 
-- não mudar código funcional nesta task salvo correção documental estritamente necessária;
-- não assumir que distância derivada por passos vale para `CYCLING`;
-- não assumir que toda métrica numérica pode virar recorde;
-- não criar testes automatizados.
+```text
+baselineOther = melhor valor das demais atividades elegíveis
+oldEligibleValue = valor anterior da própria atividade quando antes elegível no mesmo escopo
+previousBest = max(baselineOther, oldEligibleValue)
 
-## Critérios de aceite
+newValue > previousBest -> conquista
+```
 
-1. Cada métrica planejada possui fonte de verdade identificada.
-2. Distância final por modalidade está documentada.
-3. Estados elegíveis para evolução e recordes estão definidos.
-4. Todos os pontos de persistência que podem alterar recordes estão identificados.
-5. Fórmulas agregadas não dependem de média ingênua de médias.
-6. O fluxo pós-save pode ser implementado sem consultar estado transitório da UI como fonte de verdade.
+Consequências:
+
+- resave sem mudança não repete alerta;
+- atividade que já era recordista e melhora pode gerar novo alerta;
+- empate não gera conquista;
+- atividade antiga compara contra todo o histórico atualmente conhecido.
+
+## Verificação
+
+Task documental/auditoria. Nenhum código funcional, schema, dependência ou teste automatizado foi alterado/executado.
+
+## Saída
+
+`029-02` está liberada para criar os contratos e o read model de evolução conforme a matriz registrada na auditoria.

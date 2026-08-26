@@ -2,7 +2,7 @@
 
 ## Status
 
-`planned`.
+`in_progress`.
 
 ## Ticker
 
@@ -15,6 +15,8 @@ O Champion Companion já possui histórico local de atividades importadas do Cha
 O app hoje responde bem **o que aconteceu em um treino ou período**, mas ainda não consolida de forma dedicada **como o treinamento está evoluindo**. A próxima evolução deve reutilizar os fatos locais já persistidos, sem criar novos sensores, scores fisiológicos ou dependência de leitura do Health Connect.
 
 A funcionalidade também deve reconhecer recordes pessoais. A detecção não pode ocorrer durante a importação ou a partir do estado transitório do formulário: métricas como distância podem mudar durante revisão, distância manual de bicicleta, calibração de esteira ou rederivação explícita antes do sync.
+
+A auditoria `029-01` congelou as fontes de verdade, workflows elegíveis, fórmulas iniciais, pontos de persistência e direção de navegação em `docs/integration/029-01-evolution-records-audit.md`.
 
 ## Objetivo
 
@@ -73,6 +75,7 @@ Falha ao avaliar recordes nunca desfaz nem transforma em falha uma persistência
 ### R1 — Read model derivado
 
 - Evolução deve ser derivada dos fatos locais vigentes.
+- A primeira versão usa atividades `WATCH_D3_D4`; infraestrutura histórica de treino phone não é expandida nesta spec.
 - Não criar tabela materializada de agregados na primeira implementação sem evidência real de necessidade de performance.
 - Room continua fonte dos fatos persistidos; o read model pode combinar repositories existentes.
 - Nenhum agregado pode reescrever atividades históricas.
@@ -111,7 +114,7 @@ Tendências podem incluir métricas já disponíveis, como:
 - cadência D4 para treinos elegíveis;
 - pace ou velocidade somente após definição explícita de fórmula e população comparável.
 
-Nenhuma média pode ser implementada como média ingênua de médias quando isso distorcer a métrica. A `029-01` deve registrar as fórmulas aceitas antes da implementação.
+Nenhuma média pode ser implementada como média ingênua de médias quando isso distorcer a métrica. A `029-01` registrou as fórmulas-base e a `029-05` deve respeitá-las.
 
 ### R5 — Comparação entre períodos
 
@@ -129,43 +132,51 @@ Mostrar diferenças absolutas e/ou percentuais apenas quando denominadores e uni
 
 ### R6 — Recordes pessoais
 
-A primeira versão de recordes deve priorizar métricas factuais com semântica clara de conquista:
+A primeira versão de recordes prioriza métricas factuais com semântica clara de conquista:
 
 - maior distância final;
 - maior duração;
 - maior número de passos em treino elegível.
 
-Recordes devem ser segregados por tipo de atividade quando misturar esportes produzir comparação enganosa. `CYCLING` não usa passos D4 como recorde de performance. Frequência cardíaca máxima e maior cadência não são recordes de performance nesta spec.
+Recordes são segregados por tipo de atividade quando misturar esportes produzir comparação enganosa. `CYCLING` não usa passos D4 como recorde de performance. `FREE_WORKOUT` não participa do recorde inicial de maior distância. Frequência cardíaca máxima e maior cadência não são recordes de performance nesta spec.
 
 Pace/velocidade como recorde ficam fora da primeira versão até existir contrato comparável por distância/modalidade.
 
-### R7 — Elegibilidade de recorde
+### R7 — Elegibilidade de recorde e evolução
 
-Uma atividade só participa de recordes quando estiver em estado final local suficiente para suas métricas não dependerem de edição obrigatória pendente.
+A primeira versão considera somente atividades `WATCH_D3_D4` com tipo confirmado diferente de `UNKNOWN`.
 
-A auditoria deve consolidar os workflows exatos, mas a direção é:
+Workflows elegíveis quando a métrica específica for válida:
 
-- excluir `PENDING_REVIEW`;
-- excluir `PENDING_CALIBRATION`;
-- excluir `DISCARDED`;
-- excluir tipo `UNKNOWN`;
-- incluir estados revisados/finais compatíveis como `READY_TO_SYNC`, `SYNCED` e `SYNC_FAILED`, respeitando os guards atuais;
-- `PARTIAL` pode participar quando o fluxo vigente permitir revisão final e a métrica específica for válida.
+- `READY_TO_SYNC`;
+- `SYNCING`;
+- `SYNCED`;
+- `SYNC_FAILED`.
 
-Cada record type também valida sua própria métrica: positiva/finita quando aplicável e proveniência correta para o tipo de treino.
+Ficam fora:
+
+- `PENDING_REVIEW`;
+- `PENDING_CALIBRATION`;
+- `DISCARDED`.
+
+`ParserValidity.PARTIAL` pode participar quando o fluxo vigente permitir revisão final e a métrica específica for válida.
+
+Cada record type valida sua própria fonte: distância positiva/finita quando aplicável, duração positiva e passos disponíveis/positivos quando aplicável.
 
 ### R8 — Detecção somente após persistência final
 
 O alerta de novo recorde não ocorre na importação D3/D4 nem antes do commit da alteração.
 
-Operações candidatas devem ser auditadas na `029-01`, incluindo pelo menos:
+Pontos aprovados na auditoria, quando produzirem snapshot elegível:
 
-- confirmação de revisão de atividade não esteira;
-- revisão de `CYCLING` com distância manual opcional;
-- calibração de `TREADMILL` que conclui a distância final;
-- rederivação explícita pré-sync que possa alterar métrica elegível.
+- `WorkoutActivityRepository.submitReview`;
+- `TreadmillCalibrationRepository.calibrateImportedActivity`;
+- `PersonalMetricsRepository.applyReferenceDistanceCalibration`;
+- `WorkoutActivityRepository.rederiveWatchWorkout` / `reprocessWatchWorkout` quando uma rederivação explícita alterar métrica final.
 
-A UI recebe resultado somente após a persistência bem-sucedida e recarregamento/obtenção do snapshot efetivamente salvo.
+`TREADMILL` em `PENDING_CALIBRATION` não dispara recorde até a calibração concluir. Importação/reimportação D3/D4 e transições de sync não disparam conquista.
+
+A UI recebe resultado somente após a persistência bem-sucedida e obtenção do snapshot efetivamente salvo.
 
 ### R9 — Idempotência do destaque
 
@@ -189,9 +200,8 @@ Consequências:
 - salvar novamente sem alteração não repete o alerta;
 - uma atividade que já era recorde e recebe correção para valor ainda melhor pode gerar novo alerta;
 - mudança de tipo usa a baseline do novo tipo;
-- a atividade atual é excluída da consulta das demais atividades para não comparar o novo valor consigo mesma.
-
-Empates não geram novo recorde.
+- a atividade atual é excluída da consulta das demais atividades para não comparar o novo valor consigo mesma;
+- empate não gera novo recorde.
 
 ### R10 — Atividade antiga importada depois
 
@@ -202,7 +212,7 @@ Uma atividade antiga importada hoje:
 - gera destaque se superar todas as atividades elegíveis atualmente conhecidas no mesmo escopo;
 - não gera destaque se já existir atividade conhecida com valor maior, mesmo que ela tenha ocorrido depois no tempo.
 
-A tela de recordes mostra a data real da atividade recordista.
+A tela de recordes mostra a data real da atividade recordista, baseada no início do treino e não na data de importação.
 
 ### R11 — Recordes como read model, conquista como evento efêmero
 
@@ -212,24 +222,21 @@ A tela de recordes mostra a data real da atividade recordista.
 
 ### R12 — Apresentação pós-save
 
-Quando houver uma ou mais conquistas novas, exibir destaque não bloqueante após o save:
-
-```text
-🏆 Novo recorde pessoal
-Maior distância · Corrida
-10,31 km
-270 m acima do recorde anterior
-```
+Quando houver uma ou mais conquistas novas, exibir destaque não bloqueante após o save, contendo tipo de recorde, modalidade, novo valor e diferença para o recorde anterior quando disponível.
 
 Para múltiplos recordes, consolidar em um único componente em vez de abrir vários diálogos.
 
 O destaque não deve impedir navegação nem converter sucesso de persistência em erro caso a apresentação falhe.
 
-### R13 — Gráficos
+### R13 — Navegação
+
+Adicionar `AppDestination.Evolution` como subárvore de `Exercises`, mantendo a seleção da aba Exercícios. A entrada inicial ocorre por ação/card na superfície Exercícios. A Spec 029 não adiciona nova aba inferior.
+
+### R14 — Gráficos
 
 Todos os novos gráficos usam `core/designsystem/chart` da Spec 028. Features não importam Vico diretamente nem criam novo engine Canvas para séries de dados.
 
-### R14 — Sem novas inferências fisiológicas
+### R15 — Sem novas inferências fisiológicas
 
 Ficam fora:
 
@@ -266,12 +273,12 @@ Ficam fora:
 10. Múltiplos recordes do mesmo save são apresentados juntos e sem diálogo bloqueante.
 11. Falha de avaliação/apresentação de recorde não desfaz save bem-sucedido.
 12. Gráficos usam a infraestrutura da Spec 028.
-13. Nenhum fluxo BLE, Health Connect, Room schema ou granularidade D4 é alterado apenas para suportar a feature.
+13. Nenhum fluxo BLE, Health Connect read, Room schema ou granularidade D4 é alterado apenas para suportar a feature.
 14. Nenhum teste automatizado é criado ou executado sem solicitação explícita.
 
 ## Plano de execução
 
-- `029-01` — auditar métricas, elegibilidade e pontos de persistência;
+- `029-01` — auditar métricas, elegibilidade e pontos de persistência — `completed`;
 - `029-02` — criar contratos e read model de evolução;
 - `029-03` — implementar períodos e filtros por esporte;
 - `029-04` — implementar volume e consistência;

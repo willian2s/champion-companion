@@ -1,8 +1,8 @@
 # 029 — Evolução esportiva e recordes pessoais
 
-- **Status geral:** `planned`
+- **Status geral:** `in_progress`
 - **Spec:** [029-evolucao-recordes-pessoais.md](../../specs/029-evolucao-recordes-pessoais.md)
-- **Progresso:** `0/10` subtarefas concluídas
+- **Progresso:** `1/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -11,6 +11,7 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 ## Decisões centrais
 
 - evolução é read model derivado; não materializar agregados em Room sem necessidade comprovada;
+- primeira versão usa atividades `WATCH_D3_D4`;
 - períodos iniciais: 7, 30 e 90 dias;
 - filtros por tipo de treino preservam comparabilidade;
 - gráficos usam `core/designsystem/chart` da Spec 028;
@@ -24,7 +25,7 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 
 ## Checklist
 
-- [ ] `029-01` — auditar métricas, elegibilidade e pontos de persistência
+- [x] `029-01` — auditar métricas, elegibilidade e pontos de persistência
 - [ ] `029-02` — criar contratos e read model de evolução
 - [ ] `029-03` — implementar períodos e filtros por esporte
 - [ ] `029-04` — implementar volume e consistência
@@ -58,6 +59,24 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
   ↓
 029-10
 ```
+
+## Estado atual
+
+`029-01` concluída em `docs/integration/029-01-evolution-records-audit.md`.
+
+Decisões factuais da auditoria:
+
+- workflows elegíveis: `READY_TO_SYNC`, `SYNCING`, `SYNCED`, `SYNC_FAILED`;
+- `PENDING_REVIEW`, `PENDING_CALIBRATION`, `DISCARDED` e `UNKNOWN` ficam fora;
+- corrida/caminhada usam distância canônica ativa;
+- esteira usa distância calibrada após conclusão;
+- bicicleta usa distância manual opcional e não usa passos de performance;
+- avaliação pós-save pode ocorrer após `submitReview`, `calibrateImportedActivity`, `applyReferenceDistanceCalibration` e rederivação/reprocessamento explícito quando a atividade final elegível realmente mudar;
+- importação/reimportação e transições de sync não geram conquista;
+- `AppDestination.Evolution` será subárvore de Exercícios, sem nova aba inferior;
+- nenhuma migration Room é necessária neste desenho.
+
+Próxima subtarefa elegível: `029-02`.
 
 ## Guard rails
 
