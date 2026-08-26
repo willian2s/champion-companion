@@ -6,6 +6,7 @@ import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DiagnosticPayloadRepository
+import br.com.mwconsulting.championcompanion.core.model.EvolutionReadModel
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
@@ -33,4 +34,5 @@ object RepositoryModule {
     @Provides fun healthSyncRepository(source: RoomRepositories): HealthSyncRepository = source
     @Provides fun calendarRepository(source: LocalCalendarRepository): CalendarRepository = source
     @Provides fun diagnosticPayloadRepository(source: RoomRepositories): DiagnosticPayloadRepository = source
+    @Provides fun evolutionReadModel(source: LocalEvolutionReadModel): EvolutionReadModel = source
 }
