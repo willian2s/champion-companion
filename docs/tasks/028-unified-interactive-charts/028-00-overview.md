@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [028-unified-interactive-charts.md](../../specs/028-unified-interactive-charts.md)
-- **Progresso:** `7/10` subtarefas concluídas
+- **Progresso:** `8/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ Substituir motores locais de gráficos desenhados manualmente por uma infraestru
 - [x] `028-05` — migrar histórico de passos
 - [x] `028-06` — migrar histórico de distância
 - [x] `028-07` — migrar histórico de frequência cardíaca
-- [ ] `028-08` — migrar gráficos do detalhe do treino
+- [x] `028-08` — migrar gráficos do detalhe do treino
 - [ ] `028-09` — adicionar gráfico de cadência D4 ao detalhe do treino
 - [ ] `028-10` — remover legado, validar e fechar
 
@@ -80,7 +80,19 @@ As migrações de tela são deliberadamente sequenciais para permitir revisão v
   ampliada, estado vazio e evidência reproduzível de tooltip permanecem riscos
   documentados na subtarefa. Screenshot:
   `docs/integration/028-07-heart-rate-history-final.png`.
-- Nenhum bloqueio ativo em `028-07`. Próxima subtarefa elegível: `028-08`.
+- `WorkoutHeartRateChart` e `WorkoutCanonicalDistanceChart` foram migrados para
+  `ChampionTimeSeriesChart`, sem Canvas local ou importação de Vico na feature.
+  BPM usa somente amostras reais, tempo efetivo e unidade `bpm`; distância usa
+  `CanonicalWorkoutSeries.intervals`, janelas efetivas e quilômetros acumulados.
+  Validação física no `SM-S901E` usando build `.dev` confirmou treino real com 33 intervalos,
+  série longa com scroll horizontal até ponto final, tema escuro e rolagem vertical. Screenshots:
+  `docs/integration/028-08-workout-heart-rate-final.png` e
+  `docs/integration/028-08-workout-distance-final.png`.
+- O eixo compartilhado reserva padding dos labels extremos completos; rolagem até janela final
+  confirmou tempos completos e tooltip BPM/distância foi revalidado no package `.dev`. Tema
+  claro e fonte ampliada foram observados; não havia fixture real para estado indisponível/parcial,
+  preservado por inspeção em `028-08`. Subtarefa `028-08` concluída.
+- Próxima subtarefa elegível: nenhuma; `028-08` precisa ser concluída antes de `028-09`.
 
 ## Verificação
 

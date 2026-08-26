@@ -317,6 +317,9 @@ private fun ChampionCartesianRenderer(
             line = axisLine,
             valueFormatter = xFormatter,
             guideline = axisGuideline.takeIf { data.xAxis.gridLinesVisible },
+            itemPlacer = remember {
+                HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
+            },
             title = { data.xAxis.title },
         )
     } else {

@@ -8,7 +8,6 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,13 +58,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -88,6 +80,17 @@ import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.PendingReviewBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PermissionBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionTimeSeriesChart
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCartesianChartData
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartAxisSpec
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartFormatters
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartInteractionPolicy
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartPoint
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartReferenceLine
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartSeries
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartUnit
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisFormatter
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.CanonicalWorkoutSeries
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
@@ -119,19 +122,9 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
-private val ExerciseHeartRateGuideBands = listOf(
-    166f to Color(0xFFE57373),
-    135f to Color(0xFFFFB74D),
-    110f to Color(0xFF66BB6A),
-    71f to Color(0xFF4FC3F7),
-    30f to Color(0xFF29B6F6),
-)
-
-private val ExerciseHeartRateChartLeftPadding = 12.dp
-private val ExerciseHeartRateChartRightPadding = 40.dp
-private val ExerciseCanonicalChartLeftPadding = 12.dp
-private val ExerciseCanonicalChartRightPadding = 40.dp
+private val ExerciseHeartRateGuideBands = listOf(166.0, 135.0, 110.0, 71.0, 30.0)
 
 @Composable
 fun ExercisesScreen(
@@ -1534,61 +1527,58 @@ private fun WorkoutCanonicalDistanceChart(series: CanonicalWorkoutSeries) {
     val intervals = series.intervals
     val first = intervals.first().effectiveWindow.start
     val last = intervals.last().effectiveWindow.end
-    val durationMillis = (last.toEpochMilli() - first.toEpochMilli()).coerceAtLeast(1L)
-    val maxDistance = intervals.last().cumulativeDistanceMeters.coerceAtLeast(1.0)
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val chartDescription = intervals.joinToString(separator = "; ") { interval ->
-        "intervalo ${interval.index + 1}, ${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados"
+    val durationSeconds = elapsedSeconds(first, last).coerceAtLeast(1.0)
+    val maximumDistanceKm = (intervals.last().cumulativeDistanceMeters / 1_000.0).let {
+        if (it == 0.0) 0.01 else it
     }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .semantics {
-                    contentDescription = "Gráfico de distância estimada acumulada do treino. $chartDescription"
-                },
-        ) {
-            val leftPadding = ExerciseCanonicalChartLeftPadding.toPx()
-            val topPadding = 14.dp.toPx()
-            val rightPadding = ExerciseCanonicalChartRightPadding.toPx()
-            val bottomPadding = 22.dp.toPx()
-            val chartWidth = (size.width - leftPadding - rightPadding).coerceAtLeast(1f)
-            val chartHeight = (size.height - topPadding - bottomPadding).coerceAtLeast(1f)
-            val bottom = size.height - bottomPadding
-            val path = Path()
-
-            drawLine(
-                color = onSurfaceVariant,
-                start = Offset(leftPadding, bottom),
-                end = Offset(size.width - rightPadding, bottom),
-                strokeWidth = 1.dp.toPx(),
-            )
-            intervals.forEachIndexed { index, interval ->
-                val elapsed = interval.effectiveWindow.end.toEpochMilli() - first.toEpochMilli()
-                val x = leftPadding + (elapsed.toFloat() / durationMillis.toFloat()) * chartWidth
-                val fraction = (interval.cumulativeDistanceMeters / maxDistance).toFloat().coerceIn(0f, 1f)
-                val y = bottom - fraction * chartHeight
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                drawCircle(color = primaryColor, radius = 3.dp.toPx(), center = Offset(x, y))
-            }
-            drawPath(path = path, color = primaryColor, style = Stroke(width = 3.dp.toPx()))
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .absolutePadding(
-                    left = ExerciseCanonicalChartLeftPadding,
-                    right = ExerciseCanonicalChartRightPadding,
-                ),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(first.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
-            Text(last.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
-        }
+    val points = intervals.map { interval ->
+        val elapsedSeconds = elapsedSeconds(first, interval.effectiveWindow.end)
+        ChampionChartPoint(
+            x = elapsedSeconds,
+            y = interval.cumulativeDistanceMeters / 1_000.0,
+            xLabel = interval.effectiveWindow.end.formatChartTime(),
+            contentDescription = "Intervalo ${interval.index + 1}, " +
+                "${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados em " +
+                interval.effectiveWindow.end.formatDateTime() + ".",
+        )
     }
+    val axisPadding = (chartAxisPadding(points) / 2.0).coerceAtLeast(0.5)
+    val axisMaximum = durationSeconds + axisPadding
+    val chartData = ChampionCartesianChartData(
+        series = listOf(
+            ChampionChartSeries(
+                key = "canonical-distance",
+                label = "Distância acumulada",
+                points = points,
+            ),
+        ),
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                first.plusNanos((value * 1_000_000_000.0).roundToLong()).formatChartAxisTime()
+            },
+            title = "Tempo",
+            minimum = -axisPadding,
+            maximum = axisMaximum,
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Distância acumulada",
+            formatter = ChampionChartFormatters.decimal(maximumFractionDigits = 2),
+            unit = ChampionChartUnit("km"),
+            minimum = 0.0,
+            maximum = maximumDistanceKm,
+        ),
+        interaction = ChampionChartInteractionPolicy(
+            scrollEnabled = intervals.size > 6,
+        ),
+        accessibilitySummary = canonicalChartAccessibleSummary(series) +
+            " Valores em quilômetros; pontos representam o término efetivo de cada intervalo.",
+    )
+    ChampionTimeSeriesChart(
+        data = chartData,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp),
+    )
 }
 
 private fun canonicalChartAccessibleSummary(series: CanonicalWorkoutSeries): String =
@@ -1695,100 +1685,67 @@ private fun ActivityHeartRateChartSection(activity: WorkoutActivity) {
 
 @Composable
 private fun WorkoutHeartRateChart(samples: List<WorkoutHeartRateSample>) {
-    val minBpm = (samples.minOf { it.bpm }.toFloat().coerceAtMost(60f)).coerceAtMost(ExerciseHeartRateGuideBands.last().first)
-    val maxBpm = (samples.maxOf { it.bpm }.toFloat().coerceAtLeast(180f)).coerceAtLeast(ExerciseHeartRateGuideBands.first().first)
-    val range = (maxBpm - minBpm).takeIf { it > 0f } ?: 1f
-    val chartDescription = samples.joinToString(separator = "; ") { "${it.bpm} bpm em ${it.sampledAt.formatTime()}" }
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .semantics {
-                    contentDescription = "Gráfico de frequência cardíaca do treino. $chartDescription"
-                },
-        ) {
-            val leftPadding = ExerciseHeartRateChartLeftPadding.toPx()
-            val topPadding = 14.dp.toPx()
-            val rightPadding = ExerciseHeartRateChartRightPadding.toPx()
-            val bottomPadding = 22.dp.toPx()
-            val chartWidth = size.width - leftPadding - rightPadding
-            val chartHeight = size.height - topPadding - bottomPadding
-            val first = samples.first().sampledAt
-            val durationMillis = (samples.last().sampledAt.toEpochMilli() - first.toEpochMilli()).coerceAtLeast(1L)
-            val path = Path()
-            ExerciseHeartRateGuideBands.forEach { (value, bandColor) ->
-                val y = yForExerciseChartValue(value, minBpm, range, chartHeight, topPadding, size.height - bottomPadding)
-                drawDottedHorizontalLine(
-                    color = bandColor,
-                    startX = leftPadding,
-                    endX = size.width - rightPadding,
-                    y = y,
-                    radius = 2.dp.toPx(),
-                    gap = 10.dp.toPx(),
-                )
-                drawIntoCanvas { canvas ->
-                    canvas.nativeCanvas.drawText(
-                        value.roundToInt().toString(),
-                        size.width - rightPadding + 8.dp.toPx(),
-                        y + 4.dp.toPx(),
-                        android.graphics.Paint().apply {
-                            color = android.graphics.Color.argb(
-                                255,
-                                (onSurfaceVariant.red * 255).roundToInt(),
-                                (onSurfaceVariant.green * 255).roundToInt(),
-                                (onSurfaceVariant.blue * 255).roundToInt(),
-                            )
-                            textSize = 12.dp.toPx()
-                            isAntiAlias = true
-                        },
-                    )
-                }
-            }
-            samples.forEachIndexed { index, sample ->
-                val elapsed = sample.sampledAt.toEpochMilli() - first.toEpochMilli()
-                val x = leftPadding + (elapsed.toFloat() / durationMillis.toFloat()) * chartWidth
-                val y = yForExerciseChartValue(sample.bpm.toFloat(), minBpm, range, chartHeight, topPadding, size.height - bottomPadding)
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            drawPath(
-                path = path,
-                color = primaryColor,
-                style = Stroke(width = 3.dp.toPx()),
-            )
-            samples.forEach { sample ->
-                val elapsed = sample.sampledAt.toEpochMilli() - first.toEpochMilli()
-                val x = leftPadding + (elapsed.toFloat() / durationMillis.toFloat()) * chartWidth
-                val y = yForExerciseChartValue(sample.bpm.toFloat(), minBpm, range, chartHeight, topPadding, size.height - bottomPadding)
-                drawCircle(
-                    color = surfaceVariant,
-                    radius = 4.5.dp.toPx(),
-                    center = Offset(x, y),
-                    style = Stroke(width = 0.8.dp.toPx()),
-                )
-                drawCircle(
-                    color = primaryColor,
-                    radius = 2.5.dp.toPx(),
-                    center = Offset(x, y),
-                )
-            }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .absolutePadding(
-                    left = ExerciseHeartRateChartLeftPadding,
-                    right = ExerciseHeartRateChartRightPadding,
-                ),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(samples.first().sampledAt.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
-            Text(samples.last().sampledAt.formatTime(), style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant)
-        }
+    val sortedSamples = samples.sortedBy { it.sampledAt }
+    val first = sortedSamples.first().sampledAt
+    val lanes = mutableListOf<MutableList<ChampionChartPoint>>()
+    sortedSamples.forEach { sample ->
+        val x = elapsedSeconds(first, sample.sampledAt)
+        val point = ChampionChartPoint(
+            x = x,
+            y = sample.bpm.toDouble(),
+            xLabel = sample.sampledAt.formatChartTime(),
+            contentDescription = "${sample.bpm} bpm em ${sample.sampledAt.formatDateTime()}.",
+        )
+        lanes.firstOrNull { lane -> lane.lastOrNull()?.x?.let { it < x } != false }
+            ?.add(point)
+            ?: lanes.add(mutableListOf(point))
     }
+    val points = lanes.flatMap { it }
+    val durationSeconds = points.maxOfOrNull { it.x }?.coerceAtLeast(1.0) ?: 1.0
+    val axisPadding = (chartAxisPadding(points) / 2.0).coerceAtLeast(0.5)
+    val axisMaximum = durationSeconds + axisPadding
+    val chartData = ChampionCartesianChartData(
+        series = lanes.mapIndexed { index, pointsInLane ->
+            ChampionChartSeries(
+                key = if (index == 0) "workout-heart-rate" else "workout-heart-rate-$index",
+                label = "Frequência cardíaca",
+                points = pointsInLane,
+            )
+        },
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                first.plusNanos((value * 1_000_000_000.0).roundToLong()).formatChartAxisTime()
+            },
+            title = "Tempo",
+            minimum = -axisPadding,
+            maximum = axisMaximum,
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Frequência cardíaca",
+            formatter = ChampionChartFormatters.integer(),
+            unit = ChampionChartUnit("bpm"),
+            minimum = 30.0,
+            maximum = 220.0,
+        ),
+        referenceLines = ExerciseHeartRateGuideBands.map { value ->
+            ChampionChartReferenceLine(
+                value = value,
+                label = "${value.roundToInt()} bpm",
+                contentDescription = "Guideline de ${value.roundToInt()} bpm.",
+            )
+        },
+        interaction = ChampionChartInteractionPolicy(
+            scrollEnabled = points.size > 6,
+        ),
+        accessibilitySummary = "Gráfico de frequência cardíaca do treino. " +
+            "${points.size} amostra(s) reais disponíveis. Valores entre 30 e 220 bpm.",
+    )
+    ChampionTimeSeriesChart(
+        data = chartData,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp),
+    )
 }
 
 @Composable
@@ -2845,32 +2802,22 @@ private fun WorkoutActivity.displayAverageSpeedLabel(): String =
 
 private fun <T> DomainValue<T>.valueOrNull(): T? = (this as? DomainValue.Present)?.value
 
-private fun DrawScope.drawDottedHorizontalLine(
-    color: Color,
-    startX: Float,
-    endX: Float,
-    y: Float,
-    radius: Float,
-    gap: Float,
-) {
-    var x = startX
-    while (x <= endX) {
-        drawCircle(color = color, radius = radius, center = Offset(x, y))
-        x += gap
-    }
+private fun elapsedSeconds(start: Instant, end: Instant): Double {
+    val duration = Duration.between(start, end)
+    return duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
 }
 
-private fun yForExerciseChartValue(
-    value: Float,
-    minValue: Float,
-    range: Float,
-    chartHeight: Float,
-    topPadding: Float,
-    bottom: Float,
-): Float {
-    val normalized = ((value - minValue) / range).coerceIn(0f, 1f)
-    return bottom - (normalized * chartHeight).coerceIn(0f, chartHeight) + topPadding - topPadding
-}
+private fun chartAxisPadding(points: List<ChampionChartPoint>): Double =
+    points
+        .map { it.x }
+        .distinct()
+        .sorted()
+        .zipWithNext()
+        .map { (first, second) -> second - first }
+        .filter { it > 0.0 }
+        .minOrNull()
+        ?.coerceAtLeast(1.0)
+        ?: 1.0
 
 private fun WorkoutActivityFilter.toSectionTitle(): String = when (this) {
     WorkoutActivityFilter.ALL -> "Todos os treinos"
@@ -3110,9 +3057,13 @@ private fun Instant.formatDateTime(): String =
         .withZone(ZoneId.systemDefault())
         .format(this)
 
-private fun Instant.formatTime(): String =
-    DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-        .withLocale(Locale.forLanguageTag("pt-BR"))
+private fun Instant.formatChartTime(): String =
+    DateTimeFormatter.ofPattern("HH:mm:ss", Locale.forLanguageTag("pt-BR"))
+        .withZone(ZoneId.systemDefault())
+        .format(this)
+
+private fun Instant.formatChartAxisTime(): String =
+    DateTimeFormatter.ofPattern("HH:mm", Locale.forLanguageTag("pt-BR"))
         .withZone(ZoneId.systemDefault())
         .format(this)
 
