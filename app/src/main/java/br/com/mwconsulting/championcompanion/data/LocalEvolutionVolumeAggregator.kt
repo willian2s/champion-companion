@@ -36,12 +36,19 @@ fun EvolutionReadSnapshot.toVolumeSnapshot(): EvolutionVolumeSnapshot {
     )
 }
 
-/** Monta snapshot completo sem inventar tendências, comparações ou recordes. */
-fun EvolutionReadSnapshot.toEvolutionSnapshot(): EvolutionSnapshot = EvolutionSnapshot(
-    query = query,
-    volume = toVolumeSnapshot(),
-    trends = toTrendsSnapshot(),
-)
+/** Monta snapshot completo sem inventar comparação quando período anterior não foi lido. */
+fun EvolutionReadSnapshot.toEvolutionSnapshot(
+    previous: EvolutionReadSnapshot? = null,
+): EvolutionSnapshot {
+    val volume = toVolumeSnapshot()
+    val previousVolume = previous?.toVolumeSnapshot()
+    return EvolutionSnapshot(
+        query = query,
+        volume = volume,
+        trends = toTrendsSnapshot(),
+        comparison = previousVolume?.let(volume::toPeriodComparison),
+    )
+}
 
 private val VOLUME_METRICS = listOf(
     EvolutionMetric.ACTIVITY_COUNT,
