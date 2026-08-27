@@ -40,6 +40,7 @@ fun EvolutionReadSnapshot.toVolumeSnapshot(): EvolutionVolumeSnapshot {
 fun EvolutionReadSnapshot.toEvolutionSnapshot(): EvolutionSnapshot = EvolutionSnapshot(
     query = query,
     volume = toVolumeSnapshot(),
+    trends = toTrendsSnapshot(),
 )
 
 private val VOLUME_METRICS = listOf(

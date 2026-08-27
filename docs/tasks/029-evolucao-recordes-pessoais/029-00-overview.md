@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [029-evolucao-recordes-pessoais.md](../../specs/029-evolucao-recordes-pessoais.md)
-- **Progresso:** `4/10` subtarefas concluídas
+- **Progresso:** `5/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -29,7 +29,7 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 - [x] `029-02` — criar contratos e read model de evolução
 - [x] `029-03` — implementar períodos e filtros por esporte
 - [x] `029-04` — implementar volume e consistência
-- [ ] `029-05` — implementar tendências e fórmulas agregadas
+- [x] `029-05` — implementar tendências e fórmulas agregadas
 - [ ] `029-06` — implementar comparação entre períodos
 - [ ] `029-07` — implementar read model e avaliador de recordes pessoais
 - [ ] `029-08` — criar tela Evolução e superfície de recordes
@@ -82,7 +82,7 @@ Decisões factuais da auditoria:
 - `AppDestination.Evolution` será subárvore de Exercícios, sem nova aba inferior;
 - nenhuma migration Room é necessária neste desenho.
 
-Próxima subtarefa elegível: `029-05`.
+Próxima subtarefa elegível: `029-06`.
 
 ## Observações
 
@@ -94,7 +94,10 @@ Próxima subtarefa elegível: `029-05`.
 - `029-03` não deixou bloqueio adicional; nenhuma alteração de Room/DAO foi
   necessária.
 - `029-04` concluiu agregados de volume, consistência e séries diárias sobre o
-  snapshot factual; `029-05` é a próxima subtarefa elegível.
+  snapshot factual.
+- `029-05` concluiu tendências diárias com somas protegidas, BPM ponderado por
+  amostras efetivas, cadência baseada em fatos D4 canônicos e pace/velocidade
+  restritos a populações comparáveis; `029-06` é a próxima subtarefa elegível.
 
 ## Guard rails
 

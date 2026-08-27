@@ -246,6 +246,13 @@ data class EvolutionActivitySnapshot(
     val cadenceStepsPerMinute: Double? = null,
     val paceSecondsPerKilometer: Double? = null,
     val speedMetersPerSecond: Double? = null,
+    /** Passos e duração da série D4 usados pela agregação de cadência. */
+    val cadenceSteps: Long? = null,
+    val cadenceDuration: Duration? = null,
+    /** Duração elegível para razões agregadas de pace/velocidade. */
+    val paceSpeedDuration: Duration? = null,
+    /** Soma exata das amostras BPM, preservada para ponderação sem truncamento. */
+    val averageBpmSampleSum: Long? = null,
 ) {
     init {
         require(workoutType != WorkoutType.UNKNOWN)
@@ -255,9 +262,11 @@ data class EvolutionActivitySnapshot(
         require(averageBpm == null || averageBpm in 30..220)
         require(averageBpmSampleCount == null || averageBpmSampleCount > 0)
         require(averageBpm == null || averageBpmSampleCount != 0)
+        require(averageBpmSampleSum == null || averageBpmSampleSum > 0L)
+        require(averageBpmSampleSum == null || averageBpmSampleCount != null)
         require(
             cadenceStepsPerMinute == null ||
-                (cadenceStepsPerMinute.isFinite() && cadenceStepsPerMinute > 0.0),
+                (cadenceStepsPerMinute.isFinite() && cadenceStepsPerMinute >= 0.0),
         )
         require(
             paceSecondsPerKilometer == null ||
@@ -267,10 +276,17 @@ data class EvolutionActivitySnapshot(
             speedMetersPerSecond == null ||
                 (speedMetersPerSecond.isFinite() && speedMetersPerSecond > 0.0),
         )
+        require(cadenceSteps == null || cadenceSteps >= 0L)
+        require(cadenceDuration == null || cadenceDuration.isPositive())
+        require(paceSpeedDuration == null || paceSpeedDuration.isPositive())
+        require(cadenceSteps == null || cadenceDuration != null)
+        require(cadenceDuration == null || cadenceSteps != null)
         if (workoutType == WorkoutType.CYCLING) {
             require(steps == null)
             require(cadenceStepsPerMinute == null)
             require(paceSecondsPerKilometer == null)
+            require(cadenceSteps == null)
+            require(cadenceDuration == null)
         }
     }
 

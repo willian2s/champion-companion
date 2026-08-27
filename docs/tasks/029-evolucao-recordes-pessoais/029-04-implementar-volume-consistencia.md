@@ -102,5 +102,5 @@ adequada aos períodos 7/30/90 dias e aos gráficos posteriores.
 
 ### Próxima etapa
 
-`029-05` permanece pendente e é a próxima subtarefa elegível; `029-06` em
-diante continuam bloqueadas pela sequência definida no overview.
+`029-05` foi concluída; `029-06` é a próxima subtarefa elegível e as seguintes
+continuam bloqueadas pela sequência definida no overview.
