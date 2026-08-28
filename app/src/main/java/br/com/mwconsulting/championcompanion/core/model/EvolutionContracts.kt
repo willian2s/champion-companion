@@ -6,6 +6,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /** Períodos suportados pela primeira versão da leitura de evolução. */
 enum class EvolutionPeriod(val windowDays: Long) {
@@ -326,6 +327,23 @@ data class EvolutionReadSnapshot(
         get() = activities.size
 }
 
+/** Fatos normalizados de todas as atividades elegíveis para recordes atuais. */
+data class PersonalRecordsReadSnapshot(
+    val activities: List<EvolutionActivitySnapshot>,
+) {
+    init {
+        require(activities.distinctBy(EvolutionActivitySnapshot::activityId).size == activities.size)
+        require(activities.zipWithNext().all { (first, second) ->
+            first.startedAt.isBefore(second.startedAt) ||
+                first.startedAt == second.startedAt &&
+                first.activityId.value.toString() <= second.activityId.value.toString()
+        })
+    }
+
+    val activityCount: Int
+        get() = activities.size
+}
+
 data class EvolutionVolumeSnapshot(
     val query: EvolutionQuery,
     val activityCount: Int,
@@ -492,6 +510,29 @@ data class PersonalRecordsSnapshot(
         records.firstOrNull { it.metric == metric && it.workoutType == workoutType }
 }
 
+/** Conquista efêmera emitida quando atividade supera recorde local conhecido. */
+data class PersonalRecordAchievement(
+    val record: PersonalRecord,
+    val previousBest: Double? = null,
+    val difference: Double? = null,
+) {
+    init {
+        require(previousBest?.isFinite() != false)
+        require(previousBest == null || previousBest > 0.0)
+        require(difference?.isFinite() != false)
+        require((previousBest == null) == (difference == null))
+        previousBest?.let { best ->
+            require(record.value > best)
+            require(difference!!.isCloseTo(record.value - best))
+        }
+    }
+
+    private fun Double.isCloseTo(expected: Double): Boolean {
+        val scale = maxOf(1.0, kotlin.math.abs(this), kotlin.math.abs(expected))
+        return kotlin.math.abs(this - expected) <= 1e-9 * scale
+    }
+}
+
 /** Snapshot completo que será montado pelos agregadores das subtarefas seguintes. */
 data class EvolutionSnapshot(
     val query: EvolutionQuery,
@@ -537,9 +578,34 @@ sealed interface EvolutionReadState {
     ) : EvolutionReadState
 }
 
+/** Estado da leitura all-history usada para recordistas atuais. */
+sealed interface PersonalRecordsReadState {
+    data object Loading : PersonalRecordsReadState
+
+    data object Empty : PersonalRecordsReadState
+
+    data class Ready(val snapshot: PersonalRecordsReadSnapshot) : PersonalRecordsReadState
+
+    data class Failed(
+        val reason: EvolutionReadFailure,
+        val retryable: Boolean = true,
+    ) : PersonalRecordsReadState
+}
+
 /** Leitura local read-only; não inicia importação, sync ou leitura do Health Connect. */
 interface EvolutionReadModel {
     fun observeSnapshot(query: EvolutionQuery): Flow<EvolutionReadState>
+
+    /**
+     * Lê histórico completo elegível, sem aplicar janela ou filtro da tela.
+     * Implementações antigas falham fechadas até fornecerem esta leitura.
+     */
+    fun observePersonalRecordsSnapshot(): Flow<PersonalRecordsReadState> = flowOf(
+        PersonalRecordsReadState.Failed(
+            reason = EvolutionReadFailure.SOURCE_UNAVAILABLE,
+            retryable = false,
+        ),
+    )
 }
 
 private fun Instant.isIn(range: CalendarInstantRange): Boolean =

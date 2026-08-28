@@ -9,6 +9,9 @@ import br.com.mwconsulting.championcompanion.core.model.EvolutionReadSnapshot
 import br.com.mwconsulting.championcompanion.core.model.EvolutionReadState
 import br.com.mwconsulting.championcompanion.core.model.EvolutionQuery
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordsReadSnapshot
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordsReadState
+import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
@@ -63,6 +66,51 @@ class LocalEvolutionReadModel @Inject constructor(
                 )
             }
 
+    override fun observePersonalRecordsSnapshot(): Flow<PersonalRecordsReadState> =
+        workoutActivityRepository.observeActivitiesStrict(
+            filter = WorkoutActivityFilter.ALL,
+        )
+            .map { result ->
+                when (result) {
+                    is RepositoryResult.Success -> try {
+                        result.value.toPersonalRecordsReadState()
+                    } catch (_: IllegalArgumentException) {
+                        PersonalRecordsReadState.Failed(
+                            reason = EvolutionReadFailure.INVALID_LOCAL_DATA,
+                            retryable = false,
+                        )
+                    }
+
+                    RepositoryResult.StorageUnavailable -> PersonalRecordsReadState.Failed(
+                        reason = EvolutionReadFailure.SOURCE_UNAVAILABLE,
+                        retryable = true,
+                    )
+
+                    RepositoryResult.Conflict,
+                    RepositoryResult.NotFound,
+                    RepositoryResult.UnexpectedState,
+                    -> PersonalRecordsReadState.Failed(
+                        reason = EvolutionReadFailure.INVALID_LOCAL_DATA,
+                        retryable = false,
+                    )
+                }
+            }
+            .onStart { emit(PersonalRecordsReadState.Loading) }
+            .catch { error ->
+                if (error is CancellationException) throw error
+                val reason = if (error is IllegalArgumentException) {
+                    EvolutionReadFailure.INVALID_LOCAL_DATA
+                } else {
+                    EvolutionReadFailure.SOURCE_UNAVAILABLE
+                }
+                emit(
+                    PersonalRecordsReadState.Failed(
+                        reason = reason,
+                        retryable = reason == EvolutionReadFailure.SOURCE_UNAVAILABLE,
+                    ),
+                )
+            }
+
     private fun List<WorkoutActivity>.toEvolutionReadState(query: EvolutionQuery): EvolutionReadState {
         val activities = selectEvolutionPopulation(query)
 
@@ -78,6 +126,18 @@ class LocalEvolutionReadModel @Inject constructor(
         }
     }
 
+    private fun List<WorkoutActivity>.toPersonalRecordsReadState(): PersonalRecordsReadState {
+        val activities = selectPersonalRecordsPopulation()
+
+        return if (activities.isEmpty()) {
+            PersonalRecordsReadState.Empty
+        } else {
+            PersonalRecordsReadState.Ready(
+                PersonalRecordsReadSnapshot(activities),
+            )
+        }
+    }
+
     /**
      * Seleciona e ordena população uma vez, antes de qualquer agregação futura.
      * IDs repetidos não são deduplicados: o contrato do snapshot os trata como
@@ -85,8 +145,15 @@ class LocalEvolutionReadModel @Inject constructor(
      */
     private fun List<WorkoutActivity>.selectEvolutionPopulation(
         query: EvolutionQuery,
-    ): List<EvolutionActivitySnapshot> = asSequence()
-        .filter { activity -> activity.isEligibleForEvolution(query) }
+    ): List<EvolutionActivitySnapshot> = filter { activity ->
+        activity.isEligibleForEvolution(query)
+    }.toEvolutionActivitySnapshots()
+
+    private fun List<WorkoutActivity>.selectPersonalRecordsPopulation(): List<EvolutionActivitySnapshot> =
+        filter(WorkoutActivity::isEligibleForEvolution)
+            .toEvolutionActivitySnapshots()
+
+    private fun List<WorkoutActivity>.toEvolutionActivitySnapshots(): List<EvolutionActivitySnapshot> = asSequence()
         .mapNotNull(WorkoutActivity::toEvolutionActivitySnapshot)
         .sortedWith(EVOLUTION_ACTIVITY_ORDER)
         .toList()
@@ -96,13 +163,17 @@ private val EVOLUTION_ACTIVITY_ORDER: Comparator<EvolutionActivitySnapshot> =
     compareBy<EvolutionActivitySnapshot> { it.startedAt }
         .thenBy { it.activityId.value.toString() }
 
-private fun WorkoutActivity.isEligibleForEvolution(query: EvolutionQuery): Boolean {
+private fun WorkoutActivity.isEligibleForEvolution(): Boolean {
     val type = confirmedType ?: return false
     return activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
         type != WorkoutType.UNKNOWN &&
         importParserValidity in setOf(ParserValidity.VALID, ParserValidity.PARTIAL) &&
-        workflowState in EVOLUTION_ELIGIBLE_WORKFLOW_STATES &&
-        metrics.startedAt.isIn(query.currentRange) &&
+        workflowState in EVOLUTION_ELIGIBLE_WORKFLOW_STATES
+}
+
+private fun WorkoutActivity.isEligibleForEvolution(query: EvolutionQuery): Boolean {
+    val type = confirmedType ?: return false
+    return isEligibleForEvolution() && metrics.startedAt.isIn(query.currentRange) &&
         query.filter.accepts(type)
 }
 

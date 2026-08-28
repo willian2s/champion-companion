@@ -176,6 +176,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -792,15 +793,41 @@ class RoomRepositories @Inject constructor(
     override fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = combine(
+    override fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> =
+        observeActivityEntities(filter).transformLatest { activities ->
+            emit(activities.mapNotNull { activity -> loadWorkoutActivity(activity) })
+        }.flowOn(ioDispatcher)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeActivitiesStrict(
+        filter: WorkoutActivityFilter,
+    ): Flow<RepositoryResult<List<WorkoutActivity>>> = observeActivityEntities(filter)
+        .transformLatest { activities ->
+            val mappedActivities = ArrayList<WorkoutActivity>(activities.size)
+            for (activity in activities) {
+                val mapped = loadWorkoutActivity(activity)
+                if (mapped == null) {
+                    emit(RepositoryResult.UnexpectedState)
+                    return@transformLatest
+                }
+                mappedActivities += mapped
+            }
+            emit(RepositoryResult.Success(mappedActivities))
+        }
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(RepositoryResult.StorageUnavailable)
+        }
+        .flowOn(ioDispatcher)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeActivityEntities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivityEntity>> = combine(
         when (filter) {
         WorkoutActivityFilter.ALL -> database.workoutActivityDao().observeAll()
         else -> database.workoutActivityDao().observeByWorkflowStates(filter.toStoredWorkflowStates())
         },
         database.workoutDerivationDao().observeActiveSnapshots(),
-    ) { activities, _ -> activities }.transformLatest { activities ->
-        emit(activities.mapNotNull { activity -> loadWorkoutActivity(activity) })
-    }.flowOn(ioDispatcher)
+    ) { activities, _ -> activities }
 
     override fun observeActivitiesBetween(range: CalendarInstantRange) =
         database.workoutActivityDao()
