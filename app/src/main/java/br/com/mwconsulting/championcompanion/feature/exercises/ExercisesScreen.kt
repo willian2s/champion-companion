@@ -133,6 +133,7 @@ fun ExercisesScreen(
     openedActivityId: WorkoutActivityId? = null,
     onNavigateBack: (() -> Unit)? = null,
     onOpenActivity: (WorkoutActivityId) -> Unit = {},
+    onOpenEvolution: () -> Unit = {},
     viewModel: ExercisesViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -189,6 +190,7 @@ fun ExercisesScreen(
         ) {
             if (openedActivityId == null) {
                 ExercisesHeader(state = state)
+                ExercisesEvolutionCard(onOpenEvolution = onOpenEvolution)
                 onOpenDebugPoc?.let { openDebugPoc ->
                     ExercisesDebugPocCard(onOpenDebugPoc = openDebugPoc)
                 }
@@ -236,6 +238,44 @@ fun ExercisesScreen(
                     onDeleteActivity = { viewModel.onIntent(ExercisesIntent.DeleteSelectedActivity) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ExercisesEvolutionCard(
+    onOpenEvolution: () -> Unit,
+) {
+    Card(
+        onClick = onOpenEvolution,
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        border = BorderStroke(1.dp, exerciseSecondaryAccent()),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Evolução esportiva",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Acompanhe volume, tendências e recordes das atividades importadas do relógio.",
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "Abrir evolução",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }

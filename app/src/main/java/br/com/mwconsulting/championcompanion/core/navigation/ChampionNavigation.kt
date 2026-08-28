@@ -66,6 +66,8 @@ import br.com.mwconsulting.championcompanion.feature.exercises.PhoneWorkoutDisab
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutPreparationShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutRecoveryShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutTypeSelectionShell
+import br.com.mwconsulting.championcompanion.feature.evolution.EvolutionScreen
+import br.com.mwconsulting.championcompanion.feature.evolution.EvolutionViewModel
 import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
 import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.D1HeartRateImportSurfaceState
@@ -127,6 +129,9 @@ fun ChampionNavigation(
     }
     val exercisesViewModel = remember(activity) {
         ViewModelProvider(activity)[ExercisesViewModel::class.java]
+    }
+    val evolutionViewModel = remember(activity) {
+        ViewModelProvider(activity)[EvolutionViewModel::class.java]
     }
     val settingsViewModel = remember(activity) {
         ViewModelProvider(activity)[SettingsViewModel::class.java]
@@ -446,6 +451,7 @@ fun ChampionNavigation(
             onNavigateTo = ::requestNavigation,
             exercisesViewModel = exercisesViewModel,
             exercisesState = exercisesState,
+            evolutionViewModel = evolutionViewModel,
             settingsViewModel = settingsViewModel,
             profileViewModel = profileViewModel,
             animationDirection = animationDirection,
@@ -518,6 +524,7 @@ private fun ChampionNavDisplay(
     onNavigateTo: (AppDestination) -> Unit,
     exercisesViewModel: ExercisesViewModel,
     exercisesState: ExercisesUiState,
+    evolutionViewModel: EvolutionViewModel,
     settingsViewModel: SettingsViewModel,
     profileViewModel: ProfileViewModel,
     animationDirection: NavigationAnimationDirection,
@@ -585,10 +592,18 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Exercises -> ExercisesScreen(
                 viewModel = exercisesViewModel,
+                onOpenEvolution = { onNavigateTo(AppDestination.Evolution) },
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
                 onOpenDebugPoc = onOpenDebugPoc,
+            )
+            AppDestination.Evolution -> EvolutionScreen(
+                viewModel = evolutionViewModel,
+                onNavigateBack = onBackRequested,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
             )
             is AppDestination.ExerciseDetail -> ExercisesScreen(
                 viewModel = exercisesViewModel,
@@ -687,6 +702,7 @@ private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppD
 
 private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     AppDestination.Exercises,
+    AppDestination.Evolution,
     is AppDestination.ExerciseDetail,
     AppDestination.WorkoutTypeSelection,
     is AppDestination.WorkoutPreparation,
@@ -718,6 +734,7 @@ private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
     -> true
 
     is AppDestination.ExerciseDetail,
+    AppDestination.Evolution,
     AppDestination.WorkoutTypeSelection,
     is AppDestination.WorkoutPreparation,
     is AppDestination.ActiveWorkout,
@@ -798,6 +815,7 @@ private fun AppDestination.toSaveToken(): String = when (this) {
     AppDestination.Calendar -> "calendar"
     is AppDestination.CalendarDay -> "calendar-day:$localDateIso"
     AppDestination.Exercises -> "exercises"
+    AppDestination.Evolution -> "evolution"
     is AppDestination.ExerciseDetail -> "exercise-detail:$activityId"
     AppDestination.WorkoutTypeSelection -> "workout-type-selection"
     is AppDestination.WorkoutPreparation -> "workout-preparation:$workoutType"
@@ -820,6 +838,7 @@ private fun fromSaveToken(token: String): AppDestination? = runCatching {
         token == "calendar" -> AppDestination.Calendar
         token.startsWith("calendar-day:") -> AppDestination.CalendarDay(token.removePrefix("calendar-day:"))
         token == "exercises" -> AppDestination.Exercises
+        token == "evolution" -> AppDestination.Evolution
         token.startsWith("exercise-detail:") -> AppDestination.ExerciseDetail(token.removePrefix("exercise-detail:"))
         token == "workout-type-selection" -> AppDestination.WorkoutTypeSelection
         token.startsWith("workout-preparation:") -> AppDestination.WorkoutPreparation(

@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [029-evolucao-recordes-pessoais.md](../../specs/029-evolucao-recordes-pessoais.md)
-- **Progresso:** `7/10` subtarefas concluídas
+- **Progresso:** `8/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 - [x] `029-05` — implementar tendências e fórmulas agregadas
 - [x] `029-06` — implementar comparação entre períodos
 - [x] `029-07` — implementar read model e avaliador de recordes pessoais
-- [ ] `029-08` — criar tela Evolução e superfície de recordes
+- [x] `029-08` — criar tela Evolução e superfície de recordes
 - [ ] `029-09` — integrar detecção e destaque de recorde pós-save
 - [ ] `029-10` — validar, consolidar e fechar
 
@@ -82,7 +82,7 @@ Decisões factuais da auditoria:
 - `AppDestination.Evolution` será subárvore de Exercícios, sem nova aba inferior;
 - nenhuma migration Room é necessária neste desenho.
 
-Próxima subtarefa elegível: `029-08`.
+Próxima subtarefa elegível: `029-09`.
 
 ## Observações
 
@@ -102,8 +102,14 @@ Próxima subtarefa elegível: `029-08`.
   da janela imediatamente anterior.
 - `029-07` concluiu leitura all-history, agregação de recordistas por modalidade e
   evaluator puro idempotente. A leitura all-history falha fechada diante de
-  mapeamento inválido, sem alterar caminho tolerante legado; `029-08` é a próxima
-  subtarefa elegível.
+  mapeamento inválido, sem alterar caminho tolerante legado.
+- `029-08` concluiu tela Evolução integrada a Exercícios, com períodos, filtros,
+  resumo, tendências, comparação, recordes e navegação para atividade elegível.
+  Estado failed permanece visível quando janela selecionada contém dados locais
+  faltantes; janela de 7 dias foi validada fisicamente com dados reconciliados.
+  Eixos dos gráficos preservam pontos e labels extremos por padding e rolagem
+  horizontal quando densidade exigir. Header mantém tom compartilhado com
+  Exercícios.
 
 ## Guard rails
 
