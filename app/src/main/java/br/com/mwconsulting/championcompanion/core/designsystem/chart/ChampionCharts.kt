@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionVisualTokens
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
@@ -100,6 +101,8 @@ private enum class ChartKind {
     BAR,
 }
 
+private const val DEFAULT_CHART_EMPTY_LABEL = "Sem dados para exibir"
+
 private val linePointSpacing = 32.dp
 private val linePointSize = 8.dp
 private val columnWidth = 16.dp
@@ -112,8 +115,9 @@ fun ChampionLineChart(
     data: ChampionCartesianChartData,
     modifier: Modifier = Modifier,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)? = null,
+    emptyLabel: String = DEFAULT_CHART_EMPTY_LABEL,
 ) {
-    ChampionChartFrame(data = data, modifier = modifier) {
+    ChampionChartFrame(data = data, modifier = modifier, emptyLabel = emptyLabel) {
         ChampionCartesianRenderer(
             data = data,
             kind = ChartKind.LINE,
@@ -128,8 +132,9 @@ fun ChampionBarChart(
     data: ChampionCartesianChartData,
     modifier: Modifier = Modifier,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)? = null,
+    emptyLabel: String = DEFAULT_CHART_EMPTY_LABEL,
 ) {
-    ChampionChartFrame(data = data, modifier = modifier) {
+    ChampionChartFrame(data = data, modifier = modifier, emptyLabel = emptyLabel) {
         ChampionCartesianRenderer(
             data = data,
             kind = ChartKind.BAR,
@@ -144,11 +149,13 @@ fun ChampionTimeSeriesChart(
     data: ChampionCartesianChartData,
     modifier: Modifier = Modifier,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)? = null,
+    emptyLabel: String = DEFAULT_CHART_EMPTY_LABEL,
 ) {
     ChampionLineChart(
         data = data,
         modifier = modifier,
         onSelectionChanged = onSelectionChanged,
+        emptyLabel = emptyLabel,
     )
 }
 
@@ -156,16 +163,19 @@ fun ChampionTimeSeriesChart(
 private fun ChampionChartFrame(
     data: ChampionCartesianChartData,
     modifier: Modifier,
+    emptyLabel: String,
     content: @Composable () -> Unit,
 ) {
-    val summary = buildAccessibleSummary(data)
+    val visualTokens = LocalChampionVisualTokens.current
+    val resolvedEmptyLabel = emptyLabel.ifBlank { DEFAULT_CHART_EMPTY_LABEL }
+    val summary = buildAccessibleSummary(data, resolvedEmptyLabel)
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 192.dp)
+            .heightIn(min = visualTokens.chartMinimumHeight)
             .semantics {
                 contentDescription = summary
-                if (!data.hasRecordedValues) stateDescription = "Sem dados para exibir"
+                if (!data.hasRecordedValues) stateDescription = resolvedEmptyLabel
             },
     ) {
         if (data.hasRecordedValues) {
@@ -177,7 +187,7 @@ private fun ChampionChartFrame(
                 tonalElevation = 1.dp,
             ) {
                 Text(
-                    text = "Sem dados para exibir",
+                    text = resolvedEmptyLabel,
                     modifier = Modifier.padding(24.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -302,8 +312,8 @@ private fun ChampionCartesianRenderer(
             }
         }
     }
-    val startAxis = if (data.yAxis.visible) {
-        VerticalAxis.rememberStart(
+    val endAxis = if (data.yAxis.visible) {
+        VerticalAxis.rememberEnd(
             line = axisLine,
             valueFormatter = yFormatter,
             guideline = axisGuideline.takeIf { data.yAxis.gridLinesVisible },
@@ -349,7 +359,7 @@ private fun ChampionCartesianRenderer(
     }
     val chart = rememberCartesianChart(
         layer,
-        startAxis = startAxis,
+        endAxis = endAxis,
         bottomAxis = bottomAxis,
         marker = marker,
         markerVisibilityListener = markerListener,
@@ -612,7 +622,10 @@ private fun safeRange(minimum: Double?, maximum: Double?): SafeRange {
     return SafeRange(0.0, 1.0)
 }
 
-private fun buildAccessibleSummary(data: ChampionCartesianChartData): String = buildString {
+private fun buildAccessibleSummary(
+    data: ChampionCartesianChartData,
+    emptyLabel: String,
+): String = buildString {
     append(data.accessibilitySummary)
     if (data.gapCount > 0) append(". ${data.gapCount} lacunas sem dados")
     data.series
@@ -632,7 +645,7 @@ private fun buildAccessibleSummary(data: ChampionCartesianChartData): String = b
         ?.let { descriptions ->
             append(". Linhas de referência: ${descriptions.joinToString(". ")}")
         }
-    if (!data.hasRecordedValues) append(". Sem dados para exibir")
+    if (!data.hasRecordedValues) append(". $emptyLabel")
 }
 
 private fun List<CartesianMarker.Target>.toSelections(

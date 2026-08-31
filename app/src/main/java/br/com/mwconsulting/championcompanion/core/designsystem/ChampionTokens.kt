@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,42 @@ data class ChampionSpacingValues(
 )
 
 val ChampionSpacing = ChampionSpacingValues()
+
+/**
+ * Tokens neutros para superfícies que aderem à fundação visual nova.
+ *
+ * Consumidores optam explicitamente por esses tokens; valores existentes e
+ * superfícies ainda não migradas permanecem inalterados.
+ */
+@Immutable
+data class ChampionVisualTokens(
+    val pageHorizontalPadding: Dp = ChampionSpacing.extraLarge,
+    val pageVerticalPadding: Dp = ChampionSpacing.large,
+    val sectionSpacing: Dp = ChampionSpacing.extraLarge,
+    val contentSpacing: Dp = ChampionSpacing.medium,
+    val controlSpacing: Dp = ChampionSpacing.small,
+    val componentPadding: Dp = ChampionSpacing.large,
+    val minimumTouchTarget: Dp = ChampionSpacing.massive,
+    val chartMinimumHeight: Dp = 192.dp,
+    val navigationTransitionDurationMillis: Int = 260,
+) {
+    init {
+        require(pageHorizontalPadding >= 0.dp)
+        require(pageVerticalPadding >= 0.dp)
+        require(sectionSpacing >= 0.dp)
+        require(contentSpacing >= 0.dp)
+        require(controlSpacing >= 0.dp)
+        require(componentPadding >= 0.dp)
+        require(minimumTouchTarget >= 48.dp)
+        require(chartMinimumHeight > 0.dp)
+        require(navigationTransitionDurationMillis >= 0)
+    }
+}
+
+val DefaultChampionVisualTokens = ChampionVisualTokens()
+
+/** Local opt-in provider; does not mutate [ChampionCompanionTheme]. */
+val LocalChampionVisualTokens = staticCompositionLocalOf { DefaultChampionVisualTokens }
 
 val ChampionShapeSmall = RoundedCornerShape(8.dp)
 val ChampionShapeMedium = RoundedCornerShape(12.dp)

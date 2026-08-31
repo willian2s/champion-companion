@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [030-refinamento-graficos-google-health.md](../../specs/030-refinamento-graficos-google-health.md)
-- **Progresso:** 1/6 subtarefas concluídas
+- **Progresso:** 2/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ Champion atual, não portar funcionalidades inexistentes.
 ## Checklist
 
 - [x] [030-01-auditar-e-benchmark-visual-integral-google-health.md](030-01-auditar-e-benchmark-visual-integral-google-health.md)
-- [ ] [030-02-definir-fundacao-visual-e-shell.md](030-02-definir-fundacao-visual-e-shell.md)
+- [x] [030-02-definir-fundacao-visual-e-shell.md](030-02-definir-fundacao-visual-e-shell.md)
 - [ ] [030-03-refinar-home-e-saude.md](030-03-refinar-home-e-saude.md)
 - [ ] [030-04-refinar-calendario-e-exercicios.md](030-04-refinar-calendario-e-exercicios.md)
 - [ ] [030-05-refinar-evolucao-dispositivo-perfil-e-configuracoes.md](030-05-refinar-evolucao-dispositivo-perfil-e-configuracoes.md)
@@ -39,5 +39,12 @@ Champion atual, não portar funcionalidades inexistentes.
 - `030-01` foi concluída após conferência da matriz gráfica preservada e da nova
   matriz objetiva por destino/subsuperfície contra o código atual.
 - Divergências visuais e validações físicas não exercitadas permanecem
-  registradas em `030-01`; não são requisitos funcionais. A próxima subtarefa
-  elegível é `030-02`.
+  registradas em `030-01`; não são requisitos funcionais. A subtarefa `030-02`
+  foi concluída com fundação visual opt-in, shell compartilhado e boundary de
+  gráficos preservado.
+- Validação física de `030-02` cobriu shell, menu Mais, navegação para Dispositivo
+  e retorno em portrait/tema escuro. Fonte ampliada, landscape, tema claro,
+  estados sem dados e períodos não suportados permanecem `N/A` e devem ser
+  exercitados nas superfícies migradas.
+- Regressão do botão `Início` foi reproduzida após a primeira implementação e
+  corrigida; smoke posterior confirmou retorno de Saúde para Home por toque.

@@ -70,7 +70,8 @@ data class ChampionChartAxisSpec(
         require(title?.isNotBlank() != false)
         require(minimum?.isFinite() != false)
         require(maximum?.isFinite() != false)
-        require(minimum == null || maximum == null || minimum < maximum)
+        // Singleton ranges are valid; renderer pads their visual bounds safely.
+        require(minimum == null || maximum == null || minimum <= maximum)
     }
 }
 
@@ -87,7 +88,8 @@ data class ChampionChartXAxisSpec(
         require(title?.isNotBlank() != false)
         require(minimum?.isFinite() != false)
         require(maximum?.isFinite() != false)
-        require(minimum == null || maximum == null || minimum < maximum)
+        // Singleton ranges are valid; renderer pads their visual bounds safely.
+        require(minimum == null || maximum == null || minimum <= maximum)
     }
 }
 

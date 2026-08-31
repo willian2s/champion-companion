@@ -8,12 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -22,18 +18,8 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,10 +31,8 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -83,8 +67,12 @@ import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileViewModel
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
-import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionConfirmationDialog
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionNavigationItem
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionNavigationMenuItem
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionNavigationShell
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionVisualFoundation
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionVisualTokens
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import java.util.UUID
@@ -257,104 +245,80 @@ fun ChampionNavigation(
         }
     }
 
+    val dismissExitConfirmation = {
+        pendingDestination = null
+        pendingBackNavigation = false
+        pendingExitConfirmationTarget = null
+    }
+
     if (pendingDestination != null || pendingBackNavigation) {
         val isD1ImportInFlight = healthState.d1ImportState.isD1ImportInFlight()
         val isExerciseImportInFlight = exercisesState.importState.isImportInFlight()
         val confirmationTarget = pendingExitConfirmationTarget
-        AlertDialog(
-            onDismissRequest = {
-                pendingDestination = null
-                pendingBackNavigation = false
-                pendingExitConfirmationTarget = null
+        ChampionConfirmationDialog(
+            onDismissRequest = dismissExitConfirmation,
+            title = when (confirmationTarget) {
+                ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?"
+                ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Cancelar importação?" else "Descartar alterações?"
+                null -> "Confirmar saída?"
             },
-            title = {
-                Text(
-                    when (confirmationTarget) {
-                        ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?"
-                        ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Cancelar importação?" else "Descartar alterações?"
-                        null -> "Confirmar saída?"
-                    },
-                )
+            message = when (confirmationTarget) {
+                ExitConfirmationTarget.Health -> if (isD1ImportInFlight) {
+                    "Sair da tela Saúde agora cancelará a importação D1 em andamento."
+                } else {
+                    "Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial."
+                }
+
+                ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
+                    "Sair da tela Exercícios agora cancelará a importação de treinos em andamento, preservando os blocos já salvos."
+                } else {
+                    "Sair agora descartará alterações não salvas do detalhe do treino atual."
+                }
+
+                null -> "A operação atual será interrompida."
             },
-            text = {
-                Text(
-                    when (confirmationTarget) {
-                        ExitConfirmationTarget.Health -> if (isD1ImportInFlight) {
-                            "Sair da tela Saúde agora cancelará a importação D1 em andamento."
+            confirmLabel = when (confirmationTarget) {
+                ExitConfirmationTarget.Health -> "Sair da Saúde"
+                ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Sair de Exercícios" else "Descartar alterações"
+                null -> "Sair"
+            },
+            onConfirm = {
+                val destination = pendingDestination
+                val shouldNavigateBack = pendingBackNavigation
+                val target = pendingExitConfirmationTarget
+                dismissExitConfirmation()
+                when (target) {
+                    ExitConfirmationTarget.Health -> {
+                        if (isD1ImportInFlight) {
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
                         } else {
-                            "Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial."
+                            healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
                         }
+                    }
 
-                        ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
-                            "Sair da tela Exercícios agora cancelará a importação de treinos em andamento, preservando os blocos já salvos."
-                        } else {
-                            "Sair agora descartará alterações não salvas do detalhe do treino atual."
-                        }
-
-                        null -> "A operação atual será interrompida."
-                    },
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val destination = pendingDestination
-                        val shouldNavigateBack = pendingBackNavigation
-                        val target = pendingExitConfirmationTarget
-                        pendingDestination = null
-                        pendingBackNavigation = false
-                        pendingExitConfirmationTarget = null
-                        when (target) {
-                            ExitConfirmationTarget.Health -> {
-                                if (isD1ImportInFlight) {
-                                    healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
-                                } else {
-                                    healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
-                                }
-                            }
-
-                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
-                                exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitImport)
-                            } else {
-                                exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitDetail)
-                            }
-                            null -> Unit
-                        }
-                        if (shouldNavigateBack) {
-                            if (backStack.size > 1) {
-                                navigateBack()
-                            } else {
-                                activity.finish()
-                            }
-                        } else if (destination != null) {
-                            navigateTo(destination)
-                        }
-                    },
-                ) {
-                    Text(
-                        when (confirmationTarget) {
-                            ExitConfirmationTarget.Health -> "Sair da Saúde"
-                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Sair de Exercícios" else "Descartar alterações"
-                            null -> "Sair"
-                        },
-                    )
+                    ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
+                        exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitImport)
+                    } else {
+                        exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitDetail)
+                    }
+                    null -> Unit
+                }
+                if (shouldNavigateBack) {
+                    if (backStack.size > 1) {
+                        navigateBack()
+                    } else {
+                        activity.finish()
+                    }
+                } else if (destination != null) {
+                    navigateTo(destination)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    pendingDestination = null
-                    pendingBackNavigation = false
-                    pendingExitConfirmationTarget = null
-                }) {
-                    Text(
-                        when (confirmationTarget) {
-                            ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo"
-                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Continuar importando" else "Continuar editando"
-                            null -> "Continuar"
-                        },
-                    )
-                }
+            dismissLabel = when (confirmationTarget) {
+                ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo"
+                ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Continuar importando" else "Continuar editando"
+                null -> "Continuar"
             },
+            onDismiss = dismissExitConfirmation,
         )
     }
 
@@ -369,95 +333,64 @@ fun ChampionNavigation(
         requestBackNavigation()
     }
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 0.dp,
-            ) {
-                val navigationBarScope = this
+    ChampionVisualFoundation {
+        Scaffold(
+            modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            bottomBar = {
                 val isCalendarSubtree = backStack.contains(AppDestination.Calendar) &&
                     currentDestination != AppDestination.Calendar
-                val navigationAccentScheme = if (isSystemInDarkTheme()) {
-                    DarkColorScheme
-                } else {
-                    LightColorScheme
-                }
-                val navigationItemColors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = navigationAccentScheme.onPrimaryContainer,
-                    selectedTextColor = navigationAccentScheme.primary,
-                    indicatorColor = navigationAccentScheme.primaryContainer,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                primaryItems.forEach { item ->
-                    NavigationBarItem(
-                        selected = if (item.destination == AppDestination.Health) {
-                            !isCalendarSubtree && currentDestination.isHealthDestination()
-                        } else if (item.destination == AppDestination.Exercises) {
-                            !isCalendarSubtree && currentDestination.isExercisesDestination()
-                        } else if (item.destination == AppDestination.Calendar) {
-                            currentDestination == AppDestination.Calendar ||
-                                (backStack.contains(AppDestination.Calendar) && currentDestination != AppDestination.Calendar)
-                        } else {
-                            currentDestination == item.destination
-                        },
-                        onClick = { requestNavigation(item.destination) },
-                        icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
-                        colors = navigationItemColors,
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    navigationBarScope.NavigationBarItem(
-                        modifier = Modifier.fillMaxWidth(),
+                ChampionNavigationShell(
+                    primaryItems = primaryItems.map { item ->
+                        ChampionNavigationItem(
+                            key = item.destination.route,
+                            label = item.label,
+                            icon = item.icon,
+                            selected = when (item.destination) {
+                                AppDestination.Health -> !isCalendarSubtree && currentDestination.isHealthDestination()
+                                AppDestination.Exercises -> !isCalendarSubtree && currentDestination.isExercisesDestination()
+                                AppDestination.Calendar -> currentDestination == AppDestination.Calendar ||
+                                    (backStack.contains(AppDestination.Calendar) && currentDestination != AppDestination.Calendar)
+                                else -> currentDestination == item.destination
+                            },
+                            onClick = { requestNavigation(item.destination) },
+                        )
+                    },
+                    moreItem = ChampionNavigationItem(
+                        key = "more",
+                        label = "Mais",
+                        icon = Icons.Filled.Menu,
                         selected = additionalItems.any { currentDestination == it.destination },
                         onClick = { additionalMenuExpanded = true },
-                        icon = { Icon(imageVector = Icons.Filled.Menu, contentDescription = "Mais") },
-                        label = { Text("Mais") },
-                        colors = navigationItemColors,
-                    )
-                    DropdownMenu(
-                        expanded = additionalMenuExpanded,
-                        onDismissRequest = { additionalMenuExpanded = false },
-                        modifier = Modifier.align(Alignment.TopEnd),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        tonalElevation = 3.dp,
-                    ) {
-                        additionalItems.forEach { item ->
-                            DropdownMenuItem(
-                                modifier = Modifier.heightIn(min = 48.dp),
-                                text = { Text(item.label) },
-                                onClick = {
-                                    additionalMenuExpanded = false
-                                    requestNavigation(item.destination)
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        },
-    ) { innerPadding ->
-        ChampionNavDisplay(
-            currentDestination = currentDestination ?: AppDestination.Home,
-            contentPadding = innerPadding,
-            onBackRequested = ::requestBackNavigation,
-            onNavigateTo = ::requestNavigation,
-            exercisesViewModel = exercisesViewModel,
-            exercisesState = exercisesState,
-            evolutionViewModel = evolutionViewModel,
-            settingsViewModel = settingsViewModel,
-            profileViewModel = profileViewModel,
-            animationDirection = animationDirection,
-            backLabel = contextualBackLabel,
-            onOpenDebugPoc = onOpenDebugPoc,
-        )
+                    ),
+                    moreItems = additionalItems.map { item ->
+                        ChampionNavigationMenuItem(
+                            key = item.destination.route,
+                            label = item.label,
+                            onClick = { requestNavigation(item.destination) },
+                        )
+                    },
+                    moreMenuExpanded = additionalMenuExpanded,
+                    onMoreDismissRequest = { additionalMenuExpanded = false },
+                )
+            },
+        ) { innerPadding ->
+            ChampionNavDisplay(
+                currentDestination = currentDestination ?: AppDestination.Home,
+                contentPadding = innerPadding,
+                onBackRequested = ::requestBackNavigation,
+                onNavigateTo = ::requestNavigation,
+                exercisesViewModel = exercisesViewModel,
+                exercisesState = exercisesState,
+                evolutionViewModel = evolutionViewModel,
+                settingsViewModel = settingsViewModel,
+                profileViewModel = profileViewModel,
+                animationDirection = animationDirection,
+                backLabel = contextualBackLabel,
+                onOpenDebugPoc = onOpenDebugPoc,
+            )
+        }
     }
 }
 
@@ -531,6 +464,8 @@ private fun ChampionNavDisplay(
     backLabel: String,
     onOpenDebugPoc: (() -> Unit)?,
 ) {
+    val visualTokens = LocalChampionVisualTokens.current
+
     // Navigate to ActiveWorkout when a workout session is started
     LaunchedEffect(Unit) {
         exercisesViewModel.workoutStarted.collect { sessionId ->
@@ -545,7 +480,9 @@ private fun ChampionNavDisplay(
 
     AnimatedContent(
         targetState = currentDestination,
-        transitionSpec = { animationDirection.contentTransform() },
+        transitionSpec = {
+            animationDirection.contentTransform(visualTokens.navigationTransitionDurationMillis)
+        },
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
@@ -752,8 +689,7 @@ private enum class NavigationAnimationDirection {
     Backward,
 }
 
-private fun NavigationAnimationDirection.contentTransform(): ContentTransform {
-    val durationMillis = 260
+private fun NavigationAnimationDirection.contentTransform(durationMillis: Int): ContentTransform {
     return when (this) {
         NavigationAnimationDirection.Forward -> {
             slideInHorizontally(
