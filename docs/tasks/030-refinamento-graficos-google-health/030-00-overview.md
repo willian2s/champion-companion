@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [030-refinamento-graficos-google-health.md](../../specs/030-refinamento-graficos-google-health.md)
-- **Progresso:** 0/6 subtarefas concluídas
+- **Progresso:** 1/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ Champion atual, não portar funcionalidades inexistentes.
 
 ## Checklist
 
-- [ ] [030-01-auditar-e-benchmark-visual-integral-google-health.md](030-01-auditar-e-benchmark-visual-integral-google-health.md)
+- [x] [030-01-auditar-e-benchmark-visual-integral-google-health.md](030-01-auditar-e-benchmark-visual-integral-google-health.md)
 - [ ] [030-02-definir-fundacao-visual-e-shell.md](030-02-definir-fundacao-visual-e-shell.md)
 - [ ] [030-03-refinar-home-e-saude.md](030-03-refinar-home-e-saude.md)
 - [ ] [030-04-refinar-calendario-e-exercicios.md](030-04-refinar-calendario-e-exercicios.md)
@@ -36,6 +36,8 @@ Champion atual, não portar funcionalidades inexistentes.
   ficam ocultas ou desabilitadas e não geram query nova.
 - O plano foi ampliado de gráficos para revisão visual integral de todas as
   superfícies produtivas atuais.
-- `030-01` foi reaberta: a auditoria anterior cobria apenas gráficos e não
-  satisfaz o novo inventário visual integral.
-- A próxima execução deve permanecer em `030-01`; não avançar automaticamente.
+- `030-01` foi concluída após conferência da matriz gráfica preservada e da nova
+  matriz objetiva por destino/subsuperfície contra o código atual.
+- Divergências visuais e validações físicas não exercitadas permanecem
+  registradas em `030-01`; não são requisitos funcionais. A próxima subtarefa
+  elegível é `030-02`.

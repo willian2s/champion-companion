@@ -2,7 +2,7 @@
 
 - **Ticker:** `030`
 - **Número:** `01`
-- **Status:** `in_progress`
+- **Status:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -99,30 +99,65 @@ query nova.
   e resumos sob a série) pode ser reproduzido fielmente na composição. Dados e
   contratos do Champion continuam limitadores semânticos, sem fabricar dados.
 
-## Matriz visual integral por superfície
+## Matriz objetiva de inventário por destino e subsuperfície
 
-Esta matriz complementa a matriz gráfica acima. “Cobrir” significa revisar
-apresentação e comportamento dos elementos já existentes, não criar uma
-funcionalidade equivalente do Google Health.
+Esta matriz complementa a matriz gráfica preservada acima. A conferência foi
+feita contra `AppDestination` e o `when` exaustivo de `ChampionNavDisplay` em
+`ChampionNavigation.kt`, depois contra composição, callbacks, contratos de UI e
+estados de cada superfície. “Gap” registra diferença ou limitação observada;
+não é requisito funcional e não autoriza criar dado, período, destino ou fluxo.
 
-| Superfície | Composição e referência | Gaps a verificar | Estados e fluxos | Acessibilidade e adaptação | Fonte e limitações |
-|---|---|---|---|---|---|
-| Shell transversal | navegação inferior, menu Mais, cabeçalhos, transições, cards, botões, chips, banners e diálogos; referência de navegação e hierarquia Fitbit | consistência entre destinos, densidade, espaçamento e contraste | seleção, retorno, confirmação e rolagem | foco, ordem de leitura, fonte ampliada, portrait/landscape e claro/escuro | `ChampionNavigation` e design system; referência pública não define contrato de navegação |
-| Home | overview diário, resumo dominante, passos/meta, métricas secundárias, pendências e refresh | hierarquia do resumo, cards compactos, texto auxiliar e feedback secundário | loading, vazio, pré-requisito, erro, retry e Health Connect | resumo acessível, conteúdo longo, temas e orientação | `HomeScreen`; dados locais e limites do resumo impedem paridade de dados |
-| Saúde | hub de métricas e detalhes de BPM, peso, passos e distância; detalhe de Peso observado | consistência de cards, cabeçalho, valor, origem, unidade, listas e gráficos | medição manual, D1, edição, paginação, vazio e falha | ações acessíveis, foco, fonte ampliada, rolagem e lacunas | `feature/health`; referência instalada observou overview/Peso, demais padrões ficam `N/A` |
-| Calendário | mês, navegação, grade, indicadores, legenda, panorama e detalhe diário | densidade da grade, hierarquia, indicadores por forma/cor e links | seleção, mês vazio, erro e links contextuais | leitura de indicadores sem depender de cor, fonte e orientação | `feature/calendar`; preservar read model e refinamento prévio da Spec 017 |
-| Exercícios | importação, filtros, lista, detalhe, revisão, calibração, intervalos, sync e gráficos | hierarquia watch-first, densidade da lista, ações e estados de workflow | progresso, cancelamento, retry, descarte, confirmação e falha parcial | ações destrutivas, foco, fonte, rolagem e temas | `feature/exercises`; sem phone/GPS/rota e sem promoção da PoC debug |
-| Evolução | filtro, resumo, tendências, comparação, recordes e links | relação entre período, filtro, resumo e série; redundância textual | loading, vazio, failed, `GAP`, `ABSENT` e `NOT_APPLICABLE` | comparação textual, fonte ampliada, orientação e contraste | `feature/evolution`/Spec 029; não ampliar read model ou criar ano |
-| Dispositivo | pré-requisitos, associação, busca, conexão, manutenção e diagnóstico | próxima ação, prioridade de estados, cards e feedback de erro | Bluetooth/permissão, busca, retry, conexão e exportação | foco, mensagens longas, fonte e orientação | `feature/device`; não alterar BLE, permissões ou payloads |
-| Perfil | altura, meta, passo, calibração, perfis e histórico | distinção entre valor atual, sugestão, perfil aprendido e correção | edição, correção, remoção, diálogos e estados vazios | labels de unidade, foco, fonte e conteúdo longo | `feature/profile`; preservar DataStore, snapshots e perfis independentes |
-| Configurações | disponibilidade, permissão, toggle, fila e ações Health Connect | distinguir estado local, permissão e ação foreground | indisponível, acesso, sincronização explícita e falha | status acessível, foco, fonte e temas | `feature/settings`; Health Connect write-only, local-first e foreground |
-| PoC GPS/mapa | não é superfície produtiva | não auditar nesta spec | somente debug | `N/A` | fora desta revisão; não promover a fluxo de produto |
+| Destino/subsuperfície concreta | Composição, componentes e arquivos | Controles e ações | Estados e fluxos | Limites e semântica | Acessibilidade e adaptação | Fonte e limitação |
+|---|---|---|---|---|---|---|
+| **Shell — `AppDestination`/`ChampionNavigation`** | `AppDestination.kt` declara `Home`, `Health`, `HealthHeartRate`, `HealthWeight`, `HealthSteps`, `HealthDistance`, `Calendar`, `CalendarDay`, `Exercises`, `Evolution`, `ExerciseDetail`, `WorkoutTypeSelection`, `WorkoutPreparation`, `ActiveWorkout`, `WorkoutRecovery`, `Device`, `Profile` e `Settings`. `ChampionNavigation.kt` compõe `Scaffold`, `NavigationBar`, `DropdownMenu`, `AnimatedContent`, `AlertDialog` e encaminha cada destino para a tela correspondente. | Barra inferior: `Início`, `Saúde`, `Calendário`, `Exercícios`; `Mais`: `Dispositivo`, `Perfil`, `Configurações`; retorno por back stack/manual e botões contextuais; confirmação de saída para medição/importação e alterações não salvas. | Top-level preserva back stack manual; subárvores de Saúde, Calendário e Exercícios são removidas/repostas conforme destino. Transição slide/fade de 260 ms. Preparação/atividade phone são redirecionadas ou exibem shell descontinuado por `PhoneWorkoutPolicy`; recuperação permanece segura. | Não há `NavHost`/`NavController`; rotas são identificadores e `CalendarDay` aceita data inválida como estado seguro. Destinos phone históricos não reativam treino phone. Nenhuma PoC GPS/mapa é inventariada. | Ícones têm `contentDescription`; itens de navegação e menu usam rótulos; diálogos têm ações nomeadas. **N/A**: foco real, fonte ampliada, portrait/landscape e claro/escuro não foram exercitados fisicamente. | `AppDestination.kt`, `ChampionNavigation.kt`, `ChampionTheme.kt`, componentes em `core/designsystem/*`. Referência Google Health/Fitbit informa hierarquia visual, não contrato de navegação do Champion. |
+| **Shell — tokens, cards, estados e gráficos compartilhados** | `ChampionTokens.kt` (espaçamento/formas/tipografia), `ChampionDisplayComponents.kt` (`HealthCard`, `MetricCard`, `HealthChart` legado), `ChampionActionAndStatusComponents.kt` (ações/status), `ChampionFeedbackComponents.kt` (vazio/erro/loading/banners), `ChampionCharts.kt`, `ChampionChartTheme.kt` e `ChampionChartContracts.kt`. | Slots de status, ações primárias, retry/dismiss, seleção de ponto mais próximo e scroll/zoom opt-in no contrato gráfico. | `LoadingState`, `EmptyState`, `ErrorState`, banners de permissão/revisão/calibração e badges distinguem estados visuais sem mudar domínio. Renderer omite `y == null`. | Boundary produtiva de séries é `core/designsystem/chart`; features não devem importar Vico nem criar Canvas de série. `HealthChart` é legado de preview/testes, sem consumidor produtivo confirmado. | Cards e gráficos expõem descrições semânticas em vários pontos; cobertura não é uniforme entre componentes. **N/A**: comportamento com fonte ampliada, orientação e contraste físico. | Código próprio Material 3/Vico e padrões observados; nenhum ativo, APK, dado ou credencial de referência foi copiado. |
+| **Home — overview diário** | `HomeScreen.kt` (`HomeTopBar`, `HomeSummaryContent`, `HomeLatestHeartRateCard`, `HomeMetricCard`, `HomeRefreshStatus`, `HomeRefreshHint`, pendências) e `HomeFeatureContract.kt`; `HomeViewModel.kt` fornece `HomeUiState`. | Pull-to-refresh, ação de acessibilidade “Atualizar dados do relógio”, `Atualizar agora`, abrir Dispositivo, Perfil, Saúde/Frequência cardíaca e Exercícios. | `Loading`, `Empty`, `Ready`, `RefreshFailed`, `DeviceRequired`, `PermissionsRequired`, `BluetoothDisabled`; refresh tem `Preparing`, `Connecting`, `WaitingForSteps`, `Persisting`; feedback Health Connect é secundário. | Resumo local diário: passos/meta, distância e calorias podem estar indisponíveis; ausência não vira zero. Pendências priorizam calibração e navegam para Exercícios. | Resumo dominante e cards têm `contentDescription`; refresh usa live region/custom action; rolagem vertical. **N/A**: fonte ampliada, portrait/landscape e temas exercitados fisicamente. | Código atual de `feature/home`; padrão de overview/card compacto observado no Fitbit. Não há paridade de dados ou consulta nova. |
+| **Saúde — hub** | `HealthScreen.kt` (`HealthHubHeader`, `HealthMetricSummaryCard`) e `HealthFeatureContract.kt`; quatro cards para frequência cardíaca, peso, passos e distância. | Toque em cada card para `HealthHeartRate`, `HealthWeight`, `HealthSteps` ou `HealthDistance`; carregamento inicial via `HealthIntent.Load`. | Valores disponíveis, sem dados, carregando e indisponível são apresentados por métrica; origem, unidade e atualização acompanham o valor. | Hub mostra apenas dados locais atuais; distância é estimativa do resumo diário e depende de dados pessoais. Não há ação de medição no hub. | Cards são botões com descrição de título, valor, estado, apoio e destino. **N/A**: orientação, fonte ampliada, claro/escuro e estados físicos não exercitados. | `HealthScreen.kt`, `HealthFeatureContract.kt`; apenas overview/Peso do app instalado foram observados diretamente; demais padrões são comparação estrutural limitada. |
+| **Saúde — detalhe de frequência cardíaca** | `HealthMetricDetailScreens.kt` (`HeartRateDetailScreen`, `HeartRateDetailHeader`, `HeartRateOverviewCard`, `HeartRateSessionSurface`, `HeartRateD1ImportCard`, `HeartRateHistoryChartSection`, lista paginada) e `HealthFeatureContract.kt`; `HeartRateHistoryChart.kt`. | Medir, cancelar, retry/dismiss, pull-to-refresh/importação D1, seletor de histórico e paginação; diálogo confirma saída durante operação. | Medição: `Idle`, `Preparing`, `Connecting`, `Starting`, `Measuring`, `Stopping`, `Completed`, `Cancelled`, `Failed`. D1: `Idle`, `Preparing`, `Connecting`, `Reading`, `Persisting`, `Completed`, `CompletedWithGaps`, `Partial`, `Failed`, `Cancelled`. | Períodos efetivos `TODAY`, 7 e 30 dias; intradia usa amostras reais, 7/30 usam buckets diários; lacunas permanecem nulas. Medição manual dura 60 s; sem período de pesquisa no detalhe de treino. | Cabeçalho, progresso, live regions, resumo acessível e custom action de refresh. Paginação e rolagem vertical existentes. **N/A**: fonte ampliada/orientação/temas exercitados fisicamente. | `HealthMetricDetailScreens.kt`, `HeartRateHistoryChart.kt`, `HealthFeatureContract.kt`; referência direta do Fitbit observou seletor, marker e eixo discreto em Peso, não este fluxo inteiro. |
+| **Saúde — detalhe de peso** | `HealthMetricDetailScreens.kt` (`WeightDetailScreen`, `WeightDetailHeader`, `WeightEditor`, `WeightMessageCard`, `WeightHistoryList`) e `HealthFeatureContract.kt`. | `Registrar peso`, editar campo em kg, `Salvar medição`, `Cancelar`, fechar aviso e voltar. | Loading, valor válido, histórico indisponível, sem dados, editor aberto, salvo, valor inválido e falha ao salvar. | Entrada manual local em quilogramas; data/hora atual automática; histórico preserva origem e medições. Não há seletor de período ou gráfico produtivo confirmado. | Campo tem label/suffix e teclado decimal; mensagem usa live region; lista é rolável. **N/A**: teste físico de fonte ampliada, landscape, portrait, claro/escuro e conteúdo longo. | `HealthMetricDetailScreens.kt`, `HealthFeatureContract.kt`; detalhe de Peso foi observado no `com.fitbit.FitbitMobile`, mas valores/dados não foram preservados. |
+| **Saúde — detalhe de passos** | `StepsHistoryShell.kt` (`StepsDetailScreen`, resumo diário, `StepsHistoryShell`, resumo/lista) e `StepsHistoryChart.kt`; contratos `StepsHistoryFeatureContract.kt` e `HealthFeatureContract.kt`. | Seleção de período, retry, paginação da lista e retorno; progresso visual da meta diária. | Resumo presente/ausente; histórico loading, erro, parcial e disponível; lista vazia preserva ausência. | `LAST_7_DAYS`, `LAST_30_DAYS`, `LAST_90_DAYS`; uma entrada por dia; `steps == null` é lacuna e não zero. | Progresso tem `ProgressBarRangeInfo`; períodos têm seleção/descrição; gráfico possui resumo e lista acessível. **N/A**: fonte ampliada/orientação/tema não exercitados fisicamente. | `StepsHistoryShell.kt`, `StepsHistoryChart.kt`, `StepsHistoryFeatureContract.kt`; sem contrato intradia/anual e sem autorização para criá-los. |
+| **Saúde — detalhe de distância** | `DistanceHistoryShell.kt` (`DistanceDetailScreen`, resumo, `DistanceHistoryShell`, lista) e `DistanceHistoryChart.kt`; `DistanceHistoryFeatureContract.kt`. | Seleção de período, retry, paginação e retorno. | Resumo sem dados/estimativa, histórico loading, indisponível, parcial, estimativas disponíveis e lista vazia. | `LAST_7_DAYS`, `LAST_30_DAYS`, `LAST_90_DAYS`; distância é estimativa diária do resumo; `estimatedDistanceMeters == null` permanece sem estimativa e não vira zero. | Períodos informam janela, lista informa unidade/origem/atualização e gráfico tem resumo acessível. **N/A**: fonte ampliada, orientação, temas e rolagem física não exercitados. | `DistanceHistoryShell.kt`, `DistanceHistoryChart.kt`, `DistanceHistoryFeatureContract.kt`; não há fonte intradia/anual nem dado equivalente observado diretamente na referência. |
+| **Calendário — mês** | `CalendarScreen.kt` (`CalendarHeader`, `MonthHeader`, `MonthCalendar`, `CalendarDayCell`, marcadores e legenda) e `CalendarFeatureContract.kt`; `CalendarViewModel.kt`. | Mês anterior/próximo, `Hoje`, seleção de dia, `Abrir dia`, retry e rolagem da tela. | Loading, erro do mês, dados parciais, mês sem registros; célula distingue hoje/selecionada e presença de passos, BPM, atividade, pendência e falha. | Grade fixa de até 42 células, ordem semanal conforme locale, read model mensal local; indicadores usam forma e cor, com legenda. | Células expõem data, presença, seleção e estado; botões de mês têm descrições. **N/A**: fonte ampliada, portrait/landscape, temas e leitura física de indicadores não exercitados. | `CalendarScreen.kt`, `CalendarFeatureContract.kt`; preserva read model e refinamento da Spec 017. Google Health/Fitbit não define contrato de calendário do Champion. |
+| **Calendário — detalhe diário** | `CalendarDayScreen.kt` (`DayHeader`, `DayOverviewCard`, cards de Passos, Distância, Frequência cardíaca, Atividades, Peso, fila local e problemas de fontes). | Voltar ao calendário, retry de detalhe/fontes e links para quatro detalhes de Saúde e `ExerciseDetail` por atividade. | Data inválida, loading, erro, vazio, panorama completo/parcial, problemas de fontes e fila sem operações/pendente/sincronizando/sincronizada/falha/parcial. | Data ISO inválida é estado seguro; distância não soma atividades; fila é informativa e não inicia sync; estados de ausência, zero e falha permanecem distintos. | Cabeçalhos e cards têm descrições/heading; status usa `stateDescription` e live region; rolagem vertical. **N/A**: fonte ampliada, orientação, conteúdo longo e temas físicos. | `CalendarDayScreen.kt`, `CalendarFeatureContract.kt`, `AppDestination.kt`; dados locais e links existentes limitam paridade funcional. |
+| **Exercícios — overview e importação watch-first** | `ExercisesScreen.kt` (`ExercisesHeader`, `ExercisesEvolutionCard`, `ExercisesImportCard`, `ImportResultBanner`, `ImportErrorBanner`, `MetadataSection`) e `ExercisesFeatureContract.kt`; `ExercisesViewModel.kt`. CTA debug, quando fornecido, é excluído desta auditoria produtiva. | `Buscar treinos no relógio`, cancelar, retry, importar de novo, fechar/dispensar, abrir Evolução e abrir atividade. | Importação: `Idle`, `Preparing`, `Connecting`, `ReadingIndex`, `ReadingBlocks`, `Parsing`, `Persisting`, `Completed`, `Partial`, `Empty`, `Failed`, `Cancelled`; progresso, metadata, duplicados, inválidos, timeout e blocos preservados. | Importação somente por ação explícita, relógio associado obrigatório; watch-first, local-first, sem criar consulta, GPS ou treino phone. | Progresso e resultado têm live region/content description; ações nomeadas e rolagem. **N/A**: estados físicos completos, fonte ampliada, orientação e temas. | `ExercisesScreen.kt`, `ExercisesFeatureContract.kt`; referência só sustenta composição de overview/importação, não dados ou fluxo equivalente. |
+| **Exercícios — lista, filtros e paginação** | `ExercisesScreen.kt` (`WorkoutFiltersSection`, diálogo `Selecionar filtro`, `ExercisesListSection`, `WorkoutActivityCard`, `ExerciseSyncFeedbackCard`). | Trocar filtro, selecionar `Todas`, revisão, calibração, prontas, sincronizadas, erro ou descartadas; abrir card; `Anterior`/`Próxima`. | Lista vazia, filtros com contagens, paginação de 5 atividades, estados de workflow, indicação de reprocessamento e feedback Health Connect. | Filtros são locais: `ALL`, `PENDING_REVIEW`, `PENDING_CALIBRATION`, `READY_TO_SYNC`, `SYNCED`, `SYNC_FAILED`, `DISCARDED`; card não altera atividade ao ser aberto. | Cards têm ícone com descrição e estado textual; título da seção é levado à visualização após trocar página. **N/A**: fonte ampliada, orientação, conteúdo longo e temas físicos. | `ExercisesScreen.kt`, `ExercisesFeatureContract.kt`; densidade e hierarquia são auditadas contra padrão visual, sem exigir recurso inexistente. |
+| **Exercícios — detalhe, resumo, intervalos e três gráficos** | `ExercisesScreen.kt` (`ExerciseDetailShell`, `ActivityHeaderCard`, `ActivityStatusOriginSection`, `ActivityMetricsSection`, `ActivityCanonicalChartSection`, `ActivityCadenceChartSection`, `ActivityHeartRateChartSection`, `ActivityIntervalsSection`, `ActivitySplitsSection`) e `ChampionCharts.kt`/contratos gráficos. | Voltar, ver intervalos/splits, abrir ações de revisão/calibração/reprocessamento/aceite/sync/descarte/exclusão conforme estado; marker e scroll do gráfico. | Loading, not found, failed, ready; estados canônicos `NOT_APPLICABLE`, `MISSING_STEP_LENGTH`, `NOT_MATERIALIZED`, `SERIES_INELIGIBLE`, `PLAUSIBILITY_BLOCKED`, `SPLITS_NOT_MATERIALIZED`, `AVAILABLE`. | BPM usa amostras reais; distância canônica usa término de intervalos D4; cadência usa ponto médio de intervalos elegíveis; bike usa distância manual opcional e não passos; gaps não são interpolados. | Cabeçalho/sections usam heading; gráficos têm unidades, descrições, resumo acessível, marker e lista/intervalos textuais. **N/A**: drag/tooltip, fonte ampliada, orientação, rolagem física e claro/escuro não exercitados. | `ExercisesScreen.kt`, `ChampionCharts.kt`, `ChampionChartContracts.kt`; renderer único Vico encapsulado, sem inferir paridade de dados da referência. |
+| **Exercícios — revisão local** | `ExercisesScreen.kt` (`ReviewFormSection`, `WorkoutType` por radio, campos de distância/título/observações, checkbox de plausibilidade) e `ExercisesFeatureContract.kt`. | Escolher tipo, informar distância manual de bicicleta ou referência, editar título/notas, aceitar plausibilidade e concluir revisão. | `PENDING_REVIEW`, saving, erro de tipo/título/notas/distância, aceite de plausibilidade requerido/bloqueado; revisão pode encaminhar para calibração de esteira. | Alterações locais preservam identidade, fatos e snapshots; referência externa não é GPS; bicicleta não recebe métrica por passos. | Radio, checkbox e campos têm labels; erro fica textual; botão de ação usa loading/estado. **N/A**: teclado, fonte ampliada, landscape, conteúdo longo e temas fisicamente. | `ExercisesScreen.kt`, `ExercisesFeatureContract.kt`; contratos da Fase 14/16 limitam a semântica; gaps não viram novos campos/regras. |
+| **Exercícios — calibração** | `ExercisesScreen.kt` (`CalibrationFormSection`, `ReferenceDistanceCalibrationSection`, prévias e `CyclingCalibrationBlockedSection`), `ExercisesFeatureContract.kt`; `ProfileScreen.kt` referencia histórico/calibração. | Informar distância real/externa, ver prévias, aplicar calibração, abrir/corrigir/remover histórico no Perfil. | `PENDING_CALIBRATION`; saving, validação/falha, bicicleta bloqueada; calibração de referência elegível apenas para watch RUNNING/WALKING com série válida e passos elegíveis. | Distância de referência é entrada manual externa; atualiza atividade/perfil futuro localmente; não inicia sync automática, não reescreve snapshots históricos e não coleta GPS. | Campos têm unidade e mensagens; prévias e métricas são textuais. **N/A**: validação física da adaptação a fonte/orientação e conteúdo longo. | `ExercisesScreen.kt`, `ExercisesFeatureContract.kt`, `ProfileScreen.kt`; Spec 023/ADR-022 definem limites semânticos, referência visual não autoriza nova calibração. |
+| **Exercícios — sync e workflow** | `ExercisesScreen.kt` (`ReadOnlyWorkflowSection`, `ExerciseSyncFeedbackCard`, ações locais e diálogos) e `ExercisesFeatureContract.kt`; integração visual acionada pelo detalhe. | Confirmar plausibilidade, sincronizar, tentar novamente, descartar, excluir permanentemente, cancelar/confirmar ações. | `READY_TO_SYNC`, `SYNCING`, `SYNCED`, `SYNC_FAILED`, `DISCARDED`; estados de sync local e feedback Health Connect permanecem distintos. | Health Connect write-only, local-first e explícito; `SYNCED` significa escrita aceita localmente, não readback. Exclusão é irreversível e bloqueada quando há sync/sessão conforme contrato. | Diálogos explicam efeitos e ações destrutivas; loading desabilita ação. **N/A**: foco de diálogo, fonte ampliada, orientação e temas não exercitados fisicamente. | `ExercisesScreen.kt`, `ExercisesFeatureContract.kt`, ADRs de Health Connect; nenhuma confirmação remota é fabricada. |
+| **Exercícios — estados de workflow e fluxos de saída** | `ChampionNavigation.kt` concentra `hasBlockingExerciseOperation`, confirmação global e encaminhamento; `ExercisesScreen.kt` trata `detailState`, `importState`, `operationError`, `hasUnsavedDetailChanges`; `WorkoutShells.kt` trata shells históricos. | Back do sistema, botão de retorno, sair durante importação, descartar alterações, retry/dismiss e retorno após exclusão. | Operação de importação em andamento bloqueia saída sem confirmação; detalhe com alterações não salvas pede confirmação; `activityDeleted` retorna à lista; timeout/falha parcial preservam blocos seguros. | Fluxos não podem criar sessão phone, rota ou localização; `WorkoutTypeSelection`/preparação/atividade phone permanecem descontinuados ou redirecionados por política. PoC GPS fica fora. | Confirmações têm título, texto e ações distintas; estados são textuais. **N/A**: back físico, fonte ampliada, orientação e temas não exercitados. | `ChampionNavigation.kt`, `ExercisesScreen.kt`, `WorkoutShells.kt`, `PhoneWorkoutPolicy`; inventário cobre workflow produtivo sem reabrir direção phone. |
+| **Evolução** | `EvolutionScreen.kt` (`EvolutionHeader`, seletores de período/modalidade, resumo, tendências, comparação, recordes) e `EvolutionFeatureContract.kt`; gráficos usam `ChampionCharts.kt`. | Voltar para Exercícios, período, modalidade consolidada/por tipo, retry e abrir atividade por recorde. | Loading, empty, failed, ready; comparação loading/empty/failed; séries distinguem `PRESENT`, `GAP`, `ABSENT`, `NOT_APPLICABLE`; recordes têm loading/empty/failed/ready. | Períodos atuais 7/30/90 dias; comparação usa janela anterior igual; métricas seguem unidade e filtro existentes; sem ano/read model novo. `CYCLING` não usa passos. | Seletores têm selected/stateDescription; cards e gráficos têm descrições e resumo textual; rolagem vertical. **N/A**: fonte ampliada, orientação, temas e interação física não exercitados. | `EvolutionScreen.kt`, `EvolutionFeatureContract.kt`, `ChampionCharts.kt`; padrão de tendências da referência é visual, não fonte de dados. |
+| **Dispositivo** | `DeviceScreen.kt` (`DeviceManagementScreen`, `DeviceHeader`, estado atual, associado, busca, conexão, manutenção, diagnóstico e diálogos) e `DeviceManagementContract.kt`/`DeviceManagementUiState.kt`. | Buscar, cancelar busca, selecionar candidato, conectar/trocar, conectar associado, desconectar, esquecer, permissões, Bluetooth, diagnóstico e exportação sanitizada. | Loading, sem associado, permissões, Bluetooth desligado, pronto, scanning, resultados, conectando/preparando, conectado, desconectando, não encontrado, falha, esquecendo e erro. | BLE e permissões permanecem contrato; identificador exibido é seguro; exportação sanitizada não expõe payload. CTA da PoC debug não integra inventário produtivo desta subtarefa. | Candidatos têm role/descrição; feedback, loading e diálogos são textuais; mensagens longas rolam. **N/A**: teste físico de fonte/orientação/temas e leitor de tela. | `DeviceScreen.kt`, `DeviceManagementContract.kt`, `DeviceManagementUiState.kt`; fonte local BLE, sem alterar permissões/payloads e sem promover GPS/mapa. |
+| **Perfil** | `ProfileScreen.kt` (`ProfileHeader`, `PersonalMetricsEditorCard`, `StepLengthContextCard`, sugestão, perfis aprendidos, histórico/calibração, mensagens) e `ProfileFeatureContract.kt`; textos em `app/src/main/res/values/strings.xml`. | Editar altura/meta/comprimento do passo, salvar, aceitar sugestão com confirmação, abrir perfis aprendidos/histórico, corrigir/remover calibração, abrir atividade e fechar mensagens. | Loading, valores ausentes, sugestão disponível/aceita, saving, inválido/falha; perfis `Loading`, `Available`, `Unavailable`; histórico vazio e correção aberta. | Meta permanece DataStore; perfis RUNNING/WALKING independentes; calibração e snapshots históricos preservados; unidades m/cm/kg/passos. | Campos e ações têm labels/strings; diálogos têm confirmação; seções usam heading e conteúdo rola. **N/A**: fonte ampliada, orientação, teclado, conteúdo longo e temas não exercitados fisicamente. | `ProfileScreen.kt`, `ProfileFeatureContract.kt`, `strings.xml`, Spec 023/ADR-022; referência não fornece contrato de perfil do Champion. |
+| **Configurações** | `SettingsScreen.kt` (`SettingsHeaderCard`, `HealthConnectStatusCard`, `PermissionGroupsCard`, `SyncQueueCard`) e `SettingsFeatureContract.kt`. | Toggle, conectar/atualizar provider/conceder permissões, `Sincronizar agora`, `Gerenciar acesso`, fechar status; refresh no resume. | Disponível, atualização necessária, indisponível; sync ativa/pausada/em execução; permissões concedidas/pendentes; fila pendente/falha/sincronizando/sincronizada. | Health Connect write-only/local-first/foreground; `sincronizado` é escrita aceita sem readback; nenhuma leitura remota ou sync automático novo. | Switch tem descrição de estado; headings e status são textuais; ações ocupam largura e tela rola. **N/A**: fonte ampliada, orientação, temas e provider físico não exercitados. | `SettingsScreen.kt`, `SettingsFeatureContract.kt`; contratos Health Connect/ADR-018/019/021 limitam semântica, referência visual não autoriza nova capacidade. |
 
-### Limitação da referência
+### Conferência de completude e limitação da referência
 
-A inspeção real de 2026-08-31 observou overview e detalhe de Peso no pacote
-`com.fitbit.FitbitMobile`. As demais linhas serão comparadas às fontes públicas e
-ao padrão autorizado, declarando `N/A` quando não houver observação equivalente.
+- Todos os destinos produtivos de R4 aparecem nas linhas acima: shell; Home;
+  Saúde hub e quatro detalhes; Calendário e detalhe diário; Exercícios por
+  importação, lista, detalhe, revisão, calibração, sync e estados; Evolução;
+  Dispositivo; Perfil; Configurações.
+- A enumeração de `AppDestination` foi cruzada com o `when` de
+  `ChampionNavDisplay`: nenhum destino produtivo ficou sem consumidor. Os
+  destinos phone históricos foram registrados somente para confirmar a política
+  de descontinuação; não foram promovidos a requisito. A PoC GPS/mapa não foi
+  incluída na matriz, conforme R4.
+- Cada linha registra composição/arquivos, controles/ações, estados/fluxos,
+  limites/semântica, acessibilidade/adaptação e fonte/limitação. Validações
+  físicas não exercitadas estão marcadas como `N/A`; isso não converte gap em
+  requisito funcional.
+- Divergências concretas contra o padrão de referência foram confirmadas no
+  código atual: cabeçalhos usam `LightColorScheme` também em tema escuro;
+  períodos usam vocabulário local (`7D/30D/90D`, `Hoje/7 dias/30 dias` e
+  `7/30/90 dias`); renderer posiciona eixo Y à esquerda (`VerticalAxis.rememberStart`)
+  enquanto a referência observada usa eixo Y discreto à direita; alturas não
+  uniformes são `190dp` (passos/distância), `192dp` mínimo do frame compartilhado
+  e `210dp` (BPM, Evolução e gráficos de treino); acessibilidade é desigual
+  entre superfícies; adaptação a fonte ampliada e orientação não foi exercitada.
+- A inspeção direta de 2026-08-31 observou somente overview e detalhe de Peso do
+  pacote `com.fitbit.FitbitMobile`; páginas públicas e padrão autorizado foram
+  usados para as demais comparações. Nenhum screenshot, dump, valor, dado
+  pessoal, identificador, credencial, APK ou ativo foi versionado.
 
 ## Passos de implementação
 
@@ -163,99 +198,101 @@ consumidores e privacidade da evidência.
 
 ### Status
 
-`in_progress`; subtarefa reaberta após revisão do plano. A auditoria anterior
-cobria somente gráficos e não satisfaz o novo inventário visual integral.
+`completed`; matriz gráfica preservada e matriz integral conferida contra o
+código atual, contratos de apresentação e observação sanitizada da referência.
 
 ### Arquivos alterados
 
-- `AGENTS.md`;
-- `docs/baseline/current-baseline.md`;
-- `docs/specs/030-refinamento-graficos-google-health.md`;
-- `docs/tasks/030-refinamento-graficos-google-health/030-00-overview.md`;
-- `docs/tasks/030-refinamento-graficos-google-health/030-02-definir-fundacao-visual-e-shell.md`;
-- `docs/tasks/030-refinamento-graficos-google-health/030-03-refinar-home-e-saude.md`;
-- `docs/tasks/030-refinamento-graficos-google-health/030-04-refinar-calendario-e-exercicios.md`;
-- `docs/tasks/030-refinamento-graficos-google-health/030-05-refinar-evolucao-dispositivo-perfil-e-configuracoes.md`;
-- `docs/tasks/030-refinamento-graficos-google-health/030-06-validar-e-fechar-refinamento-visual.md`;
-- este arquivo.
+- `docs/tasks/030-refinamento-graficos-google-health/030-01-auditar-e-benchmark-visual-integral-google-health.md`;
+- `docs/tasks/030-refinamento-graficos-google-health/030-00-overview.md`.
+
+Nenhum arquivo de código de produção, contrato, spec ou teste foi alterado.
 
 ### Decisões e desvios
 
-- Consumidores produtivos confirmados: passos, distância e frequência cardíaca
-  em Saúde; BPM, distância canônica e cadência D4 em Exercícios; tendências em
-  Evolução. Todos passam por `core/designsystem/chart`.
-- A matriz gráfica existente foi preservada como submatriz, e uma matriz visual
-  integral foi adicionada para cobrir shell e todas as superfícies produtivas.
-- `030-01` volta a `in_progress`; o progresso do overview volta a `0/6` até a
-  nova auditoria ser concluída.
+- A auditoria anterior foi escalada porque cobria somente consumidores gráficos;
+  não havia inventário comprovável por destino e subsuperfície de R4. Causa foi
+  confirmada no diff/registro anterior e corrigida somente documentalmente.
+- Consumidores gráficos produtivos permanecem passos, distância e frequência
+  cardíaca em Saúde; BPM, distância canônica e cadência D4 em Exercícios; e
+  tendências em Evolução. Todos passam por `core/designsystem/chart`.
+- A matriz gráfica anterior foi preservada integralmente como submatriz. A nova
+  matriz cruza `AppDestination`, `ChampionNavigation` e cada subsuperfície R4,
+  sem transformar gaps em requisitos funcionais.
 - `HealthChart` em `ChampionDisplayComponents.kt` continua legado de
   preview/testes, sem consumidor produtivo confirmado; remoção fica para
   `030-06` somente após comprovação.
-- App instalado foi confirmado no pacote `com.fitbit.FitbitMobile` e aberto no
-  Galaxy S22 autorizado. A inspeção visual temporária mostrou overview com
-  resumo dominante, cards compactos de métricas e detalhe de Peso com seletor
-  `D`/`S`/`M`/`3M`/`A`, navegação temporal, valor destacado, marker vertical,
-  eixo Y discreto à direita e resumos agrupados abaixo do gráfico.
-- O padrão adotado para a task é esse seletor abreviado, mantendo descrição
-  acessível completa. Opções sem suporte ficam ocultas ou desabilitadas e não
-  geram query nova; `A` não é criado por ausência de fonte real.
-- A captura temporária continha dados pessoais, não foi versionada nem usada
-  como evidência; foi removida após inspeção. Nenhuma ação de gravação, sync ou
-  medição foi disparada.
-- As fontes públicas consultadas não definem contrato universal de períodos;
-  a observação do app instalado foi usada para confirmar a referência visual e
-  não para autorizar novas consultas.
-- A governança da Spec 030 foi ampliada de gráficos para fidelidade visual
-  integral, mantendo limites técnicos, legais e semânticos próprios.
+- Benchmark visual permanece sanitizado: overview e detalhe de Peso do
+  `com.fitbit.FitbitMobile` foram observados no Galaxy S22 autorizado; páginas
+  públicas sustentaram os padrões gerais das demais linhas. Nenhuma captura
+  contendo dados pessoais foi versionada.
+- Seletor de referência permanece `D`/`S`/`M`/`3M`/`A`, com descrição acessível
+  completa. Períodos não suportados ficam ocultos/desabilitados e não geram
+  query; `A` não é criado sem fonte real.
+- Divergências são achados para subtarefas posteriores, não aceite de nova
+  funcionalidade: cabeçalhos usam `LightColorScheme` no tema escuro;
+  vocabulário local de períodos; eixo Y esquerdo versus referência direita;
+  alturas `190/192/210dp`; acessibilidade desigual; fonte ampliada e orientação
+  não exercitadas.
 
 ### Comandos e consultas executados
 
 | Comando/verificação | Resultado |
 |---|---|
-| `adb devices -l` | Passou; Galaxy S22 autorizado e operacional |
-| `adb shell pm path com.fitbit.FitbitMobile` | Passou; pacote e splits instalados |
-| `adb shell monkey -p com.fitbit.FitbitMobile 1` | Passou; Google Health aberto sem ação de escrita |
-| `adb exec-out screencap -p` temporário | Passou; inspeção visual local, sem versionamento |
-| `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` | Passou; app do projeto restaurado em primeiro plano |
-| `https://healthapp.google/` | Consultado; hierarquia e proposta de visão holística confirmadas |
-| Google Play `com.fitbit.FitbitMobile` | Consultado; screenshots públicas e descrição de padrões consultadas |
-| `git diff --check` | Passou; nenhuma falha de whitespace nas alterações rastreadas |
+| `git status --short` | Passou antes da edição; repositório sem alterações prévias. Após a edição, somente os dois documentos desta subtarefa ficaram alterados. |
+| inspeção de `AppDestination.kt` + `ChampionNavigation.kt` | Passou; destinos e consumidores foram cruzados, incluindo top-level, subárvores e fluxo de retorno. |
+| inspeção dos contratos e telas de `feature/home`, `health`, `calendar`, `exercises`, `evolution`, `device`, `profile` e `settings` | Passou; matriz contém composição, ações, estados, limites, semântica, acessibilidade/adaptação e fonte/limitação por linha. |
+| inspeção de `core/designsystem/*` e `core/designsystem/chart/*` | Passou; tokens, estados, boundary de renderer, alturas e eixo foram registrados. |
+| `https://healthapp.google/` | Consultado; hierarquia e proposta de visão holística confirmadas. |
+| Google Play `com.fitbit.FitbitMobile` | Consultado; screenshots públicas e descrição de padrões consultadas. |
+| `adb devices -l` | Passou; Galaxy S22 autorizado e operacional. |
+| `adb shell pm path com.fitbit.FitbitMobile` | Passou; pacote e splits instalados. |
+| `adb shell monkey -p com.fitbit.FitbitMobile 1` | Passou; Google Health aberto sem ação de escrita. |
+| `adb exec-out screencap -p` temporário | Passou; inspeção visual local, sem versionamento. |
+| `adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsulting.championcompanion.MainActivity` | Passou; app do projeto restaurado em primeiro plano. |
+| `git diff --check` | Passou após a edição; nenhuma falha de whitespace. |
 
 Não foram criados, alterados ou executados testes automatizados.
 
 ### Resultado e evidências
 
-- Auditoria anterior encontrou cinco famílias produtivas de gráficos, incluindo
-  Evolução, e uma implementação Canvas legada sem consumidor produtivo.
-- A nova auditoria identificou shell, Home, Saúde, Calendário, Exercícios,
-  Evolução, Dispositivo, Perfil e Configurações como superfícies produtivas a
-  incluir antes do aceite.
-- Problemas confirmados para a próxima subtarefa: alturas fixas de 190/210 dp,
-  limiares de scroll diferentes, labels locais concorrentes e seleção que não
-  alimenta resumo contextual.
-- Benchmark sanitizado foi somente inspeção efêmera do aparelho; nenhum PNG foi
-  mantido no repositório.
-- A documentação atualizada registra replicação visual fiel, períodos `D`/`S`/`M`/`3M`/`A`
-  e limites técnicos/legais sem alterar produção ou status da subtarefa.
+- Matriz integral conferida: 21 linhas objetivas cobrem shell compartilhado,
+  todos os destinos produtivos de R4, Saúde hub + quatro detalhes, Calendário +
+  detalhe diário e as sete subsuperfícies exigidas de Exercícios.
+- Composição e arquivos, controles/ações, estados/fluxos, limites/semântica,
+  acessibilidade/adaptação e fonte/limitação estão preenchidos em todas as
+  linhas. A matriz gráfica mantém períodos, granularidade, gaps, interação e
+  fonte/limitação de cada consumidor.
+- Divergências concretas foram registradas contra código atual: `LightColorScheme`
+  nos cabeçalhos em tema escuro, períodos locais, eixo Y esquerdo, alturas
+  `190/192/210dp`, acessibilidade desigual e adaptação de fonte/orientação não
+  exercitada.
+- Nenhum código de produção foi editado. Nenhum teste foi criado ou executado.
+- Nenhum screenshot, dump, valor, identificador pessoal, credencial, APK ou
+  ativo do app de referência foi versionado.
 
 ### Reexecução e aceite
 
-- Matriz gráfica anterior foi conferida contra contratos e consumidores atuais;
-  matriz visual integral ainda aguarda conferência final.
-- Confirmados: passos/distância em 7/30/90 dias; frequência cardíaca em
-  `TODAY`/7/30; Evolução em 7/30/90; treino sem seletor de pesquisa.
-- Divergências visuais permanecem para `030-02` em diante: shell, cards,
-  estados, vocabulário de períodos, alturas fixas, texto auxiliar, resumo
-  contextual e limiares de scroll.
-- `030-02` não deve criar enum, query, read model ou período anual.
-- Status permanece `in_progress` até matriz visual integral ser conferida.
+- Matriz gráfica conferida contra contratos e consumidores atuais.
+- Matriz integral conferida contra `AppDestination`, `ChampionNavDisplay`, telas,
+  contratos e design system atuais.
+- Critérios atendidos: superfícies R4 listadas; composição visual integral
+  descrita; períodos existentes comparados; gaps, estados e limites semânticos
+  preservados; benchmark sanitizado; validações físicas não exercitadas marcadas
+  como `N/A`; nenhum teste automatizado executado.
+- Aceite documental concluído. Próxima subtarefa elegível é `030-02`; esta
+  execução não avançou para ela.
 
 ### Riscos residuais
 
-- Matriz completa de telas do Google Health não foi inferida de páginas públicas;
-  o benchmark será limitado aos padrões observáveis e às superfícies reais do
-  Champion.
-- Estados vazios, fonte ampliada, landscape e tema claro do app de referência
-  não foram exercitados nesta auditoria documental e permanecem `N/A`; a
-  validação física visual do Champion fica prevista em `030-02` e nas subtarefas
-  de código.
+- Matriz completa do Google Health/Fitbit não foi inferida de páginas públicas;
+  benchmark permanece limitado aos padrões observáveis e às superfícies reais
+  do Champion.
+- Acessibilidade física, fonte ampliada, portrait, landscape e temas não foram
+  exercitados nesta subtarefa documental e permanecem `N/A`; validação física
+  fica bloqueada até subtarefas de código e seus aparelhos disponíveis.
+- Divergências visuais permanecem para `030-02` em diante. Elas não bloqueiam o
+  aceite de `030-01`, mas bloqueiam alegação de refinamento visual concluído da
+  Spec 030 antes das subtarefas posteriores.
+- PoC GPS/mapa continua fora da auditoria produtiva e não pode ser promovida por
+  esta documentação.
