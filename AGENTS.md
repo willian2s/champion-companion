@@ -24,7 +24,7 @@
 - Navegação usa `androidx.navigation3` com back stack manual (`mutableStateListOf<AppDestination>`). Não procure `NavHost`/`NavController`.
 - Infra fica em `core/common`, `core/error`, `core/logging`, `core/navigation`, `core/preferences`, `core/database`.
 - Domínio e contratos ficam em `core/model`; implementação persistente fica em `data/` via `RoomRepositories` + `RepositoryModule`.
-- Features atuais: `feature/home`, `health`, `calendar`, `exercises`, `device`, `profile`, `settings`.
+- Features atuais: `feature/home`, `health`, `calendar`, `exercises`, `evolution`, `device`, `profile`, `settings`.
 
 ## Toolchain e comandos
 
@@ -76,6 +76,11 @@
 - MapLibre Compose é o renderizador experimental e OpenFreeMap é o mapa-base inicial da PoC. A decisão não implica disponibilidade, SLA ou escolha de produção; atribuição cartográfica permanece obrigatória e termos, disponibilidade e política do provedor devem ser revalidados antes da execução.
 - A escolha anterior de Mapbox foi abandonada antes da implementação por exigir configuração de billing/forma de pagamento incompatível com a premissa da PoC. Não introduzir conta, token, API key, credencial ou segredo de mapa.
 - A aprovação da PoC não autoriza feature de produção. Qualquer efetivação exige nova spec e nova decisão explícita.
+
+### Autorização específica da Spec 030
+
+- A Spec `030-refinamento-graficos-google-health.md` autoriza replicar fielmente a interface do Google Health/Fitbit, incluindo layout, geometria, espaçamento, navegação visual, controles de período, gráficos, cores e comportamento de apresentação, conforme aprovação do usuário.
+- Limites técnicos e legais: não copiar código-fonte ou APK, dados pessoais ou credenciais, nem reutilizar arquivos ou ativos extraídos do app de referência. Toda implementação deve usar código próprio no Champion Companion.
 
 ## Diretriz autoritativa após encerramento da Fase 013
 
