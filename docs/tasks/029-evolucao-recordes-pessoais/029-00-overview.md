@@ -1,8 +1,8 @@
 # 029 — Evolução esportiva e recordes pessoais
 
-- **Status geral:** `in_progress`
+- **Status geral:** `completed`
 - **Spec:** [029-evolucao-recordes-pessoais.md](../../specs/029-evolucao-recordes-pessoais.md)
-- **Progresso:** `9/10` subtarefas concluídas
+- **Progresso:** `10/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -34,7 +34,7 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 - [x] [`029-07-implementar-recordes-pessoais.md`](029-07-implementar-recordes-pessoais.md) — implementar read model e avaliador de recordes pessoais
 - [x] [`029-08-criar-tela-evolucao-recordes.md`](029-08-criar-tela-evolucao-recordes.md) — criar tela Evolução e superfície de recordes
 - [x] [`029-09-integrar-recorde-pos-save.md`](029-09-integrar-recorde-pos-save.md) — integrar detecção e destaque de recorde pós-save
-- [ ] [`029-10-validar-consolidar-fechar.md`](029-10-validar-consolidar-fechar.md) — validar, consolidar e fechar
+- [x] [`029-10-validar-consolidar-fechar.md`](029-10-validar-consolidar-fechar.md) — validar, consolidar e fechar
 
 ## Dependências
 
@@ -82,7 +82,7 @@ Decisões factuais da auditoria:
 - `AppDestination.Evolution` será subárvore de Exercícios, sem nova aba inferior;
 - nenhuma migration Room é necessária neste desenho.
 
-Próxima subtarefa elegível: `029-10`.
+Spec 029 concluída após validação técnica e smoke físico sanitizado.
 
 ## Observações
 
@@ -114,7 +114,21 @@ Próxima subtarefa elegível: `029-10`.
   explícito. A leitura anterior e a nova usam histórico persistido estrito; falhas
   de leitura, evaluator ou feedback não alteram o sucesso do save. Card agrupado,
   descartável e não modal aparece na lista e no detalhe, com ação opcional para
-  Evolução. Validação técnica passou; validação física permanece para `029-10`.
+  Evolução. Validação técnica passou. Smoke físico posterior confirmou conclusão
+  de revisão sem bloqueio e transição para `Pronta para sincronizar`. Nova
+  conquista observável foi confirmada com corrida de `20,00 km`; o banner foi
+  reposicionado automaticamente no topo. Re-save idempotente ficou `N/A` por
+  ausência de cenário específico preparado.
+- `029-10` consolidou fórmulas, elegibilidade, ausência de materialização Room,
+  isolamento de Vico e guards de escopo. Corrigiu falha no filtro `CYCLING`, que
+  calculava fatos de cadência D4 antes de aplicar a exclusão semântica da
+  bicicleta. Build e smoke após a correção passaram.
+- Smoke no `SM-S901E` confirmou Evolução com 7/30/90 dias, filtros Corrida e
+  Bicicleta, resumo, rolagem, lacunas e passos `Não aplicável` para bicicleta.
+  Novo recorde de distância foi confirmado e o feedback apareceu no topo sem
+  rolagem manual após a correção. Tema claro, fonte ampliada, re-save,
+  esteira, múltiplos recordes e abertura de recordista ficaram `N/A` nesta
+  sessão.
 
 ## Guard rails
 

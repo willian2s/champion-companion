@@ -2,7 +2,7 @@
 
 ## Status
 
-`in_progress`.
+`completed`.
 
 ## Ticker
 
@@ -279,12 +279,36 @@ Ficam fora:
 ## Plano de execução
 
 - `029-01` — auditar métricas, elegibilidade e pontos de persistência — `completed`;
-- `029-02` — criar contratos e read model de evolução;
-- `029-03` — implementar períodos e filtros por esporte;
-- `029-04` — implementar volume e consistência;
-- `029-05` — implementar tendências e fórmulas agregadas;
-- `029-06` — implementar comparação entre períodos;
-- `029-07` — implementar read model e avaliador de recordes pessoais;
-- `029-08` — criar tela Evolução e superfície de recordes;
-- `029-09` — integrar detecção e destaque de recorde pós-save;
-- `029-10` — validar, consolidar e fechar.
+- `029-02` — criar contratos e read model de evolução — `completed`;
+- `029-03` — implementar períodos e filtros por esporte — `completed`;
+- `029-04` — implementar volume e consistência — `completed`;
+- `029-05` — implementar tendências e fórmulas agregadas — `completed`;
+- `029-06` — implementar comparação entre períodos — `completed`;
+- `029-07` — implementar read model e avaliador de recordes pessoais — `completed`;
+- `029-08` — criar tela Evolução e superfície de recordes — `completed`;
+- `029-09` — integrar detecção e destaque de recorde pós-save — `completed`;
+- `029-10` — validar, consolidar e fechar — `completed`.
+
+## Fechamento factual
+
+- A evolução permanece read model derivado, sem entidade, DAO, migration ou
+  agregado materializado em Room.
+- Fórmulas finais usam somas protegidas para volume, ponderação por amostras
+  efetivas para BPM e razões agregadas para cadência, ritmo e velocidade; gaps,
+  ausência e inaplicabilidade permanecem distinguíveis.
+- Recordes usam métricas finais persistidas, segregação por modalidade e leitura
+  all-history; conquista continua evento efêmero pós-save, sem bloquear a
+  persistência.
+- Nenhuma feature importa Vico diretamente; gráficos passam pela abstração
+  `core/designsystem/chart`.
+- Nenhum fluxo phone, GPS, Health Connect read, nova granularidade D4 ou score
+  fisiológico foi introduzido.
+- Validação física sanitizada no `SM-S901E` confirmou navegação Exercícios →
+  Evolução, períodos 7/30/90, filtros Corrida/Bicicleta, resumo, rolagem,
+  lacunas, distância manual de bicicleta sem passos de performance e conclusão
+  de revisão pós-save sem bloqueio.
+- Novo recorde observável foi confirmado com corrida de `20,00 km`, diferença de
+  `10,00 km`, e banner pós-calibração automaticamente reposicionado no topo.
+  Re-save idempotente, múltiplos recordes, calibração de esteira, abertura de
+  recordista e tema claro/fonte ampliada ficaram `N/A` nesta sessão por ausência
+  de cenário específico preparado.

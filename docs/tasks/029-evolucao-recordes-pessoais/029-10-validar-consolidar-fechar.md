@@ -2,7 +2,7 @@
 
 - **Ticker:** `029`
 - **Número:** `10`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `029-09`
 
 ## Objetivo
@@ -20,7 +20,7 @@ Consolidar a Spec 029 após implementação completa, revisar fórmulas/eligibil
 - remover helpers/estado obsoleto introduzidos durante rollout, somente quando comprovadamente sem consumidor;
 - atualizar spec, overview e documentação factual final.
 
-## Checklist funcional
+## Pontos funcionais revisados
 
 Confirmar:
 
@@ -60,6 +60,69 @@ Não criar nem executar testes automatizados sem solicitação explícita.
 ## Validação física
 
 Executar smoke sanitizado da tela Evolução e do fluxo pós-save. Registrar somente os cenários efetivamente exercitados; fixture indisponível permanece `N/A`, nunca sucesso presumido.
+
+## Registro de execução
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/LocalEvolutionReadModel.kt`;
+- `docs/specs/029-evolucao-recordes-pessoais.md`;
+- `docs/tasks/029-evolucao-recordes-pessoais/029-00-overview.md`;
+- `docs/tasks/029-evolucao-recordes-pessoais/029-09-integrar-recorde-pos-save.md`;
+- este arquivo.
+
+### Decisões e desvios
+
+- O filtro `CYCLING` revelou que a projeção calculava fatos de cadência D4 e os
+  enviava ao contrato de bicicleta, que corretamente rejeita passos/cadência
+  nessa modalidade. O read model agora omite esses fatos antes de montar o
+  snapshot. Nenhuma outra regra foi refatorada.
+- Não foram removidos helpers ou estado: inspeção não encontrou consumidor
+  comprovadamente obsoleto.
+- Nenhuma entidade, DAO, migration, schema, dependência, teste automatizado ou
+  superfície fora do escopo foi alterada.
+- Após feedback físico de usabilidade, o banner de conquista passou a rolar
+  automaticamente para o topo quando emitido, preservando visibilidade após
+  save/calibração sem mudar contrato de persistência.
+
+### Comandos executados e resultados
+
+- `git diff --check` — passou antes e depois da correção;
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL` após a
+  correção;
+- `./gradlew installDebug` — `BUILD SUCCESSFUL`, instalado em `SM-S901E`;
+- `adb devices` — dispositivo `SM-S901E` disponível;
+- `adb shell uiautomator dump` — smoke sanitizado executado sem crash observado;
+- testes automatizados — não criados nem executados, conforme spec.
+
+### Evidências físicas
+
+- Exercícios → Evolução abriu no aparelho debug.
+- Períodos 7, 30 e 90 dias renderizaram; 7 dias mostrou 3 atividades e 8 km,
+  30 dias mostrou resumo consolidado e 90 dias mostrou séries com lacunas.
+- Filtro Corrida renderizou resumo; filtro Bicicleta renderizou 2 atividades,
+  3,5 km, 40 min 17 s e `Não aplicável` para passos, sem crash após a correção.
+- Rolagem expôs tendências, lacunas, ausência e inaplicabilidade sem fabricar
+  zero.
+- Uma atividade de corrida aguardando revisão foi aberta e salva; estado mudou
+  para `Pronta para sincronizar`, sem bloqueio de persistência.
+- Uma segunda atividade foi revisada como corrida, calibrada com distância
+  externa de `20,00 km` e produziu recorde de distância com diferença de
+  `10,00 km`; banner apareceu automaticamente no topo, sem swipe manual.
+- Re-save idempotente, múltiplos recordes, mudança de tipo, calibração de
+  esteira, distância manual de bicicleta no pós-save, abertura de atividade
+  recordista, tema claro e fonte ampliada: `N/A` nesta sessão.
+
+### Riscos residuais
+
+- Histórico all-history continua falhando fechado quando fatos locais inválidos
+  impedem mapeamento integral; comportamento é deliberado e já documentado em
+  `029-07`.
+- Cenários de conquista e idempotência dependem de fixtures controladas que não
+  foram preparados no aparelho; conquista de distância foi exercitada, mas
+  re-save idempotente não foi marcado como sucesso presumido.
+- Validação visual clara/fonte ampliada e tooltip permanece pendente de sessão
+  física específica.
 
 ## Fechamento
 

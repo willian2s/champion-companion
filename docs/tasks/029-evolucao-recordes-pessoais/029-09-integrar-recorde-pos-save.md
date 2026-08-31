@@ -98,10 +98,13 @@ Em aparelho, validar um novo recorde, um re-save sem alteração e, quando houve
   final após serialização das mutações).
 - **Resultados e evidências:** todos os comandos passaram com `BUILD SUCCESSFUL`.
   A compilação confirmou injeção de `EvolutionReadModel`/`StructuredLogger`, leitura
-  pontual e card pós-save nas variantes debug e release. Testes automatizados não
-  foram criados nem executados, conforme guard rail do projeto. Validação física e
-  fixture de recorde não estavam disponíveis nesta execução.
-- **Riscos residuais:** cenários de novo recorde, re-save idempotente, bicicleta,
-  esteira e falha de feedback ainda precisam de validação manual em aparelho com
-  dados sanitizados; ausência de testes automatizados permanece conforme política
-  do projeto.
+  pontual e card pós-save nas variantes debug e release. Smoke posterior no
+  `SM-S901E` abriu atividade em revisão pendente e concluiu revisão sem bloqueio;
+  a atividade passou para `Pronta para sincronizar`. Segundo cenário com
+  calibração de corrida confirmou alerta de novo recorde de `20,00 km`, com
+  banner visível automaticamente após reposicionamento para o topo. Testes
+  automatizados não foram criados nem executados, conforme guard rail do projeto.
+ - **Riscos residuais:** re-save idempotente, múltiplos recordes, bicicleta em
+  fluxo pós-save, esteira, mudança de tipo e falha de feedback permanecem `N/A`
+  por ausência de fixtures/cenários preparados; ausência de testes automatizados
+  permanece conforme política do projeto.

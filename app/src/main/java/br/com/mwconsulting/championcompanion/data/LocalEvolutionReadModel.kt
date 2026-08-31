@@ -193,11 +193,15 @@ private fun WorkoutActivity.toEvolutionActivitySnapshot(): EvolutionActivitySnap
         .map { it.bpm }
         .filter { it in 30..220 }
         .toList()
-    val cadenceFacts = canonicalSeries?.cumulativeMetrics?.let { cumulative ->
-        cumulative.cumulativeSteps.takeIf { it >= 0L }?.let { steps ->
-            steps to cumulative.coveredDuration.takeIf { it.isPositive() }
-        }
-    }?.takeIf { it.second != null }
+    val cadenceFacts = if (type == WorkoutType.CYCLING) {
+        null
+    } else {
+        canonicalSeries?.cumulativeMetrics?.let { cumulative ->
+            cumulative.cumulativeSteps.takeIf { it >= 0L }?.let { steps ->
+                steps to cumulative.coveredDuration.takeIf { it.isPositive() }
+            }
+        }?.takeIf { it.second != null }
+    }
     return EvolutionActivitySnapshot(
         activityId = id,
         workoutType = type,

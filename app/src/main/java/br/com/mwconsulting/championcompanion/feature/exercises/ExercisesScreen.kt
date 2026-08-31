@@ -151,6 +151,12 @@ fun ExercisesScreen(
     }
     val scrollState = rememberScrollState()
 
+    LaunchedEffect(state.personalRecordAchievements) {
+        if (state.personalRecordAchievements.isNotEmpty()) {
+            scrollState.animateScrollTo(0)
+        }
+    }
+
     LaunchedEffect(viewModel) {
         viewModel.onIntent(ExercisesIntent.Load)
     }
