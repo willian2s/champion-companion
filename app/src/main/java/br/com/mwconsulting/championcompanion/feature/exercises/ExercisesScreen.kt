@@ -96,6 +96,8 @@ import br.com.mwconsulting.championcompanion.core.model.CanonicalWorkoutSeries
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordAchievement
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordMetric
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
@@ -188,6 +190,16 @@ fun ExercisesScreen(
                 .padding(ChampionSpacing.extraLarge),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
+            if (state.personalRecordAchievements.isNotEmpty()) {
+                PersonalRecordAchievementBanner(
+                    achievements = state.personalRecordAchievements,
+                    onDismiss = { viewModel.onIntent(ExercisesIntent.DismissPersonalRecordAchievements) },
+                    onOpenEvolution = {
+                        viewModel.onIntent(ExercisesIntent.DismissPersonalRecordAchievements)
+                        onOpenEvolution()
+                    },
+                )
+            }
             if (openedActivityId == null) {
                 ExercisesHeader(state = state)
                 ExercisesEvolutionCard(onOpenEvolution = onOpenEvolution)
@@ -237,6 +249,59 @@ fun ExercisesScreen(
                     onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
                     onDeleteActivity = { viewModel.onIntent(ExercisesIntent.DeleteSelectedActivity) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonalRecordAchievementBanner(
+    achievements: List<PersonalRecordAchievement>,
+    onDismiss: () -> Unit,
+    onOpenEvolution: () -> Unit,
+) {
+    val achievementLines = achievements.map(PersonalRecordAchievement::toFeedbackLabel)
+    val accessibleMessage = achievementLines.joinToString(separator = ". ")
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Novo recorde pessoal. $accessibleMessage"
+                liveRegion = LiveRegionMode.Polite
+            },
+        shape = ChampionShapeLarge,
+        border = BorderStroke(1.dp, exerciseSecondaryAccent()),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Novo recorde pessoal",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Conquista registrada após salvar a atividade.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            achievementLines.forEach { line ->
+                Text(
+                    text = "• $line",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+                TextButton(onClick = onDismiss) {
+                    Text("Fechar")
+                }
+                TextButton(onClick = onOpenEvolution) {
+                    Text("Ver recordes")
+                }
             }
         }
     }
@@ -3221,6 +3286,30 @@ private fun WatchWorkoutImportStatus.toLabel(): String = when (this) {
 }
 
 private fun Boolean.toTimeoutLabel(): String = if (this) "Timeout" else "Sem timeout"
+
+private fun PersonalRecordAchievement.toFeedbackLabel(): String {
+    val differenceLabel = difference?.let {
+        " (diferença de ${record.metric.formatAchievementValue(it)})"
+    }.orEmpty()
+    return "${record.metric.toAchievementLabel()} · ${record.workoutType.toLabel()}: " +
+        record.metric.formatAchievementValue(record.value) + differenceLabel
+}
+
+private fun PersonalRecordMetric.toAchievementLabel(): String = when (this) {
+    PersonalRecordMetric.LONGEST_DISTANCE -> "Maior distância"
+    PersonalRecordMetric.LONGEST_DURATION -> "Maior duração"
+    PersonalRecordMetric.MOST_STEPS -> "Mais passos"
+}
+
+private fun PersonalRecordMetric.formatAchievementValue(value: Double): String = when (this) {
+    PersonalRecordMetric.LONGEST_DISTANCE ->
+        String.format(Locale.forLanguageTag("pt-BR"), "%.2f km", value / 1_000.0)
+
+    PersonalRecordMetric.LONGEST_DURATION ->
+        Duration.ofSeconds(value.roundToLong().coerceAtLeast(1L)).toCanonicalDurationLabel()
+
+    PersonalRecordMetric.MOST_STEPS -> "${numberLabel(value.roundToLong())} passos"
+}
 
 private fun WorkoutType.toLabel(): String = when (this) {
     WorkoutType.WALKING -> "Caminhada"

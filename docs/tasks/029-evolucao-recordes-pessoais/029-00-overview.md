@@ -2,7 +2,7 @@
 
 - **Status geral:** `in_progress`
 - **Spec:** [029-evolucao-recordes-pessoais.md](../../specs/029-evolucao-recordes-pessoais.md)
-- **Progresso:** `8/10` subtarefas concluídas
+- **Progresso:** `9/10` subtarefas concluídas
 
 ## Objetivo
 
@@ -25,16 +25,16 @@ Transformar o histórico local já existente em uma leitura clara de evolução 
 
 ## Checklist
 
-- [x] `029-01` — auditar métricas, elegibilidade e pontos de persistência
-- [x] `029-02` — criar contratos e read model de evolução
-- [x] `029-03` — implementar períodos e filtros por esporte
-- [x] `029-04` — implementar volume e consistência
-- [x] `029-05` — implementar tendências e fórmulas agregadas
-- [x] `029-06` — implementar comparação entre períodos
-- [x] `029-07` — implementar read model e avaliador de recordes pessoais
-- [x] `029-08` — criar tela Evolução e superfície de recordes
-- [ ] `029-09` — integrar detecção e destaque de recorde pós-save
-- [ ] `029-10` — validar, consolidar e fechar
+- [x] [`029-01-auditar-metricas-elegibilidade-persistencia.md`](029-01-auditar-metricas-elegibilidade-persistencia.md) — auditar métricas, elegibilidade e pontos de persistência
+- [x] [`029-02-criar-contratos-read-model-evolucao.md`](029-02-criar-contratos-read-model-evolucao.md) — criar contratos e read model de evolução
+- [x] [`029-03-implementar-periodos-filtros-esporte.md`](029-03-implementar-periodos-filtros-esporte.md) — implementar períodos e filtros por esporte
+- [x] [`029-04-implementar-volume-consistencia.md`](029-04-implementar-volume-consistencia.md) — implementar volume e consistência
+- [x] [`029-05-implementar-tendencias-formulas-agregadas.md`](029-05-implementar-tendencias-formulas-agregadas.md) — implementar tendências e fórmulas agregadas
+- [x] [`029-06-implementar-comparacao-periodos.md`](029-06-implementar-comparacao-periodos.md) — implementar comparação entre períodos
+- [x] [`029-07-implementar-recordes-pessoais.md`](029-07-implementar-recordes-pessoais.md) — implementar read model e avaliador de recordes pessoais
+- [x] [`029-08-criar-tela-evolucao-recordes.md`](029-08-criar-tela-evolucao-recordes.md) — criar tela Evolução e superfície de recordes
+- [x] [`029-09-integrar-recorde-pos-save.md`](029-09-integrar-recorde-pos-save.md) — integrar detecção e destaque de recorde pós-save
+- [ ] [`029-10-validar-consolidar-fechar.md`](029-10-validar-consolidar-fechar.md) — validar, consolidar e fechar
 
 ## Dependências
 
@@ -82,7 +82,7 @@ Decisões factuais da auditoria:
 - `AppDestination.Evolution` será subárvore de Exercícios, sem nova aba inferior;
 - nenhuma migration Room é necessária neste desenho.
 
-Próxima subtarefa elegível: `029-09`.
+Próxima subtarefa elegível: `029-10`.
 
 ## Observações
 
@@ -110,6 +110,11 @@ Próxima subtarefa elegível: `029-09`.
   Eixos dos gráficos preservam pontos e labels extremos por padding e rolagem
   horizontal quando densidade exigir. Header mantém tom compartilhado com
   Exercícios.
+- `029-09` integrou avaliação pós-save em revisão, calibração e reprocessamento
+  explícito. A leitura anterior e a nova usam histórico persistido estrito; falhas
+  de leitura, evaluator ou feedback não alteram o sucesso do save. Card agrupado,
+  descartável e não modal aparece na lista e no detalhe, com ação opcional para
+  Evolução. Validação técnica passou; validação física permanece para `029-10`.
 
 ## Guard rails
 

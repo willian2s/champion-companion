@@ -22,6 +22,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
@@ -70,46 +71,23 @@ class LocalEvolutionReadModel @Inject constructor(
         workoutActivityRepository.observeActivitiesStrict(
             filter = WorkoutActivityFilter.ALL,
         )
-            .map { result ->
-                when (result) {
-                    is RepositoryResult.Success -> try {
-                        result.value.toPersonalRecordsReadState()
-                    } catch (_: IllegalArgumentException) {
-                        PersonalRecordsReadState.Failed(
-                            reason = EvolutionReadFailure.INVALID_LOCAL_DATA,
-                            retryable = false,
-                        )
-                    }
-
-                    RepositoryResult.StorageUnavailable -> PersonalRecordsReadState.Failed(
-                        reason = EvolutionReadFailure.SOURCE_UNAVAILABLE,
-                        retryable = true,
-                    )
-
-                    RepositoryResult.Conflict,
-                    RepositoryResult.NotFound,
-                    RepositoryResult.UnexpectedState,
-                    -> PersonalRecordsReadState.Failed(
-                        reason = EvolutionReadFailure.INVALID_LOCAL_DATA,
-                        retryable = false,
-                    )
-                }
-            }
+            .map { result -> result.toPersonalRecordsReadState() }
             .onStart { emit(PersonalRecordsReadState.Loading) }
             .catch { error ->
                 if (error is CancellationException) throw error
-                val reason = if (error is IllegalArgumentException) {
-                    EvolutionReadFailure.INVALID_LOCAL_DATA
-                } else {
-                    EvolutionReadFailure.SOURCE_UNAVAILABLE
-                }
-                emit(
-                    PersonalRecordsReadState.Failed(
-                        reason = reason,
-                        retryable = reason == EvolutionReadFailure.SOURCE_UNAVAILABLE,
-                    ),
-                )
+                emit(error.toPersonalRecordsReadFailure())
             }
+
+    override suspend fun readPersonalRecordsSnapshot(): PersonalRecordsReadState = try {
+        workoutActivityRepository.observeActivitiesStrict(
+            filter = WorkoutActivityFilter.ALL,
+        )
+            .first()
+            .toPersonalRecordsReadState()
+    } catch (error: Throwable) {
+        if (error is CancellationException) throw error
+        error.toPersonalRecordsReadFailure()
+    }
 
     private fun List<WorkoutActivity>.toEvolutionReadState(query: EvolutionQuery): EvolutionReadState {
         val activities = selectEvolutionPopulation(query)
@@ -136,6 +114,30 @@ class LocalEvolutionReadModel @Inject constructor(
                 PersonalRecordsReadSnapshot(activities),
             )
         }
+    }
+
+    private fun RepositoryResult<List<WorkoutActivity>>.toPersonalRecordsReadState(): PersonalRecordsReadState = when (this) {
+        is RepositoryResult.Success -> try {
+            value.toPersonalRecordsReadState()
+        } catch (_: IllegalArgumentException) {
+            PersonalRecordsReadState.Failed(
+                reason = EvolutionReadFailure.INVALID_LOCAL_DATA,
+                retryable = false,
+            )
+        }
+
+        RepositoryResult.StorageUnavailable -> PersonalRecordsReadState.Failed(
+            reason = EvolutionReadFailure.SOURCE_UNAVAILABLE,
+            retryable = true,
+        )
+
+        RepositoryResult.Conflict,
+        RepositoryResult.NotFound,
+        RepositoryResult.UnexpectedState,
+        -> PersonalRecordsReadState.Failed(
+            reason = EvolutionReadFailure.INVALID_LOCAL_DATA,
+            retryable = false,
+        )
     }
 
     /**
@@ -291,6 +293,18 @@ private fun List<Int>.checkedBpmSampleSum(): Long {
         }
     }
     return total
+}
+
+private fun Throwable.toPersonalRecordsReadFailure(): PersonalRecordsReadState.Failed {
+    val reason = if (this is IllegalArgumentException) {
+        EvolutionReadFailure.INVALID_LOCAL_DATA
+    } else {
+        EvolutionReadFailure.SOURCE_UNAVAILABLE
+    }
+    return PersonalRecordsReadState.Failed(
+        reason = reason,
+        retryable = reason == EvolutionReadFailure.SOURCE_UNAVAILABLE,
+    )
 }
 
 private fun java.time.Instant.isIn(range: br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange): Boolean =

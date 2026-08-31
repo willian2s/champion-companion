@@ -14,6 +14,7 @@ enum class LogEvent(val value: String) {
     BleOperationResult("ble_operation_result"),
     GpsRuntimeState("workout_gps_state"),
     WorkoutPointFilterSummary("workout_point_filter_summary"),
+    PersonalRecordEvaluation("personal_record_evaluation"),
 }
 
 /** Debug logger restricted to a fixed, non-sensitive event schema. */
@@ -104,6 +105,12 @@ private fun LogEvent.approvedFields(): Set<String>? = when (this) {
         "category",
         "accepted_count",
         "rejected_count",
+    )
+
+    LogEvent.PersonalRecordEvaluation -> setOf(
+        "stage",
+        "result",
+        "achievement_count",
     )
 }
 

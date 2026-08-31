@@ -2,9 +2,10 @@ package br.com.mwconsulting.championcompanion.feature.exercises
 
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL
-import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordAchievement
+import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -32,6 +33,7 @@ data class ExercisesUiState(
     val calibrationFormState: ExerciseCalibrationFormState = ExerciseCalibrationFormState(),
     val referenceDistanceCalibrationAllowed: Boolean = false,
     val operationError: ExerciseOperationError? = null,
+    val personalRecordAchievements: List<PersonalRecordAchievement> = emptyList(),
     val isReprocessing: Boolean = false,
     val isAcceptingPlausibility: Boolean = false,
     val pendingActivities: List<WorkoutActivity> = emptyList(),
@@ -195,6 +197,7 @@ sealed interface ExercisesIntent {
     data object DeleteSelectedActivity : ExercisesIntent
     data object ConfirmExitDetail : ExercisesIntent
     data object DismissOperationError : ExercisesIntent
+    data object DismissPersonalRecordAchievements : ExercisesIntent
     data object StartImport : ExercisesIntent
     data object CancelImport : ExercisesIntent
     data object RetryImport : ExercisesIntent

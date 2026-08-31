@@ -2,7 +2,7 @@
 
 - **Ticker:** `029`
 - **Número:** `09`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depends on:** `029-08`
 
 ## Objetivo
@@ -71,3 +71,37 @@ git diff --check
 ```
 
 Em aparelho, validar um novo recorde, um re-save sem alteração e, quando houver fixture disponível, uma atividade que não supera o recorde atual. Registrar evidência sanitizada.
+
+## Registro de execução
+
+- **Status:** `completed`
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/EvolutionContracts.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/data/LocalEvolutionReadModel.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/logging/StructuredLogger.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt` e
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`.
+- **Decisões e desvios:** leitura pontual all-history foi adicionada ao contrato do
+  read model e usa snapshot persistido estrito após cada save; falha de leitura,
+  evaluator ou apresentação é suprimida e registrada somente em log debug-safe.
+  Revisão, calibração de corrida/caminhada, calibração de esteira e reprocessamento
+  explícito compartilham o fluxo anterior → mutação confirmada → leitura nova →
+  evaluator. As mutações avaliáveis são serializadas no ViewModel para manter a
+  baseline consistente. Conquistas ficam em estado efêmero não persistido, agrupadas em card
+  descartável na lista e no detalhe, com navegação opcional para Evolução. O estado
+  local do card evita perda durante recriação da UI; não houve alteração de Room,
+  importação, sync, Health Connect ou escopo funcional. Cancelamento cooperativo é
+  preservado em evaluator, feedback e diagnóstico.
+- **Comandos executados:** `git diff --check`; `./gradlew :app:compileDebugKotlin
+  :app:compileReleaseKotlin`; `./gradlew lint assembleDebug assembleRelease` (execução
+  final após serialização das mutações).
+- **Resultados e evidências:** todos os comandos passaram com `BUILD SUCCESSFUL`.
+  A compilação confirmou injeção de `EvolutionReadModel`/`StructuredLogger`, leitura
+  pontual e card pós-save nas variantes debug e release. Testes automatizados não
+  foram criados nem executados, conforme guard rail do projeto. Validação física e
+  fixture de recorde não estavam disponíveis nesta execução.
+- **Riscos residuais:** cenários de novo recorde, re-save idempotente, bicicleta,
+  esteira e falha de feedback ainda precisam de validação manual em aparelho com
+  dados sanitizados; ausência de testes automatizados permanece conforme política
+  do projeto.

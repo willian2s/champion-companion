@@ -606,6 +606,16 @@ interface EvolutionReadModel {
             retryable = false,
         ),
     )
+
+    /**
+     * Lê uma fotografia pontual do histórico persistido, sem emitir um estado
+     * transitório de carregamento. Implementações antigas falham fechadas.
+     */
+    suspend fun readPersonalRecordsSnapshot(): PersonalRecordsReadState =
+        PersonalRecordsReadState.Failed(
+            reason = EvolutionReadFailure.SOURCE_UNAVAILABLE,
+            retryable = false,
+        )
 }
 
 private fun Instant.isIn(range: CalendarInstantRange): Boolean =

@@ -15,6 +15,8 @@ import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectFai
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncOutcome
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectWritePermission
+import br.com.mwconsulting.championcompanion.core.logging.LogEvent
+import br.com.mwconsulting.championcompanion.core.logging.StructuredLogger
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationEvent
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSource
 import br.com.mwconsulting.championcompanion.core.location.WorkoutLocationSourceFactory
@@ -31,9 +33,13 @@ import br.com.mwconsulting.championcompanion.core.model.ApplyReferenceDistanceCa
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.EvolutionReadFailure
+import br.com.mwconsulting.championcompanion.core.model.EvolutionReadModel
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordAchievement
+import br.com.mwconsulting.championcompanion.core.model.PersonalRecordsReadState
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
@@ -63,12 +69,14 @@ import br.com.mwconsulting.championcompanion.core.model.StepLengthResolutionPoli
 import br.com.mwconsulting.championcompanion.core.model.nextAuditInstant
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.core.notification.WorkoutNotificationChannel
+import br.com.mwconsulting.championcompanion.data.PersonalRecordEvaluator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +100,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private const val COUNTDOWN_TICK_MILLIS = 1_000L
 private const val FINISH_ACK_TIMEOUT_MILLIS = 10_000L
@@ -184,6 +194,8 @@ class ExercisesViewModel internal constructor(
     private val workoutActivityRepository: WorkoutActivityRepository,
     private val treadmillCalibrationRepository: TreadmillCalibrationRepository,
     private val personalMetricsRepository: PersonalMetricsRepository,
+    private val evolutionReadModel: EvolutionReadModel,
+    private val structuredLogger: StructuredLogger,
     private val appPreferencesRepository: AppPreferencesRepository,
     private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
     private val watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
@@ -272,6 +284,9 @@ class ExercisesViewModel internal constructor(
 
     private val _activityDeleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val activityDeleted: SharedFlow<Unit> = _activityDeleted.asSharedFlow()
+
+    private val personalRecordAchievements = MutableStateFlow<List<PersonalRecordAchievement>>(emptyList())
+    private val personalRecordMutationMutex = Mutex()
 
     private var durationTimerJob: Job? = null
     private var activeSessionObserverJob: Job? = null
@@ -432,6 +447,7 @@ class ExercisesViewModel internal constructor(
                 deletionAllowedActivityId,
                 isDeletingSelectedActivity,
                 operationError,
+                personalRecordAchievements,
                 isReprocessing,
                 isAcceptingPlausibility,
                 dailyStepsGoal,
@@ -452,11 +468,12 @@ class ExercisesViewModel internal constructor(
                 val deletionActivityId = values[11] as WorkoutActivityId?
                 val deleting = values[12] as Boolean
                 val error = values[13] as ExerciseOperationError?
-                val reprocessing = values[14] as Boolean
-                val acceptingPlausibility = values[15] as Boolean
-                val goal = values[16] as Int
-                val device = values[17] as Device?
-                val preparation = values[18] as WorkoutPreparationUiState
+                val achievements = values[14] as List<PersonalRecordAchievement>
+                val reprocessing = values[15] as Boolean
+                val acceptingPlausibility = values[16] as Boolean
+                val goal = values[17] as Int
+                val device = values[18] as Device?
+                val preparation = values[19] as WorkoutPreparationUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -471,6 +488,7 @@ class ExercisesViewModel internal constructor(
                     canDeleteSelectedActivity = activity != null && deletionAllowed && deletionActivityId == activity.id && !deleting,
                     isDeletingSelectedActivity = deleting,
                     operationError = error,
+                    personalRecordAchievements = achievements,
                     isReprocessing = reprocessing,
                     isAcceptingPlausibility = acceptingPlausibility,
                     pendingActivities = activities.filter { it.workflowState == ActivityWorkflowState.PENDING_REVIEW },
@@ -500,6 +518,8 @@ class ExercisesViewModel internal constructor(
         workoutActivityRepository: WorkoutActivityRepository,
         treadmillCalibrationRepository: TreadmillCalibrationRepository,
         personalMetricsRepository: PersonalMetricsRepository,
+        evolutionReadModel: EvolutionReadModel,
+        structuredLogger: StructuredLogger,
         appPreferencesRepository: AppPreferencesRepository,
         healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
         watchWorkoutImportCoordinator: WatchWorkoutImportCoordinator,
@@ -515,6 +535,8 @@ class ExercisesViewModel internal constructor(
         workoutActivityRepository = workoutActivityRepository,
         treadmillCalibrationRepository = treadmillCalibrationRepository,
         personalMetricsRepository = personalMetricsRepository,
+        evolutionReadModel = evolutionReadModel,
+        structuredLogger = structuredLogger,
         appPreferencesRepository = appPreferencesRepository,
         healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         watchWorkoutImportCoordinator = watchWorkoutImportCoordinator,
@@ -557,6 +579,7 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.DeleteSelectedActivity -> deleteSelectedActivity()
             ExercisesIntent.ConfirmExitDetail -> closeSelectedActivity()
             ExercisesIntent.DismissOperationError -> operationError.value = null
+            ExercisesIntent.DismissPersonalRecordAchievements -> personalRecordAchievements.value = emptyList()
             ExercisesIntent.StartImport -> startImport()
             ExercisesIntent.CancelImport -> cancelImport(WatchWorkoutImportCancellationReason.USER_REQUESTED)
             ExercisesIntent.RetryImport -> retryImport()
@@ -1677,34 +1700,38 @@ class ExercisesViewModel internal constructor(
 
         reviewFormState.value = form.copy(isSaving = true, error = null)
         scope.launch {
-            when (
-                val result = workoutActivityRepository.submitReview(
-                    SubmitWorkoutReviewInput(
-                        activityId = activity.id,
-                        confirmedType = selectedType,
-                        title = form.titleInput,
-                        notes = form.notesInput,
-                        reviewedAt = Instant.now(),
-                        manualDistanceMeters = manualDistanceMeters,
-                        acceptPlausibility = form.acceptPlausibility,
-                    ),
-                )
-            ) {
-                is RepositoryResult.Success -> {
-                    reviewFormState.value = reviewFormState.value.copy(
-                        isSaving = false,
-                        hasUnsavedChanges = false,
-                        savedAt = Instant.now(),
-                        error = null,
+            personalRecordMutationMutex.withLock {
+                val previousRecordsState = readPersonalRecordsSnapshotSafely()
+                when (
+                    val result = workoutActivityRepository.submitReview(
+                        SubmitWorkoutReviewInput(
+                            activityId = activity.id,
+                            confirmedType = selectedType,
+                            title = form.titleInput,
+                            notes = form.notesInput,
+                            reviewedAt = Instant.now(),
+                            manualDistanceMeters = manualDistanceMeters,
+                            acceptPlausibility = form.acceptPlausibility,
+                        ),
                     )
-                    operationError.value = null
-                }
+                ) {
+                    is RepositoryResult.Success -> {
+                        reviewFormState.value = reviewFormState.value.copy(
+                            isSaving = false,
+                            hasUnsavedChanges = false,
+                            savedAt = Instant.now(),
+                            error = null,
+                        )
+                        operationError.value = null
+                        evaluatePersonalRecordsAfterSave(activity.id, previousRecordsState)
+                    }
 
-                RepositoryResult.NotFound -> reviewError(ExerciseOperationErrorCategory.NOT_FOUND, "Atividade não encontrada para concluir a revisão.")
-                RepositoryResult.StorageUnavailable -> reviewError(ExerciseOperationErrorCategory.STORAGE, "Não foi possível salvar a revisão da atividade.")
-                RepositoryResult.Conflict,
-                RepositoryResult.UnexpectedState,
-                -> reviewError(ExerciseOperationErrorCategory.INVALID_STATE, "A atividade não está em um estado válido para revisão.")
+                    RepositoryResult.NotFound -> reviewError(ExerciseOperationErrorCategory.NOT_FOUND, "Atividade não encontrada para concluir a revisão.")
+                    RepositoryResult.StorageUnavailable -> reviewError(ExerciseOperationErrorCategory.STORAGE, "Não foi possível salvar a revisão da atividade.")
+                    RepositoryResult.Conflict,
+                    RepositoryResult.UnexpectedState,
+                    -> reviewError(ExerciseOperationErrorCategory.INVALID_STATE, "A atividade não está em um estado válido para revisão.")
+                }
             }
         }
     }
@@ -1832,39 +1859,43 @@ class ExercisesViewModel internal constructor(
 
         calibrationFormState.value = form.copy(isSaving = true, validationError = null)
         scope.launch {
-            when (
-                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
-                    personalMetricsRepository.applyReferenceDistanceCalibration(
-                        ApplyReferenceDistanceCalibrationInput(
-                            activityId = activity.id,
-                            referenceDistanceMeters = reportedMeters,
-                            acceptedAt = Instant.now(),
-                        ),
-                    )
-                } else {
-                    treadmillCalibrationRepository.calibrateImportedActivity(
-                        CalibrateImportedActivityInput(
-                            activityId = activity.id,
-                            reportedMeters = reportedMeters,
-                            appliedAt = Instant.now(),
-                        ),
-                    )
-                }
-            ) {
-                is RepositoryResult.Success -> {
-                    calibrationFormState.value = calibrationFormState.value.copy(
-                        isSaving = false,
-                        completedAt = Instant.now(),
-                        validationError = null,
-                    )
-                    operationError.value = null
-                }
+            personalRecordMutationMutex.withLock {
+                val previousRecordsState = readPersonalRecordsSnapshotSafely()
+                when (
+                    val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                        personalMetricsRepository.applyReferenceDistanceCalibration(
+                            ApplyReferenceDistanceCalibrationInput(
+                                activityId = activity.id,
+                                referenceDistanceMeters = reportedMeters,
+                                acceptedAt = Instant.now(),
+                            ),
+                        )
+                    } else {
+                        treadmillCalibrationRepository.calibrateImportedActivity(
+                            CalibrateImportedActivityInput(
+                                activityId = activity.id,
+                                reportedMeters = reportedMeters,
+                                appliedAt = Instant.now(),
+                            ),
+                        )
+                    }
+                ) {
+                    is RepositoryResult.Success -> {
+                        calibrationFormState.value = calibrationFormState.value.copy(
+                            isSaving = false,
+                            completedAt = Instant.now(),
+                            validationError = null,
+                        )
+                        operationError.value = null
+                        evaluatePersonalRecordsAfterSave(activity.id, previousRecordsState)
+                    }
 
-                RepositoryResult.NotFound -> calibrationError(ExerciseOperationErrorCategory.NOT_FOUND, "Atividade não encontrada para calibrar.")
-                RepositoryResult.StorageUnavailable -> calibrationError(ExerciseOperationErrorCategory.STORAGE, "Não foi possível salvar a calibração da atividade.")
-                RepositoryResult.Conflict,
-                RepositoryResult.UnexpectedState,
-                -> calibrationError(ExerciseOperationErrorCategory.INVALID_STATE, "A atividade não está em um estado válido para calibração.")
+                    RepositoryResult.NotFound -> calibrationError(ExerciseOperationErrorCategory.NOT_FOUND, "Atividade não encontrada para calibrar.")
+                    RepositoryResult.StorageUnavailable -> calibrationError(ExerciseOperationErrorCategory.STORAGE, "Não foi possível salvar a calibração da atividade.")
+                    RepositoryResult.Conflict,
+                    RepositoryResult.UnexpectedState,
+                    -> calibrationError(ExerciseOperationErrorCategory.INVALID_STATE, "A atividade não está em um estado válido para calibração.")
+                }
             }
         }
     }
@@ -1885,15 +1916,19 @@ class ExercisesViewModel internal constructor(
         isReprocessing.value = true
         operationError.value = null
         scope.launch {
-            when (val result = workoutActivityRepository.reprocessWatchWorkout(activityId, Instant.now())) {
-                is WatchWorkoutReprocessResult.Success -> {
-                    isReprocessing.value = false
-                    operationError.value = null
-                }
+            personalRecordMutationMutex.withLock {
+                val previousRecordsState = readPersonalRecordsSnapshotSafely()
+                when (val result = workoutActivityRepository.reprocessWatchWorkout(activityId, Instant.now())) {
+                    is WatchWorkoutReprocessResult.Success -> {
+                        isReprocessing.value = false
+                        operationError.value = null
+                        evaluatePersonalRecordsAfterSave(activityId, previousRecordsState)
+                    }
 
-                is WatchWorkoutReprocessResult.Blocked -> {
-                    isReprocessing.value = false
-                    operationError.value = reprocessError(result.reason)
+                    is WatchWorkoutReprocessResult.Blocked -> {
+                        isReprocessing.value = false
+                        operationError.value = reprocessError(result.reason)
+                    }
                 }
             }
         }
@@ -1963,6 +1998,126 @@ class ExercisesViewModel internal constructor(
                 "Não foi possível concluir o reprocessamento local. Nenhuma alteração foi confirmada."
         }
         return ExerciseOperationError(category = category, message = message)
+    }
+
+    private suspend fun readPersonalRecordsSnapshotSafely(): PersonalRecordsReadState = try {
+        evolutionReadModel.readPersonalRecordsSnapshot()
+    } catch (error: Throwable) {
+        if (error is CancellationException) throw error
+        logPersonalRecordEvaluation(
+            stage = "snapshot_read",
+            result = "exception",
+        )
+        PersonalRecordsReadState.Failed(
+            reason = if (error is IllegalArgumentException) {
+                EvolutionReadFailure.INVALID_LOCAL_DATA
+            } else {
+                EvolutionReadFailure.SOURCE_UNAVAILABLE
+            },
+            retryable = error !is IllegalArgumentException,
+        )
+    }
+
+    private suspend fun evaluatePersonalRecordsAfterSave(
+        activityId: WorkoutActivityId,
+        previousState: PersonalRecordsReadState,
+    ) {
+        val previousSnapshot = when (previousState) {
+            PersonalRecordsReadState.Empty -> null
+            is PersonalRecordsReadState.Ready -> previousState.snapshot.activities.firstOrNull { it.activityId == activityId }
+            PersonalRecordsReadState.Loading,
+            is PersonalRecordsReadState.Failed,
+            -> {
+                logPersonalRecordEvaluation(
+                    stage = "previous_snapshot",
+                    result = "unavailable",
+                )
+                return
+            }
+        }
+
+        val newState = readPersonalRecordsSnapshotSafely()
+        val newSnapshot = when (newState) {
+            is PersonalRecordsReadState.Ready -> newState.snapshot
+            PersonalRecordsReadState.Empty -> {
+                logPersonalRecordEvaluation(
+                    stage = "post_save_snapshot",
+                    result = "empty",
+                )
+                return
+            }
+
+            PersonalRecordsReadState.Loading,
+            is PersonalRecordsReadState.Failed,
+            -> {
+                logPersonalRecordEvaluation(
+                    stage = "post_save_snapshot",
+                    result = "unavailable",
+                )
+                return
+            }
+        }
+        val newActivity = newSnapshot.activities.firstOrNull { it.activityId == activityId } ?: run {
+            logPersonalRecordEvaluation(
+                stage = "post_save_snapshot",
+                result = "activity_not_eligible",
+            )
+            return
+        }
+
+        val achievements = try {
+            PersonalRecordEvaluator.evaluate(
+                previousSnapshot = previousSnapshot,
+                newSnapshot = newActivity,
+                allHistorySnapshot = newSnapshot,
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            logPersonalRecordEvaluation(
+                stage = "evaluator",
+                result = "failed",
+            )
+            return
+        }
+        if (achievements.isEmpty()) return
+
+        try {
+            personalRecordAchievements.value = achievements
+            logPersonalRecordEvaluation(
+                stage = "feedback",
+                result = "emitted",
+                achievementCount = achievements.size,
+            )
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            logPersonalRecordEvaluation(
+                stage = "feedback",
+                result = "failed",
+            )
+        }
+    }
+
+    private fun logPersonalRecordEvaluation(
+        stage: String,
+        result: String,
+        achievementCount: Int? = null,
+    ) {
+        try {
+            val metadata = mutableMapOf(
+                "stage" to stage,
+                "result" to result,
+            )
+            achievementCount?.let { metadata["achievement_count"] = it.toString() }
+            structuredLogger.debug(
+                event = LogEvent.PersonalRecordEvaluation,
+                metadata = metadata,
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            // Diagnóstico nunca pode alterar resultado de persistência ou feedback.
+        }
     }
 
     private fun discardSelectedActivity() {
