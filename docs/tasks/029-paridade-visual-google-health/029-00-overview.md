@@ -1,8 +1,8 @@
 # 029 — Paridade visual com Google Health instalado
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [029-paridade-visual-google-health.md](../../specs/029-paridade-visual-google-health.md)
-- **Progresso:** 0/8 subtarefas concluídas
+- **Progresso:** 1/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ fidelidade observável, preservando contratos, dados e privacidade.
 
 ## Checklist
 
-- [ ] [029-01-inspecionar-google-health-e-capturar-baseline.md](029-01-inspecionar-google-health-e-capturar-baseline.md)
+- [x] [029-01-inspecionar-google-health-e-capturar-baseline.md](029-01-inspecionar-google-health-e-capturar-baseline.md)
 - [ ] [029-02-registrar-decisao-visual-e-contrato-de-evidencia.md](029-02-registrar-decisao-visual-e-contrato-de-evidencia.md)
 - [ ] [029-03-evoluir-fundacao-visual-e-shell.md](029-03-evoluir-fundacao-visual-e-shell.md)
 - [ ] [029-04-alinhar-home-saude-e-metricas.md](029-04-alinhar-home-saude-e-metricas.md)
@@ -23,9 +23,17 @@ fidelidade observável, preservando contratos, dados e privacidade.
 
 ## Observações
 
-- ADB foi confirmado pelo usuário no Galaxy S22 `SM-S901E`; captura nova ainda
-  depende de autorização operacional para execução de `adb`.
+- ADB foi confirmado e usado no Galaxy S22 `SM-S901E`; novas capturas dependem
+  do aparelho permanecer desbloqueado e autorizado.
 - Evidências versionadas devem ser sanitizadas; screenshots brutos não podem
   permanecer no repositório nem virar assets do app.
 - `028-10` permanece dependência para alterações no renderer de gráficos.
-- Primeira subtarefa elegível: 029-01, condicionada ao acesso ADB.
+- Primeira subtarefa elegível: 029-01; ADB TLS foi reconectado no Galaxy S22.
+- 029-01 está `completed`: superfícies seguras e os sete filtros foram
+  percorridos, mas R8 exige smoke físico completo e o paralelo Semana/Mês do
+  Champion ainda está ausente no APK instalado.
+- Portrait escuro padrão, tema claro e fonte `1.3` foram observados nas
+  superfícies principais. Solicitação de landscape carregou a referência, mas o
+  Champion permaneceu em portrait. Cobertura tela a tela de variantes, retorno,
+  acessibilidade, marker, tooltip e rolagem horizontal permanece pendente;
+  checklist continua desmarcado.

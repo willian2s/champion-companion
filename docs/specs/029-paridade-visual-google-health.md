@@ -1,7 +1,7 @@
 # Spec 029 — Paridade visual com Google Health instalado
 
 - **Ticker:** `029`
-- **Status:** `planned`
+- **Status:** `in_progress`
 - **Referência visual:** aplicativo instalado `com.fitbit.FitbitMobile`, tratado
   pelo pedido como Google Health/Fitbit
 - **Data do planejamento:** 2026-09-01
@@ -195,10 +195,15 @@ projeto, além do smoke físico sanitizado.
 - A Spec 024 já registrou baseline sanitizado e ADR-023 para rollout visual
   incremental. A Spec 028/ADR-027 concentra gráficos em
   `core/designsystem/chart`; a subtarefa `028-10` ainda está `pending`.
-- O usuário confirmou ADB autorizado no Galaxy S22 `SM-S901E`, via transporte
-  TLS `adb-RQCTB01R6NX-7TLgMh._adb-tls-connect._tcp`. A captura nova ainda
-  precisa ser executada pela subtarefa 029-01, pois a sandbox desta sessão não
-  autorizou invocação direta de `adb`.
+- A subtarefa 029-01 confirmou ADB autorizado no Galaxy S22 `SM-S901E`, via
+  transporte TLS, e mantém baseline comparativo parcial sanitizado em
+  `docs/tasks/029-paridade-visual-google-health/evidencia-baseline-visual-029-01.md`.
+  Ações de conta, pagamento, sync, medição, importação, exclusão e reset não
+  foram acionadas. O smoke avançou em tema claro, fonte `1.3`, landscape,
+  rolagem, retorno, filtros e períodos cardíacos, mas a cobertura completa tela
+  a tela, acessibilidade, marker, tooltip e rolagem horizontal permanece
+  pendente. Na solicitação de landscape, Fitbit carregou horizontalmente e o
+  Champion permaneceu em portrait; nenhum workaround foi aplicado.
 
 ## Abordagem escolhida
 
