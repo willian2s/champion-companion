@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionScreenContent
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import java.text.NumberFormat
@@ -117,13 +118,10 @@ fun HealthScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
+        ChampionScreenContent(
             modifier = Modifier
-                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge)
                 .heightIn(min = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
             HealthHubHeader()
             Text(

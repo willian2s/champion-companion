@@ -2,7 +2,7 @@
 
 - **Ticker:** `029`
 - **Número:** `03`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depende de:** `029-02`
 
 ## Objetivo e resultado esperado
@@ -78,3 +78,16 @@ claro/escuro e fonte ampliada. Não criar testes automatizados.
   opt-in e rollout gradual.
 - Não transformar shell Champion em cópia de navegação Google.
 - Não remover legado sem consumidor comprovadamente ausente.
+
+## Registro de execução
+
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionTokens.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionShellComponents.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`;
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthScreen.kt`.
+- **Decisões:** tokens semânticos de ritmo de tela, espaçamento de seção, touch target e forma pill foram adicionados sem alterar tokens existentes; `ChampionAppShell`, `ChampionScreenContent` e `ChampionCard` são stateless e opt-in. Shell mantém `Scaffold`, destinos, back stack manual, save tokens e callbacks existentes.
+- **Desvios:** nenhum requisito alterado. Migração piloto limitada a `HealthScreen`; demais telas permanecem em rollout gradual para evitar mudança global de densidade.
+- **Comandos executados:** `git diff --check`; `./gradlew app:lintDebug`; `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`; `adb devices`.
+- **Resultados e evidências:** `git diff --check` passou; lint e builds debug/release passaram; APK debug instalado em um dispositivo ADB; smoke sanitizado do shell executado em portrait/landscape, tema claro/escuro e fonte `1.3`, com screenshots temporários fora do repositório. `MainActivity` permaneceu resumed e logcat não registrou `FATAL EXCEPTION` ou crash do app.
+- **Riscos residuais:** smoke físico cobriu entrada e renderização do shell piloto, não todas as superfícies nem interações de cada destino; cobertura física completa permanece para `029-08`. Screenshots temporários contêm somente dados locais de teste e não foram versionados.

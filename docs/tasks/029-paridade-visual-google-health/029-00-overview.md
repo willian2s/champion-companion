@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [029-paridade-visual-google-health.md](../../specs/029-paridade-visual-google-health.md)
-- **Progresso:** 2/8 subtarefas concluídas
+- **Progresso:** 3/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ fidelidade observável, preservando contratos, dados e privacidade.
 
 - [x] [029-01-inspecionar-google-health-e-capturar-baseline.md](029-01-inspecionar-google-health-e-capturar-baseline.md)
 - [x] [029-02-registrar-decisao-visual-e-contrato-de-evidencia.md](029-02-registrar-decisao-visual-e-contrato-de-evidencia.md)
-- [ ] [029-03-evoluir-fundacao-visual-e-shell.md](029-03-evoluir-fundacao-visual-e-shell.md)
+- [x] [029-03-evoluir-fundacao-visual-e-shell.md](029-03-evoluir-fundacao-visual-e-shell.md)
 - [ ] [029-04-alinhar-home-saude-e-metricas.md](029-04-alinhar-home-saude-e-metricas.md)
 - [ ] [029-05-alinhar-calendario-e-detalhe-diario.md](029-05-alinhar-calendario-e-detalhe-diario.md)
 - [ ] [029-06-alinhar-exercicios-abas-calendario-e-filtros.md](029-06-alinhar-exercicios-abas-calendario-e-filtros.md)
@@ -36,7 +36,11 @@ fidelidade observável, preservando contratos, dados e privacidade.
   percorridos, mas R8 exige smoke físico completo e o paralelo Semana/Mês do
   Champion ainda está ausente no APK instalado.
 - Portrait escuro padrão, tema claro e fonte `1.3` foram observados nas
-  superfícies principais. Solicitação de landscape carregou a referência, mas o
-  Champion permaneceu em portrait. Cobertura tela a tela de variantes, retorno,
-  acessibilidade, marker, tooltip e rolagem horizontal permanece pendente;
-  checklist continua desmarcado.
+   superfícies principais. Solicitação de landscape carregou a referência, mas o
+   Champion permaneceu em portrait. Cobertura tela a tela de variantes, retorno,
+   acessibilidade, marker, tooltip e rolagem horizontal permanece pendente;
+   checklist continua desmarcado.
+- 029-03 está `completed`: shell compartilhado e tokens opt-in foram adicionados;
+  `HealthScreen` é piloto. Lint/build e smoke físico básico do shell passaram;
+  screenshots permaneceram temporários e fora do repositório. Cobertura física
+  completa segue em 029-08.

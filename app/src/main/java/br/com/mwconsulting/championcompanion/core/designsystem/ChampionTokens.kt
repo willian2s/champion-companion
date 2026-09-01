@@ -18,6 +18,10 @@ data class ChampionSpacingValues(
     val huge: Dp = 32.dp,
     val extraHuge: Dp = 40.dp,
     val massive: Dp = 48.dp,
+    val screenHorizontal: Dp = 24.dp,
+    val screenVertical: Dp = 16.dp,
+    val sectionGap: Dp = 16.dp,
+    val minimumTouchTarget: Dp = 48.dp,
 )
 
 val ChampionSpacing = ChampionSpacingValues()
@@ -26,6 +30,7 @@ val ChampionShapeSmall = RoundedCornerShape(8.dp)
 val ChampionShapeMedium = RoundedCornerShape(12.dp)
 val ChampionShapeLarge = RoundedCornerShape(16.dp)
 val ChampionShapeExtraLarge = RoundedCornerShape(24.dp)
+val ChampionShapePill = RoundedCornerShape(50)
 
 val ChampionShapes = Shapes(
     ChampionShapeSmall,

@@ -31,7 +31,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -83,6 +82,7 @@ import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionAppShell
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import java.util.UUID
@@ -364,10 +364,8 @@ fun ChampionNavigation(
         requestBackNavigation()
     }
 
-    Scaffold(
+    ChampionAppShell(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
