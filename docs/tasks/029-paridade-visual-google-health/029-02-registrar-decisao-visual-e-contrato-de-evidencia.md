@@ -2,7 +2,7 @@
 
 - **Ticker:** `029`
 - **Número:** `02`
-- **Status:** `pending`
+- **Status:** `completed`
 - **Depende de:** `029-01`
 
 ## Objetivo e resultado esperado
@@ -84,3 +84,27 @@ Não executar testes automatizados nem Gradle: subtarefa documental.
 - Não aceitar literalidade que implique copiar ativos, dados ou marca.
 - Se baseline revelar necessidade de novo domínio ou persistência, bloquear a
   implementação e abrir spec própria.
+
+## Execução da subtarefa
+
+- **Status:** `completed` em 2026-09-01.
+- **Arquivos alterados:**
+  `docs/decisions/adr-028-paridade-visual-com-referencia-instalada.md`;
+  este arquivo; `docs/tasks/029-paridade-visual-google-health/029-00-overview.md`.
+- **Decisões e desvios:** ADR-028 tornou `com.fitbit.FitbitMobile` a única
+  referência visual normativa; sites, Google Fit e Health Connect foram
+  excluídos do aceite. “Pixel a pixel” ficou registrado como objetivo de
+  fidelidade, preservando identidade Champion. Matriz cobre superfícies,
+  critérios, estados alcançados, `N/A`, sanitização, retenção e rollout. A
+  ausência observada de Semana/Mês no Champion e a dependência `028-10`
+  permanecem explícitas; não houve código, contrato, domínio ou persistência
+  alterados.
+- **Comandos executados:** `git diff --check`.
+- **Resultados e evidências:** comando passou sem saída de erro. ADR-028
+  referencia ADR-023, ADR-027, Spec 024, Spec 028 e Spec 029; usa a matriz de
+  `evidencia-baseline-visual-029-01.md` como entrada factual. Revisão
+  independente aprovou ADR-028, overview e esta subtarefa, sem achados.
+- **Riscos residuais:** aceite físico de tema claro, fonte ampliada, landscape,
+  acessibilidade, marker, tooltip e rolagem horizontal segue pendente. Estados
+  marcados `N/A` não são aceitos por presunção. Variação de conta, versão e
+  região continua limitada ao baseline observado.

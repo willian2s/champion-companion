@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [029-paridade-visual-google-health.md](../../specs/029-paridade-visual-google-health.md)
-- **Progresso:** 1/8 subtarefas concluídas
+- **Progresso:** 2/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ fidelidade observável, preservando contratos, dados e privacidade.
 ## Checklist
 
 - [x] [029-01-inspecionar-google-health-e-capturar-baseline.md](029-01-inspecionar-google-health-e-capturar-baseline.md)
-- [ ] [029-02-registrar-decisao-visual-e-contrato-de-evidencia.md](029-02-registrar-decisao-visual-e-contrato-de-evidencia.md)
+- [x] [029-02-registrar-decisao-visual-e-contrato-de-evidencia.md](029-02-registrar-decisao-visual-e-contrato-de-evidencia.md)
 - [ ] [029-03-evoluir-fundacao-visual-e-shell.md](029-03-evoluir-fundacao-visual-e-shell.md)
 - [ ] [029-04-alinhar-home-saude-e-metricas.md](029-04-alinhar-home-saude-e-metricas.md)
 - [ ] [029-05-alinhar-calendario-e-detalhe-diario.md](029-05-alinhar-calendario-e-detalhe-diario.md)
@@ -29,6 +29,9 @@ fidelidade observável, preservando contratos, dados e privacidade.
   permanecer no repositório nem virar assets do app.
 - `028-10` permanece dependência para alterações no renderer de gráficos.
 - Primeira subtarefa elegível: 029-01; ADB TLS foi reconectado no Galaxy S22.
+- ADR-028 registra referência instalada única, contrato de evidência sanitizada,
+  matriz por superfície e ordem de rollout. `028-10`, estados `N/A` e smoke
+  físico permanecem dependências das subtarefas seguintes.
 - 029-01 está `completed`: superfícies seguras e os sete filtros foram
   percorridos, mas R8 exige smoke físico completo e o paralelo Semana/Mês do
   Champion ainda está ausente no APK instalado.
