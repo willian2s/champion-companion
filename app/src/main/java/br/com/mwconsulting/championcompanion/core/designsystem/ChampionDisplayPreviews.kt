@@ -46,17 +46,6 @@ private fun DisplayPreview(darkTheme: Boolean) {
                 value = "8.420",
                 supportingText = "Atualizado agora",
             )
-            HealthChart(
-                title = "Medições recentes",
-                points = previewChartPoints,
-            )
-            HealthChart(title = "Medições indisponíveis", points = emptyList())
         }
     }
 }
-
-private val previewChartPoints = listOf(
-    HealthChartPoint(40f, "08:00, 40"),
-    HealthChartPoint(64f, "12:00, 64"),
-    HealthChartPoint(52f, "16:00, 52"),
-)
