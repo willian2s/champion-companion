@@ -2,11 +2,31 @@
 
 ## Status
 
-`in_progress`.
+`completed`.
 
 ## Ticker
 
 `028`.
+
+## Estado final
+
+A migração das seis superfícies previstas foi concluída. Histórico de passos,
+distância, frequência cardíaca, BPM do detalhe, distância canônica do detalhe e
+cadência D4 usam `core/designsystem/chart`; nenhuma feature migrada importa Vico
+diretamente.
+
+`HealthChart`, `HealthChartPoint` e `normalizedChartY` foram removidos de
+`ChampionDisplayComponents.kt` após a remoção dos previews e dos testes técnicos
+que ainda os referenciavam. O inventário final não encontrou `Canvas` ou
+`nativeCanvas` para visualização de dados nas features migradas. Vico permanece
+encapsulado em `ChampionCharts.kt`, e suas dependências continuam necessárias.
+
+Não houve alteração de domínio, persistência, BLE, Health Connect, fórmulas ou
+granularidade das métricas. Smoke integrado final foi repetido no `SM-S901E` com
+build `.dev`, cobrindo históricos de passos, distância e BPM, detalhe de treino,
+gaps e rolagem vertical. Screenshots sanitizados estão em
+`docs/integration/028-10-final-*.png`; marker/tooltip reproduzível, tema claro,
+fonte ampliada e alguns estados vazios continuam limitações documentadas.
 
 ## Contexto
 
