@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `03`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -63,3 +63,48 @@ inicial/restaurado do aparelho e revisão independente aprovados.
 
 Mudança global de tokens pode redesenhar o app inteiro. Preferir tokens opt-in e
 comparar diff de consumidores.
+
+## Execução e evidências
+
+- **Status da execução:** concluída; revisão independente aprovada com ressalva
+  documental não bloqueante.
+- **Arquivos alterados:** `ChampionRedesignTokens.kt`,
+  `ChampionRedesignTheme.kt` e `ChampionRedesignComponents.kt`, todos em
+  `core/designsystem`; este arquivo e `031-00-overview.md` foram atualizados
+  para registrar o aceite.
+- **APIs:** `ChampionRedesignTheme`,
+  `ChampionRedesignSurfaceHeader`, `ChampionRedesignHeaderAction`,
+  `ChampionRedesignHeaderNavigationAction` e `ChampionRedesignSummaryCard`;
+  tokens separados `ChampionRedesignSpacing`, `ChampionRedesignShapes`,
+  `ChampionRedesignTypography`, `ChampionRedesignElevation` e
+  `LocalChampionRedesignTokens`.
+- **Decisões:** tema local preserva `MaterialTheme.colorScheme` vigente e não é
+  aplicado por `ChampionCompanionTheme`; componentes são stateless, usam slots,
+  heading semântico e alvos mínimos de 48 dp; tipografia usa somente
+  `FontFamily.Default`; nenhum gráfico ou contrato Vico foi alterado.
+- **Desvios:** nenhum consumidor foi migrado, conforme escopo. Home e Saúde,
+  tema raiz, navegação, ViewModel, repository, domínio, Room, BLE e Health
+  Connect permaneceram intocados.
+- **Comandos executados:** `git diff --check`; `./gradlew lint assembleDebug
+  assembleRelease`; `./gradlew installDebug`; `adb devices -l`.
+- **Resultados/evidências:** `git diff --check` passou; lint, builds debug/release
+  e instalação debug passaram; um aparelho autorizado foi detectado pelo ADB.
+  Não houve smoke visual porque componentes ainda não possuem consumidor real.
+- **Testes:** não criados nem executados, conforme instrução explícita.
+- **Revisão independente:** aprovada em 2026-09-03, após correção dos alvos de
+  toque e da composição do conjunto de tokens. Ressalva não bloqueante: os
+  consumidores reais serão validados nas subtarefas `031-05` e `031-06`.
+- **Riscos residuais:** valores visuais ainda precisam de validação em duas
+  superfícies reais nas subtarefas `031-05` e `031-06`; o checklist geral deve
+  permanecer pendente somente para subtarefas posteriores até uso real. Smoke
+  visual desta fundação isolada não foi executado porque ainda não há consumidor
+  real; nenhum dado, estado ou configuração do aparelho foi alterado.
+- **Correção após revisão independente reprovada:** `ChampionRedesignTokenSet`
+  agora agrega spacing, shapes, typography e elevation; o tema aceita conjunto
+  customizado e preserva o `MaterialTheme.colorScheme` vigente. Componentes
+  usam shapes/typography do conjunto diretamente. Headers mantêm slots genéricos
+  para conteúdo não interativo e expõem wrappers nativos `IconButton` para ações
+  e navegação, com descrição obrigatória e alvo mínimo de 48 dp.
+- **Validação da correção:** `./gradlew app:compileDebugKotlin` passou em
+  2026-09-03; `git diff --check` e verificações equivalentes dos três arquivos
+  novos passaram. Testes automatizados não foram criados nem executados.

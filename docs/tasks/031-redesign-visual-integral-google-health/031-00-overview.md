@@ -1,8 +1,8 @@
 # 031 — Redesign visual integral baseado no Google Health/Fitbit
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 2/11 subtarefas concluídas
+- **Progresso:** 3/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 
 - [x] [031-01-auditar-referencia-e-baseline.md](031-01-auditar-referencia-e-baseline.md)
 - [x] [031-02-registrar-supersessao-e-decisao.md](031-02-registrar-supersessao-e-decisao.md)
-- [ ] [031-03-evoluir-fundacao-visual.md](031-03-evoluir-fundacao-visual.md)
+- [x] [031-03-evoluir-fundacao-visual.md](031-03-evoluir-fundacao-visual.md)
 - [ ] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
 - [ ] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
 - [ ] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
@@ -45,10 +45,12 @@ somente Home e Saúde; rotas restantes serão contextuais.
   bloqueantes. Reexecução ADB sanitizada em `SM-S901E` confirmou pacote, versão,
   Activity e estrutura parcial; superfícies não alcançadas permanecem `N/A`;
   estado da Activity retornou à Home e nenhuma configuração exigiu restauração.
-  Progresso atual: `1/11`.
+  Após a conclusão de `031-01`, o progresso registrado era `1/11`.
 - `031-02` foi concluída em escopo documental: Spec 024 e ADR-023 permanecem
   preservadas como histórico, com supersessão limitada à direção visual e à
   organização/apresentação da navegação. ADR-028 foi confirmada como `aceita`,
   substituta de ADR-023 e vinculada à Spec 031. A primeira revisão independente
   identificou marcação antecipada de conclusão; após correção, a segunda revisão
-  foi aprovada em 2026-09-03. `031-03` não foi iniciada. Progresso atual: `2/11`.
+  foi aprovada em 2026-09-03. `031-03` foi concluída após implementação
+  aditiva e opt-in da fundação visual, com revisão independente aprovada em
+  2026-09-03. Progresso atual: `3/11`.
