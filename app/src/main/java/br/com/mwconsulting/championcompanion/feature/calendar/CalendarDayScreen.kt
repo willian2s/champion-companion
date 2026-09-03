@@ -78,6 +78,7 @@ fun CalendarDayScreen(
     localDateIso: String,
     onNavigateBack: () -> Unit,
     onNavigateTo: (AppDestination) -> Unit,
+    backLabel: String = "Voltar para Calendário",
     calendarViewModel: CalendarViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) { ViewModelProvider(activity)[CalendarViewModel::class.java] }
@@ -110,19 +111,21 @@ fun CalendarDayScreen(
                 DayHeader(
                     supportingText = "Data inválida",
                     onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
                     showContextualBack = false,
                 )
                 ErrorState(
                     title = "Data inválida",
                     message = "Não foi possível abrir o detalhe diário. Volte ao calendário e selecione uma data válida.",
                 )
-                BackButton(onNavigateBack)
+                BackButton(onNavigateBack, backLabel)
             } else {
                 DayHeader(
                     supportingText = localDate.format(
                         DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale),
                     ),
                     onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
                 )
                 when {
                     state.dayLoading -> LoadingState(
@@ -164,7 +167,7 @@ fun CalendarDayScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                BackButton(onNavigateBack)
+                BackButton(onNavigateBack, backLabel)
             }
         }
     }
@@ -174,6 +177,7 @@ fun CalendarDayScreen(
 private fun DayHeader(
     supportingText: String,
     onNavigateBack: () -> Unit,
+    backLabel: String,
     showContextualBack: Boolean = true,
 ) {
     Card(
@@ -202,12 +206,13 @@ private fun DayHeader(
             if (showContextualBack) {
                 OutlinedButton(
                     onClick = onNavigateBack,
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                         contentColor = White,
                     ),
                     border = BorderStroke(1.dp, White),
                 ) {
-                    Text("Voltar para calendário")
+                    Text(backLabel)
                 }
             }
         }
@@ -372,7 +377,12 @@ private fun StepsDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
             Text("Meta atual: ${day.stepsGoal} passos")
             Text("Origem: ${daily.origin.toCalendarLabel()} • Atualizado em ${daily.updatedAt.formatCalendarTime(day.zoneId)}")
         }
-        OutlinedButton(onClick = onOpen) { Text("Abrir detalhes de passos") }
+        OutlinedButton(
+            onClick = onOpen,
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
+            Text("Abrir detalhes de passos")
+        }
     }
 }
 
@@ -397,7 +407,12 @@ private fun DistanceDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
             )
         }
         Text("Valor derivado exclusivamente do resumo diário; não soma atividades.")
-        OutlinedButton(onClick = onOpen) { Text("Abrir detalhes de distância") }
+        OutlinedButton(
+            onClick = onOpen,
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
+            Text("Abrir detalhes de distância")
+        }
     }
 }
 
@@ -417,7 +432,12 @@ private fun HeartRateDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
         } else {
             HeartRateSummaryContent(heartRate)
         }
-        OutlinedButton(onClick = onOpen) { Text("Abrir detalhes de frequência cardíaca") }
+        OutlinedButton(
+            onClick = onOpen,
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
+            Text("Abrir detalhes de frequência cardíaca")
+        }
     }
 }
 
@@ -529,7 +549,12 @@ private fun WeightDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
                 }
             }
         }
-        OutlinedButton(onClick = onOpen) { Text("Abrir detalhes de peso") }
+        OutlinedButton(
+            onClick = onOpen,
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) {
+            Text("Abrir detalhes de peso")
+        }
     }
 }
 
@@ -598,7 +623,12 @@ private fun DayIssuesCard(day: CalendarDaySummary, onRetry: (() -> Unit)?) {
                 )
             }
         if (onRetry != null) {
-            OutlinedButton(onClick = onRetry) { Text("Tentar novamente") }
+            OutlinedButton(
+                onClick = onRetry,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Text("Tentar novamente")
+            }
         }
     }
 }
@@ -683,8 +713,18 @@ private fun DayCard(
 }
 
 @Composable
-private fun BackButton(onNavigateBack: () -> Unit) {
-    Button(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
+private fun BackButton(
+    onNavigateBack: () -> Unit,
+    backLabel: String,
+) {
+    Button(
+        onClick = onNavigateBack,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
+    ) {
+        Text(backLabel)
+    }
 }
 
 private fun CalendarWorkoutSummary.displayType(): String = (confirmedType ?: suggestedType).toCalendarLabel()

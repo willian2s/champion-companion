@@ -14,6 +14,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -59,6 +60,7 @@ import java.util.Locale
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onOpenActivity: (br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var showLearnedProfilesDialog by remember { mutableStateOf(false) }
@@ -79,7 +81,7 @@ fun ProfileScreen(
                 .padding(ChampionSpacing.extraLarge),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
-            ProfileHeader()
+            ProfileHeader(onOpenSettings = onOpenSettings)
             if (state.isLoading) {
                 CircularProgressIndicator()
             }
@@ -207,7 +209,7 @@ private fun StepLengthContextCard(
 }
 
 @Composable
-private fun ProfileHeader() {
+private fun ProfileHeader(onOpenSettings: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
@@ -227,6 +229,16 @@ private fun ProfileHeader() {
                 color = White,
                 style = MaterialTheme.typography.bodyLarge,
             )
+            OutlinedButton(
+                onClick = onOpenSettings,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = White),
+                border = BorderStroke(1.dp, White),
+            ) {
+                Text("Configurações")
+            }
         }
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +54,8 @@ fun HealthScreen(
     onOpenWeight: () -> Unit,
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
+    onOpenExercises: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
     healthViewModel: HealthViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -175,6 +178,56 @@ fun HealthScreen(
                 stateLabel = distanceStateLabel,
                 onClick = onOpenDistance,
             )
+            HealthContextualActions(
+                onOpenExercises = onOpenExercises,
+                onOpenCalendar = onOpenCalendar,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HealthContextualActions(
+    onOpenExercises: () -> Unit,
+    onOpenCalendar: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text(
+                text = "Atividades",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Revise treinos importados e consulte o calendário de exercícios.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            OutlinedButton(
+                onClick = onOpenExercises,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            ) {
+                Text("Abrir atividades")
+            }
+            OutlinedButton(
+                onClick = onOpenCalendar,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            ) {
+                Text("Calendário de exercícios")
+            }
         }
     }
 }

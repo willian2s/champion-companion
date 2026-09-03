@@ -28,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -84,6 +85,7 @@ fun HomeScreen(
     onOpenProfile: () -> Unit,
     onOpenHeartRate: () -> Unit,
     onOpenExercises: () -> Unit,
+    onOpenCalendar: () -> Unit = {},
     homeViewModel: HomeViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -187,6 +189,7 @@ fun HomeScreen(
                         onOpenDevice = onOpenDevice,
                         onOpenHeartRate = onOpenHeartRate,
                         onOpenExercises = onOpenExercises,
+                        onOpenCalendar = onOpenCalendar,
                         onRefresh = { homeViewModel.onIntent(HomeIntent.Refresh) },
                         onRetry = { homeViewModel.onIntent(HomeIntent.Retry) },
                     )
@@ -202,6 +205,7 @@ private fun HomeSurface(
     onOpenDevice: () -> Unit,
     onOpenHeartRate: () -> Unit,
     onOpenExercises: () -> Unit,
+    onOpenCalendar: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -217,6 +221,11 @@ private fun HomeSurface(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+
+    HomeContextualActions(
+        onOpenExercises = onOpenExercises,
+        onOpenCalendar = onOpenCalendar,
+    )
 
     when (state.surfaceState) {
         HomeSurfaceState.Loading -> LoadingState(
@@ -399,6 +408,53 @@ private fun HomeSummaryContent(
         HomeMetadataFooter(
             lastImportedAt = watch.lastImportedAt,
         )
+    }
+}
+
+@Composable
+private fun HomeContextualActions(
+    onOpenExercises: () -> Unit,
+    onOpenCalendar: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        ) {
+            Text(
+                text = "Atividades",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Revise treinos importados e consulte o calendário de exercícios.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            OutlinedButton(
+                onClick = onOpenExercises,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            ) {
+                Text("Abrir atividades")
+            }
+            OutlinedButton(
+                onClick = onOpenCalendar,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            ) {
+                Text("Calendário de exercícios")
+            }
+        }
     }
 }
 

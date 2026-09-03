@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -132,7 +133,9 @@ private val ExerciseCadenceChartValueFormatter =
 fun ExercisesScreen(
     openedActivityId: WorkoutActivityId? = null,
     onNavigateBack: (() -> Unit)? = null,
+    backLabel: String = "Voltar para Exercícios",
     onOpenActivity: (WorkoutActivityId) -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
     viewModel: ExercisesViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -188,7 +191,10 @@ fun ExercisesScreen(
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
             if (openedActivityId == null) {
-                ExercisesHeader(state = state)
+                ExercisesHeader(
+                    state = state,
+                    onOpenCalendar = onOpenCalendar,
+                )
                 onOpenDebugPoc?.let { openDebugPoc ->
                     ExercisesDebugPocCard(onOpenDebugPoc = openDebugPoc)
                 }
@@ -217,6 +223,7 @@ fun ExercisesScreen(
                     state = state,
                     activityId = openedActivityId,
                     onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
                     onDismissError = dismissOperationError,
                     onReviewTypeChange = { viewModel.onIntent(ExercisesIntent.EditReviewType(it)) },
                     onReviewDistanceChange = { viewModel.onIntent(ExercisesIntent.EditReviewDistance(it)) },
@@ -241,7 +248,10 @@ fun ExercisesScreen(
 }
 
 @Composable
-private fun ExercisesHeader(state: ExercisesUiState) {
+private fun ExercisesHeader(
+    state: ExercisesUiState,
+    onOpenCalendar: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
@@ -279,6 +289,16 @@ private fun ExercisesHeader(state: ExercisesUiState) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.82f),
             )
+            OutlinedButton(
+                onClick = onOpenCalendar,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = BorderStroke(1.dp, Color.White),
+            ) {
+                Text("Calendário")
+            }
         }
     }
 }
@@ -928,6 +948,7 @@ private fun ExerciseDetailShell(
     state: ExercisesUiState,
     activityId: WorkoutActivityId,
     onNavigateBack: (() -> Unit)?,
+    backLabel: String = "Voltar para Exercícios",
     onDismissError: () -> Unit,
     onReviewTypeChange: (WorkoutType) -> Unit,
     onReviewDistanceChange: (String) -> Unit,
@@ -967,7 +988,7 @@ private fun ExerciseDetailShell(
                     IconButton(onClick = navigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar para exercícios",
+                            contentDescription = backLabel,
                             tint = Color.White,
                         )
                     }

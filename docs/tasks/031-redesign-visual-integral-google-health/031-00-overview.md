@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 3/11 subtarefas concluídas
+- **Progresso:** 4/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -16,7 +16,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-01-auditar-referencia-e-baseline.md](031-01-auditar-referencia-e-baseline.md)
 - [x] [031-02-registrar-supersessao-e-decisao.md](031-02-registrar-supersessao-e-decisao.md)
 - [x] [031-03-evoluir-fundacao-visual.md](031-03-evoluir-fundacao-visual.md)
-- [ ] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
+- [x] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
 - [ ] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
 - [ ] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
 - [ ] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
@@ -53,4 +53,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
   identificou marcação antecipada de conclusão; após correção, a segunda revisão
   foi aprovada em 2026-09-03. `031-03` foi concluída após implementação
   aditiva e opt-in da fundação visual, com revisão independente aprovada em
-  2026-09-03. Progresso atual: `3/11`.
+  2026-09-03. `031-04` foi concluída após reorganização do shell, rotas
+  contextuais, preservação do saver/back stack e revisão independente aprovada.
+  Smoke ADB sanitizado confirmou os fluxos principais e restaurou configurações
+  do aparelho. Progresso atual: `4/11`.

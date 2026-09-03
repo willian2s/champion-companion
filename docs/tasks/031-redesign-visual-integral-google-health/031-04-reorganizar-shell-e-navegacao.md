@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `04`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -67,3 +67,34 @@ independente aprovada.
 
 Remover item de topo pode quebrar entrada indireta ou restauração. Validar cada
 origem, inclusive detalhes e diálogos de saída.
+
+## Execução e evidências
+
+- **Status da execução:** concluída.
+- **Arquivos alterados:** `ChampionNavigation.kt`, `CalendarScreen.kt`,
+  `CalendarDayScreen.kt`, `HomeScreen.kt`, `HealthScreen.kt`,
+  `ExercisesScreen.kt` e `ProfileScreen.kt`.
+- **Decisões:** a barra inferior mantém somente Home e Saúde; Calendário,
+  Exercícios, Dispositivo, Perfil e Configurações permanecem destinos
+  serializáveis e entram por ações contextuais. O retorno usa predecessor
+  imediato da back stack, com animação reversa ao revelar uma área primária.
+  A entrada em Exercícios limpa subtree phone bloqueado sem reativar fluxo phone.
+  PoC debug-only foi preservada.
+- **Desvios:** nenhum desvio funcional. Ajustes de 48 dp foram aplicados às
+  ações adicionadas e às ações explícitas de Calendário/detalhe diário após
+  revisão independente.
+- **Comandos executados:** `git diff --check`; `./gradlew lint assembleDebug
+  assembleRelease`; `./gradlew installDebug`.
+- **Resultados/evidências:** todos os comandos passaram. Smoke ADB sanitizado
+  no `SM-S901E` confirmou barra de duas áreas; header Home → Dispositivo/Perfil;
+  Home e Saúde → Exercícios/Calendário; cards de métricas; Exercícios →
+  Calendário/detalhe; Perfil → Configurações → Perfil; retorno contextual;
+  fonte 1.3, landscape, tema escuro e restauração para fonte 1.0/portrait.
+  Configurações do aparelho foram restauradas. App iniciou após instalação
+  final.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** aprovada após correção de labels contextuais,
+  alvos de toque e limpeza de subtree phone.
+- **Riscos residuais:** smoke ADB não substitui validação com TalkBack em todos
+  os caminhos; sem evidência de regressão funcional nos comandos e fluxos
+  observados. Subtarefas seguintes permanecem pendentes.
