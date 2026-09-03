@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 1/11 subtarefas concluídas
+- **Progresso:** 2/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 ## Checklist
 
 - [x] [031-01-auditar-referencia-e-baseline.md](031-01-auditar-referencia-e-baseline.md)
-- [ ] [031-02-registrar-supersessao-e-decisao.md](031-02-registrar-supersessao-e-decisao.md)
+- [x] [031-02-registrar-supersessao-e-decisao.md](031-02-registrar-supersessao-e-decisao.md)
 - [ ] [031-03-evoluir-fundacao-visual.md](031-03-evoluir-fundacao-visual.md)
 - [ ] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
 - [ ] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
@@ -46,3 +46,9 @@ somente Home e Saúde; rotas restantes serão contextuais.
   Activity e estrutura parcial; superfícies não alcançadas permanecem `N/A`;
   estado da Activity retornou à Home e nenhuma configuração exigiu restauração.
   Progresso atual: `1/11`.
+- `031-02` foi concluída em escopo documental: Spec 024 e ADR-023 permanecem
+  preservadas como histórico, com supersessão limitada à direção visual e à
+  organização/apresentação da navegação. ADR-028 foi confirmada como `aceita`,
+  substituta de ADR-023 e vinculada à Spec 031. A primeira revisão independente
+  identificou marcação antecipada de conclusão; após correção, a segunda revisão
+  foi aprovada em 2026-09-03. `031-03` não foi iniciada. Progresso atual: `2/11`.
