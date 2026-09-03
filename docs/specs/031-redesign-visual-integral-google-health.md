@@ -43,11 +43,66 @@ Google Play podem orientar catálogo e versão, mas não substituem inspeção d
 instalada.
 
 A inspeção física deve registrar versão, data, estrutura, labels genéricos,
-bounds e screenshots somente após sanitização. Não será versionada evidência sem
-sanitização, mesmo mediante solicitação, porque isso pode expor conta, métricas,
-identificadores ou dados de saúde. Imagens públicas que contenham marca ou
-ativos proprietários ficam fora dos recursos do app e servem apenas como
-referência efêmera/documental permitida.
+bounds e, no repositório, somente evidência sanitizada. A autorização temporária
+descrita abaixo permite uma inspeção local excepcional, mas não muda a regra de
+que screenshots, dumps ou dados não sanitizados nunca são versionados. Imagens
+públicas que contenham marca ou ativos proprietários ficam fora dos recursos do
+app e servem apenas como referência efêmera/documental permitida.
+
+### Exceção operacional temporária da Spec/Task 031
+
+O usuário autorizou, exclusivamente durante a execução da Spec/Task 031, o uso
+efêmero de screenshots ou outros dados de referência não sanitizados quando isso
+for indispensável para construir o layout. A autorização vale somente para
+inspeção em aparelho autorizado, com finalidade visual ou estrutural, e não
+constitui autorização geral para coleta, tratamento ou divulgação de dados
+pessoais. Esta revisão documental não capturou nem leu dados pessoais reais ou
+screenshots brutos; o XML estrutural temporário da auditoria foi usado apenas
+para agregados e removido.
+
+Limites obrigatórios da exceção:
+
+- **Escopo de uso:** analisar composição, hierarquia, geometria, navegação e
+  estados visuais da referência. O material não pode alimentar feature, dado de
+  produto, fixture, teste, dataset, treinamento, analytics ou decisão funcional.
+- **Local e transporte:** material não sanitizado pode permanecer somente no
+  armazenamento temporário local do aparelho autorizado durante a sessão. É
+  proibido copiá-lo para o repositório, máquina de desenvolvimento, anexos,
+  pull request, contexto do agente, cloud, rede, backup, device transfer ou
+  Logcat.
+- **Ações no aparelho:** inspeção deve ser somente leitura. Não iniciar
+  importação, sincronização, medição, exclusão de dados, edição, login, troca de
+  conta, concessão de permissão, Health Connect ou operação BLE para obter
+  evidência. A exclusão de temporários criados para inspeção é obrigatória;
+  configurações temporárias de visualização devem ser restauradas.
+- **Propriedade intelectual:** não extrair, importar, recortar ou versionar
+  logo, fonte, imagem, ícone, ilustração ou outro asset proprietário. Notas e
+  reconstruções devem usar recursos próprios ou nativos. Captura sanitizada
+  versionável deve ser totalmente desidentificada e sem pixels proprietários;
+  reconstrução estrutural própria é preferível.
+- **Retenção e descarte:** criar somente temporários necessários, sem retenção
+  além da sessão. Apagar cada arquivo bruto ao fim da sessão, conferir que não
+  restou cópia local e não usar lixeira, cache, backup ou sincronização como
+  retenção. Evidência derivada só pode ser versionada depois de sanitizada.
+- **Auditoria:** registrar somente metadados sanitizados da sessão — data,
+  autorização, aparelho identificado por alias não sensível, versão observada,
+  finalidade, escopo, ações não destrutivas e confirmação do descarte. Nunca
+  registrar conteúdo bruto, conta, métrica, identificador pessoal, identificador
+  de conta, serial ou título livre.
+- **Falha e rollback:** se houver desvio de escopo, transporte indevido ou
+  dúvida sobre limpeza, interromper a inspeção, não usar o material, apagar os
+  temporários conhecidos, restaurar o aparelho e registrar o incidente de forma
+  sanitizada. A subtask fica bloqueada; decisões ou alterações derivadas da
+  sessão irregular devem ser revertidas para o último baseline público ou
+  sanitizado aprovado. Se o descarte não puder ser confirmado, a Spec não pode
+  ser encerrada como concluída.
+- **Validade:** a autorização expira no encerramento da Spec 031 ou se for
+  revogada e não se estende a outra spec, task ou aparelho.
+
+Esta exceção não altera `AGENTS.md`, ADR-004, os guards de logs e backup ou as
+proibições de dados sensíveis no repositório. Se alguma regra hierarquicamente
+superior impedir uma sessão, a exceção não se aplica e o bloqueio deve ser
+registrado em `Observações`, sem contorno.
 
 Se pacote, aparelho ou estado de conta não estiverem disponíveis, registrar
 `N/A` e limitar a decisão ao material público verificável; não declarar paridade
@@ -170,9 +225,11 @@ GPS, localização, rota, mapa ou treino phone.
 
 Cada bloco de código deve passar por `git diff --check`,
 `./gradlew lint assembleDebug assembleRelease`, `./gradlew installDebug` e smoke
-ADB. Registrar
-somente evidências sanitizadas, com configurações do aparelho restauradas. Não
-criar ou executar testes automatizados sem pedido explícito.
+ADB. Registrar somente evidências versionadas sanitizadas, com configurações do
+aparelho restauradas. Qualquer material não sanitizado usado sob a exceção deve
+permanecer no aparelho autorizado, ser descartado ao fim da sessão e ter essa
+limpeza auditada. Não criar ou executar testes automatizados sem pedido
+explícito.
 
 ### R12 — Rollout e revisão
 
@@ -183,7 +240,8 @@ após concluir uma subtarefa; exigir revisão independente.
 ## Critérios de aceite
 
 1. Referência é documentada como `com.fitbit.FitbitMobile`, com versão/data e
-   evidências permitidas sem dados pessoais.
+   evidências permitidas sem dados pessoais; toda sessão excepcional possui
+   escopo e descarte confirmados.
 2. Barra inferior possui somente Home e Saúde, com seleção e restauração corretas.
 3. Dispositivo e Perfil são acessíveis pelo header da Home.
 4. Exercícios e calendário são acessíveis por Home/Saúde e pelo fluxo de
@@ -204,15 +262,17 @@ após concluir uma subtarefa; exigir revisão independente.
     mapa ou PoC fora de seu isolamento debug-only.
 11. Fonte ampliada, landscape, temas, foco, contraste e estados seguros não
     ocultam ações essenciais.
-12. Cada subtarefa registra validação, evidência sanitizada, riscos residuais e
-    revisão independente antes da próxima.
+12. Cada subtarefa registra validação, evidência versionada sanitizada, riscos
+    residuais e revisão independente antes da próxima; quando a exceção for
+    usada, registra também auditoria de escopo e descarte.
 
 ## Abordagem escolhida
 
-Baseline público/estrutural e físico sanitizado → supersessão documental →
-fundação visual → shell de duas áreas → Home → Saúde e métricas → Exercícios e
-calendário → Perfil → Dispositivo → Configurações → consolidação. A referência
-define apresentação; contratos locais definem comportamento e verdade dos dados.
+Baseline público/estrutural e físico sanitizado, com inspeção efêmera local
+excepcional quando indispensável → supersessão documental → fundação visual →
+shell de duas áreas → Home → Saúde e métricas → Exercícios e calendário → Perfil
+→ Dispositivo → Configurações → consolidação. A referência define apresentação;
+contratos locais definem comportamento e verdade dos dados.
 
 ## Alternativas descartadas
 
@@ -251,8 +311,9 @@ conforme ADR-028.
 
 - **Referência indisponível:** usar fontes públicas e marcar observações físicas
   como `N/A`, sem declarar sucesso não observado.
-- **Evidência sensível:** sanitização obrigatória antes de versionar; descartar
-  arquivos brutos.
+- **Evidência sensível:** material não sanitizado só pode existir no aparelho
+  autorizado durante a sessão excepcional; sanitização é obrigatória antes de
+  versionar e o descarte precisa ser confirmado.
 - **Regressão de shell:** preservar destinos e saver; smoke de cada rota.
 - **Rota órfã:** matriz de entradas e retorno em `031-04` e `031-11`.
 - **Perda de semântica:** revisar mapeamento de unidade, origem, período e
@@ -278,7 +339,8 @@ adb shell am start -n br.com.mwconsulting.championcompanion.dev/br.com.mwconsult
 Smoke deve cobrir abertura, rolagem, retorno, Home/Saúde, rotas contextuais,
 ações não destrutivas, portrait, landscape, fonte ampliada e temas. Ações de
 importação, medição, sync ou exclusão não devem ser iniciadas somente para gerar
-evidência. Evidências versionadas devem ser sanitizadas.
+evidência. Evidências versionadas devem ser sanitizadas; qualquer temporário
+bruto usado na exceção deve ser apagado ao fim da sessão e auditado.
 
 ## Ordem das subtarefas
 
@@ -299,7 +361,9 @@ evidência. Evidências versionadas devem ser sanitizadas.
   Exercícios e não item da barra inferior.
 - Configurações continua acessível fora da barra inferior.
 - ADB/referência física pode estar indisponível; nesse caso registrar `N/A`.
-- Evidência não sanitizada não será versionada por regra de privacidade.
+- Evidência não sanitizada não será versionada por regra de privacidade. A
+  exceção temporária permite somente uso local no aparelho autorizado, com
+  descarte ao fim de cada sessão e confirmação final em `031-11`.
 
 ## Rastreabilidade
 

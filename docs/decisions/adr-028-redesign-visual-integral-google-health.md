@@ -56,10 +56,62 @@ por contextos da própria aplicação.
 - Não registrar dados pessoais, payload BLE, dumps completos ou screenshots não
   sanitizados no repositório.
 - Evidências de referência devem usar material público sem dados pessoais,
-  inspeção efêmera sanitizada ou reconstruções estruturais. A solicitação de
-  versionar evidências não sanitizadas é incompatível com ADR-004 e AGENTS.md.
+  inspeção efêmera ou reconstruções estruturais. A solicitação de versionar
+  evidências não sanitizadas é incompatível com ADR-004 e `AGENTS.md`.
 - Acessibilidade, contraste, alvos acionáveis de 48 dp, fonte ampliada,
   landscape, temas e estados seguros permanecem obrigatórios.
+
+## Emenda — exceção operacional temporária da Spec/Task 031
+
+- **Data:** 2026-09-03
+
+O usuário autorizou uma exceção temporária, válida exclusivamente durante a
+execução da Spec/Task 031, para inspeção efêmera de screenshots ou dados de
+referência não sanitizados em aparelho autorizado. A finalidade é somente
+analisar composição, hierarquia, geometria, navegação e estados visuais para
+construção do layout. A autorização não permite coleta ou uso desses dados como
+dados do produto, fixtures, testes, dataset, treinamento, analytics ou decisão
+funcional.
+
+A exceção é local ao aparelho autorizado e à sessão em curso. Material não
+sanitizado não pode ser copiado para máquina de desenvolvimento, repositório,
+anexo, pull request, contexto do agente, cloud, rede, Logcat, backup ou device
+transfer. Nenhum screenshot bruto, dump bruto ou dado pessoal pode ser
+versionado. Logos, fontes, imagens, ícones, ilustrações e demais assets
+proprietários também não podem ser extraídos, importados ou incorporados.
+Captura sanitizada versionável deve ser totalmente desidentificada e sem pixels
+proprietários; reconstrução estrutural própria é preferível.
+
+A inspeção é somente leitura: não iniciar importação, sincronização, medição,
+exclusão de dados, edição, login, troca de conta, concessão de permissão, Health
+Connect ou operação BLE para produzir evidência. A exclusão de temporários
+criados para inspeção é obrigatória. Temporários devem ser criados somente quando
+necessários, apagados ao fim de cada sessão e conferidos sem uso de cache,
+lixeira, backup ou sincronização como retenção. Evidência derivada só pode sair
+do aparelho depois de sanitizada.
+
+Cada sessão que usar a exceção deve ter auditoria versionada apenas com
+metadados sanitizados: autorização, data, alias não sensível do aparelho,
+versão observada, finalidade, escopo, ações não destrutivas e confirmação de
+descarte. Identificadores exigidos para resolver pacote ou Activity não são
+identificadores pessoais; serial, conta e identificadores pessoais não podem ser
+registrados. A confirmação final de limpeza de todas as sessões deve constar do
+fechamento da Spec em `031-11`. A autorização expira no encerramento da Spec
+031 ou se for revogada; não se estende a outra spec, task ou aparelho.
+
+Se houver desvio de escopo, transporte indevido ou dúvida sobre limpeza, a
+inspeção deve parar, o material não pode ser usado, temporários conhecidos devem
+ser apagados, o aparelho deve ser restaurado e o incidente deve ser registrado
+de forma sanitizada. A subtask fica bloqueada e qualquer decisão ou alteração
+derivada da sessão irregular deve retornar ao último baseline público ou
+sanitizado aprovado. Sem confirmação de descarte, não há aceite nem encerramento
+da Spec.
+
+Esta emenda não altera `AGENTS.md`, ADR-004, os guards de logs e backup ou
+qualquer proibição de dados sensíveis no repositório. Se uma regra
+hierarquicamente superior impedir uma sessão, a exceção não se aplica; o bloqueio
+deve ser registrado em `Observações`, sem contorno. Esta revisão documental não
+capturou nem leu dados pessoais reais ou screenshots brutos.
 
 ## Consequências
 
@@ -87,7 +139,8 @@ por contextos da própria aplicação.
 - Apagar destinos secundários: rejeitada porque features continuam existentes.
 - Criar dados fictícios para preencher o layout: rejeitada por integridade das
   métricas.
-- Armazenar evidência não sanitizada: rejeitada por privacidade operacional.
+- A prática de versionar ou reter fora da sessão evidência não sanitizada:
+  rejeitada por privacidade operacional.
 
 ## Relação com decisões existentes
 
