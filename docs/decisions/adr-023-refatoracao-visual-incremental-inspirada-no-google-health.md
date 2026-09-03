@@ -1,7 +1,11 @@
 # ADR-023 — Refatoração visual incremental inspirada no Google Health
 
-- **Status:** aceita
+- **Status:** supersedida por ADR-028
 - **Data:** 2026-08-17
+
+Esta decisão permanece como histórico da Spec 024. Sua direção foi substituída
+por `docs/decisions/adr-028-redesign-visual-integral-google-health.md`, que
+registra o redesign integral autorizado pelo usuário sem apagar esta decisão.
 
 ## Contexto
 

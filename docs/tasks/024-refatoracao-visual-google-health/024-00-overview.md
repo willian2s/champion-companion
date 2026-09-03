@@ -266,6 +266,9 @@ usabilidade, sem alterar contratos funcionais nem copiar marca ou ativos.
   Spec 024 e ADR-023 refletem fechamento; progresso final `19/19`.
 - Revisão independente de `024-18`: `PASS`, sem bloqueadores ou achados
   importantes.
+- A direção visual desta entrega foi supersedida pela Spec 031 e pelo ADR-028.
+  Este overview, subtarefas e evidências continuam preservados como histórico
+  da execução concluída.
 - A observação histórica de `024-17` sobre revisão final solicitada permanece
   registrada no item correspondente; aceite individual, validação física e
   ausência de bloqueador técnico estão documentados, sem reabrir a subtarefa.

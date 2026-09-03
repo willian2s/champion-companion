@@ -1,8 +1,12 @@
 # 024 — Refatoração visual inspirada no Google Health
 
 - **Ticker:** `024`
-- **Status:** completed
+- **Status:** superseded
 - **Tipo:** refatoração visual incremental
+
+Esta spec foi concluída historicamente, mas sua direção visual foi substituída
+pela Spec 031 — redesign visual integral baseado no Google Health/Fitbit. Os
+artefatos e evidências desta entrega permanecem preservados para rastreabilidade.
 
 ## Contexto e objetivo
 
@@ -202,6 +206,11 @@ espaçamento permaneçam preservados.
   `docs/tasks/024-refatoracao-visual-google-health/evidencia-final-validacao-024-18.md`.
 - Fallback físico sem dynamic color em API inferior a 31 e estados transitórios
   com efeitos ficaram `N/A`, sem serem tratados como sucesso.
+
+O fechamento acima permanece válido como registro histórico. A restrição de
+refatoração apenas inspirada, a preservação da barra com cinco entradas e a
+rejeição de reorganização visual foram supersedidas pela Spec 031 e pelo
+ADR-028, sem apagar os critérios ou evidências originais.
 
 ## Comportamento atual encontrado
 
