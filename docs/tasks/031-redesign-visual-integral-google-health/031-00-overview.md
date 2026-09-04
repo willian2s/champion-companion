@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 4/11 subtarefas concluídas
+- **Progresso:** 5/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-02-registrar-supersessao-e-decisao.md](031-02-registrar-supersessao-e-decisao.md)
 - [x] [031-03-evoluir-fundacao-visual.md](031-03-evoluir-fundacao-visual.md)
 - [x] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
-- [ ] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
+- [x] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
 - [ ] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
 - [ ] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
 - [ ] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
@@ -57,3 +57,23 @@ somente Home e Saúde; rotas restantes serão contextuais.
   contextuais, preservação do saver/back stack e revisão independente aprovada.
   Smoke ADB sanitizado confirmou os fluxos principais e restaurou configurações
   do aparelho. Progresso atual: `4/11`.
+- `031-05` teve ajuste visual implementado em `HomeScreen.kt` e foi concluída
+  após revisão independente aprovada. O dashboard usa a geometria sanitizada
+  observada, sem alegar paridade de conteúdo além da evidência disponível.
+- `031-05` foi refinada conforme inspeção estrutural da Home de referência: card
+  maior de Passos e linhas laterais para Exercícios, Distância e Freq. cardíaca.
+  Calorias foi substituída por frequência cardíaca e a fonte de dados foi
+  removida por solicitação explícita.
+  Contagem semanal de exercícios com meta 4 ficou bloqueada por ausência de
+  contrato e por estar fora do escopo visual; nenhuma contagem semanal sintética
+  foi criada.
+  Cards permanecem clicáveis sem setas visuais, com navegação para os detalhes
+  existentes. Link de Calendário foi removido da Home por solicitação explícita;
+  pull-to-refresh foi preservado com contêiner rolável compatível com o gesto.
+  Estados `Loading`/`Empty` usam a mesma composição com zeros visuais; erros
+  acionáveis continuam preservados. Card inferior aparece somente para revisão
+  pendente. `031-05` foi concluída após revisão independente aprovada: o
+  dashboard mantém zero visual sem resumo, linhas responsivas à escala de fonte,
+  retry acionável e card inferior somente para revisão pendente. Smoke final
+  usou variante debug `br.com.mwconsulting.championcompanion.dev`; não confundir
+  com pacote release sem sufixo. Progresso atual: `5/11`.

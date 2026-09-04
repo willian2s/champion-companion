@@ -484,8 +484,9 @@ private fun ChampionNavDisplay(
                 onOpenDevice = { onNavigateTo(AppDestination.Device) },
                 onOpenProfile = { onNavigateTo(AppDestination.Profile) },
                 onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+                onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
+                onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
                 onOpenExercises = { onNavigateTo(AppDestination.Exercises) },
-                onOpenCalendar = { onNavigateTo(AppDestination.Calendar) },
             )
             AppDestination.Health -> HealthScreen(
                 onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },

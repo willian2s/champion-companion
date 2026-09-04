@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `05`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -62,3 +62,65 @@ revisão independente aprovados.
 
 Redução de conteúdo pode esconder pendências. Conferir todos os estados do
 contrato antes de omitir qualquer seção.
+
+## Execução e evidências
+
+- **Status da execução:** concluída após revisão independente aprovada.
+- **Arquivos alterados:** `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeScreen.kt` e
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`.
+- **Decisões:** a Home reproduz a estrutura sanitizada observada: card maior de
+  `Passos` à esquerda e três linhas compactas à direita, na ordem `Exercícios`,
+  `Distância` e `Freq. cardíaca`. Exercícios é atalho real. Distância e
+  frequência cardíaca exibem zero quando não há dado; a mesma composição fica
+  estável entre estados. Os cards clicáveis não exibem setas. O card de Passos usa preenchimento
+  proporcional à meta da esquerda para a direita, sem barra de progresso, texto
+  `passos hoje`, percentual visível ou fonte de dados. BPM não aparece no card maior. A Home não exibe
+  link para Calendário; a rota continua acessível pelos contextos previstos em
+  Exercícios e demais superfícies. Passos, distância e FC encaminham aos
+  detalhes existentes. O único card inferior permanece sendo o de revisão
+  quando há revisão pendente. Altura do card de Passos corresponde à soma das alturas
+  das linhas laterais e dos espaçamentos entre elas.
+  `ChampionRedesignTheme`, `ChampionRedesignSurfaceHeader`,
+  `ChampionRedesignHeaderAction` e `ChampionRedesignSummaryCard` continuam
+  usados em produção na Home e registrados para uso real também em `031-06`.
+- **Correção de comportamento visual:** o aviso transitório de sincronização do
+  Health Connect foi removido da Home; o feedback de refresh local e seus erros
+  permanecem. Isso elimina a mensagem intermitente após o refresh sem alterar a
+  fila ou o sincronismo write-only, que continuam observáveis em suas telas.
+- **Desvios:** por solicitação explícita, calorias foi substituída por FC, valores
+  ausentes de passos/distância/FC usam zero visual e o texto de fonte de dados
+  foi removido. Contagem de exercícios realizados na
+  semana e meta fixa `4` ficaram bloqueadas: não há campo/contrato existente e
+  a subtarefa exclui nova métrica/cálculo; não foi exibido dado sintético.
+- **Ajuste de estado:** por solicitação explícita, `Loading`/`Empty` mantêm a
+  composição da Home com passos, distância e frequência cardíaca em zero visual;
+  erros de dispositivo, permissões, Bluetooth e refresh continuam expondo estado
+  seguro acionável quando aplicável. Card de revisão só aparece quando há
+  pendência de revisão; calibração e atividades recuperáveis permanecem em
+  Exercícios, sem duplicar card na Home.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin`;
+  `./gradlew lint assembleDebug assembleRelease`; `./gradlew installDebug`;
+  `adb shell am force-stop br.com.mwconsulting.championcompanion.dev`;
+  `adb shell monkey -p br.com.mwconsulting.championcompanion.dev 1`;
+  `adb shell uiautomator dump ...`; gesto de refresh, rolagem, ações de
+  Dispositivo/Perfil e retorno; smoke com fonte ampliada, portrait/landscape e
+  temas claro/escuro.
+- **Resultados/evidências:** compilação, lint, builds debug/release e instalação
+  debug passaram. No `SM-S901E`, a variante correta `br.com.mwconsulting.championcompanion.dev`
+  expôs `Passos`, `Exercícios`,
+  `Distância`, `Freq. cardíaca` e barra inferior `Hoje`/`Saúde`; dump estrutural temporário
+  confirmou um contêiner rolável necessário ao pull-to-refresh e foi apagado.
+  O gesto de refresh não exibiu mensagem transitória de Health Connect após a
+  correção; o estado com dados expôs alvos clicáveis para métricas e revisão.
+  As bounds confirmaram card maior alinhado à soma das três linhas laterais e
+  espaçamentos. Fonte ampliada,
+  landscape e temas foram exercitados. Estado restaurado para fonte 1.0,
+  portrait, rotação automática desativada e tema escuro; Activity reiniciada.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** aprovada após correção de zero visual sem resumo e
+  altura responsiva das linhas em escala de fonte ampliada.
+- **Riscos residuais:** smoke ADB não substitui validação completa com TalkBack;
+  foco e contraste precisam de revisão consolidada em `031-11`. Contagem
+  semanal permanece fora do escopo e bloqueada por ausência de contrato. O
+  fallback sem resumo não foi forçado no aparelho para não apagar dados locais;
+  foi verificado estaticamente.
