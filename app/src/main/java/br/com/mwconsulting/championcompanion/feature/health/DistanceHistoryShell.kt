@@ -7,31 +7,25 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
@@ -39,33 +33,39 @@ import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
-import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
+import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.model.CalendarDataSource
+import br.com.mwconsulting.championcompanion.core.model.CalendarDistanceHistoryEntry
 import br.com.mwconsulting.championcompanion.core.model.CalendarDistanceHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import java.text.NumberFormat
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
-
-private const val DISTANCE_HISTORY_PAGE_SIZE = 10
+import kotlinx.coroutines.delay
 
 @Composable
 fun DistanceDetailScreen(
     onNavigateBack: () -> Unit,
     backLabel: String = "Voltar para Saúde",
-    healthViewModel: HealthViewModel = activityHealthViewModel(),
     distanceHistoryViewModel: DistanceHistoryViewModel = activityDistanceHistoryViewModel(),
 ) {
-    val state by healthViewModel.state.collectAsState()
     val historyState by distanceHistoryViewModel.state.collectAsState()
-    val summary = state.todaySummary
-
     LaunchedEffect(distanceHistoryViewModel) {
-        distanceHistoryViewModel.onIntent(DistanceHistoryIntent.Load)
+        while (true) {
+            distanceHistoryViewModel.onIntent(DistanceHistoryIntent.Load)
+            val now = ZonedDateTime.now(ZoneId.systemDefault())
+            val nextDay = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+            delay((nextDay.toEpochSecond() - now.toEpochSecond()).coerceAtLeast(1L) * 1_000L)
+        }
     }
 
     MetricDetailScaffold(
@@ -73,86 +73,12 @@ fun DistanceDetailScreen(
         description = "Acompanhe estimativa diária e tendência dos resumos locais.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
-        header = { DistanceDetailHeader() },
     ) {
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
-            if (summary == null || summary.estimatedDistanceMeters == null) {
-                HealthMetricEmptyState(
-                    message = if (summary == null) {
-                        "Nenhum resumo diário local foi encontrado para hoje."
-                    } else {
-                        "Sem estimativa de distância hoje: ainda faltam dados pessoais suficientes."
-                    },
-                )
-            } else {
-                DistanceDailyValue(
-                    value = "${distanceDecimalFormat().format(summary.estimatedDistanceMeters / 1000.0)} km",
-                    supporting = "Estimativa local de hoje",
-                    extra = "Origem: ${summary.sourceLabel} • Atualizado em ${formatDateTime(summary.updatedAt)}",
-                )
-            }
-        }
         DistanceHistoryShell(
             state = historyState,
             onIntent = distanceHistoryViewModel::onIntent,
         )
     }
-}
-
-@Composable
-private fun DistanceDetailHeader() {
-    val headerColor = LightColorScheme.primary
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = headerColor,
-            contentColor = White,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Distância",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Veja a estimativa diária e a tendência dos resumos locais.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DistanceDailyValue(
-    value: String,
-    supporting: String,
-    extra: String,
-) {
-    Text(
-        text = value,
-        modifier = Modifier.padding(top = ChampionSpacing.medium),
-        color = distancePrimaryAccent(),
-        style = MaterialTheme.typography.displaySmall,
-        fontWeight = FontWeight.SemiBold,
-    )
-    Text(
-        text = supporting,
-        modifier = Modifier.padding(top = ChampionSpacing.small),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    Text(
-        text = extra,
-        modifier = Modifier.padding(top = ChampionSpacing.small),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-    )
 }
 
 @Composable
@@ -181,38 +107,39 @@ private fun DistanceHistoryShell(
                 modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
             )
         }
-    }
-
-    state.snapshot?.let { snapshot ->
-        val hasDailySummaryIssue = snapshot.issues.any { it.source == CalendarDataSource.DAILY_SUMMARY }
-        val hasConfirmedDistance = snapshot.aggregates.daysWithEstimateCount > 0
-        if (snapshot.issues.isNotEmpty()) {
-            ErrorState(
-                title = if (hasDailySummaryIssue && !hasConfirmedDistance) {
-                    "Histórico de distância indisponível"
-                } else {
-                    "Dados parciais do histórico"
-                },
-                message = if (hasDailySummaryIssue && !hasConfirmedDistance) {
-                    "A fonte de resumos locais não pôde ser consultada. Não é possível confirmar ausência de estimativas."
-                } else {
-                    "Parte das fontes locais não pôde ser consultada. Estimativas confirmadas permanecem visíveis e lacunas não viram zero."
-                },
-                actionLabel = "Tentar novamente",
-                onAction = { onIntent(DistanceHistoryIntent.Retry) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (hasConfirmedDistance || !hasDailySummaryIssue) {
-            DistanceHistorySummary(snapshot)
-            HealthCard(title = "Gráfico", modifier = Modifier.fillMaxWidth()) {
-                DistanceHistoryChart(
-                    snapshot = snapshot,
-                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+        state.snapshot?.let { snapshot ->
+            val hasDailySummaryIssue = snapshot.issues.any { it.source == CalendarDataSource.DAILY_SUMMARY }
+            val hasConfirmedDistance = snapshot.aggregates.daysWithEstimateCount > 0
+            if (snapshot.issues.isNotEmpty()) {
+                ErrorState(
+                    title = if (hasDailySummaryIssue && !hasConfirmedDistance) {
+                        "Histórico de distância indisponível"
+                    } else {
+                        "Dados parciais do histórico"
+                    },
+                    message = if (hasDailySummaryIssue && !hasConfirmedDistance) {
+                        "A fonte de resumos locais não pôde ser consultada. Não é possível confirmar ausência de estimativas."
+                    } else {
+                        "Parte das fontes locais não pôde ser consultada. Estimativas confirmadas permanecem visíveis e lacunas não viram zero."
+                    },
+                    actionLabel = "Tentar novamente",
+                    onAction = { onIntent(DistanceHistoryIntent.Retry) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            HealthCard(title = "Lista acessível", modifier = Modifier.fillMaxWidth()) {
-                DistanceHistoryList(snapshot)
+            if (hasConfirmedDistance || !hasDailySummaryIssue) {
+                val displayData = snapshot.toDistanceHistoryDisplayData()
+                DistanceHistoryChart(
+                    displayEntries = displayData.chartEntries,
+                    period = snapshot.query.period,
+                    modifier = Modifier.fillMaxWidth(),
+                    chartHeight = 136.dp,
+                    chartMinimumHeight = 136.dp,
+                )
+                DistanceHistoryList(
+                    entries = displayData.listEntries,
+                    period = snapshot.query.period,
+                )
             }
         }
     }
@@ -236,130 +163,208 @@ private fun DistanceHistoryPeriodSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
-            CalendarHistoryPeriod.entries.forEach { period ->
-                val modifier = Modifier
+            listOf(
+                CalendarHistoryPeriod.LAST_7_DAYS,
+                CalendarHistoryPeriod.LAST_30_DAYS,
+                CalendarHistoryPeriod.LAST_90_DAYS,
+                CalendarHistoryPeriod.LAST_365_DAYS,
+            ).forEach { period ->
+                FilterChip(
+                    selected = period == selected,
+                    onClick = { onSelect(period) },
+                    modifier = Modifier
                     .weight(1f)
+                    .heightIn(min = 48.dp)
                     .semantics {
                         this.selected = period == selected
-                        contentDescription = "Últimos ${period.windowDays} dias"
+                        contentDescription = period.toDistanceAccessibilityLabel()
                         stateDescription = if (period == selected) "Selecionado" else "Não selecionado"
-                    }
-                OutlinedButton(
-                    onClick = { onSelect(period) },
-                    modifier = modifier,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (period == selected) distancePrimaryAccent() else MaterialTheme.colorScheme.outline,
-                    ),
-                ) {
-                    Text(
-                        text = period.toDistancePeriodLabel(),
-                        maxLines = 1,
-                        color = if (period == selected) {
-                            distancePrimaryAccent()
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        fontWeight = if (period == selected) FontWeight.SemiBold else FontWeight.Medium,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DistanceHistorySummary(snapshot: CalendarDistanceHistorySnapshot) {
-    val aggregates = snapshot.aggregates
-    HealthCard(title = "Resumo do período", modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(top = ChampionSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            MetricCard(
-                label = "Total",
-                value = aggregates.totalDistanceMeters?.let(::formatDistance) ?: "Sem dados",
-                supportingText = "Somente dias com estimativa",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricCard(
-                label = "Média por dia com estimativa",
-                value = aggregates.averageDistanceMetersPerDayWithEstimate?.let(::formatDistance) ?: "Sem dados",
-                supportingText = "Dias sem estimativa não entram no cálculo",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricCard(
-                label = "Máximo",
-                value = aggregates.maximumDistanceMeters?.let(::formatDistance) ?: "Sem dados",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MetricCard(
-                label = "Dias com estimativa",
-                value = "${aggregates.daysWithEstimateCount}/${snapshot.query.period.windowDays}",
-                supportingText = "${aggregates.daysWithoutEstimateCount} dia(s) sem estimativa",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (aggregates.daysWithEstimateCount == 0) {
-                EmptyState(
-                    title = "Sem estimativas no período",
-                    message = "Nenhuma distância diária estimada foi encontrada. Dias sem estimativa não são tratados como 0 km.",
-                    modifier = Modifier.fillMaxWidth(),
+                    },
+                    label = {
+                        Text(
+                            text = period.toDistancePeriodLabel(),
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            fontWeight = if (period == selected) FontWeight.SemiBold else FontWeight.Medium,
+                        )
+                    },
                 )
             }
         }
     }
 }
 
+internal data class DistanceHistoryDisplayData(
+    val chartEntries: List<DistanceHistoryDisplayEntry>,
+    val listEntries: List<DistanceHistoryDisplayEntry>,
+)
+
+internal data class DistanceHistoryDisplayEntry(
+    val fromInclusive: LocalDate,
+    val untilExclusive: LocalDate,
+    val estimatedDistanceMeters: Double?,
+    val origins: Set<DataOrigin>,
+    val updatedAt: Instant?,
+    val bucketKind: DistanceHistoryBucketKind,
+) {
+    init {
+        require(fromInclusive.isBefore(untilExclusive))
+        require(
+            estimatedDistanceMeters == null ||
+                (estimatedDistanceMeters.isFinite() && estimatedDistanceMeters >= 0.0),
+        )
+    }
+}
+
+internal enum class DistanceHistoryBucketKind(
+    val countLabel: String,
+    val aggregationLabel: String,
+) {
+    DAY("dias", "por dia"),
+    WEEK("semanas", "por semana"),
+    MONTH("meses", "por mês"),
+}
+
+internal fun CalendarDistanceHistorySnapshot.toDistanceHistoryDisplayData(
+    today: LocalDate = LocalDate.now(),
+): DistanceHistoryDisplayData {
+    val chartEntries = when (query.period) {
+        CalendarHistoryPeriod.LAST_7_DAYS,
+        CalendarHistoryPeriod.LAST_30_DAYS,
+        -> entries.map { it.toDistanceHistoryDisplayEntry(DistanceHistoryBucketKind.DAY) }
+
+        CalendarHistoryPeriod.LAST_90_DAYS,
+        CalendarHistoryPeriod.LAST_365_DAYS,
+        -> entries
+            .groupBy { YearMonth.from(it.localDate) }
+            .toSortedMap()
+            .values
+            .map { monthEntries ->
+                monthEntries.toDistanceHistoryDisplayEntry(DistanceHistoryBucketKind.MONTH)
+            }
+    }
+    val listEntries = when (query.period) {
+        CalendarHistoryPeriod.LAST_7_DAYS -> chartEntries.filter {
+            !it.fromInclusive.isAfter(today)
+        }
+
+        CalendarHistoryPeriod.LAST_30_DAYS -> entries
+            .splitIntoCalendarWeeks()
+            .map { weekEntries ->
+                weekEntries.toDistanceHistoryDisplayEntry(DistanceHistoryBucketKind.WEEK)
+            }
+
+        CalendarHistoryPeriod.LAST_90_DAYS,
+        CalendarHistoryPeriod.LAST_365_DAYS,
+        -> chartEntries
+    }
+    return DistanceHistoryDisplayData(
+        chartEntries = chartEntries,
+        listEntries = listEntries,
+    )
+}
+
+internal fun CalendarDistanceHistorySnapshot.toDistanceHistoryDisplayEntries(): List<DistanceHistoryDisplayEntry> =
+    toDistanceHistoryDisplayData().chartEntries
+
+private fun CalendarDistanceHistoryEntry.toDistanceHistoryDisplayEntry(
+    bucketKind: DistanceHistoryBucketKind,
+): DistanceHistoryDisplayEntry = DistanceHistoryDisplayEntry(
+    fromInclusive = localDate,
+    untilExclusive = localDate.plusDays(1),
+    estimatedDistanceMeters = estimatedDistanceMeters,
+    origins = origin?.let(::setOf).orEmpty(),
+    updatedAt = updatedAt,
+    bucketKind = bucketKind,
+)
+
+private fun List<CalendarDistanceHistoryEntry>.toDistanceHistoryDisplayEntry(
+    bucketKind: DistanceHistoryBucketKind,
+): DistanceHistoryDisplayEntry {
+    require(isNotEmpty())
+    val from = first().localDate
+    val until = last().localDate.plusDays(1)
+    val values = mapNotNull { it.estimatedDistanceMeters }
+    val total = values.sumFiniteOrNull()
+    val valueEntries = filter { it.estimatedDistanceMeters != null }
+    val metadataEntries = valueEntries.ifEmpty { this }
+    return DistanceHistoryDisplayEntry(
+        fromInclusive = from,
+        untilExclusive = until,
+        estimatedDistanceMeters = total,
+        origins = metadataEntries.mapNotNull { it.origin }.toSet(),
+        updatedAt = metadataEntries.mapNotNull { it.updatedAt }.maxOrNull(),
+        bucketKind = bucketKind,
+    )
+}
+
+private fun List<CalendarDistanceHistoryEntry>.splitIntoCalendarWeeks(): List<List<CalendarDistanceHistoryEntry>> {
+    if (isEmpty()) return emptyList()
+
+    val month = YearMonth.from(first().localDate)
+    val monthEnd = month.atEndOfMonth()
+    val entriesByDate = associateBy { it.localDate }
+    val buckets = mutableListOf<List<CalendarDistanceHistoryEntry>>()
+    var from = month.atDay(1)
+    while (!from.isAfter(monthEnd)) {
+        val until = minOf(
+            monthEnd,
+            from.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY)),
+        )
+        val bucket = buildList {
+            var date = from
+            while (!date.isAfter(until)) {
+                entriesByDate[date]?.let(::add)
+                date = date.plusDays(1)
+            }
+        }
+        buckets += bucket
+        from = until.plusDays(1)
+    }
+    return buckets
+}
+
+private fun List<Double>.sumFiniteOrNull(): Double? {
+    if (isEmpty()) return null
+
+    var total = 0.0
+    for (value in this) {
+        if (!value.isFinite() || value < 0.0) return null
+        total += value
+        if (!total.isFinite()) return null
+    }
+    return total
+}
+
 @Composable
-private fun DistanceHistoryList(snapshot: CalendarDistanceHistorySnapshot) {
+private fun DistanceHistoryList(
+    entries: List<DistanceHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
+) {
     val locale = LocalConfiguration.current.locales[0]
-    val entries = snapshot.entries.asReversed()
-    val totalPages = (entries.size + DISTANCE_HISTORY_PAGE_SIZE - 1) / DISTANCE_HISTORY_PAGE_SIZE
-    var currentPage by rememberSaveable(snapshot.query.period) { mutableStateOf(0) }
-    currentPage = currentPage.coerceIn(0, (totalPages - 1).coerceAtLeast(0))
-    val pageEntries = entries
-        .drop(currentPage * DISTANCE_HISTORY_PAGE_SIZE)
-        .take(DISTANCE_HISTORY_PAGE_SIZE)
+    val bucketKind = period.toDistanceListBucketKind()
+    val visibleEntries = entries.asReversed().filter { it.estimatedDistanceMeters != null }
 
     Column(
         modifier = Modifier.padding(top = ChampionSpacing.medium),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        Text(
-            text = "Valores em quilômetros. Dias sem estimativa permanecem indisponíveis.",
-            modifier = Modifier.semantics(mergeDescendants = true) {
-                contentDescription = "Valores em quilômetros. Dias sem estimativa permanecem indisponíveis."
-            },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics(mergeDescendants = true) {
-                    contentDescription = "Página ${currentPage + 1} de $totalPages. ${entries.size} dias no período."
-                },
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
         ) {
             Text(
-                text = "Página ${currentPage + 1} de $totalPages",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                text = "${entries.size} dias",
+                text = "${visibleEntries.size} ${bucketKind.countLabel} com dados",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        pageEntries.forEach { entry ->
-            val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-                .withLocale(locale)
-                .format(entry.localDate)
+        visibleEntries.forEach { entry ->
+            val date = formatDistanceDisplayRange(entry, locale)
             val value = entry.estimatedDistanceMeters?.let { "${formatDistance(it)} • estimada" }
                 ?: "Sem estimativa"
-            val origin = entry.origin?.toDistanceOriginLabel() ?: "indisponível"
+            val origin = entry.origins.joinToString(", ") { it.toDistanceOriginLabel() }.ifBlank { "indisponível" }
             val updatedAt = entry.updatedAt?.let(::formatDateTime) ?: "indisponível"
             Row(
                 modifier = Modifier
@@ -396,34 +401,116 @@ private fun DistanceHistoryList(snapshot: CalendarDistanceHistorySnapshot) {
                 )
             }
         }
-        if (totalPages > 1) {
-            Row(
+        if (visibleEntries.isEmpty()) {
+            EmptyState(
+                title = "Sem estimativas no período",
+                message = "Nenhuma distância estimada foi encontrada. Lacunas permanecem sem valor.",
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-            ) {
-                OutlinedButton(
-                    onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) },
-                    modifier = Modifier.weight(1f),
-                    enabled = currentPage > 0,
-                ) {
-                    Text("Anterior", maxLines = 1)
-                }
-                OutlinedButton(
-                    onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) },
-                    modifier = Modifier.weight(1f),
-                    enabled = currentPage < totalPages - 1,
-                ) {
-                    Text("Próxima", maxLines = 1)
-                }
-            }
+            )
         }
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
+internal fun formatDistanceDisplayRange(
+    entry: DistanceHistoryDisplayEntry,
+    locale: Locale,
+    today: LocalDate = LocalDate.now(),
+): String {
+    return when (entry.bucketKind) {
+        DistanceHistoryBucketKind.DAY -> formatDistanceDayLabel(entry.fromInclusive, today)
+        DistanceHistoryBucketKind.WEEK -> {
+            val formatter = DateTimeFormatter.ofPattern("dd/MM", DISTANCE_HISTORY_PT_BR)
+            "${formatter.format(entry.fromInclusive)} - " +
+                formatter.format(entry.untilExclusive.minusDays(1))
+        }
+        DistanceHistoryBucketKind.MONTH -> formatDistanceMonthAbbreviation(entry.fromInclusive)
+    }
+}
+
+internal val DISTANCE_HISTORY_WEEKDAY_LABELS = listOf("D", "S", "T", "Q", "Q", "S", "S")
+
+private val DISTANCE_HISTORY_MONTH_ABBREVIATIONS = listOf(
+    "JAN",
+    "FEV",
+    "MAR",
+    "ABR",
+    "MAI",
+    "JUN",
+    "JUL",
+    "AGO",
+    "SET",
+    "OUT",
+    "NOV",
+    "DEZ",
+)
+
+private val DISTANCE_HISTORY_WEEKDAY_NAMES = listOf(
+    "Dom.",
+    "Seg.",
+    "Ter.",
+    "Qua.",
+    "Qui.",
+    "Sex.",
+    "Sáb.",
+)
+
+private val DISTANCE_HISTORY_MONTH_NAMES = listOf(
+    "jan.",
+    "fev.",
+    "mar.",
+    "abr.",
+    "mai.",
+    "jun.",
+    "jul.",
+    "ago.",
+    "set.",
+    "out.",
+    "nov.",
+    "dez.",
+)
+
+internal val DISTANCE_HISTORY_PT_BR: Locale = Locale.forLanguageTag("pt-BR")
+
+internal fun formatDistanceDayLabel(date: LocalDate, today: LocalDate): String = when {
+    date == today -> "Hoje"
+    date == today.minusDays(1) -> "Ontem"
+    else -> "${DISTANCE_HISTORY_WEEKDAY_NAMES[date.dayOfWeek.value % 7]} " +
+        "${date.dayOfMonth} de ${DISTANCE_HISTORY_MONTH_NAMES[date.monthValue - 1]}"
+}
+
+internal fun formatDistanceMonthAbbreviation(date: LocalDate): String =
+    DISTANCE_HISTORY_MONTH_ABBREVIATIONS[date.monthValue - 1]
+
+@Suppress("UNUSED_PARAMETER")
+internal fun formatDistanceMonthInitial(date: LocalDate, locale: Locale): String =
+    formatDistanceMonthAbbreviation(date).first().toString()
+
+internal fun distanceHistoryMonthAxisDays(month: YearMonth): Set<Int> = buildSet {
+    addAll(listOf(1, 5, 10, 15, 20, 25))
+    add(month.lengthOfMonth())
+}
+
 private fun CalendarHistoryPeriod.toDistancePeriodLabel(): String = when (this) {
-    CalendarHistoryPeriod.LAST_7_DAYS -> "7D"
-    CalendarHistoryPeriod.LAST_30_DAYS -> "30D"
-    CalendarHistoryPeriod.LAST_90_DAYS -> "90D"
+    CalendarHistoryPeriod.LAST_7_DAYS -> "S"
+    CalendarHistoryPeriod.LAST_30_DAYS -> "M"
+    CalendarHistoryPeriod.LAST_90_DAYS -> "3M"
+    CalendarHistoryPeriod.LAST_365_DAYS -> "A"
+}
+
+private fun CalendarHistoryPeriod.toDistanceAccessibilityLabel(): String = when (this) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> "Semana civil atual, de domingo a sábado, com valores diários"
+    CalendarHistoryPeriod.LAST_30_DAYS -> "Mês calendário fechado anterior, com gráfico diário e lista semanal"
+    CalendarHistoryPeriod.LAST_90_DAYS -> "Três meses calendário fechados anteriores, com valores mensais"
+    CalendarHistoryPeriod.LAST_365_DAYS -> "Doze meses calendário fechados anteriores, com valores mensais"
+}
+
+private fun CalendarHistoryPeriod.toDistanceListBucketKind(): DistanceHistoryBucketKind = when (this) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> DistanceHistoryBucketKind.DAY
+    CalendarHistoryPeriod.LAST_30_DAYS -> DistanceHistoryBucketKind.WEEK
+    CalendarHistoryPeriod.LAST_90_DAYS,
+    CalendarHistoryPeriod.LAST_365_DAYS,
+    -> DistanceHistoryBucketKind.MONTH
 }
 
 private fun DistanceHistoryUiError.toUserMessage(): String = when (category) {
@@ -442,7 +529,7 @@ private fun formatDistance(meters: Double): String =
     "${distanceDecimalFormat().format(meters / 1000.0)} km"
 
 private fun distanceDecimalFormat(): NumberFormat = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
-    maximumFractionDigits = 1
+    maximumFractionDigits = 2
     minimumFractionDigits = 0
 }
 

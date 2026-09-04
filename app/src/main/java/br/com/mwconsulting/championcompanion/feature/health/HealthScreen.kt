@@ -4,8 +4,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,34 +17,38 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.ViewModelProvider
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
 import java.text.NumberFormat
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 fun HealthScreen(
@@ -55,7 +57,8 @@ fun HealthScreen(
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit = {},
-    onOpenCalendar: () -> Unit = {},
+    onOpenDevice: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
     healthViewModel: HealthViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -66,7 +69,12 @@ fun HealthScreen(
     val state by healthViewModel.state.collectAsState()
 
     LaunchedEffect(healthViewModel) {
-        healthViewModel.onIntent(HealthIntent.Load)
+        while (true) {
+            healthViewModel.onIntent(HealthIntent.Load)
+            val now = ZonedDateTime.now()
+            val nextDay = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+            delay((nextDay.toEpochSecond() - now.toEpochSecond()).coerceAtLeast(1L) * 1_000L)
+        }
     }
 
     val weightValue = state.latestWeight?.let {
@@ -115,184 +123,180 @@ fun HealthScreen(
         todaySummary.estimatedDistanceMeters == null -> "Indisponível"
         else -> "Disponível"
     }
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge)
-                .heightIn(min = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    val today = LocalDate.now(ZoneId.systemDefault())
+    val todayHeartRateEntries = state.history.entries.filter {
+        it.measuredAt.atZone(ZoneId.systemDefault()).toLocalDate() == today
+    }
+    val heartRateMinimum = todayHeartRateEntries.minOfOrNull { it.bpm }
+    val heartRateMaximum = todayHeartRateEntries.maxOfOrNull { it.bpm }
+    val heartRateValue = when {
+        heartRateMinimum != null && heartRateMaximum != null && heartRateMinimum == heartRateMaximum ->
+            "$heartRateMinimum BPM"
+        heartRateMinimum != null && heartRateMaximum != null -> "$heartRateMinimum a $heartRateMaximum BPM"
+        else -> "Sem dados"
+    }
+    ChampionRedesignTheme {
+        val tokens = LocalChampionRedesignTokens.current
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
-            HealthHubHeader()
-            Text(
-                text = "Métricas locais",
-                modifier = Modifier.semantics { heading() },
-                color = if (isSystemInDarkTheme()) White else MaterialTheme.colorScheme.onBackground,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            HealthMetricSummaryCard(
-                title = "Frequência cardíaca",
-                value = state.latestMeasurement?.let { "${it.bpm} BPM" } ?: "Sem medições",
-                supportingText = state.latestMeasurement?.measuredAt?.let(::formatMoment)
-                    ?: "Nenhuma medição ainda",
-                extraText = state.associatedDeviceName?.let { "Origem: $it" }
-                    ?: "Origem: não disponível",
-                accentColor = healthPrimaryAccent(),
-                isAvailable = state.latestMeasurement != null,
-                stateLabel = if (state.latestMeasurement != null) "Disponível" else "Sem dados",
-                onClick = onOpenHeartRate,
-            )
-            HealthMetricSummaryCard(
-                title = "Peso",
-                value = weightValue,
-                supportingText = weightSupportingText,
-                extraText = weightExtraText,
-                accentColor = healthSecondaryAccent(),
-                isAvailable = state.latestWeight != null,
-                stateLabel = weightStateLabel,
-                onClick = onOpenWeight,
-            )
-            HealthMetricSummaryCard(
-                title = "Passos",
-                value = state.todaySummary?.let { "${numberFormat().format(it.steps)} passos" } ?: "Sem dados",
-                supportingText = state.todaySummary?.updatedAt?.let(::formatMoment) ?: "Nenhum resumo hoje",
-                extraText = state.todaySummary?.sourceLabel?.let { "Origem: $it" } ?: "Origem: não disponível",
-                accentColor = healthTertiaryAccent(),
-                isAvailable = state.todaySummary != null,
-                stateLabel = if (state.todaySummary != null) "Disponível" else "Sem dados",
-                onClick = onOpenSteps,
-            )
-            HealthMetricSummaryCard(
-                title = "Distância",
-                value = distanceValue,
-                supportingText = distanceSupportingText,
-                extraText = distanceExtraText,
-                accentColor = healthPrimaryAccent(),
-                isAvailable = state.todaySummary?.estimatedDistanceMeters != null,
-                stateLabel = distanceStateLabel,
-                onClick = onOpenDistance,
-            )
-            HealthContextualActions(
-                onOpenExercises = onOpenExercises,
-                onOpenCalendar = onOpenCalendar,
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact)
+                    .heightIn(min = 1.dp),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
+            ) {
+                ChampionRedesignSurfaceHeader(
+                    title = "Saúde",
+                    supportingText = "Relógio: ${if (state.hasAssociatedDevice) "Conectado" else "Pendente"}",
+                    actionsContent = {
+                        ChampionRedesignHeaderAction(
+                            contentDescription = "Abrir Dispositivo",
+                            onClick = onOpenDevice,
+                        ) {
+                            Icon(imageVector = Icons.Filled.Watch, contentDescription = null)
+                        }
+                        ChampionRedesignHeaderAction(
+                            contentDescription = "Abrir Perfil",
+                            onClick = onOpenProfile,
+                        ) {
+                            Icon(imageVector = Icons.Filled.PersonOutline, contentDescription = null)
+                        }
+                    },
+                )
+                Text(
+                    text = "Principais métricas",
+                    modifier = Modifier.semantics { heading() },
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                HealthMetricsList(
+                    heartRateValue = heartRateValue,
+                    heartRateExtraText = state.associatedDeviceName?.let { "Origem: $it" }
+                        ?: "Origem: não disponível",
+                    weightValue = weightValue,
+                    weightSupportingText = weightSupportingText,
+                    weightExtraText = weightExtraText,
+                    weightStateLabel = weightStateLabel,
+                    stepsValue = todaySummary?.let { "${numberFormat().format(it.steps)} passos" } ?: "Sem dados",
+                    stepsSupportingText = todaySummary?.updatedAt?.let(::formatMoment) ?: "Nenhum resumo hoje",
+                    stepsExtraText = todaySummary?.sourceLabel?.let { "Origem: $it" }
+                        ?: "Origem: não disponível",
+                    distanceValue = distanceValue,
+                    distanceSupportingText = distanceSupportingText,
+                    distanceExtraText = distanceExtraText,
+                    distanceStateLabel = distanceStateLabel,
+                    onOpenHeartRate = onOpenHeartRate,
+                    onOpenWeight = onOpenWeight,
+                    onOpenSteps = onOpenSteps,
+                    onOpenDistance = onOpenDistance,
+                    onOpenExercises = onOpenExercises,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun HealthContextualActions(
+private fun HealthMetricsList(
+    heartRateValue: String,
+    heartRateExtraText: String,
+    weightValue: String,
+    weightSupportingText: String,
+    weightExtraText: String,
+    weightStateLabel: String,
+    stepsValue: String,
+    stepsSupportingText: String,
+    stepsExtraText: String,
+    distanceValue: String,
+    distanceSupportingText: String,
+    distanceExtraText: String,
+    distanceStateLabel: String,
+    onOpenHeartRate: () -> Unit,
+    onOpenWeight: () -> Unit,
+    onOpenSteps: () -> Unit,
+    onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit,
-    onOpenCalendar: () -> Unit,
 ) {
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text(
-                text = "Atividades",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Revise treinos importados e consulte o calendário de exercícios.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            OutlinedButton(
-                onClick = onOpenExercises,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-            ) {
-                Text("Abrir atividades")
-            }
-            OutlinedButton(
-                onClick = onOpenCalendar,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-            ) {
-                Text("Calendário de exercícios")
-            }
-        }
+        HealthListMetricCard(
+            title = "Atividades",
+            value = "Abrir atividades",
+            supportingText = "Treinos importados",
+            extraText = "Calendário dentro de Exercícios",
+            isAvailable = true,
+            onClick = onOpenExercises,
+        )
+        HealthListMetricCard(
+            title = "Frequência cardíaca",
+            value = heartRateValue,
+            supportingText = "Hoje",
+            extraText = heartRateExtraText,
+            isAvailable = heartRateValue != "Sem dados",
+            onClick = onOpenHeartRate,
+        )
+        HealthListMetricCard(
+            title = "Peso",
+            value = weightValue,
+            supportingText = weightSupportingText,
+            extraText = weightExtraText,
+            isAvailable = weightStateLabel == "Disponível",
+            onClick = onOpenWeight,
+        )
+        HealthListMetricCard(
+            title = "Passos",
+            value = stepsValue,
+            supportingText = stepsSupportingText,
+            extraText = stepsExtraText,
+            isAvailable = stepsValue != "Sem dados",
+            onClick = onOpenSteps,
+        )
+        HealthListMetricCard(
+            title = "Distância",
+            value = distanceValue,
+            supportingText = distanceSupportingText,
+            extraText = distanceExtraText,
+            isAvailable = distanceStateLabel == "Disponível",
+            onClick = onOpenDistance,
+        )
     }
 }
 
 @Composable
-private fun HealthHubHeader() {
-    val headerContainerColor = LightColorScheme.primary
-    val headerContentColor = White
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = headerContainerColor,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Saúde",
-                modifier = Modifier.semantics { heading() },
-                color = headerContentColor,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Veja seus principais indicadores.",
-                color = headerContentColor,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun HealthMetricSummaryCard(
+private fun HealthListMetricCard(
     title: String,
     value: String,
     supportingText: String,
     extraText: String,
-    accentColor: Color,
     isAvailable: Boolean,
-    stateLabel: String,
     onClick: () -> Unit,
 ) {
-    val valueColor = if (isAvailable) {
-        accentColor
+    val cardColors = if (androidx.compose.foundation.isSystemInDarkTheme()) {
+        DarkColorScheme.primaryContainer to DarkColorScheme.onPrimaryContainer
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        LightColorScheme.primaryContainer to LightColorScheme.onPrimaryContainer
     }
+    val valueColor = if (isAvailable) cardColors.second else cardColors.second.copy(alpha = 0.7f)
 
     Card(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 112.dp)
-            .clickable(onClick = onClick)
             .semantics {
-                role = Role.Button
-                contentDescription = "$title. $value. $stateLabel. $supportingText. $extraText. Toque para abrir detalhes."
+                contentDescription = "$title. $value. $supportingText. $extraText. Toque para abrir detalhes."
             },
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = cardColors.first,
+            contentColor = cardColors.second,
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
     ) {
         Row(
             modifier = Modifier.padding(ChampionSpacing.large),
@@ -327,31 +331,10 @@ private fun HealthMetricSummaryCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = accentColor,
+                tint = cardColors.second,
             )
         }
     }
-}
-
-@Composable
-private fun healthPrimaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.primary
-} else {
-    LightColorScheme.primary
-}
-
-@Composable
-private fun healthSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.secondary
-} else {
-    LightColorScheme.secondary
-}
-
-@Composable
-private fun healthTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.tertiary
-} else {
-    LightColorScheme.tertiary
 }
 
 private fun formatMoment(instant: Instant): String =

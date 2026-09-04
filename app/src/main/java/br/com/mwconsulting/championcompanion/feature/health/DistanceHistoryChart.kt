@@ -1,16 +1,13 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionBarChart
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCartesianChartData
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartAxisSpec
@@ -21,46 +18,56 @@ import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCha
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartUnit
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisFormatter
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
-import br.com.mwconsulting.championcompanion.core.model.CalendarDistanceHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryPeriod
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import java.time.YearMonth
 import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
 internal fun DistanceHistoryChart(
-    snapshot: CalendarDistanceHistorySnapshot,
+    displayEntries: List<DistanceHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
     modifier: Modifier = Modifier,
+    chartHeight: Dp = 190.dp,
+    chartMinimumHeight: Dp = 192.dp,
 ) {
-    val entries = snapshot.entries
+    val entries = displayEntries
     val locale = LocalConfiguration.current.locales[0]
     val maximumDistanceKm = maxOf(
-        snapshot.aggregates.maximumDistanceMeters?.div(1000.0) ?: 0.0,
+        entries.mapNotNull { it.estimatedDistanceMeters }.maxOrNull()?.div(1000.0) ?: 0.0,
         1.0,
     )
-    val estimatedDayCount = entries.count { it.estimatedDistanceMeters != null }
-    val missingDayCount = entries.size - estimatedDayCount
-    val shortDateFormatter = shortDateFormatter(locale)
-    val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    val estimatedEntryCount = entries.count { it.estimatedDistanceMeters != null }
+    val missingEntryCount = entries.size - estimatedEntryCount
     val distanceFormatter = ChampionChartFormatters.decimal(maximumFractionDigits = 1)
-    val gapCount = entries.count { it.estimatedDistanceMeters == null }
-    val gapLabels = entries
-        .filter { it.estimatedDistanceMeters == null }
-        .joinToString(limit = 5, truncated = "…") { shortDateFormatter.format(it.localDate) }
-        .let { labels ->
-            if (gapCount > 5) "$labels e mais ${gapCount - 5}" else labels
-        }
+    val originLabel = entries
+        .flatMap { it.origins }
+        .distinct()
+        .joinToString(", ") { it.toChartOriginLabel() }
+        .ifBlank { "não disponível" }
+    val periodLabel = when (period) {
+        CalendarHistoryPeriod.LAST_7_DAYS -> "semana civil atual"
+        CalendarHistoryPeriod.LAST_30_DAYS -> "mês calendário fechado anterior"
+        CalendarHistoryPeriod.LAST_90_DAYS -> "três meses calendário fechados anteriores"
+        CalendarHistoryPeriod.LAST_365_DAYS -> "doze meses calendário fechados anteriores"
+    }
+    val chartEntryCountLabel = when (period) {
+        CalendarHistoryPeriod.LAST_7_DAYS -> "dias"
+        CalendarHistoryPeriod.LAST_30_DAYS -> "dias"
+        CalendarHistoryPeriod.LAST_90_DAYS,
+        CalendarHistoryPeriod.LAST_365_DAYS,
+        -> "meses"
+    }
     val chartData = ChampionCartesianChartData(
         series = listOf(
             ChampionChartSeries(
                 key = "distance",
                 label = "Distância",
                 points = entries.mapIndexed { index, entry ->
-                    val date = dateFormatter.format(entry.localDate)
+                    val date = formatDistanceChartLabel(entry, index, period, locale)
                     val distanceKm = entry.estimatedDistanceMeters?.div(1000.0)
                     ChampionChartPoint(
-                        x = index.toDouble(),
+                        x = distanceChartX(entry, index, period),
                         y = distanceKm,
                         xLabel = date,
                         contentDescription = "$date: ${distanceKm?.let { "${distanceFormatter.format(it)} km" } ?: "sem estimativa"}.",
@@ -70,11 +77,26 @@ internal fun DistanceHistoryChart(
         ),
         xAxis = ChampionChartXAxisSpec(
             formatter = ChampionChartXAxisFormatter { value ->
-                entries[value.roundToInt().coerceIn(entries.indices)].localDate.let(shortDateFormatter::format)
+                formatDistanceAxisLabel(value, entries, period, locale)
             },
-            title = "Data",
-            minimum = 0.0,
-            maximum = entries.lastIndex.toDouble(),
+            title = if (period == CalendarHistoryPeriod.LAST_90_DAYS ||
+                period == CalendarHistoryPeriod.LAST_365_DAYS
+            ) {
+                "Mês"
+            } else {
+                "Dia"
+            },
+            minimum = distanceChartXBounds(entries, period).first,
+            maximum = distanceChartXBounds(entries, period).second,
+            visible = true,
+            gridLinesVisible = false,
+            labelValues = when (period) {
+                CalendarHistoryPeriod.LAST_30_DAYS -> entries
+                    .map { it.fromInclusive.dayOfMonth }
+                    .filter { it in distanceHistoryMonthAxisDays(entries.first().fromInclusive.let(YearMonth::from)) }
+                    .map(Int::toDouble)
+                else -> entries.indices.map(Int::toDouble)
+            },
         ),
         yAxis = ChampionChartAxisSpec(
             title = "Distância",
@@ -82,38 +104,98 @@ internal fun DistanceHistoryChart(
             unit = ChampionChartUnit("km"),
             minimum = 0.0,
             maximum = maximumDistanceKm,
+            visible = false,
+            gridLinesVisible = false,
         ),
         interaction = ChampionChartInteractionPolicy(
-            scrollEnabled = entries.size > CalendarHistoryPeriod.LAST_7_DAYS.windowDays.toInt(),
+            scrollEnabled = false,
         ),
-        accessibilitySummary = "Gráfico de barras de distância estimada para ${entries.size} dias. " +
-            "$estimatedDayCount dias com estimativa e $missingDayCount dias sem estimativa. " +
-            "Lacunas não representam zero quilômetros. Valores diários estão disponíveis na lista acessível.",
+        accessibilitySummary = "Gráfico de barras de distância estimada para $periodLabel, com ${entries.size} $chartEntryCountLabel. " +
+            "$estimatedEntryCount $chartEntryCountLabel com estimativa e $missingEntryCount $chartEntryCountLabel sem estimativa. " +
+            "Origem: $originLabel. " +
+            "Lacunas não representam zero quilômetros. Os mesmos dados locais estão disponíveis na lista, com a agregação correspondente ao período.",
     )
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        ChampionBarChart(
-            data = chartData,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(190.dp),
-        )
-        Text(
-            text = "Barras: distância estimada • eixo/tooltip: km • lacuna: sem estimativa",
-            modifier = Modifier.padding(top = ChampionSpacing.small),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (gapLabels.isNotEmpty()) {
-            Text(
-                text = "Lacunas: $gapLabels (sem estimativa; não representam zero quilômetros)",
-                modifier = Modifier.padding(top = ChampionSpacing.extraSmall),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
+    ChampionBarChart(
+        data = chartData,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .height(chartHeight),
+        minimumHeight = chartMinimumHeight,
+        columnWidth = 4.dp,
+        columnCollectionSpacing = 1.dp,
+        groupedColumnSpacing = 1.dp,
+    )
+}
+
+private fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toChartOriginLabel(): String = when (this) {
+    br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_DAILY_SUMMARY -> "relógio"
+    else -> "resumo local"
+}
+
+private fun formatDistanceChartLabel(
+    entry: DistanceHistoryDisplayEntry,
+    index: Int,
+    period: CalendarHistoryPeriod,
+    @Suppress("UNUSED_PARAMETER") locale: Locale,
+): String = when (period) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> DISTANCE_HISTORY_WEEKDAY_LABELS.getOrNull(index) ?: "--"
+        CalendarHistoryPeriod.LAST_30_DAYS -> entry.fromInclusive.dayOfMonth.toString()
+    CalendarHistoryPeriod.LAST_90_DAYS -> formatDistanceMonthAbbreviation(entry.fromInclusive)
+    CalendarHistoryPeriod.LAST_365_DAYS -> formatDistanceMonthInitial(entry.fromInclusive, locale)
+}
+
+private fun distanceChartX(
+    entry: DistanceHistoryDisplayEntry,
+    index: Int,
+    period: CalendarHistoryPeriod,
+): Double = when (period) {
+    CalendarHistoryPeriod.LAST_7_DAYS,
+    CalendarHistoryPeriod.LAST_90_DAYS,
+    CalendarHistoryPeriod.LAST_365_DAYS,
+    -> index.toDouble()
+    CalendarHistoryPeriod.LAST_30_DAYS -> entry.fromInclusive.dayOfMonth.toDouble()
+}
+
+private fun formatDistanceAxisLabel(
+    value: Double,
+    entries: List<DistanceHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
+    @Suppress("UNUSED_PARAMETER") locale: Locale,
+): String {
+    if (!value.isFinite()) return "--"
+    val index = value.roundToInt()
+    return when (period) {
+        CalendarHistoryPeriod.LAST_7_DAYS ->
+            DISTANCE_HISTORY_WEEKDAY_LABELS.getOrNull(index) ?: "--"
+
+        CalendarHistoryPeriod.LAST_30_DAYS -> {
+            val month = entries.firstOrNull()?.let { YearMonth.from(it.fromInclusive) }
+            val day = index.takeIf { month != null && it in distanceHistoryMonthAxisDays(month) }
+            day?.toString() ?: "--"
         }
+
+        CalendarHistoryPeriod.LAST_90_DAYS ->
+            entries.getOrNull(index)?.let { formatDistanceMonthAbbreviation(it.fromInclusive) } ?: "--"
+        CalendarHistoryPeriod.LAST_365_DAYS ->
+            entries.getOrNull(index)?.let { formatDistanceMonthInitial(it.fromInclusive, locale) } ?: "--"
     }
 }
 
-private fun shortDateFormatter(locale: Locale): DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd/MM", locale)
+private fun distanceChartXBounds(
+    entries: List<DistanceHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
+): Pair<Double, Double> = when (period) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> -0.5 to 6.5
+    CalendarHistoryPeriod.LAST_30_DAYS -> {
+        val lastDay = entries.maxOfOrNull { it.fromInclusive.dayOfMonth } ?: 1
+        0.5 to lastDay + 0.5
+    }
+    CalendarHistoryPeriod.LAST_90_DAYS,
+    CalendarHistoryPeriod.LAST_365_DAYS,
+    -> {
+        val count = entries.size.coerceAtLeast(1)
+        -0.5 to count - 0.5
+    }
+}

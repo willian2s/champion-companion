@@ -7,15 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,10 +24,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -44,6 +41,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.MetricCard
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
 import br.com.mwconsulting.championcompanion.core.model.CalendarDataSource
 import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.CalendarStepsHistorySnapshot
@@ -56,6 +54,12 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val STEPS_HISTORY_PAGE_SIZE = 10
+
+private val STEPS_HISTORY_PERIODS = listOf(
+    CalendarHistoryPeriod.LAST_7_DAYS to "7D",
+    CalendarHistoryPeriod.LAST_30_DAYS to "30D",
+    CalendarHistoryPeriod.LAST_90_DAYS to "90D",
+)
 
 @Composable
 fun StepsDetailScreen(
@@ -77,28 +81,36 @@ fun StepsDetailScreen(
         description = "Acompanhe passos, meta e tendência dos seus resumos locais.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
-        header = { StepsDetailHeader() },
     ) {
-        HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
+        val progress = summary?.let { DailySummaryPolicy.progress(it.steps, state.dailyStepsGoal) }
+        ChampionRedesignSummaryCard(
+            title = "Resumo atual",
+            value = summary?.let { "${stepsNumberFormat().format(it.steps)} passos" } ?: "Sem dados",
+            supportingText = progress?.let {
+                "Meta ${stepsNumberFormat().format(it.goal)} • ${(it.progress * 100f).roundToInt()}%"
+            } ?: "Nenhum resumo diário persistido para hoje",
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             if (summary == null) {
                 HealthMetricEmptyState(message = "Nenhum resumo diário persistido foi encontrado para hoje.")
             } else {
-                val progress = DailySummaryPolicy.progress(summary.steps, state.dailyStepsGoal)
-                StepsDailyValue(
-                    value = "${stepsNumberFormat().format(summary.steps)} passos",
-                    supporting = "Meta ${stepsNumberFormat().format(progress.goal)} • ${(progress.progress * 100f).roundToInt()}%",
-                    extra = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
+                val currentProgress = checkNotNull(progress)
+                Text(
+                    text = "Atualizado em ${formatDateTime(summary.updatedAt)} • ${summary.sourceLabel}",
+                    modifier = Modifier.padding(top = ChampionSpacing.small),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
                 )
                 LinearProgressIndicator(
-                    progress = { progress.progress.coerceIn(0f, 1f) },
+                    progress = { currentProgress.progress.coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = ChampionSpacing.medium)
                         .semantics {
                             contentDescription = "Progresso da meta diária de passos"
-                            stateDescription = "${(progress.progress * 100f).roundToInt()} por cento da meta"
+                            stateDescription = "${(currentProgress.progress * 100f).roundToInt()} por cento da meta"
                             progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(
-                                progress.progress.coerceIn(0f, 1f),
+                                currentProgress.progress.coerceIn(0f, 1f),
                                 0f..1f,
                             )
                         },
@@ -111,60 +123,6 @@ fun StepsDetailScreen(
             onIntent = stepsHistoryViewModel::onIntent,
         )
     }
-}
-
-@Composable
-private fun StepsDetailHeader() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = LightColorScheme.primary,
-            contentColor = White,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Passos",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Veja seu progresso diário e a tendência dos resumos locais.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun StepsDailyValue(
-    value: String,
-    supporting: String,
-    extra: String,
-) {
-    Text(
-        text = value,
-        modifier = Modifier.padding(top = ChampionSpacing.medium),
-        color = stepsTertiaryAccent(),
-        style = MaterialTheme.typography.displaySmall,
-        fontWeight = FontWeight.SemiBold,
-    )
-    Text(
-        text = supporting,
-        modifier = Modifier.padding(top = ChampionSpacing.small),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    Text(
-        text = extra,
-        modifier = Modifier.padding(top = ChampionSpacing.small),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-    )
 }
 
 @Composable
@@ -217,7 +175,13 @@ private fun StepsHistoryShell(
         }
         if (hasConfirmedSteps || !hasDailySummaryIssue) {
             StepsHistorySummary(snapshot)
-            HealthCard(title = "Gráfico", modifier = Modifier.fillMaxWidth()) {
+            val aggregates = snapshot.aggregates
+            ChampionRedesignSummaryCard(
+                title = "Tendência",
+                value = aggregates.totalSteps?.let(::formatSteps) ?: "Sem dados",
+                supportingText = "Total no período • ${snapshot.query.period.windowDays} dias",
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 StepsHistoryChart(
                     snapshot = snapshot,
                     modifier = Modifier.padding(top = ChampionSpacing.medium),
@@ -248,34 +212,26 @@ private fun StepsHistoryPeriodSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
         ) {
-            CalendarHistoryPeriod.entries.forEach { period ->
-                val label = period.toStepsPeriodLabel()
-                val modifier = Modifier
+            STEPS_HISTORY_PERIODS.forEach { (period, label) ->
+                FilterChip(
+                    selected = period == selected,
+                    onClick = { onSelect(period) },
+                    modifier = Modifier
                     .weight(1f)
+                    .heightIn(min = 48.dp)
                     .semantics {
                         this.selected = period == selected
                         contentDescription = "Últimos ${period.windowDays} dias"
                         stateDescription = if (period == selected) "Selecionado" else "Não selecionado"
-                    }
-                OutlinedButton(
-                    onClick = { onSelect(period) },
-                    modifier = modifier,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (period == selected) stepsTertiaryAccent() else MaterialTheme.colorScheme.outline,
-                    ),
-                ) {
-                    Text(
-                        text = label,
-                        maxLines = 1,
-                        color = if (period == selected) {
-                            stepsTertiaryAccent()
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        fontWeight = if (period == selected) FontWeight.SemiBold else FontWeight.Medium,
-                    )
-                }
+                    },
+                    label = {
+                        Text(
+                            text = label,
+                            maxLines = 1,
+                            fontWeight = if (period == selected) FontWeight.SemiBold else FontWeight.Medium,
+                        )
+                    },
+                )
             }
         }
     }
@@ -333,7 +289,7 @@ private fun StepsHistorySummary(snapshot: CalendarStepsHistorySnapshot) {
 private fun StepsHistoryList(snapshot: CalendarStepsHistorySnapshot) {
     val locale = LocalConfiguration.current.locales[0]
     val entries = snapshot.entries.asReversed()
-    val totalPages = (entries.size + STEPS_HISTORY_PAGE_SIZE - 1) / STEPS_HISTORY_PAGE_SIZE
+    val totalPages = ((entries.size + STEPS_HISTORY_PAGE_SIZE - 1) / STEPS_HISTORY_PAGE_SIZE).coerceAtLeast(1)
     var currentPage by rememberSaveable(snapshot.query.period) { mutableStateOf(0) }
     currentPage = currentPage.coerceIn(0, (totalPages - 1).coerceAtLeast(0))
     val pageEntries = entries
@@ -434,12 +390,6 @@ private fun StepsHistoryList(snapshot: CalendarStepsHistorySnapshot) {
             }
         }
     }
-}
-
-private fun CalendarHistoryPeriod.toStepsPeriodLabel(): String = when (this) {
-    CalendarHistoryPeriod.LAST_7_DAYS -> "7D"
-    CalendarHistoryPeriod.LAST_30_DAYS -> "30D"
-    CalendarHistoryPeriod.LAST_90_DAYS -> "90D"
 }
 
 private fun StepsHistoryUiError.toUserMessage(): String = when (category) {

@@ -112,12 +112,14 @@ class HealthViewModel internal constructor(
         }
         scope.launch {
             selectedHistoryPeriod.flatMapLatest { period ->
-                heartRateRepository.observeHistory(
-                    HeartRateHistoryQuery(
-                        period = period,
-                        zoneId = java.time.ZoneId.systemDefault(),
-                    ),
-                )
+                observedDate.flatMapLatest {
+                    heartRateRepository.observeHistory(
+                        HeartRateHistoryQuery(
+                            period = period,
+                            zoneId = java.time.ZoneId.systemDefault(),
+                        ),
+                    )
+                }
             }.collect { snapshot ->
                 history.value = snapshot
             }

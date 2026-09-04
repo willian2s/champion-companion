@@ -74,5 +74,21 @@ somente Home e Saúde; rotas restantes serão contextuais.
   acionáveis continuam preservados. Card inferior aparece somente para revisão
   pendente. `031-05` foi reaberta e concluída após correção da paleta
   monocromática: toda composição usa azul próprio Champion, com trecho não
-  concluído de Passos ligeiramente mais escuro. Revisão independente aprovada.
-  Progresso atual: `5/11`.
+   concluído de Passos ligeiramente mais escuro. Revisão independente aprovada.
+   Progresso atual: `5/11`.
+  - `031-06` permanece em andamento: após solicitação explícita, Saúde voltou ao
+   estilo lista anterior, mantendo o header novo, card colorido de Atividades no
+   topo, seguido pelas quatro métricas locais, sem link para Calendário, que
+   permanece dentro de Exercícios. Distância está sendo alinhada ao padrão
+   Google Health: `Semana` diária, `M` diário no gráfico e semanal na lista,
+   `3M`/`A` mensal, com lacunas preservadas no gráfico e itens sem dados ocultos
+   na lista. Checklist permanece pendente; task não será
+   encerrada nesta etapa. A imagem local de referência não será versionada.
+   O ajuste posterior preservou `7D` móvel, adotou meses civis fechados para
+    `M`/`3M`, manteve `A` nos doze meses fechados e separou semanas civis por
+    mês. A Semana usa domingo–sábado, M usa labels `1, 5, 10, 15, 20, 25` e
+    último dia no gráfico, 3M usa abreviações mensais e A usa somente iniciais.
+    Um crash causado por
+    formatter vazio no Vico foi corrigido com `ItemPlacer` explícito; smoke ADB
+    confirmou abertura, alinhamento da Semana/3M, label `S` e filtros
+    centralizados. Progresso permanece `5/11` até revisão independente.

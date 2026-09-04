@@ -3,6 +3,8 @@ package br.com.mwconsulting.championcompanion.feature.health
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +28,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -46,7 +49,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -67,6 +69,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
@@ -186,36 +193,41 @@ fun HeartRateDetailScreen(
         )
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        PullToRefreshBox(
-            isRefreshing = isD1ImportInFlight,
-            onRefresh = triggerD1Refresh,
+    ChampionRedesignTheme {
+        val tokens = LocalChampionRedesignTokens.current
+        Surface(
             modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .semantics {
-                        customActions = listOf(
-                            CustomAccessibilityAction("Atualizar histórico do relógio") {
-                                triggerD1Refresh()
-                                true
-                            },
-                        )
-                    },
+            PullToRefreshBox(
+                isRefreshing = isD1ImportInFlight,
+                onRefresh = triggerD1Refresh,
+                modifier = Modifier.fillMaxSize(),
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(ChampionSpacing.extraLarge)
-                        .heightIn(min = 1.dp),
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+                        .semantics {
+                            customActions = listOf(
+                                CustomAccessibilityAction("Atualizar histórico do relógio") {
+                                    triggerD1Refresh()
+                                    true
+                                },
+                            )
+                        },
                 ) {
-                    HeartRateDetailHeader()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact)
+                            .heightIn(min = 1.dp),
+                        verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
+                    ) {
+                        HeartRateDetailHeader(
+                            onNavigateBack = onNavigateBack,
+                            backLabel = backLabel,
+                        )
                     HeartRateOverviewCard(state = state)
                     HeartRateSessionSurface(
                         state = state,
@@ -242,8 +254,6 @@ fun HeartRateDetailScreen(
                             associatedDeviceName = state.associatedDeviceName,
                         )
                     }
-                    TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                        Text(backLabel)
                     }
                 }
             }
@@ -263,29 +273,31 @@ fun WeightDetailScreen(
         description = "Acompanhe seu valor atual e registre novas medições em quilogramas.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
-        header = { WeightDetailHeader() },
         contentModifier = Modifier.imePadding(),
     ) {
         val weightHistory = state.weightHistory
         val weight = state.latestWeight ?: (weightHistory as? HealthWeightHistoryState.Available)
             ?.measurements
             ?.firstNotNullOfOrNull { it.toHealthWeightSnapshotOrNull() }
-        HealthCard(title = "Valor atual", modifier = Modifier.fillMaxWidth()) {
+        val currentValue = weight?.let { "${decimalFormat().format(it.kilograms)} kg" } ?: when (weightHistory) {
+            HealthWeightHistoryState.Loading -> "Carregando"
+            HealthWeightHistoryState.Unavailable -> "Indisponível"
+            is HealthWeightHistoryState.Available -> "Sem dados"
+        }
+        val currentSupportingText = weight?.let { "Último registro: ${formatDateTime(it.measuredAt)}" }
+            ?: when (weightHistory) {
+                HealthWeightHistoryState.Loading -> "Carregando histórico local"
+                HealthWeightHistoryState.Unavailable -> "Não foi possível carregar o histórico local"
+                is HealthWeightHistoryState.Available -> "Nenhum registro válido ainda"
+            }
+        ChampionRedesignSummaryCard(
+            title = "Valor atual",
+            value = currentValue,
+            supportingText = currentSupportingText,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             when {
                 weight != null -> {
-                    Text(
-                        text = "${decimalFormat().format(weight.kilograms)} kg",
-                        modifier = Modifier.padding(top = ChampionSpacing.medium),
-                        color = weightPrimaryAccent(),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = "Último registro: ${formatDateTime(weight.measuredAt)}",
-                        modifier = Modifier.padding(top = ChampionSpacing.small),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
                     Text(
                         text = weight.origin?.toHealthOriginLabel() ?: "Origem: não disponível",
                         modifier = Modifier.padding(top = ChampionSpacing.small),
@@ -295,17 +307,17 @@ fun WeightDetailScreen(
                 }
                 weightHistory is HealthWeightHistoryState.Loading -> Text(
                     text = "Carregando valor atual…",
-                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    modifier = Modifier.padding(top = ChampionSpacing.small),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 weightHistory is HealthWeightHistoryState.Unavailable -> Text(
                     text = "O valor atual está indisponível porque não foi possível ler os registros locais.",
-                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    modifier = Modifier.padding(top = ChampionSpacing.small),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 weightHistory is HealthWeightHistoryState.Available && weightHistory.measurements.isNotEmpty() -> Text(
                     text = "Não foi possível determinar um valor atual válido a partir dos registros locais.",
-                    modifier = Modifier.padding(top = ChampionSpacing.medium),
+                    modifier = Modifier.padding(top = ChampionSpacing.small),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 else -> HealthMetricEmptyState(message = "Nenhum peso persistido foi encontrado até agora.")
@@ -347,33 +359,6 @@ fun WeightDetailScreen(
                 )
                 is HealthWeightHistoryState.Available -> WeightHistoryList(history.measurements)
             }
-        }
-    }
-}
-
-@Composable
-private fun WeightDetailHeader() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = LightColorScheme.primary,
-            contentColor = White,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Peso",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Veja seu último registro e mantenha seu histórico local atualizado.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
         }
     }
 }
@@ -515,28 +500,33 @@ internal fun MetricDetailScaffold(
     onNavigateBack: () -> Unit,
     backLabel: String,
     header: @Composable () -> Unit = {
-        MetricDetailHeader(title = title, description = description)
+        MetricDetailHeader(
+            title = title,
+            description = description,
+            onNavigateBack = onNavigateBack,
+            backLabel = backLabel,
+        )
     },
     contentModifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(contentModifier)
-                .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge)
-                .heightIn(min = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    ChampionRedesignTheme {
+        val tokens = LocalChampionRedesignTokens.current
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
-            header()
-            content()
-            TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth()) {
-                Text(backLabel)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(contentModifier)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact)
+                    .heightIn(min = 1.dp),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
+            ) {
+                header()
+                content()
             }
         }
     }
@@ -546,55 +536,34 @@ internal fun MetricDetailScaffold(
 private fun MetricDetailHeader(
     title: String,
     description: String,
+    onNavigateBack: () -> Unit,
+    backLabel: String,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = description,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
+    ChampionRedesignSurfaceHeader(
+        title = title,
+        supportingText = description,
+        navigationContent = {
+            ChampionRedesignHeaderNavigationAction(
+                contentDescription = backLabel,
+                onClick = onNavigateBack,
+            ) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+            }
+        },
+    )
 }
 
 @Composable
-private fun HeartRateDetailHeader() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Frequência cardíaca",
-                modifier = Modifier.semantics { heading() },
-                color = White,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Acompanhe seu último valor, leituras do relógio e tendência local.",
-                color = White,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
+private fun HeartRateDetailHeader(
+    onNavigateBack: () -> Unit,
+    backLabel: String,
+) {
+    MetricDetailHeader(
+        title = "Frequência cardíaca",
+        description = "Acompanhe seu último valor, leituras do relógio e tendência local.",
+        onNavigateBack = onNavigateBack,
+        backLabel = backLabel,
+    )
 }
 
 @Composable
@@ -603,7 +572,13 @@ private fun HeartRateOverviewCard(
 ) {
     val latestMeasurement = state.latestMeasurement
 
-    HealthCard(title = "Resumo atual", modifier = Modifier.fillMaxWidth()) {
+    ChampionRedesignSummaryCard(
+        title = "Resumo atual",
+        value = latestMeasurement?.let { "${it.bpm} BPM" } ?: "Sem medições",
+        supportingText = latestMeasurement?.measuredAt?.let(::formatMeasurementMoment)
+            ?: "Nenhuma medição persistida ainda",
+        modifier = Modifier.fillMaxWidth(),
+        content = {
         if (latestMeasurement == null) {
             Text(
                 text = if (state.hasAssociatedDevice) {
@@ -616,13 +591,6 @@ private fun HeartRateOverviewCard(
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
-            Text(
-                text = "${latestMeasurement.bpm} BPM",
-                modifier = Modifier.padding(top = ChampionSpacing.medium),
-                color = heartRatePrimaryAccent(),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
             Text(
                 text = latestMeasurement.measuredAt?.let(::formatMeasurementMoment) ?: "Horário indisponível",
                 modifier = Modifier.padding(top = ChampionSpacing.small),
@@ -658,7 +626,8 @@ private fun HeartRateOverviewCard(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-    }
+        },
+    )
 }
 
 @Composable
@@ -792,23 +761,30 @@ private fun HeartRateHistoryChartSection(
     state: HealthUiState,
     onSelectPeriod: (HeartRateHistoryPeriod) -> Unit,
 ) {
-    HealthCard(title = "Tendência", modifier = Modifier.fillMaxWidth()) {
+    ChampionRedesignSummaryCard(
+        title = "Tendência",
+        value = heartRateRangeHeadline(state.history.aggregates),
+        supportingText = "${periodHeadline(state.selectedHistoryPeriod)} • BPM",
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         HistoryPeriodSelector(
             selected = state.selectedHistoryPeriod,
             onSelectPeriod = onSelectPeriod,
         )
 
         val aggregates = state.history.aggregates
-        HeartRateChartHeadline(
-            period = state.selectedHistoryPeriod,
-            aggregates = aggregates,
-            entryCount = state.history.entries.size,
-            pointsCount = state.history.chart.points.size,
+        Text(
+            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • " +
+                "${numberFormat().format(state.history.entries.size)} leituras válidas",
+            modifier = Modifier.padding(top = ChampionSpacing.medium),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
         )
 
         HeartRateHistoryChart(
             series = state.history.chart,
             period = state.selectedHistoryPeriod,
+            origins = state.history.entries.map { it.source }.toSet(),
             modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
         )
 
@@ -816,41 +792,6 @@ private fun HeartRateHistoryChartSection(
             measurementCount = state.history.entries.size,
             pointCount = state.history.chart.points.size,
             period = state.selectedHistoryPeriod,
-        )
-    }
-}
-
-@Composable
-private fun HeartRateChartHeadline(
-    period: HeartRateHistoryPeriod,
-    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
-    entryCount: Int,
-    pointsCount: Int,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.large),
-        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-    ) {
-        Text(
-            text = periodHeadline(period),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = heartRateRangeHeadline(aggregates),
-            color = heartRatePrimaryAccent(),
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = heartRateRangeSupportingText(aggregates, entryCount, pointsCount),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(
-            text = "Média ${aggregates.averageBpm?.roundToInt()?.toString() ?: "--"} bpm • ${numberFormat().format(entryCount)} leituras válidas",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
@@ -866,29 +807,22 @@ private fun HistoryPeriodSelector(
     ) {
         HeartRateHistoryPeriod.entries.forEach { period ->
             val isSelected = period == selected
-                OutlinedButton(
-                    onClick = { onSelectPeriod(period) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics {
-                            stateDescription = if (isSelected) "Selecionado" else "Não selecionado"
-                        },
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (isSelected) heartRatePrimaryAccent() else MaterialTheme.colorScheme.outline,
-                    ),
-                )
-            {
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelectPeriod(period) },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .semantics {
+                        stateDescription = if (isSelected) "Selecionado" else "Não selecionado"
+                    },
+                label = {
                 Text(
                     text = periodToLabel(period),
-                    color = if (isSelected) {
-                        heartRatePrimaryAccent()
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                 )
-            }
+                },
+            )
         }
     }
 }
@@ -1714,16 +1648,6 @@ private fun heartRateRangeHeadline(
     val min = aggregates.minimumBpm?.toString() ?: "--"
     val max = aggregates.maximumBpm?.toString() ?: "--"
     "$min a $max bpm"
-}
-
-private fun heartRateRangeSupportingText(
-    aggregates: br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryAggregates,
-    entryCount: Int,
-    pointsCount: Int,
-): String = if (aggregates.measurementCount == 0) {
-    "Use medição manual, importação D1 ou atividades do relógio para ver tendências no período selecionado."
-} else {
-    "${numberFormat().format(entryCount)} leituras válidas distribuídas em ${numberFormat().format(pointsCount)} ponto(s) visuais."
 }
 
 private fun buildRelativeDateRangeLabel(days: Long): String {
