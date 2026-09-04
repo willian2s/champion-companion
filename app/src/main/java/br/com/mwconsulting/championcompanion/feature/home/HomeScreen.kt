@@ -37,7 +37,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -55,7 +57,9 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignH
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
+import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
+import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementIntent
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementViewModel
@@ -272,6 +276,35 @@ private fun HomeSurface(
 }
 
 @Composable
+private fun homeCardPalette(): HomeCardPalette {
+    val darkTheme = isSystemInDarkTheme()
+    val colors = if (darkTheme) DarkColorScheme else LightColorScheme
+    val blue = HomeCardColors(colors.primaryContainer, colors.onPrimaryContainer)
+    return HomeCardPalette(
+        steps = blue,
+        exercises = blue,
+        distance = blue,
+        heartRate = blue,
+        pending = blue,
+        incompleteStepsOverlay = if (darkTheme) colors.onPrimary else colors.onPrimaryContainer,
+    )
+}
+
+private data class HomeCardColors(
+    val container: Color,
+    val content: Color,
+)
+
+private data class HomeCardPalette(
+    val steps: HomeCardColors,
+    val exercises: HomeCardColors,
+    val distance: HomeCardColors,
+    val heartRate: HomeCardColors,
+    val pending: HomeCardColors,
+    val incompleteStepsOverlay: Color,
+)
+
+@Composable
 private fun HomeSummaryContent(
     summary: HomeDailySummaryModel,
     latestHeartRate: HomeLatestHeartRateModel?,
@@ -283,6 +316,7 @@ private fun HomeSummaryContent(
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalChampionRedesignTokens.current
+    val palette = homeCardPalette()
     val distance = summary.estimatedDistanceMeters ?: 0.0
     val lineHeight = 56.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
     val cardHeight = lineHeight * 3 + tokens.spacing.compact * 2
@@ -302,6 +336,9 @@ private fun HomeSummaryContent(
                 modifier = Modifier
                     .weight(1f),
                 cardHeight = cardHeight,
+                containerColor = palette.steps.container,
+                contentColor = palette.steps.content,
+                incompleteOverlay = palette.incompleteStepsOverlay,
             )
             HomeMetricsColumn(
                 latestHeartRate = latestHeartRate,
@@ -311,6 +348,9 @@ private fun HomeSummaryContent(
                 onOpenDistance = onOpenDistance,
                 cardHeight = cardHeight,
                 lineHeight = lineHeight,
+                exerciseColors = palette.exercises,
+                distanceColors = palette.distance,
+                heartRateColors = palette.heartRate,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -326,6 +366,9 @@ private fun HomeDailySummaryCard(
     summary: HomeDailySummaryModel,
     onOpenSteps: () -> Unit,
     cardHeight: Dp,
+    containerColor: Color,
+    contentColor: Color,
+    incompleteOverlay: Color,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalChampionRedesignTokens.current
@@ -339,7 +382,8 @@ private fun HomeDailySummaryCard(
             },
         shape = tokens.shapes.medium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = containerColor,
+            contentColor = contentColor,
         ),
     ) {
         Box(
@@ -349,25 +393,26 @@ private fun HomeDailySummaryCard(
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(summary.progress.coerceIn(0f, 1f))
+                    .fillMaxWidth((1f - summary.progress).coerceIn(0f, 1f))
                     .fillMaxHeight()
-                    .align(Alignment.CenterStart)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                    .align(Alignment.CenterEnd)
+                    .background(incompleteOverlay.copy(alpha = 0.12f)),
             )
             Column(modifier = Modifier.padding(tokens.spacing.card)) {
                 Text(
                     text = "Passos",
                     modifier = Modifier.semantics { heading() },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = contentColor,
                     style = tokens.typography.labelLarge,
                 )
                 Text(
                     text = formatSteps(summary.steps),
+                    color = contentColor,
                     style = tokens.typography.headlineSmall,
                 )
                 Text(
                     text = "Meta ${formatGoal(summary.dailyGoal)}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = contentColor,
                     style = tokens.typography.bodyMedium,
                 )
             }
@@ -384,6 +429,9 @@ private fun HomeMetricsColumn(
     onOpenDistance: () -> Unit,
     cardHeight: Dp,
     lineHeight: Dp,
+    exerciseColors: HomeCardColors,
+    distanceColors: HomeCardColors,
+    heartRateColors: HomeCardColors,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalChampionRedesignTokens.current
@@ -396,6 +444,8 @@ private fun HomeMetricsColumn(
             title = "Exercícios",
             value = "Abrir atividades",
             onClick = onOpenExercises,
+            containerColor = exerciseColors.container,
+            contentColor = exerciseColors.content,
             modifier = Modifier.height(lineHeight),
         )
         distance?.let {
@@ -403,6 +453,8 @@ private fun HomeMetricsColumn(
                 title = "Distância",
                 value = formatDistance(it),
                 onClick = onOpenDistance,
+                containerColor = distanceColors.container,
+                contentColor = distanceColors.content,
                 modifier = Modifier.height(lineHeight),
             )
         }
@@ -411,6 +463,8 @@ private fun HomeMetricsColumn(
                 title = "Freq. cardíaca",
                 value = "${it.bpm} BPM • ${formatTime(it.measuredAt)}",
                 onClick = onOpenHeartRate,
+                containerColor = heartRateColors.container,
+                contentColor = heartRateColors.content,
                 modifier = Modifier.height(lineHeight),
             )
         }
@@ -419,6 +473,8 @@ private fun HomeMetricsColumn(
                 title = "Freq. cardíaca",
                 value = "0 BPM",
                 onClick = onOpenHeartRate,
+                containerColor = heartRateColors.container,
+                contentColor = heartRateColors.content,
                 modifier = Modifier.height(lineHeight),
             )
         }
@@ -432,6 +488,7 @@ private fun HomePendingContent(
     modifier: Modifier = Modifier,
 ) {
     val reviewPending = workoutPendingBanner?.takeIf { it.pendingReviewCount > 0 } ?: return
+    val pendingColors = homeCardPalette().pending
     val title = "Revisão pendente"
     val value = "${reviewPending.pendingReviewCount} pendência(s)"
     val supportingText = "${reviewPending.pendingReviewCount} treino(s) aguardando revisão local antes da sincronização futura."
@@ -439,6 +496,8 @@ private fun HomePendingContent(
         title = title,
         value = value,
         supportingText = supportingText,
+        containerColor = pendingColors.container,
+        contentColor = pendingColors.content,
         modifier = modifier.semantics {
             contentDescription = "$title. $supportingText. Toque para abrir Exercícios."
         },
@@ -451,6 +510,8 @@ private fun HomeCompactSummaryLine(
     title: String,
     value: String,
     onClick: (() -> Unit)? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalChampionRedesignTokens.current
@@ -467,11 +528,12 @@ private fun HomeCompactSummaryLine(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = contentColor,
                     style = tokens.typography.labelMedium,
                 )
                 Text(
                     text = value,
+                    color = contentColor,
                     style = tokens.typography.bodyLarge,
                 )
             }
@@ -483,7 +545,8 @@ private fun HomeCompactSummaryLine(
             modifier = cardModifier,
             shape = tokens.shapes.small,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                containerColor = containerColor,
+                contentColor = contentColor,
             ),
         ) {
             content()
@@ -494,7 +557,8 @@ private fun HomeCompactSummaryLine(
             modifier = cardModifier,
             shape = tokens.shapes.small,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                containerColor = containerColor,
+                contentColor = contentColor,
             ),
         ) {
             content()

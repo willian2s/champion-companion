@@ -65,9 +65,12 @@ contrato antes de omitir qualquer seção.
 
 ## Execução e evidências
 
-- **Status da execução:** concluída após revisão independente aprovada.
+- **Status da execução:** correção visual concluída após nova revisão
+  independente aprovada. Implementação sem alteração de dados, callbacks,
+  layout estrutural, navegação, estados ou contratos.
 - **Arquivos alterados:** `app/src/main/java/br/com/mwconsulting/championcompanion/feature/home/HomeScreen.kt` e
-  `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`.
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`, além de
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/ChampionRedesignComponents.kt`.
 - **Decisões:** a Home reproduz a estrutura sanitizada observada: card maior de
   `Passos` à esquerda e três linhas compactas à direita, na ordem `Exercícios`,
   `Distância` e `Freq. cardíaca`. Exercícios é atalho real. Distância e
@@ -124,3 +127,20 @@ contrato antes de omitir qualquer seção.
   semanal permanece fora do escopo e bloqueada por ausência de contrato. O
   fallback sem resumo não foi forçado no aparelho para não apagar dados locais;
   foi verificado estaticamente.
+
+- **Correção de paleta:** toda composição da Home usa somente a família azul
+  própria do Champion (`primaryContainer`/`onPrimaryContainer`), com suporte
+  explícito às variantes clara e escura, sem cores semânticas externas. O card
+  de Passos mantém a área concluída no azul-base e aplica escurecimento sutil
+  somente no trecho não concluído, proporcionalmente à meta. `ChampionRedesignSummaryCard`
+  permanece stateless e recebeu apenas cores opcionais compatíveis.
+- **Validação da correção:** `git diff --check`,
+  `./gradlew app:compileDebugKotlin` e `./gradlew app:lintDebug` passaram.
+- **Validação final:** `./gradlew lint assembleDebug assembleRelease` e
+  `./gradlew installDebug` passaram. Smoke ADB na variante
+  `br.com.mwconsulting.championcompanion.dev` confirmou composição azul, labels,
+  ausência de labels antigos e ausência de Health Connect. Refresh também expôs
+  erro transitório de conexão de forma visível e acionável.
+- **Revisão independente:** aprovada; nenhum bloqueador ou achado importante.
+- **Risco residual atualizado:** TalkBack completo permanece não validado; revisão
+  consolidada de acessibilidade segue em `031-11`.

@@ -72,8 +72,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
   pull-to-refresh foi preservado com contêiner rolável compatível com o gesto.
   Estados `Loading`/`Empty` usam a mesma composição com zeros visuais; erros
   acionáveis continuam preservados. Card inferior aparece somente para revisão
-  pendente. `031-05` foi concluída após revisão independente aprovada: o
-  dashboard mantém zero visual sem resumo, linhas responsivas à escala de fonte,
-  retry acionável e card inferior somente para revisão pendente. Smoke final
-  usou variante debug `br.com.mwconsulting.championcompanion.dev`; não confundir
-  com pacote release sem sufixo. Progresso atual: `5/11`.
+  pendente. `031-05` foi reaberta e concluída após correção da paleta
+  monocromática: toda composição usa azul próprio Champion, com trecho não
+  concluído de Passos ligeiramente mais escuro. Revisão independente aprovada.
+  Progresso atual: `5/11`.

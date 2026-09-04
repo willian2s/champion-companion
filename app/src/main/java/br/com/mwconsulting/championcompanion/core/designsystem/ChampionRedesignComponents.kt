@@ -18,6 +18,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -130,24 +131,33 @@ fun ChampionRedesignSummaryCard(
     value: String,
     modifier: Modifier = Modifier,
     supportingText: String? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    contentColor: Color? = null,
     leadingContent: @Composable (() -> Unit)? = null,
     trailingContent: @Composable RowScope.() -> Unit = {},
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val tokens = LocalChampionRedesignTokens.current
+    val resolvedContentColor = contentColor ?: MaterialTheme.colorScheme.onSurface
+    val supportingContentColor = contentColor ?: MaterialTheme.colorScheme.onSurfaceVariant
     val cardModifier = modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
     if (onClick == null) {
         Card(
             modifier = cardModifier,
             shape = tokens.shapes.medium,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            colors = CardDefaults.cardColors(
+                containerColor = containerColor,
+                contentColor = resolvedContentColor,
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = tokens.elevation.card),
         ) {
             ChampionRedesignSummaryCardContent(
                 title = title,
                 value = value,
                 supportingText = supportingText,
+                contentColor = resolvedContentColor,
+                supportingContentColor = supportingContentColor,
                 leadingContent = leadingContent,
                 trailingContent = trailingContent,
                 content = content,
@@ -161,13 +171,18 @@ fun ChampionRedesignSummaryCard(
             onClick = onClick,
             modifier = cardModifier,
             shape = tokens.shapes.medium,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            colors = CardDefaults.cardColors(
+                containerColor = containerColor,
+                contentColor = resolvedContentColor,
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = tokens.elevation.card),
         ) {
             ChampionRedesignSummaryCardContent(
                 title = title,
                 value = value,
                 supportingText = supportingText,
+                contentColor = resolvedContentColor,
+                supportingContentColor = supportingContentColor,
                 leadingContent = leadingContent,
                 trailingContent = trailingContent,
                 content = content,
@@ -184,6 +199,8 @@ private fun ChampionRedesignSummaryCardContent(
     title: String,
     value: String,
     supportingText: String?,
+    contentColor: Color,
+    supportingContentColor: Color,
     leadingContent: @Composable (() -> Unit)?,
     trailingContent: @Composable RowScope.() -> Unit,
     content: @Composable ColumnScope.() -> Unit,
@@ -202,17 +219,18 @@ private fun ChampionRedesignSummaryCardContent(
                 Text(
                     text = title,
                     modifier = Modifier.semantics { heading() },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = supportingContentColor,
                     style = typography.labelLarge,
                 )
                 Text(
                     text = value,
+                    color = contentColor,
                     style = typography.headlineSmall,
                 )
                 supportingText?.let {
                     Text(
                         text = it,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = supportingContentColor,
                         style = typography.bodyMedium,
                     )
                 }
