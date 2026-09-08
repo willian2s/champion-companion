@@ -15,7 +15,8 @@ ações e estados atuais.
   somente quando dados existem.
 - Refresh explícito, status do relógio e estados seguros permanecem.
 - Header fornece acesso a Dispositivo e Perfil.
-- Resumos encaminham a Saúde, Exercícios e calendário conforme matriz do shell.
+- Resumos encaminham a Saúde e Exercícios conforme matriz do shell; Calendário
+  permanece restrito ao fluxo de Exercícios.
 - Registrar nomes dos componentes compartilhados usados também em `031-06`;
   promoção exige uso real nas duas superfícies, nunca apenas preview.
 

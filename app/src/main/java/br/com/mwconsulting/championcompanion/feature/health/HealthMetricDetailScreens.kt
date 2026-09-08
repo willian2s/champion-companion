@@ -410,6 +410,14 @@ fun WeightDetailScreen(
                 else -> HealthMetricEmptyState(message = "Nenhum peso persistido foi encontrado até agora.")
             }
         }
+        val filteredMeasurements = (weightHistory as? HealthWeightHistoryState.Available)
+            ?.measurements
+            ?.let { measurements ->
+                filterWeightMeasurements(
+                    measurements = measurements,
+                    period = state.selectedWeightHistoryPeriod,
+                )
+            }
         PrimaryActionButton(
             label = "Registrar peso",
             onClick = { healthViewModel.onIntent(HealthIntent.OpenWeightEditor) },
@@ -429,9 +437,15 @@ fun WeightDetailScreen(
                 healthViewModel.onIntent(HealthIntent.DismissWeightMessage)
             }
         }
+        WeightHistoryTrendSection(
+            history = weightHistory,
+            selectedPeriod = state.selectedWeightHistoryPeriod,
+            filteredMeasurements = filteredMeasurements.orEmpty(),
+            onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectWeightHistoryPeriod(it)) },
+        )
         HealthMetricHistorySection(
             title = "Histórico de registros",
-            emptyMessage = "Ainda não há medições de peso salvas.",
+            emptyMessage = "Ainda não há medições de peso válidas neste período.",
         ) {
             when (val history = state.weightHistory) {
                 HealthWeightHistoryState.Loading -> Text(
@@ -444,7 +458,106 @@ fun WeightDetailScreen(
                     message = "Não foi possível ler o histórico local agora.",
                     modifier = Modifier.fillMaxWidth(),
                 )
-                is HealthWeightHistoryState.Available -> WeightHistoryList(history.measurements)
+                is HealthWeightHistoryState.Available -> WeightHistoryList(
+                    measurements = filteredMeasurements.orEmpty(),
+                    period = state.selectedWeightHistoryPeriod,
+                    emptyMessage = "Nenhuma medição de peso válida foi encontrada neste período.",
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeightHistoryTrendSection(
+    history: HealthWeightHistoryState,
+    selectedPeriod: WeightHistoryPeriod,
+    filteredMeasurements: List<WeightMeasurement>,
+    onSelectPeriod: (WeightHistoryPeriod) -> Unit,
+) {
+    val trendValue = filteredMeasurements
+        .firstOrNull()
+        ?.toKilogramsOrNull()
+        ?.let { "${decimalFormat().format(it)} kg" }
+        ?: when (history) {
+            HealthWeightHistoryState.Loading -> "Carregando"
+            HealthWeightHistoryState.Unavailable -> "Indisponível"
+            is HealthWeightHistoryState.Available -> "Sem dados"
+        }
+    ChampionRedesignSummaryCard(
+        title = "Tendência",
+        value = trendValue,
+        supportingText = "${selectedPeriod.toWeightPeriodLabel()} • kg",
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        WeightHistoryPeriodSelector(
+            selected = selectedPeriod,
+            onSelect = onSelectPeriod,
+        )
+        when (history) {
+            HealthWeightHistoryState.Loading -> Text(
+                text = "Carregando histórico local…",
+                modifier = Modifier.padding(top = ChampionSpacing.medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            HealthWeightHistoryState.Unavailable -> ErrorState(
+                title = "Histórico indisponível",
+                message = "Não foi possível ler o histórico local agora.",
+                modifier = Modifier.fillMaxWidth().padding(top = ChampionSpacing.medium),
+            )
+            is HealthWeightHistoryState.Available -> WeightHistoryChart(
+                measurements = filteredMeasurements,
+                period = selectedPeriod,
+                modifier = Modifier.padding(top = ChampionSpacing.large),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WeightHistoryPeriodSelector(
+    selected: WeightHistoryPeriod,
+    onSelect: (WeightHistoryPeriod) -> Unit,
+) {
+    Column(
+        modifier = Modifier.padding(top = ChampionSpacing.medium),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = "Período",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            WeightHistoryPeriod.entries.forEach { period ->
+                val isSelected = period == selected
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelect(period) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .semantics {
+                            this.selected = isSelected
+                            contentDescription = when (period) {
+                                WeightHistoryPeriod.THREE_MONTHS -> "Mês atual até hoje e dois meses civis anteriores"
+                                WeightHistoryPeriod.YEAR -> "Mês atual até hoje e onze meses civis anteriores"
+                            }
+                            stateDescription = if (isSelected) "Selecionado" else "Não selecionado"
+                        },
+                    label = {
+                        Text(
+                            text = period.toWeightPeriodLabel(),
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        )
+                    },
+                )
             }
         }
     }
@@ -530,33 +643,52 @@ private fun WeightMessageCard(message: HealthWeightMessage, onDismiss: () -> Uni
 }
 
 @Composable
-private fun WeightHistoryList(measurements: List<WeightMeasurement>) {
-    if (measurements.isEmpty()) {
-        HealthMetricEmptyState(message = "Ainda não há medições de peso salvas.")
+private fun WeightHistoryList(
+    measurements: List<WeightMeasurement>,
+    period: WeightHistoryPeriod,
+    emptyMessage: String,
+) {
+    val items = buildWeightHistoryListItems(measurements, period)
+    if (items.isEmpty()) {
+        HealthMetricEmptyState(message = emptyMessage)
         return
     }
     Column(
         modifier = Modifier.padding(top = ChampionSpacing.medium),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        measurements.forEach { measurement ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "${items.size} períodos com valor",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "Média kg",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        items.forEach { item ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "${item.label}. Média ${decimalFormat().format(item.averageKilograms)} kg."
+                    },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(formatDateTime(measurement.measuredAt), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = measurement.origin.toHealthOriginLabel(),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Text(item.label, style = MaterialTheme.typography.bodyMedium)
                 }
                 Spacer(modifier = Modifier.width(ChampionSpacing.medium))
                 Text(
-                    text = measurement.toKilogramsOrNull()?.let { "${decimalFormat().format(it)} kg" }
-                        ?: "Peso indisponível",
+                    text = "${decimalFormat().format(item.averageKilograms)} kg",
                     color = weightPrimaryAccent(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -566,7 +698,39 @@ private fun WeightHistoryList(measurements: List<WeightMeasurement>) {
     }
 }
 
-private fun WeightMeasurement.toKilogramsOrNull(): Double? = when (unit) {
+private data class WeightHistoryListItem(
+    val label: String,
+    val averageKilograms: Double,
+)
+
+private fun buildWeightHistoryListItems(
+    measurements: List<WeightMeasurement>,
+    @Suppress("UNUSED_PARAMETER") period: WeightHistoryPeriod,
+): List<WeightHistoryListItem> {
+    val zoneId = ZoneId.systemDefault()
+    return when (period) {
+        WeightHistoryPeriod.THREE_MONTHS,
+        WeightHistoryPeriod.YEAR,
+        -> measurements
+            .groupBy { YearMonth.from(it.measuredAt.atZone(zoneId).toLocalDate()) }
+            .toList()
+            .sortedByDescending { it.first }
+            .mapNotNull { (month, values) ->
+                val kilograms = values.mapNotNull(WeightMeasurement::toKilogramsOrNull)
+                kilograms.takeIf { it.isNotEmpty() }?.let {
+                    WeightHistoryListItem(
+                        label = formatWeightHistoryMonth(month),
+                        averageKilograms = it.average(),
+                    )
+                }
+            }
+    }
+}
+
+private fun formatWeightHistoryMonth(month: YearMonth): String =
+    HEART_RATE_MONTH_NAMES[month.monthValue - 1]
+
+internal fun WeightMeasurement.toKilogramsOrNull(): Double? = when (unit) {
     br.com.mwconsulting.championcompanion.core.model.WeightUnit.KILOGRAMS -> value
     br.com.mwconsulting.championcompanion.core.model.WeightUnit.POUNDS -> value * 0.45359237
 }.takeIf { it.isFinite() && it > 0.0 }

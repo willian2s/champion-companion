@@ -85,6 +85,7 @@ class HealthViewModel internal constructor(
     private val isWeightEditorOpen = MutableStateFlow(false)
     private val isSavingWeight = MutableStateFlow(false)
     private val weightMessage = MutableStateFlow<HealthWeightMessage?>(null)
+    private val selectedWeightHistoryPeriod = MutableStateFlow(WeightHistoryPeriod.THREE_MONTHS)
     private val observedDate = MutableStateFlow(LocalDate.now())
     private val todaySummary = MutableStateFlow<DailySummary?>(null)
     private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
@@ -227,14 +228,17 @@ class HealthViewModel internal constructor(
                 )
             }
             val weightState = combine(
-                weightHistory,
-                weightInput,
-                isWeightEditorOpen,
-                isSavingWeight,
-                weightMessage,
-            ) { weights, input, editorOpen, saving, message ->
-                WeightUiState(weights, input, editorOpen, saving, message)
-            }
+                combine(
+                    weightHistory,
+                    weightInput,
+                    isWeightEditorOpen,
+                    isSavingWeight,
+                    weightMessage,
+                ) { weights, input, editorOpen, saving, message ->
+                    WeightUiState(weights, input, editorOpen, saving, message)
+                },
+                selectedWeightHistoryPeriod,
+            ) { weights, period -> weights.copy(selectedPeriod = period) }
             val baseState = combine(
                 coreState,
                 personalMetrics,
@@ -266,6 +270,7 @@ class HealthViewModel internal constructor(
                     isWeightEditorOpen = weight.editorOpen,
                     isSavingWeight = weight.saving,
                     weightMessage = weight.message,
+                    selectedWeightHistoryPeriod = weight.selectedPeriod,
                 )
             }.collect { mutableState.value = it }
         }
@@ -317,6 +322,7 @@ class HealthViewModel internal constructor(
                 cancelD1Import(D1HeartRateImportCancellationReason.BACKGROUND)
             }
             is HealthIntent.SelectHistoryPeriod -> selectHistoryPeriod(intent.period)
+            is HealthIntent.SelectWeightHistoryPeriod -> selectedWeightHistoryPeriod.value = intent.period
             HealthIntent.OpenDevice -> Unit
             HealthIntent.OpenWeightEditor -> openWeightEditor()
             is HealthIntent.WeightChanged -> weightInput.value = intent.value
@@ -712,6 +718,7 @@ class HealthViewModel internal constructor(
         val editorOpen: Boolean,
         val saving: Boolean,
         val message: HealthWeightMessage?,
+        val selectedPeriod: WeightHistoryPeriod = WeightHistoryPeriod.THREE_MONTHS,
     )
 
     private fun HealthSyncSummary.toHealthConnectSyncUiModel() = HealthConnectSyncUiModel(

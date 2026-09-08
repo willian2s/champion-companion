@@ -14,9 +14,9 @@ contextos equivalentes à referência, preservando rotas e back stack.
 - Barra mostra somente Home e Saúde.
 - Seleção, deduplicação, saver, animações, retorno e guards continuam corretos.
 - Header da Home abre Dispositivo e Perfil.
-- Home/resumo `Atividades` abre Exercícios; Home/resumo `Calendário de exercícios`
-  abre Calendário; Saúde/resumo `Atividades` abre Exercícios; Saúde/card de
-  métrica abre o detalhe correspondente.
+- Home/resumo `Atividades` abre Exercícios; Saúde/resumo `Atividades` abre
+  Exercícios; Saúde/card de métrica abre o detalhe correspondente. Calendário
+  não recebe entrada direta de Home ou Saúde.
 - Exercícios/ação `Calendário` abre Calendário; Exercícios/item abre detalhe de
   atividade; Perfil/ação `Configurações` abre Configurações e seu retorno volta
   ao Perfil.

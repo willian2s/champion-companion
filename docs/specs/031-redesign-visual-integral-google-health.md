@@ -24,8 +24,8 @@ possui. O conteúdo exibido continuará limitado aos dados e fluxos já existent
 - Referência: `com.fitbit.FitbitMobile`.
 - Barra inferior: somente `Home` e `Saúde`.
 - Home: resumos principais; header com acesso a Dispositivo e Perfil.
-- Calendário: calendário de exercícios dentro do fluxo de Exercícios, acessível
-  por resumos de Home/Saúde e pela tela de Exercícios.
+- Calendário: calendário de exercícios restrito ao fluxo de Exercícios, acessível
+  pela tela de Exercícios; Home e Saúde não ganham integração direta.
 - Escopo: todas as superfícies atuais, incluindo Configurações.
 - Fidelidade: disposição, gráficos, filtros, ícones, textos relevantes,
   espaçamentos e hierarquia visual devem seguir a referência observada.
@@ -149,7 +149,9 @@ fontes ou dependências proprietárias.
 - Calendário não aparece como área de topo; entra pelo fluxo de Exercícios.
 - Dispositivo e Perfil ficam acessíveis pelo header da Home.
 - Exercícios, calendário e Configurações mantêm entradas contextuais claras;
-  nenhuma rota funcional pode ficar órfã.
+  nenhuma rota funcional pode ficar órfã. Calendário permanece restrito ao
+  fluxo de Exercícios; Saúde e demais superfícies não ganham integração direta
+  com Calendário.
 
 Matriz mínima de entradas e retorno:
 
@@ -159,14 +161,12 @@ Matriz mínima de entradas e retorno:
 | Home/header `Perfil` | Perfil | Home |
 | Perfil/ação `Configurações` | Configurações | Perfil |
 | Home/resumo `Atividades` | Exercícios | Home |
-| Home/resumo `Calendário de exercícios` | Calendário | Home |
 | Saúde/resumo `Atividades` | Exercícios | Saúde |
-| Saúde/resumo `Calendário de exercícios` | Calendário | Saúde |
 | Saúde/card de métrica | detalhe correspondente | Saúde |
 | Exercícios/ação `Calendário` | Calendário | Exercícios |
 | Exercícios/item | detalhe de atividade | Exercícios |
 | Calendário/dia | detalhe diário | Calendário |
-| Calendário/voltar | origem que abriu Calendário | Home, Saúde ou Exercícios |
+| Calendário/voltar | origem que abriu Calendário | Exercícios |
 | detalhe diário/atividade | detalhe de atividade | detalhe diário |
 | detalhe de atividade/voltar | Exercícios | origem contextual |
 | detalhe de métrica/voltar | Saúde | Saúde |
@@ -244,8 +244,8 @@ após concluir uma subtarefa; exigir revisão independente.
    escopo e descarte confirmados.
 2. Barra inferior possui somente Home e Saúde, com seleção e restauração corretas.
 3. Dispositivo e Perfil são acessíveis pelo header da Home.
-4. Exercícios e calendário são acessíveis por Home/Saúde e pelo fluxo de
-   Exercícios, sem rota funcional órfã.
+4. Exercícios é acessível pelos contextos previstos de Home e Saúde; Calendário
+   é acessível somente pelo fluxo de Exercícios, sem rota funcional órfã.
 5. As 13 superfícies — Home, hub Saúde, detalhes de frequência cardíaca, peso,
    passos e distância, lista de Exercícios, detalhe de atividade, Calendário,
    detalhe diário, Perfil, Dispositivo e Configurações — seguem a composição

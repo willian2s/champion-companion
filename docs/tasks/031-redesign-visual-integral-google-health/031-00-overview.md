@@ -234,9 +234,62 @@ somente Home e Saúde; rotas restantes serão contextuais.
         dados representativos continua pendente por ausência de fixture
         versionada; checklist permanece `[ ]`; progresso: `5/11`.
 
-     - Em 2026-09-08, verificação independente confirmou que a decisão vigente
-       não foi revertida: `3M` e `A` incluem o mês civil atual parcial até hoje,
-       além de, respectivamente, dois e onze meses anteriores. Registros
-       anteriores que mencionam somente meses fechados são históricos e foram
-       supersedidos pela correção de janela mensal. `031-06` permanece pendente
-       pelos bloqueios amplos já registrados; progresso: `5/11`.
+      - Em 2026-09-08, verificação independente confirmou que a decisão vigente
+        não foi revertida: `3M` e `A` incluem o mês civil atual parcial até hoje,
+        além de, respectivamente, dois e onze meses anteriores. Registros
+        anteriores que mencionam somente meses fechados são históricos e foram
+        supersedidos pela correção de janela mensal. `031-06` permanece pendente
+        pelos bloqueios amplos já registrados; progresso: `5/11`.
+
+      - Em 2026-09-08, Peso foi analisado na rota correta do app de referência
+        (`Saúde → Peso`), confirmando estrutura sanitizada com 77 nós, 15 ações,
+        uma rolagem vertical e filtros `3M`/`A`. A implementação de Peso usa
+        gráfico de linha, janela civil atual parcial mais dois/onze meses
+        anteriores, origem, unidade, acessibilidade e lacunas sem interpolação.
+        Correções de fuso local e mensagem de lista vazia foram validadas com
+        compile, lint, builds, instalação e smoke sem crash. Peso foi aprovado
+        isoladamente com ressalva de cobertura de dados; checklist amplo segue
+        `[ ]` pelos bloqueios preexistentes; progresso: `5/11`.
+
+      - Após relato de gráficos quebrados, o eixo X de Peso foi corrigido para
+        índices compactos compatíveis com renderer sem rolagem; lacunas seguem
+        como pontos nulos e labels mensais preservam seus meses. `Saúde → Peso`
+        alternou `A` e `3M` no smoke sanitizado sem crash; checklist de `031-06`
+        permanece `[ ]`; progresso: `5/11`.
+
+      - Por decisão posterior, o gráfico de Peso passou de linha para barras e
+        passou a reutilizar `ChampionBarChart`, mantendo filtros `3M`/`A`, dados
+        reais, unidade, origem, acessibilidade, lacunas e lista. Checklist de
+        `031-06` permanece `[ ]`; progresso: `5/11`.
+
+      - As colunas de Peso foram então ajustadas para agregado mensal, como nos
+        gráficos existentes: média dos registros válidos em kg, três meses em
+        `3M`, doze em `A`, e meses sem dados preservados como lacunas. Checklist
+        de `031-06` permanece `[ ]`; progresso: `5/11`.
+
+      - A lista de Peso foi alinhada à lista filtrada de FC: somente meses com
+        valor, média mensal em kg e contador de períodos são exibidos. Checklist
+        de `031-06` permanece `[ ]`; progresso: `5/11`.
+
+      - Em 2026-09-08, a implementação delimitada de Peso adicionou seleção
+        preservada na Activity para `3M`/`A`, filtro local por mês civil atual até
+        hoje mais dois/onze meses anteriores, gráfico de linha com kg, origem,
+        acessibilidade e lacunas sem interpolação, além de lista filtrada. O
+        checklist de `031-06` permanece pendente por revisão independente, smoke
+        visual e bloqueios amplos já registrados; progresso: `5/11`.
+
+      - Em 2026-09-08, a revisão independente ampla reprovou o fechamento de
+        `031-06`: medição manual não está explícita na UI, D1 não possui CTA e
+        feedback visual completo, falta entrada Saúde → Calendário e a origem de
+        FC no hub pode ser enganosa. Também foram apontadas listas sem origem por
+        item, `WeightHistoryChart.kt` não rastreado e documentação histórica de
+        Peso ainda citando linha. Checklist permanece `[ ]`; progresso: `5/11`.
+
+      - Após a revisão, foram confirmadas decisões de produto: medição manual
+        não compõe mais a superfície visual de Saúde; D1 usa somente
+        pull-to-refresh com ação acessível nativa; Calendário fica restrito ao
+        fluxo de Exercícios; e a origem do hub pode exibir relógio/dispositivo
+        associado. Spec e aceite de `031-06` foram alinhados; a subtarefa segue
+        `in_progress` até nova revisão independente e integração do arquivo
+        `WeightHistoryChart.kt` no conjunto da entrega. Checklist permanece
+        `[ ]`; progresso: `5/11`.

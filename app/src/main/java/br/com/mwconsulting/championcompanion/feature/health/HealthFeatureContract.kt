@@ -30,6 +30,7 @@ data class HealthUiState(
     val todayHeartRateHistory: HeartRateHistorySnapshot = HeartRateHistorySnapshot(
         period = HeartRateHistoryPeriod.TODAY,
     ),
+    val selectedWeightHistoryPeriod: WeightHistoryPeriod = WeightHistoryPeriod.THREE_MONTHS,
     val latestD1ImportMetadata: D1HeartRateImportMetadata? = null,
     val latestMeasurement: HeartRateMeasurement? = null,
     val recentMeasurements: List<HeartRateMeasurement> = emptyList(),
@@ -97,12 +98,18 @@ sealed interface HealthIntent {
     data object ConfirmExitD1Import : HealthIntent
     data object AppMovedToBackground : HealthIntent
     data class SelectHistoryPeriod(val period: HeartRateHistoryPeriod) : HealthIntent
+    data class SelectWeightHistoryPeriod(val period: WeightHistoryPeriod) : HealthIntent
     data object OpenDevice : HealthIntent
     data object OpenWeightEditor : HealthIntent
     data class WeightChanged(val value: String) : HealthIntent
     data object SaveWeight : HealthIntent
     data object CancelWeight : HealthIntent
     data object DismissWeightMessage : HealthIntent
+}
+
+enum class WeightHistoryPeriod {
+    THREE_MONTHS,
+    YEAR,
 }
 
 sealed interface HealthSurfaceState {

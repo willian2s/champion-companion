@@ -14,7 +14,9 @@ incluindo gráficos, filtros e listas conforme referência e dados locais.
 - O hub usa lista colorida com card Atividades no topo, seguido por Frequência
   cardíaca, Peso, Passos e Distância; todos os cards mantêm mesma estrutura,
   acessibilidade e ação de abertura.
-- Medição manual e importação D1 de BPM continuam explícitas.
+- Medição manual não compõe mais a superfície visual de Saúde. Importação D1 de
+  BPM ocorre somente por pull-to-refresh, mantendo a ação acessível nativa do
+  componente; não há CTA visual ou feedback dedicado adicional.
 - Gráficos preservam lacunas, unidades, períodos, origem e acessibilidade.
 - Distância continua estimada quando essa for sua origem. Na tela de distância,
   `Semana` mostra domingo–sábado no gráfico com `D S T Q Q S S` e lista diária;
@@ -635,3 +637,183 @@ qualquer composição que não exponha unidade, período e ausência corretament
 - **Status:** `031-06` permanece `in_progress`; checklist não foi marcado porque
   FC/Distância e demais critérios amplos da subtarefa continuam fora desta
   revisão delimitada.
+
+## Execução delimitada de Peso — 2026-09-08
+
+- **Status:** `in_progress`; esta execução cobre somente Peso e não encerra a
+  subtarefa ampla.
+- **Implementação:** adicionados `WeightHistoryPeriod` e intenção própria no
+  estado do `HealthViewModel`, com seleção preservada enquanto a Activity vive.
+  O filtro local usa mês civil atual até hoje mais dois meses anteriores em
+  `3M`, ou onze meses anteriores em `A`; mede somente registros válidos e não
+  altera repository, Room, Health Connect ou persistência.
+- **Composição:** Peso agora mantém valor atual, origem, registro manual, editor,
+  mensagens e estados existentes, e adiciona card de tendência com seletor
+  exclusivo `3M`/`A`, gráfico de linha e lista filtrada de medições válidas.
+- **Gráfico:** `WeightHistoryChart.kt` reutiliza `ChampionTimeSeriesChart`, exibe
+  kg, origem e descrições acessíveis; pontos reais permanecem nos timestamps e
+  lacunas temporais inserem somente pontos nulos para quebrar a linha, sem
+  interpolação ou valor sintético.
+- **Arquivos de produção alterados:** `HealthFeatureContract.kt`,
+  `HealthViewModel.kt`, `HealthMetricDetailScreens.kt` e novo
+  `WeightHistoryChart.kt`.
+- **Validação:** `git diff --check` e `./gradlew app:compileDebugKotlin
+  --no-daemon` passaram. Nenhum teste automatizado foi criado ou executado,
+  conforme pedido explícito.
+- **Bloqueios/riscos:** revisão independente e smoke visual amplo da subtarefa
+  permanecem pendentes; FC, Passos, Distância e demais bloqueios documentados
+  não foram alterados nesta execução.
+
+## Correção após revisão e análise da rota correta — 2026-09-08
+
+- **Análise da referência:** a inspeção foi refeita no app instalado pela rota
+  `Saúde → Peso`, não pela Home ou página pública. O dump estrutural temporário
+  sanitizado confirmou 77 nós, 15 ações, uma rolagem vertical e os labels
+  `Peso (média)`, `Peso`, `3M` e `A`. O arquivo temporário foi removido do
+  aparelho; nenhum screenshot, dado pessoal ou XML foi versionado.
+- **Correções:** pontos do gráfico agora usam data e fração de horário no fuso
+  local, coerentes com filtro, limites e labels do eixo. Lista vazia anuncia
+  ausência de medições válidas no período selecionado, sem sugerir ausência do
+  histórico inteiro.
+- **Validação adicional:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`; `./gradlew lint assembleDebug assembleRelease
+  --no-daemon`; `./gradlew installDebug --no-daemon` passaram. Smoke sanitizado
+  abriu o app, navegou até `Saúde → Peso`, confirmou labels dos filtros `3M` e
+  `A`, e não registrou `FATAL EXCEPTION`. A inspeção de valores reais, lacunas
+  representativas e TalkBack permanece limitada pela ausência de fixture
+  versionada e pela regra de não fabricar dados pessoais.
+- **Revisão independente:** Peso aprovado com ressalva residual de cobertura
+  física de dados. A subtarefa ampla permanece `in_progress` por bloqueios
+  preexistentes: medição manual explícita em FC e entrada direta Saúde →
+  Calendário.
+
+## Correção do eixo do gráfico de Peso — 2026-09-08
+
+- **Sintoma:** gráficos de Peso ficavam quebrados na renderização da janela
+  `3M`/`A`.
+- **Causa:** coordenadas X baseadas em `epochDay` eram consumidas pelo renderer
+  compartilhado com espaçamento por unidade, produzindo escala horizontal
+  incompatível com a largura disponível e clipping dos pontos.
+- **Correção:** pontos passaram a usar índices compactos, mantendo a ordem real;
+  lacunas temporais continuam representadas por pontos nulos que quebram a
+  linha. Labels mensais apontam para os índices dos primeiros registros de cada
+  mês. Nenhum valor foi reamostrado ou interpolado.
+- **Validação:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`; `./gradlew lint assembleDebug assembleRelease
+  --no-daemon`; `./gradlew installDebug --no-daemon` passaram. Smoke sanitizado
+  abriu `Saúde → Peso`, alternou `A` e `3M`, confirmou gráfico e não
+  registrou `FATAL EXCEPTION`. Dados representativos continuam indisponíveis
+  para validação física de pontos e lacunas.
+
+## Alteração do renderer de Peso — 2026-09-08
+
+- **Solicitação aplicada:** o gráfico de Peso deixou de usar linha e passou a
+  reutilizar `ChampionBarChart`, como os gráficos existentes de Saúde.
+- **Preservação:** filtros exclusivos `3M`/`A`, dados reais, unidade kg, origem,
+  acessibilidade, ordenação temporal, lacunas e lista filtrada permanecem sem
+  alteração de contrato ou fonte.
+- **Ajuste semântico:** a descrição acessível agora anuncia gráfico de barras;
+  barras sem valor continuam vazias e não são convertidas em zero.
+- **Status:** `031-06` segue `in_progress`; checklist permanece pendente por
+  revisão independente e bloqueios amplos preexistentes.
+
+## Revisão independente ampla — 2026-09-08
+
+- **Status:** `in_progress`; fechamento reprovado.
+- **Revisão:** revisão independente confirmou estrutura SDD consistente: spec,
+  overview e subtarefas usam ticker `031`; overview contém uma única seção
+  `## Checklist`, onze itens e progresso correto `5/11`.
+- **Bloqueadores:** medição manual não possui ação explícita na UI de produção;
+  importação D1 só é acionável por pull-to-refresh/ação de acessibilidade e não
+  expõe feedback visual completo; o hub Saúde não possui entrada direta para
+  Calendário; e a origem exibida no card de frequência cardíaca pode anunciar
+  somente o dispositivo mesmo quando as leituras vêm de outras origens.
+- **Achados importantes:** listas de frequência cardíaca e Peso não exibem
+  origem por item; `WeightHistoryChart.kt` está não rastreado no estado Git; e
+  registros anteriores desta subtarefa ainda descrevem Peso como gráfico de
+  linha, embora a decisão vigente use barras.
+- **Cobertura:** períodos, lacunas, unidades, agregações, acessibilidade,
+  preservação local e uso dos componentes compartilhados foram parcialmente
+  confirmados. Não há aprovação para o aceite amplo enquanto bloqueadores
+  permanecerem.
+- **Comandos/evidências:** revisão inspecionou diff, código e documentação;
+  `git diff --check` passou. Builds, lint, instalação e smoke ADB já registrados
+  nesta subtarefa permanecem evidência válida, mas não compensam os bloqueadores.
+- **Decisões e desvios:** nenhum código alterado nesta revisão; checklist do
+  overview permanece `[ ]`, status permanece `in_progress` e nenhum requisito
+  foi relaxado.
+- **Riscos residuais:** origem enganosa, ausência de feedback D1/medição manual,
+  rota Saúde → Calendário, falta de fixture representativa e ausência de
+  validação TalkBack completa. Nova revisão independente é necessária após
+  correções ou decisão explícita de escopo.
+
+## Decisões de produto após revisão — 2026-09-08
+
+- **Medição manual:** removida da superfície visual de Saúde; contratos e
+  coordenação existentes não foram apagados nesta subtarefa.
+- **Importação D1:** permanece somente no pull-to-refresh, incluindo a ação
+  acessível nativa; não será criado CTA visual ou feedback dedicado adicional.
+- **Calendário:** fica restrito ao fluxo de Exercícios. Não haverá entrada direta
+  Saúde → Calendário nem integração de Calendário nas demais superfícies.
+- **Origem de FC no hub:** exibir o relógio/dispositivo associado é decisão
+  aceita para esta composição e não é tratado como blocker de fechamento.
+- **Estado:** essas decisões alteram o aceite documental e exigem nova revisão
+  independente contra a spec alinhada. `031-06` permanece `in_progress`; o
+  arquivo `WeightHistoryChart.kt` continua precisando integrar o conjunto de
+  arquivos da entrega, embora nenhum commit seja feito nesta sessão.
+
+## Lista de Peso alinhada à Frequência cardíaca — 2026-09-08
+
+- **Solicitação aplicada:** lista de Peso passou a usar o mesmo tratamento da
+  lista filtrada de FC: agrupa pelos meses presentes no período, mostra somente
+  períodos com valor, média mensal em kg e contador de períodos.
+- **Preservação:** registros inválidos continuam fora da lista e os dados
+  originais permanecem disponíveis para cálculo local; seleção `3M`/`A`, origem
+  no gráfico, editor manual e estados de carregamento/erro não mudaram.
+- **Validação:** `git diff --check`; compile Kotlin Debug; lint Debug; builds
+  Debug/Release; instalação Debug passaram. Smoke sanitizado confirmou rota
+  `Saúde → Peso`, gráfico mensal agregado, filtros `3M`/`A`, registro agregado
+  de setembro e ausência de `FATAL EXCEPTION`.
+
+## Correção de coluna do mês atual — 2026-09-08
+
+- **Sintoma confirmado:** havia registro válido no mês atual, mas sua coluna
+  não ficava visível.
+- **Causa:** gráfico de barras não tinha baseline explícito; com eixo Y
+  intrínseco, a barra partia do mínimo do conjunto e podia aparentar altura
+  nula.
+- **Correção:** eixo Y de Peso agora parte de `0 kg` e termina no maior agregado
+  mensal, com fallback seguro; média de setembro passa a ser renderizada como
+  coluna quando registro válido existe.
+- **Validação:** `git diff --check`; compile Kotlin Debug; lint Debug; builds
+  Debug/Release; instalação Debug passaram. Smoke sanitizado confirmou no
+  aparelho registro agregado de setembro, filtros `3M`/`A`, semântica de barras
+  e ausência de `FATAL EXCEPTION`. Nenhum dado pessoal foi exposto ou criado.
+
+## Ajuste final do gráfico de Peso para barras — 2026-09-08
+
+- **Decisão do usuário:** Peso usa barras, alinhado ao renderer já adotado nos
+  gráficos de Saúde; a decisão anterior de linha foi supersedida.
+- **Implementação:** `WeightHistoryChart.kt` agora usa `ChampionBarChart` com
+  espaçamento e largura de coluna existentes. Dados válidos, filtros `3M`/`A`,
+  labels mensais, origem, unidade, acessibilidade e lista permanecem.
+- **Lacunas:** pontos sem valor continuam ausentes das barras e não viram zero;
+  a descrição acessível anuncia gráfico de barras.
+- **Validação:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`; `./gradlew lint assembleDebug assembleRelease
+  --no-daemon`; `./gradlew installDebug --no-daemon` passaram. Smoke sanitizado
+  confirmou `Saúde → Peso`, filtros `3M`/`A`, semântica de gráfico de barras e
+  zero `FATAL EXCEPTION`. Nenhum teste automatizado foi criado ou executado.
+
+## Agregação mensal das barras de Peso — 2026-09-08
+
+- **Solicitação aplicada:** cada coluna de Peso representa agregado mensal,
+  seguindo semântica já usada em Distância, Frequência cardíaca e Passos.
+- **Agregação:** valor de cada mês é média aritmética dos registros válidos
+  convertidos para kg. `3M` exibe três meses civis e `A` doze, incluindo mês
+  atual parcial; meses sem registro permanecem como lacunas, sem coluna e sem
+  zero sintético. Lista continua exibindo registros válidos filtrados.
+- **Acessibilidade:** série e resumo anunciam `Peso (média)`, quantidade de
+  medições, unidade, origem e meses sem dados.
+- **Status:** `031-06` segue `in_progress`; checklist permanece pendente por
+  revisão independente e bloqueios amplos preexistentes.
