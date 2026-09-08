@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `06`
-- **Status:** in_progress
+- **Status:** completed
 
 ## Objetivo
 
@@ -717,6 +717,32 @@ qualquer composição que não exponha unidade, período e ausência corretament
 - **Status:** `031-06` segue `in_progress`; checklist permanece pendente por
   revisão independente e bloqueios amplos preexistentes.
 
+## Revisão independente após decisões de produto — 2026-09-08
+
+- **Resultado:** aprovado com ressalvas para o escopo atual de `031-06`; nenhum
+  bloqueador funcional permaneceu após as decisões explícitas do usuário.
+- **Confirmações:** medição manual não compõe a UI de Saúde; D1 usa somente
+  pull-to-refresh e ação acessível nativa; Calendário permanece restrito a
+  Exercícios; origem de FC no hub usa relógio/dispositivo associado; Peso usa
+  barras com médias mensais e lacunas preservadas.
+- **Estrutura SDD:** ticker, spec, overview e subtarefas conferidos. Overview
+  mantém uma única seção `## Checklist`, onze itens e progresso `5/11`; `031-06`
+  permanece `[ ]` e `in_progress`.
+- **Entrega:** `WeightHistoryChart.kt` está rastreado e incluído em `HEAD`
+  (`367ff96`). `git status` está limpo e `git diff --check HEAD^ HEAD` passou.
+- **Ressalvas:** `031-07` ainda contém requisito histórico de entrada do
+  Calendário por Home/Saúde, contradizendo decisão vigente; isso deve ser
+  alinhado antes do aceite daquela subtarefa ou fechamento integral da Spec 031.
+  Listas agregadas de FC e Peso não repetem origem por item, sem violar o aceite
+  atual, mas permanecem risco de interpretação. TalkBack completo e dados
+  representativos não foram validados fisicamente.
+- **Testes/evidências:** compile, lint, builds Debug/Release, instalação Debug,
+  smoke ADB e inspeções visuais já registrados permanecem válidos para o commit;
+  nenhum teste automatizado foi criado ou executado.
+- **Decisão documental:** checklist não foi marcado. Nova revisão só é necessária
+  para fechamento formal da subtarefa, após decisão sobre as ressalvas de
+  evidência; o alinhamento de `031-07` pertence àquela subtarefa.
+
 ## Revisão independente ampla — 2026-09-08
 
 - **Status:** `in_progress`; fechamento reprovado.
@@ -817,3 +843,35 @@ qualquer composição que não exponha unidade, período e ausência corretament
   medições, unidade, origem e meses sem dados.
 - **Status:** `031-06` segue `in_progress`; checklist permanece pendente por
   revisão independente e bloqueios amplos preexistentes.
+
+## Alinhamento documental posterior — 2026-09-08
+
+- **Calendário:** o requisito de `031-07` foi atualizado para refletir a decisão
+  vigente: Calendário é acessível somente pelo fluxo de Exercícios. Home e Saúde
+  não recebem entrada direta nem integração com Calendário.
+- **Histórico:** registros anteriores que mencionam bloqueio por medição manual,
+  CTA D1, entrada Saúde → Calendário, origem do hub ou arquivo não rastreado
+  descrevem estados de revisão anteriores e não representam o aceite atual.
+- **Estado registrado naquele momento:** decisões de produto estavam refletidas
+  na spec, overview e subtarefas relevantes. O fechamento formal foi realizado
+  na atualização posterior desta subtarefa; nenhum código foi alterado neste
+  alinhamento.
+
+## Fechamento da subtarefa — 2026-09-08
+
+- **Status:** `completed`.
+- **Aceite:** hub Saúde, detalhes de frequência cardíaca, Peso, Passos e
+  Distância, gráficos, filtros, lacunas, unidades, origens e acessibilidade
+  foram aprovados no escopo implementado. Medição manual não compõe a UI de
+  Saúde; D1 usa pull-to-refresh com ação acessível nativa; Calendário fica
+  restrito ao fluxo de Exercícios.
+- **Revisão independente:** aprovada com ressalvas, sem bloqueadores funcionais.
+- **Evidências:** compilação, lint, builds Debug/Release, instalação Debug,
+  smoke ADB e `git diff --check` registrados; `WeightHistoryChart.kt` está
+  rastreado em `HEAD`.
+- **Riscos residuais:** TalkBack completo e dados representativos não foram
+  validados fisicamente; listas agregadas não repetem origem por item. Essas
+  ressalvas não bloqueiam o aceite definido pelo usuário.
+- **Documentação:** overview atualizado para marcar somente este item como
+  concluído e recalcular progresso para `6/11`. Nenhuma próxima subtarefa foi
+  iniciada automaticamente.

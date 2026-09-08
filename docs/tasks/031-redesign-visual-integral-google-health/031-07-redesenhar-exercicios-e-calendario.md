@@ -13,7 +13,8 @@ calendário contextual de exercícios, mantendo importação e revisão locais.
 
 - Lista, filtros, CTA, progresso, retry, cancelamento e estados preservados.
 - Detalhe mantém revisão, calibração, descarte, gráficos e sync explícito.
-- Calendário é acessível por resumos de Home/Saúde e pela tela de Exercícios.
+- Calendário é acessível somente pela tela de Exercícios; Home e Saúde não
+  recebem integração direta com Calendário.
 - Detalhe diário e retorno contextual continuam funcionando.
 - Nenhuma ação BLE/sync é disparada somente para renderizar tela.
 

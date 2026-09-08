@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 5/11 subtarefas concluídas
+- **Progresso:** 6/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-03-evoluir-fundacao-visual.md](031-03-evoluir-fundacao-visual.md)
 - [x] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
 - [x] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
-- [ ] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
+- [x] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
 - [ ] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
 - [ ] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
 - [ ] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
@@ -293,3 +293,24 @@ somente Home e Saúde; rotas restantes serão contextuais.
         `in_progress` até nova revisão independente e integração do arquivo
         `WeightHistoryChart.kt` no conjunto da entrega. Checklist permanece
         `[ ]`; progresso: `5/11`.
+
+      - Em 2026-09-08, nova revisão independente aprovou `031-06` com
+        ressalvas, sem bloqueador funcional após as decisões de produto. O
+        arquivo `WeightHistoryChart.kt` está rastreado no commit `367ff96` e o
+        diff do commit passou. Permanecem ressalvas de evidência física,
+        TalkBack e origem não repetida nas listas agregadas. `031-07` ainda
+        contém requisito histórico de Calendário via Home/Saúde e precisa ser
+        alinhada em seu próprio escopo. Checklist de `031-06` permanece `[ ]`;
+        progresso: `5/11`.
+
+      - Em 2026-09-08, o requisito de `031-07` foi alinhado às decisões vigentes:
+        Calendário é acessível somente pelo fluxo de Exercícios; Home e Saúde não
+        recebem integração direta. Registros anteriores que citam entrada por
+        Home/Saúde permanecem como histórico supersedido. `031-06` segue
+        `in_progress`, sem alteração no progresso `5/11`.
+
+      - Em 2026-09-08, `031-06` foi concluída após revisão independente aprovada
+        com ressalvas e sem bloqueadores funcionais. O item foi marcado `[x]` e
+        o progresso recalculado para `6/11`. Permanecem riscos não bloqueantes de
+        cobertura física de dados representativos, TalkBack completo e origem
+        não repetida em listas agregadas. Nenhuma próxima subtarefa foi iniciada.
