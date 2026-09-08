@@ -737,9 +737,8 @@ private fun List<CartesianMarker.Target>.toTooltip(
 ): CharSequence = toSelections(data, kind).mapNotNull { selection ->
     val point = selection.point
     val yValue = point.y ?: return@mapNotNull null
-    val x = point.xLabel ?: data.xAxis.formatter.format(point.x)
     val y = formatAxisValue(data.yAxis, yValue)
-    "${data.series.first { it.key == selection.seriesKey }.label}: $x · $y"
+    y
 }.joinToString("\n")
 
 private fun targetEntries(

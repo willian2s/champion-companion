@@ -250,7 +250,7 @@ internal fun CalendarDistanceHistorySnapshot.toDistanceHistoryDisplayData(
         }
 
         CalendarHistoryPeriod.LAST_30_DAYS -> entries
-            .splitIntoCalendarWeeks()
+            .splitIntoCalendarWeeksThroughLastEntry()
             .map { weekEntries ->
                 weekEntries.toDistanceHistoryDisplayEntry(DistanceHistoryBucketKind.WEEK)
             }
@@ -299,11 +299,11 @@ private fun List<CalendarDistanceHistoryEntry>.toDistanceHistoryDisplayEntry(
     )
 }
 
-private fun List<CalendarDistanceHistoryEntry>.splitIntoCalendarWeeks(): List<List<CalendarDistanceHistoryEntry>> {
+private fun List<CalendarDistanceHistoryEntry>.splitIntoCalendarWeeksThroughLastEntry(): List<List<CalendarDistanceHistoryEntry>> {
     if (isEmpty()) return emptyList()
 
     val month = YearMonth.from(first().localDate)
-    val monthEnd = month.atEndOfMonth()
+    val monthEnd = minOf(month.atEndOfMonth(), last().localDate)
     val entriesByDate = associateBy { it.localDate }
     val buckets = mutableListOf<List<CalendarDistanceHistoryEntry>>()
     var from = month.atDay(1)
@@ -486,9 +486,13 @@ internal fun formatDistanceMonthAbbreviation(date: LocalDate): String =
 internal fun formatDistanceMonthInitial(date: LocalDate, locale: Locale): String =
     formatDistanceMonthAbbreviation(date).first().toString()
 
-internal fun distanceHistoryMonthAxisDays(month: YearMonth): Set<Int> = buildSet {
-    addAll(listOf(1, 5, 10, 15, 20, 25))
-    add(month.lengthOfMonth())
+internal fun distanceHistoryMonthAxisDays(
+    month: YearMonth,
+    lastAvailableDay: Int = month.lengthOfMonth(),
+): Set<Int> = buildSet {
+    val lastDay = lastAvailableDay.coerceIn(1, month.lengthOfMonth())
+    addAll(listOf(1, 5, 10, 15, 20, 25).filter { it <= lastDay })
+    add(lastDay)
 }
 
 private fun CalendarHistoryPeriod.toDistancePeriodLabel(): String = when (this) {
@@ -500,9 +504,9 @@ private fun CalendarHistoryPeriod.toDistancePeriodLabel(): String = when (this) 
 
 private fun CalendarHistoryPeriod.toDistanceAccessibilityLabel(): String = when (this) {
     CalendarHistoryPeriod.LAST_7_DAYS -> "Semana civil atual, de domingo a sábado, com valores diários"
-    CalendarHistoryPeriod.LAST_30_DAYS -> "Mês calendário fechado anterior, com gráfico diário e lista semanal"
-    CalendarHistoryPeriod.LAST_90_DAYS -> "Três meses calendário fechados anteriores, com valores mensais"
-    CalendarHistoryPeriod.LAST_365_DAYS -> "Doze meses calendário fechados anteriores, com valores mensais"
+    CalendarHistoryPeriod.LAST_30_DAYS -> "Mês calendário atual até hoje, com gráfico diário e lista semanal"
+    CalendarHistoryPeriod.LAST_90_DAYS -> "Mês atual até hoje e dois meses calendário anteriores, com valores mensais"
+    CalendarHistoryPeriod.LAST_365_DAYS -> "Mês atual até hoje e onze meses calendário anteriores, com valores mensais"
 }
 
 private fun CalendarHistoryPeriod.toDistanceListBucketKind(): DistanceHistoryBucketKind = when (this) {

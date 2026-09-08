@@ -124,15 +124,16 @@ fun HealthScreen(
         else -> "Disponível"
     }
     val today = LocalDate.now(ZoneId.systemDefault())
-    val todayHeartRateEntries = state.history.entries.filter {
+    val todayHeartRateEntries = state.todayHeartRateHistory.entries.filter {
         it.measuredAt.atZone(ZoneId.systemDefault()).toLocalDate() == today
     }
     val heartRateMinimum = todayHeartRateEntries.minOfOrNull { it.bpm }
     val heartRateMaximum = todayHeartRateEntries.maxOfOrNull { it.bpm }
     val heartRateValue = when {
-        heartRateMinimum != null && heartRateMaximum != null && heartRateMinimum == heartRateMaximum ->
+        heartRateMinimum != null && heartRateMinimum == heartRateMaximum ->
             "$heartRateMinimum BPM"
-        heartRateMinimum != null && heartRateMaximum != null -> "$heartRateMinimum a $heartRateMaximum BPM"
+        heartRateMinimum != null && heartRateMaximum != null ->
+            "$heartRateMinimum a $heartRateMaximum BPM"
         else -> "Sem dados"
     }
     ChampionRedesignTheme {

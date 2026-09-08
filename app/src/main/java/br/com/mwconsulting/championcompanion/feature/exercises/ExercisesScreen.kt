@@ -1536,11 +1536,6 @@ private fun ActivityCanonicalChartSection(activity: WorkoutActivity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 WorkoutCanonicalDistanceChart(series)
-                Text(
-                    text = canonicalChartAccessibleSummary(series),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -1658,11 +1653,6 @@ private fun ActivityCadenceChartSection(activity: WorkoutActivity) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     WorkoutCadenceChart(series)
-                    Text(
-                        text = cadenceChartAccessibleSummary(intervals),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
@@ -1834,11 +1824,6 @@ private fun ActivityHeartRateChartSection(activity: WorkoutActivity) {
                 )
             } else {
                 WorkoutHeartRateChart(activity.heartRateSamples)
-                Text(
-                    text = heartRateAccessibleSummary(activity.heartRateSamples),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }

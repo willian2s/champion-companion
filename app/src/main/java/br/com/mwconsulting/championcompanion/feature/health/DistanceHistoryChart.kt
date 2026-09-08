@@ -47,9 +47,9 @@ internal fun DistanceHistoryChart(
         .ifBlank { "não disponível" }
     val periodLabel = when (period) {
         CalendarHistoryPeriod.LAST_7_DAYS -> "semana civil atual"
-        CalendarHistoryPeriod.LAST_30_DAYS -> "mês calendário fechado anterior"
-        CalendarHistoryPeriod.LAST_90_DAYS -> "três meses calendário fechados anteriores"
-        CalendarHistoryPeriod.LAST_365_DAYS -> "doze meses calendário fechados anteriores"
+        CalendarHistoryPeriod.LAST_30_DAYS -> "mês calendário atual até hoje"
+        CalendarHistoryPeriod.LAST_90_DAYS -> "mês atual até hoje e dois meses calendário anteriores"
+        CalendarHistoryPeriod.LAST_365_DAYS -> "mês atual até hoje e onze meses calendário anteriores"
     }
     val chartEntryCountLabel = when (period) {
         CalendarHistoryPeriod.LAST_7_DAYS -> "dias"
@@ -91,10 +91,23 @@ internal fun DistanceHistoryChart(
             visible = true,
             gridLinesVisible = false,
             labelValues = when (period) {
-                CalendarHistoryPeriod.LAST_30_DAYS -> entries
-                    .map { it.fromInclusive.dayOfMonth }
-                    .filter { it in distanceHistoryMonthAxisDays(entries.first().fromInclusive.let(YearMonth::from)) }
-                    .map(Int::toDouble)
+                CalendarHistoryPeriod.LAST_30_DAYS -> {
+                    val month = entries.firstOrNull()?.fromInclusive?.let(YearMonth::from)
+                    val lastAvailableDay = entries.maxOfOrNull { it.fromInclusive.dayOfMonth }
+                    if (month == null) {
+                        emptyList()
+                    } else {
+                        val axisDays = distanceHistoryMonthAxisDays(
+                            month = month,
+                            lastAvailableDay = lastAvailableDay ?: month.lengthOfMonth(),
+                        )
+                        entries
+                            .map { it.fromInclusive.dayOfMonth }
+                            .filter { it in axisDays }
+                            .distinct()
+                            .map(Int::toDouble)
+                    }
+                }
                 else -> entries.indices.map(Int::toDouble)
             },
         ),
@@ -172,7 +185,13 @@ private fun formatDistanceAxisLabel(
 
         CalendarHistoryPeriod.LAST_30_DAYS -> {
             val month = entries.firstOrNull()?.let { YearMonth.from(it.fromInclusive) }
-            val day = index.takeIf { month != null && it in distanceHistoryMonthAxisDays(month) }
+            val lastAvailableDay = entries.maxOfOrNull { it.fromInclusive.dayOfMonth }
+            val day = index.takeIf {
+                month != null && it in distanceHistoryMonthAxisDays(
+                    month = month,
+                    lastAvailableDay = lastAvailableDay ?: month.lengthOfMonth(),
+                )
+            }
             day?.toString() ?: "--"
         }
 

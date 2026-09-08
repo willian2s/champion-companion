@@ -23,48 +23,40 @@ import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCha
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartUnit
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisFormatter
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
-import br.com.mwconsulting.championcompanion.core.model.CalendarStepsHistorySnapshot
-import java.text.NumberFormat
+import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryPeriod
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
 internal fun StepsHistoryChart(
-    snapshot: CalendarStepsHistorySnapshot,
+    displayEntries: List<StepsHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
+    stepsGoal: Int,
     modifier: Modifier = Modifier,
     chartHeight: Dp = 190.dp,
     chartMinimumHeight: Dp = 192.dp,
-    compact: Boolean = false,
 ) {
-    val entries = snapshot.entries
+    val entries = displayEntries
     val locale = LocalConfiguration.current.locales[0]
     val maximumSteps = maxOf(
-        snapshot.stepsGoal.toDouble(),
-        snapshot.aggregates.maximumSteps?.toDouble() ?: 0.0,
-    ).coerceAtLeast(1.0)
-    val numberFormat = NumberFormat.getIntegerInstance(locale)
-    val recordedDayCount = entries.count { it.steps != null }
-    val missingDayCount = entries.size - recordedDayCount
-    val shortDateFormatter = shortDateFormatter(locale)
-    val axisDateFormatter = if (compact) {
-        DateTimeFormatter.ofPattern("EEEEE", locale)
-    } else {
-        shortDateFormatter
-    }
-    val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
-    val gapCount = entries.count { it.steps == null }
+        stepsGoal.toDouble(),
+        entries.mapNotNull { it.steps }.maxOrNull()?.toDouble() ?: 0.0,
+        1.0,
+    )
+    val numberFormat = java.text.NumberFormat.getIntegerInstance(locale)
+    val recordedEntryCount = entries.count { it.steps != null }
+    val missingEntryCount = entries.size - recordedEntryCount
     val originLabel = entries
-        .mapNotNull { it.origin }
+        .flatMap { it.origins }
         .distinct()
-        .joinToString(", ") { it.toChartOriginLabel() }
+        .joinToString(", ") { it.toStepsChartOriginLabel() }
         .ifBlank { "não disponível" }
     val gapLabels = entries
         .filter { it.steps == null }
-        .joinToString(limit = 5, truncated = "…") { shortDateFormatter.format(it.localDate) }
-        .let { labels ->
-            if (gapCount > 5) "$labels e mais ${gapCount - 5}" else labels
+        .joinToString(limit = 5, truncated = "…") {
+            DateTimeFormatter.ofPattern("dd/MM", locale).format(it.fromInclusive)
         }
     val chartData = ChampionCartesianChartData(
         series = listOf(
@@ -72,29 +64,41 @@ internal fun StepsHistoryChart(
                 key = "steps",
                 label = "Passos • Origem: $originLabel",
                 points = entries.mapIndexed { index, entry ->
-                    val date = dateFormatter.format(entry.localDate)
+                    val label = formatStepsChartLabel(entry, index, period)
                     val steps = entry.steps
                     ChampionChartPoint(
-                        x = index.toDouble(),
+                        x = stepsChartX(entry, index, period),
                         y = steps?.toDouble(),
-                        xLabel = date,
-                        contentDescription = "$date: ${steps?.let { "${numberFormat.format(it)} passos registrados" } ?: "sem dados"}.",
+                        xLabel = label,
+                        contentDescription = "$label: ${steps?.let { "${numberFormat.format(it)} passos registrados" } ?: "sem dados"}.",
                     )
                 },
             ),
         ),
         xAxis = ChampionChartXAxisSpec(
             formatter = ChampionChartXAxisFormatter { value ->
-                entries.getOrNull(value.roundToInt().coerceIn(0, (entries.lastIndex).coerceAtLeast(0)))
-                    ?.localDate
-                     ?.let(axisDateFormatter::format)
-                    ?: "--"
+                formatStepsAxisLabel(value, entries, period)
             },
-            title = "Data",
-            minimum = -0.5,
-            maximum = entries.lastIndex.toDouble().coerceAtLeast(1.0) + 0.5,
+            title = if (period == CalendarHistoryPeriod.LAST_90_DAYS ||
+                period == CalendarHistoryPeriod.LAST_365_DAYS
+            ) "Mês" else "Dia",
+            minimum = stepsChartXBounds(entries, period).first,
+            maximum = stepsChartXBounds(entries, period).second,
             visible = true,
             gridLinesVisible = false,
+            labelValues = when (period) {
+                CalendarHistoryPeriod.LAST_30_DAYS -> {
+                    val month = entries.firstOrNull()?.fromInclusive?.let(YearMonth::from)
+                    val lastDay = entries.maxOfOrNull { it.fromInclusive.dayOfMonth }
+                    if (month == null) {
+                        emptyList()
+                    } else {
+                        stepsHistoryMonthAxisDays(month, lastDay ?: month.lengthOfMonth())
+                            .map(Int::toDouble)
+                    }
+                }
+                else -> entries.indices.map(Int::toDouble)
+            },
         ),
         yAxis = ChampionChartAxisSpec(
             title = "Passos",
@@ -105,21 +109,29 @@ internal fun StepsHistoryChart(
             visible = false,
             gridLinesVisible = false,
         ),
-        referenceLines = listOf(
-            ChampionChartReferenceLine(
-                value = snapshot.stepsGoal.toDouble(),
-                label = "Meta atual",
-                contentDescription = "Meta atual: ${numberFormat.format(snapshot.stepsGoal)} passos",
-            ),
-        ),
+        referenceLines = if (period == CalendarHistoryPeriod.LAST_90_DAYS ||
+            period == CalendarHistoryPeriod.LAST_365_DAYS
+        ) {
+            emptyList()
+        } else {
+            listOf(
+                ChampionChartReferenceLine(
+                    value = stepsGoal.toDouble(),
+                    label = "Meta atual",
+                    contentDescription = "Meta atual: ${numberFormat.format(stepsGoal)} passos",
+                ),
+            )
+        },
         interaction = ChampionChartInteractionPolicy(
             scrollEnabled = false,
         ),
-        accessibilitySummary = "Gráfico de barras de passos para ${entries.size} dias. " +
-            "Meta atual: ${numberFormat.format(snapshot.stepsGoal)} passos. " +
-            "Origem: $originLabel. " +
-            "$recordedDayCount dias registrados e $missingDayCount dias sem dados. " +
-            "Lacunas não representam zero passos. Valores diários estão disponíveis na lista acessível.",
+        accessibilitySummary = "Gráfico de barras de passos para ${stepsPeriodDescription(period)}, com " +
+            "${entries.size} ${period.toStepsChartEntryLabel()}. Meta atual: " +
+            "${numberFormat.format(stepsGoal)} passos. Origem: $originLabel. " +
+            "$recordedEntryCount ${period.toStepsChartEntryLabel()} com dados e " +
+            "$missingEntryCount sem dados. Lacunas não representam zero passos. " +
+            "A linha de meta aparece nos gráficos diários. Valores estão disponíveis " +
+            "na lista acessível.",
     )
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -131,15 +143,7 @@ internal fun StepsHistoryChart(
                 .height(chartHeight),
             minimumHeight = chartMinimumHeight,
         )
-        if (!compact) {
-            Text(
-                text = "Barras: passos registrados • linha: meta atual • lacuna: sem dados",
-                modifier = Modifier.padding(top = ChampionSpacing.small),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        if (!compact && gapLabels.isNotEmpty()) {
+        if (gapLabels.isNotEmpty()) {
             Text(
                 text = "Lacunas: $gapLabels (sem dados; não representam zero passos)",
                 modifier = Modifier.padding(top = ChampionSpacing.extraSmall),
@@ -150,10 +154,101 @@ internal fun StepsHistoryChart(
     }
 }
 
-private fun shortDateFormatter(locale: Locale): DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd/MM", locale)
+private fun formatStepsChartLabel(
+    entry: StepsHistoryDisplayEntry,
+    index: Int,
+    period: CalendarHistoryPeriod,
+): String = when (period) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> STEPS_HISTORY_WEEKDAY_LABELS.getOrNull(index) ?: "--"
+    CalendarHistoryPeriod.LAST_30_DAYS -> entry.fromInclusive.dayOfMonth.toString()
+    CalendarHistoryPeriod.LAST_90_DAYS -> STEPS_HISTORY_MONTH_LABELS[entry.fromInclusive.monthValue - 1]
+    CalendarHistoryPeriod.LAST_365_DAYS -> STEPS_HISTORY_MONTH_LABELS[entry.fromInclusive.monthValue - 1].first().toString()
+}
 
-private fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toChartOriginLabel(): String = when (this) {
+private fun stepsChartX(
+    entry: StepsHistoryDisplayEntry,
+    index: Int,
+    period: CalendarHistoryPeriod,
+): Double = if (period == CalendarHistoryPeriod.LAST_30_DAYS) {
+    entry.fromInclusive.dayOfMonth.toDouble()
+} else {
+    index.toDouble()
+}
+
+private fun formatStepsAxisLabel(
+    value: Double,
+    entries: List<StepsHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
+): String {
+    if (!value.isFinite()) return "--"
+    val index = value.roundToInt()
+    return when (period) {
+        CalendarHistoryPeriod.LAST_7_DAYS -> STEPS_HISTORY_WEEKDAY_LABELS.getOrNull(index) ?: "--"
+        CalendarHistoryPeriod.LAST_30_DAYS -> {
+            val month = entries.firstOrNull()?.fromInclusive?.let(YearMonth::from)
+            val day = index.takeIf {
+                month != null && it in stepsHistoryMonthAxisDays(
+                    month,
+                    entries.maxOfOrNull { entry -> entry.fromInclusive.dayOfMonth } ?: 1,
+                )
+            }
+            day?.toString() ?: "--"
+        }
+        CalendarHistoryPeriod.LAST_90_DAYS,
+        CalendarHistoryPeriod.LAST_365_DAYS,
+        -> entries.getOrNull(index)?.let {
+            val abbreviation = STEPS_HISTORY_MONTH_LABELS[it.fromInclusive.monthValue - 1]
+            if (period == CalendarHistoryPeriod.LAST_365_DAYS) abbreviation.first().toString() else abbreviation
+        } ?: "--"
+    }
+}
+
+private fun stepsChartXBounds(
+    entries: List<StepsHistoryDisplayEntry>,
+    period: CalendarHistoryPeriod,
+): Pair<Double, Double> = when (period) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> -0.5 to 6.5
+    CalendarHistoryPeriod.LAST_30_DAYS -> {
+        val lastDay = entries.maxOfOrNull { it.fromInclusive.dayOfMonth } ?: 1
+        0.5 to lastDay + 0.5
+    }
+    CalendarHistoryPeriod.LAST_90_DAYS,
+    CalendarHistoryPeriod.LAST_365_DAYS,
+    -> {
+        val count = entries.size.coerceAtLeast(1)
+        -0.5 to count - 0.5
+    }
+}
+
+private fun stepsHistoryMonthAxisDays(month: YearMonth, lastAvailableDay: Int): Set<Int> = buildSet {
+    val lastDay = lastAvailableDay.coerceIn(1, month.lengthOfMonth())
+    addAll(listOf(1, 5, 10, 15, 20, 25).filter { it <= lastDay })
+    add(lastDay)
+}
+
+private fun stepsPeriodDescription(period: CalendarHistoryPeriod): String = when (period) {
+    CalendarHistoryPeriod.LAST_7_DAYS -> "a semana civil atual"
+    CalendarHistoryPeriod.LAST_30_DAYS -> "o mês civil atual até hoje"
+    CalendarHistoryPeriod.LAST_90_DAYS -> "o mês atual até hoje e os dois meses civis anteriores"
+    CalendarHistoryPeriod.LAST_365_DAYS -> "o mês atual até hoje e os onze meses civis anteriores"
+}
+
+private fun CalendarHistoryPeriod.toStepsChartEntryLabel(): String = when (this) {
+    CalendarHistoryPeriod.LAST_7_DAYS,
+    CalendarHistoryPeriod.LAST_30_DAYS,
+    -> "dias"
+    CalendarHistoryPeriod.LAST_90_DAYS,
+    CalendarHistoryPeriod.LAST_365_DAYS,
+    -> "meses"
+}
+
+private val STEPS_HISTORY_WEEKDAY_LABELS = listOf("D", "S", "T", "Q", "Q", "S", "S")
+private val STEPS_HISTORY_MONTH_LABELS = listOf(
+    "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
+    "JUL", "AGO", "SET", "OUT", "NOV", "DEZ",
+)
+
+private fun br.com.mwconsulting.championcompanion.core.model.DataOrigin.toStepsChartOriginLabel(): String = when (this) {
     br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_DAILY_SUMMARY -> "relógio"
     else -> "resumo local"
 }

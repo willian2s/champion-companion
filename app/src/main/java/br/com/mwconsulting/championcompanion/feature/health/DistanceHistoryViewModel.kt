@@ -113,14 +113,17 @@ internal fun CalendarHistoryPeriod.distanceHistoryDateRange(today: LocalDate): C
     val currentMonth = YearMonth.from(today)
     return when (this) {
         CalendarHistoryPeriod.LAST_7_DAYS -> currentCivilWeekRange(today)
-        CalendarHistoryPeriod.LAST_30_DAYS -> previousClosedMonthRange(currentMonth)
+        CalendarHistoryPeriod.LAST_30_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
         CalendarHistoryPeriod.LAST_90_DAYS -> CalendarDateRange(
-            fromInclusive = currentMonth.minusMonths(3).atDay(1),
-            untilExclusive = currentMonth.atDay(1),
+            fromInclusive = currentMonth.minusMonths(2).atDay(1),
+            untilExclusive = today.plusDays(1),
         )
         CalendarHistoryPeriod.LAST_365_DAYS -> CalendarDateRange(
-            fromInclusive = currentMonth.minusMonths(12).atDay(1),
-            untilExclusive = currentMonth.atDay(1),
+            fromInclusive = currentMonth.minusMonths(11).atDay(1),
+            untilExclusive = today.plusDays(1),
         )
     }
 }
@@ -130,13 +133,5 @@ internal fun currentCivilWeekRange(today: LocalDate): CalendarDateRange {
     return CalendarDateRange(
         fromInclusive = sunday,
         untilExclusive = sunday.plusWeeks(1),
-    )
-}
-
-private fun previousClosedMonthRange(currentMonth: YearMonth): CalendarDateRange {
-    val previousMonth = currentMonth.minusMonths(1)
-    return CalendarDateRange(
-        fromInclusive = previousMonth.atDay(1),
-        untilExclusive = currentMonth.atDay(1),
     )
 }

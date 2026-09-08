@@ -75,6 +75,9 @@ class HealthViewModel internal constructor(
     private val recentMeasurements = MutableStateFlow<List<HeartRateMeasurement>>(emptyList())
     private val selectedHistoryPeriod = MutableStateFlow(HeartRateHistoryPeriod.TODAY)
     private val history = MutableStateFlow(HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY))
+    private val todayHeartRateHistory = MutableStateFlow(
+        HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY),
+    )
     private val latestD1ImportMetadata = MutableStateFlow<D1HeartRateImportMetadata?>(null)
     private val personalMetrics = MutableStateFlow(PersonalMetricsSnapshot())
     private val weightHistory = MutableStateFlow<HealthWeightHistoryState>(HealthWeightHistoryState.Loading)
@@ -122,6 +125,18 @@ class HealthViewModel internal constructor(
                 }
             }.collect { snapshot ->
                 history.value = snapshot
+            }
+        }
+        scope.launch {
+            observedDate.flatMapLatest {
+                heartRateRepository.observeHistory(
+                    HeartRateHistoryQuery(
+                        period = HeartRateHistoryPeriod.TODAY,
+                        zoneId = java.time.ZoneId.systemDefault(),
+                    ),
+                )
+            }.collect { snapshot ->
+                todayHeartRateHistory.value = snapshot
             }
         }
         scope.launch {
@@ -175,12 +190,14 @@ class HealthViewModel internal constructor(
                 d1ImportState,
                 selectedHistoryPeriod,
                 history,
-            ) { currentSurface, currentD1ImportState, period, currentHistory ->
+                todayHeartRateHistory,
+            ) { currentSurface, currentD1ImportState, period, currentHistory, currentTodayHistory ->
                 PartialHealthState(
                     surfaceState = currentSurface,
                     d1ImportState = currentD1ImportState,
                     selectedHistoryPeriod = period,
                     history = currentHistory,
+                    todayHeartRateHistory = currentTodayHistory,
                 )
             }
             val dataFlows = combine(
@@ -202,6 +219,7 @@ class HealthViewModel internal constructor(
                     d1ImportState = partialState.d1ImportState,
                     selectedHistoryPeriod = partialState.selectedHistoryPeriod,
                     history = partialState.history,
+                    todayHeartRateHistory = partialState.todayHeartRateHistory,
                     latestD1ImportMetadata = partialData.latestD1ImportMetadata,
                     latestMeasurement = partialData.latestMeasurement,
                     recentMeasurements = partialData.recentMeasurements,
@@ -229,6 +247,7 @@ class HealthViewModel internal constructor(
                     d1ImportState = core.d1ImportState,
                     selectedHistoryPeriod = core.selectedHistoryPeriod,
                     history = core.history,
+                    todayHeartRateHistory = core.todayHeartRateHistory,
                     latestD1ImportMetadata = core.latestD1ImportMetadata,
                     latestMeasurement = core.latestMeasurement,
                     recentMeasurements = core.recentMeasurements,
@@ -665,6 +684,7 @@ class HealthViewModel internal constructor(
         val d1ImportState: D1HeartRateImportSurfaceState,
         val selectedHistoryPeriod: HeartRateHistoryPeriod,
         val history: HeartRateHistorySnapshot,
+        val todayHeartRateHistory: HeartRateHistorySnapshot,
         val latestD1ImportMetadata: D1HeartRateImportMetadata?,
         val latestMeasurement: HeartRateMeasurement?,
         val recentMeasurements: List<HeartRateMeasurement>,
@@ -676,6 +696,7 @@ class HealthViewModel internal constructor(
         val d1ImportState: D1HeartRateImportSurfaceState,
         val selectedHistoryPeriod: HeartRateHistoryPeriod,
         val history: HeartRateHistorySnapshot,
+        val todayHeartRateHistory: HeartRateHistorySnapshot,
     )
 
     private data class PartialHealthData(

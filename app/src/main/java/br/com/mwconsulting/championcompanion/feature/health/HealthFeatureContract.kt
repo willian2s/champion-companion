@@ -27,6 +27,9 @@ data class HealthUiState(
     val d1ImportState: D1HeartRateImportSurfaceState = D1HeartRateImportSurfaceState.Idle,
     val selectedHistoryPeriod: HeartRateHistoryPeriod = HeartRateHistoryPeriod.TODAY,
     val history: HeartRateHistorySnapshot = HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY),
+    val todayHeartRateHistory: HeartRateHistorySnapshot = HeartRateHistorySnapshot(
+        period = HeartRateHistoryPeriod.TODAY,
+    ),
     val latestD1ImportMetadata: D1HeartRateImportMetadata? = null,
     val latestMeasurement: HeartRateMeasurement? = null,
     val recentMeasurements: List<HeartRateMeasurement> = emptyList(),
