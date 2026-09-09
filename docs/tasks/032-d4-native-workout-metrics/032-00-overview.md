@@ -2,8 +2,8 @@
 
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
-- **Status:** `pending`
-- **Progresso:** `0/8`
+- **Status:** `in_progress`
+- **Progresso:** `0/8` (`032-01` em andamento)
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -94,7 +94,7 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 
 ## Checklist
 
-- [ ] `032-01-auditar-e-congelar-layout-d4-v4.md`
+- [ ] `032-01-auditar-e-congelar-layout-d4-v4.md` — em andamento; auditoria principal registrada em `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`
 - [ ] `032-02-implementar-parser-d3-d4-v4.md`
 - [ ] `032-03-persistir-fatos-nativos-e-provenance.md`
 - [ ] `032-04-integrar-dominio-adapters-e-reprocessamento.md`
@@ -102,6 +102,26 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 - [ ] `032-06-implementar-calibracao-de-distancia-contextual.md`
 - [ ] `032-07-integrar-produto-health-connect-e-spec-031.md`
 - [ ] `032-08-validar-fisicamente-e-fechar.md`
+
+## Estado da 032-01
+
+Achados já congelados:
+
+- D3 usa posição física de slot; CRC zero não pode comprimir `blockIndex`;
+- header fixo D4 é reconstruído em 42 bytes a partir dos pacotes 1–3;
+- sample fixo: BPM, `sportValue`, passos u16, calorias raw u16, distância u16 e pausa raw;
+- 34 blocos completos do banco fecharam 34/34 em `recordCount`, passos,
+  distância, calorias raw, sport count e CRC;
+- distância está confirmada em metros para o layout fixo observado;
+- calorias usam escala `raw / 1000.0 = kcal`;
+- `sportValue` permanece raw sem unidade funcional inventada;
+- pausa permanece raw por falta de caso físico com pausa no conjunto auditado;
+- timeline `T/N` da Spec 021 permanece autoritativa;
+- persistência v4 deve usar campos semanticamente novos sem reutilizar o
+  significado legacy de `rawMotionValue/rawDistanceValue/rawCaloriesValue`.
+
+Pendência para concluir `032-01`: sincronizar esse contrato em
+`docs/protocol/workouts-d3-d4.md` e validar `git diff --check`.
 
 ## Guard rails
 
