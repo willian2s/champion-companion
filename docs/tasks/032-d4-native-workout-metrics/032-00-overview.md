@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `0/8` (`032-01` em andamento)
+- **Progresso:** `1/8`
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -15,7 +15,7 @@ legado reproduzível, fallback por comprimento de passo e Health Connect explíc
 ## Sequência e paralelismo
 
 ```text
-032-01 Congelar evidência e contratos
+032-01 Congelar evidência e contratos       ✓
    ↓
    ├───────────────┐
    ↓               ↓
@@ -38,7 +38,7 @@ legado reproduzível, fallback por comprimento de passo e Health Connect explíc
 ## Estratégia para trabalhar em paralelo com a Spec 031
 
 A branch `feat/031-google-health` está à frente de `main` e altera principalmente
-UI/design. A 032 nasce de `main` para evitar dependência desnecessária da 031.
+UI/design. A 032 nasceu de `main` para evitar dependência desnecessária da 031.
 
 ### Ownership inicial da 032
 
@@ -70,15 +70,13 @@ Não fazer merges cruzados frequentes entre 031 e 032 durante parser/schema.
 
 ## Branches/worktrees sugeridos
 
-Para execução realmente paralela, cada subtarefa independente pode usar branch
-curta derivada da branch de integração 032:
+Depois da `032-01`, parser e persistência estão formalmente independentes e podem
+ser executados em paralelo a partir da mesma revisão da branch de integração:
 
 ```text
 feat/032-d4-native-workout-metrics
 ├── task/032-02-d4-v4-parser
-├── task/032-03-d4-v4-persistence
-├── task/032-05-native-distance-derivation
-└── task/032-06-distance-calibration
+└── task/032-03-d4-v4-persistence
 ```
 
 No ambiente local, usar um `git worktree` por branch permite duas sessões/agentes
@@ -94,7 +92,7 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 
 ## Checklist
 
-- [ ] `032-01-auditar-e-congelar-layout-d4-v4.md` — em andamento; auditoria principal registrada em `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`
+- [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e protocolo atualizado
 - [ ] `032-02-implementar-parser-d3-d4-v4.md`
 - [ ] `032-03-persistir-fatos-nativos-e-provenance.md`
 - [ ] `032-04-integrar-dominio-adapters-e-reprocessamento.md`
@@ -103,25 +101,46 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 - [ ] `032-07-integrar-produto-health-connect-e-spec-031.md`
 - [ ] `032-08-validar-fisicamente-e-fechar.md`
 
-## Estado da 032-01
+## Resultado da 032-01
 
-Achados já congelados:
+Contrato autoritativo:
+
+`docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`.
+
+Achados congelados:
 
 - D3 usa posição física de slot; CRC zero não pode comprimir `blockIndex`;
 - header fixo D4 é reconstruído em 42 bytes a partir dos pacotes 1–3;
 - sample fixo: BPM, `sportValue`, passos u16, calorias raw u16, distância u16 e pausa raw;
-- 34 blocos completos do banco fecharam 34/34 em `recordCount`, passos,
-  distância, calorias raw, sport count e CRC;
+- 34 blocos completos fecharam 34/34 em `recordCount`, passos, distância,
+  calorias raw, sport count e CRC;
 - distância está confirmada em metros para o layout fixo observado;
 - calorias usam escala `raw / 1000.0 = kcal`;
 - `sportValue` permanece raw sem unidade funcional inventada;
 - pausa permanece raw por falta de caso físico com pausa no conjunto auditado;
 - timeline `T/N` da Spec 021 permanece autoritativa;
 - persistência v4 deve usar campos semanticamente novos sem reutilizar o
-  significado legacy de `rawMotionValue/rawDistanceValue/rawCaloriesValue`.
+  significado legacy de `rawMotionValue/rawDistanceValue/rawCaloriesValue`;
+- divergência entre header e série preserva ambos os lados e falha fechada para
+  distância nativa canônica.
 
-Pendência para concluir `032-01`: sincronizar esse contrato em
-`docs/protocol/workouts-d3-d4.md` e validar `git diff --check`.
+`docs/protocol/workouts-d3-d4.md` foi reescrito para separar runtime vigente
+`d4-v3` do contrato congelado `d4-v4` e remover lacunas já encerradas pela nova
+evidência.
+
+### Preflight local antes de 032-02/032-03
+
+A sessão de planejamento usa o conector GitHub e não possui checkout local da
+branch. Antes de começar código em um worktree local, executar:
+
+```bash
+git checkout feat/032-d4-native-workout-metrics
+git pull
+git diff --check main...HEAD
+```
+
+Não há build necessário para `032-01`, pois nenhum arquivo de runtime foi
+alterado.
 
 ## Guard rails
 
