@@ -1,0 +1,415 @@
+# 032 — D4 v4: métricas nativas, distância e calibração por referência
+
+- **Ticker:** `032`
+- **Status:** `pending`
+- **Tipo:** correção arquitetural de parser, derivação e calibração de treinos `WATCH_D3_D4`
+- **Branch:** `feat/032-d4-native-workout-metrics`
+- **ADR:** [ADR-029](../decisions/adr-029-d4-native-metrics-and-distance-calibration.md)
+- **Base de integração:** `main`
+
+## Contexto
+
+O Champion Companion importa treinos gravados no Champion C001 por D3/D4 e hoje
+usa `parserVersion = d4-v3`. A linha atual preserva a duração oficial do treino,
+normaliza `T/N` sobre a quantidade real de samples e deriva distância canônica a
+partir de passos por intervalo multiplicados por um comprimento de passo.
+
+A inspeção do APK Champion Smartstyle e a validação física posterior mostraram
+que o layout fixo do Sport Model contém mais informação do que o parser atual
+promove. Para cada pacote D4 de dados, o firmware transmite BPM, `sportValue`,
+passos `u16`, calorias raw `u16`, distância raw `u16` e estado de pausa. O header
+D4 também carrega totais de passos, distância, calorias, sport count,
+`recordCount`, pausas, CRC e tipo de esporte.
+
+A mesma validação mostrou ainda que:
+
+- `recordCount`/quantidade de samples e duração oficial são conceitos distintos;
+- uma atividade íntegra pode possuir quantidade de samples diferente de
+  `ceil(duration / 60 s)` sem pausa registrada;
+- a normalização temporal entregue pela Spec 021 continua necessária;
+- os passos por intervalo são a série útil para passos/cadência do treino;
+- o total de passos do header serve como consistência/diagnóstico e não deve
+  substituir a série temporal nem o total diário autoritativo;
+- o campo de distância D4 apresenta comportamento físico coerente com metros e
+  preserva variação de intensidade melhor do que uma reconstrução linear
+  `steps × stepLength`;
+- a distância externa informada pelo usuário deve ser tratada como referência,
+  não como verdade absoluta nem como integração GPS.
+
+Esta spec corrige o modelo para novas importações sem reescrever silenciosamente
+histórico, sem introduzir GPS no app e sem alterar a natureza explícita do sync
+Health Connect.
+
+## Objetivo
+
+Entregar `d4-v4` fiel ao layout observado do APK/C001 e promover os fatos nativos
+do relógio para uma derivação mais completa:
+
+```text
+D3/D4 bruto
+   ↓
+parser d4-v4
+   ↓
+startedAt / endedAt / duração oficial
+steps / BPM / sportValue / watchDistance / calories / pause
+   ↓
+normalização temporal T/N
+   ↓
+distância nativa do relógio
+   ↓
+correção contextual opcional por distância externa de referência
+   ↓
+pace / velocidade / cadência / splits / projeções Health Connect
+```
+
+Quando a distância nativa não for elegível, o comprimento de passo existente
+permanece disponível como fallback controlado. `CYCLING` preserva a política
+vigente de distância manual e não passa a usar passos ou distância D4 por esta
+spec.
+
+## Decisões obrigatórias
+
+### R1 — Parser `d4-v4` fiel ao Sport Model fixo
+
+Para o Champion C001 no layout fixo observado, cada sample D4 (`packetIndex >= 4`)
+deve ser interpretado como:
+
+```text
+byte  6      BPM raw
+bytes 7..8   sportValue u16 little-endian
+bytes 9..10  steps u16 little-endian
+bytes 11..12 caloriesRaw u16 little-endian
+bytes 13..14 distanceRaw u16 little-endian
+byte  15     pauseState
+```
+
+O domínio não deve continuar chamando `bytes 7..9` de um único
+`rawMotionValue` para `d4-v4`, nem chamar `bytes 10..12` de distância ou
+`bytes 13..14` de calorias.
+
+O range válido de BPM permanece política separada do aceite estrutural do sample;
+BPM inválido não descarta passos, distância, calorias, `sportValue` ou pausa.
+
+### R2 — Header D4 completo e sem heurística estreita
+
+Os três primeiros pacotes D4 fornecem 42 bytes de header por concatenação de
+`packet[6..19]`. O parser v4 deve interpretar os campos completos observados no
+APK, incluindo:
+
+- início com segundos;
+- fim com segundos;
+- total de passos `u32`;
+- total de distância `u32`;
+- total de calorias raw `u32`;
+- total de sport count `u32`;
+- `recordCount u16`;
+- `pauseCount u8`;
+- `pauseTime u16`;
+- CRC `u16`;
+- `sportType u8`.
+
+Totais do header são fatos de origem e sinais de consistência. Divergência entre
+soma temporal e header deve produzir diagnóstico/validade apropriada; não deve
+ser corrigida silenciosamente por sobrescrita da série.
+
+### R3 — Índice D3 preserva posição física
+
+O índice usado em `D4 <blockIndex>` corresponde à posição física do slot no D3.
+CRC zero pode ser ignorado como treino ausente, mas nunca comprime os índices dos
+slots seguintes. CRC repetido também não autoriza renumeração física.
+
+### R4 — Duração oficial e samples permanecem independentes
+
+A decisão temporal da Spec 021 permanece vigente:
+
+```text
+startedAt + endedAt
+  = fonte de verdade da janela oficial
+
+N samples D4
+  = sequência granular ordenada
+
+60 s
+  = granularidade nominal/proveniência
+  ≠ duração obrigatória de cada sample
+```
+
+Para uma série estruturalmente elegível, a duração oficial `T` continua sendo
+distribuída de forma determinística e contígua entre `N` samples, garantindo:
+
+```text
+Σ effectiveDuration[i] = T
+start[0] = startedAt
+end[N-1] = endedAt
+end[i] = start[i+1]
+```
+
+A Spec 032 não volta a impor `N × 60 s`, não cria bucket inicial/final sintético
+e não infere duração por `recordCount` quando o header temporal é válido.
+
+### R5 — Passos por intervalo continuam sendo fatos do treino
+
+Para `d4-v4`:
+
+```text
+sample.steps = u16 LE bytes[9..10]
+```
+
+Essa série é a fonte do treino para:
+
+- passos da atividade;
+- cadência;
+- créditos/guardas de passos da Spec 027;
+- análises temporais locais.
+
+O total de passos do header é usado para consistência e diagnóstico. O
+`DailySummary.steps` continua autoritativo para o acumulado diário e não é
+substituído pelo header D4.
+
+### R6 — Distância nativa D4 torna-se fonte primária elegível
+
+A distância por sample do layout observado deve ser promovida como distância
+nativa do relógio quando a série for estruturalmente válida e a unidade física
+for confirmada no gate da implementação.
+
+Para tipos elegíveis de caminhada/corrida:
+
+```text
+baseIntervalDistanceMeters = watchDistanceMeters
+baseWorkoutDistanceMeters  = Σ watchDistanceMeters
+```
+
+A derivação não deve reconstruir por `steps × stepLength` quando existe uma série
+nativa elegível. O comprimento de passo permanece fallback explícito para casos
+sem distância nativa utilizável.
+
+`CYCLING` continua usando a política própria da Spec 022. Nenhum comportamento de
+bicicleta é alterado implicitamente.
+
+### R7 — Calibração por distância externa corrige a distância nativa
+
+Para `d4-v4` com distância nativa positiva e tipo elegível, uma distância externa
+informada manualmente pelo usuário gera:
+
+```text
+observedWatchDistanceFactor =
+    referenceDistanceMeters / watchDistanceMeters
+```
+
+A atividade de referência pode ser rederivada explicitamente aplicando o fator à
+série nativa:
+
+```text
+canonicalIntervalDistanceMeters =
+    watchIntervalDistanceMeters × distanceCalibrationFactor
+```
+
+Isso preserva a forma temporal produzida pelo relógio em vez de impor uma passada
+fixa a todos os samples.
+
+A distância externa permanece referência manual. A spec não coleta GPS, não lê
+Adidas/Strava e não declara a referência como medição absoluta sem erro.
+
+### R8 — Aprendizado contextual da correção
+
+`RUNNING` e `WALKING` devem possuir evidências independentes. O agregado inicial
+alvo é razão ponderada por distância, não média simples de fatores:
+
+```text
+learnedDistanceFactor =
+    Σ referenceDistanceMeters
+    ─────────────────────────
+    Σ watchDistanceMeters
+```
+
+Requisitos:
+
+- uma evidência ativa por atividade;
+- editar/substituir evidência não duplica peso;
+- remover evidência recalcula somente o perfil futuro;
+- novos treinos usam fator contextual quando disponível;
+- ausência de fator usa `1.0` sobre distância nativa elegível;
+- alterar evidência não reescreve snapshots históricos silenciosamente;
+- `TREADMILL` não herda automaticamente RUNNING ou WALKING;
+- `FREE_WORKOUT` não é promovido a um contexto por heurística escondida;
+- `CYCLING` não participa deste aprendizado.
+
+A política de `TREADMILL` pode ser estendida somente com evidência própria e
+decisão explícita durante a execução da spec.
+
+### R9 — Comprimento de passo permanece como fallback, não é removido
+
+Os contratos da Spec 023 permanecem válidos para contextos e históricos que não
+possuam distância D4 elegível. Para `d4-v4`, o resolver deve distinguir pelo
+menos:
+
+```text
+WATCH_NATIVE
+WATCH_NATIVE_CONTEXT_CALIBRATED
+REFERENCE_DISTANCE_EXPLICIT
+STEP_LENGTH_FALLBACK
+CYCLING_MANUAL
+```
+
+Nomes finais podem mudar na implementação, mas a provenance precisa continuar
+explícita e congelada no snapshot.
+
+As calibrações antigas de comprimento de passo não devem ser convertidas
+silenciosamente em fatores de distância.
+
+### R10 — Calorias e `sportValue`
+
+`caloriesRaw`, `sportValue` e `pauseState` devem ser preservados como fatos de
+origem em `d4-v4`.
+
+A promoção de calorias para kcal exige confirmação explícita da escala do layout
+fixo contra APK/evidência física. Enquanto essa confirmação não estiver fechada,
+o valor raw continua disponível sem ser apresentado como kcal autoritativa.
+
+`sportValue` permanece semanticamente nomeado conforme o APK, mas não recebe
+unidade ou significado fisiológico inventado. `pauseState` também é preservado
+sem inferência além do comportamento comprovado.
+
+### R11 — Persistência aditiva e compatibilidade
+
+A `main` no início do planejamento usa Room v15. A execução deve auditar o estado
+real antes da migration; se novos fatos precisarem ser persistidos, preferir
+migration aditiva `v15 -> v16`.
+
+Não sobrecarregar colunas legacy com novo significado quando isso destruir
+provenance. `rawMotionValue`, `rawDistanceValue` e `rawCaloriesValue` permanecem
+identificáveis para `d4-v1/v2/v3`; `d4-v4` deve possuir campos semanticamente
+claros para os novos fatos, mesmo que adapters mantenham compatibilidade com
+consumidores existentes.
+
+A migration não pode:
+
+- reinterpretar bytes legacy sem payload suficiente;
+- criar calibração;
+- ativar snapshot novo;
+- mudar workflow;
+- criar operação Health Connect;
+- executar efeito remoto.
+
+### R12 — Versionamento e histórico
+
+- novas importações usam `parserVersion = d4-v4` somente após parser, schema e
+  derivação estarem coerentes no mesmo fluxo;
+- nova derivação usa versão distinta, inicialmente `watch-d3-d4-v4`;
+- `d4-v1`, `d4-v2` e `d4-v3` permanecem históricos identificáveis;
+- atividade antiga só pode migrar semanticamente para v4 por reprocessamento
+  explícito quando houver fatos suficientes, preferencialmente payload D4 local
+  preservado;
+- atividade `SYNCED` nunca é alterada ou republicada silenciosamente;
+- reprocessamento não exige nova leitura BLE quando os dados locais bastarem.
+
+### R13 — Health Connect preserva guards existentes
+
+Health Connect continua write-only, local-first e explícito.
+
+A nova derivação deve alimentar `DISTANCE`, `SPEED`, `STEPS`, `STEPS_CADENCE` e
+BPM conforme os contratos vigentes, preservando:
+
+- payload congelado;
+- IDs estáveis;
+- versões monotônicas;
+- retry idempotente;
+- cobertura/creditagem de passos da Spec 027;
+- nenhuma sincronização automática durante importação, calibração ou migration.
+
+Mudança de fonte da distância não autoriza duplicar passos nem recalcular
+records remotos já aceitos sem fluxo explícito de reconciliação.
+
+### R14 — Integração com a Spec 031
+
+A Spec 031 está em branch paralela e modifica principalmente UI/design. A 032 deve
+ser desenvolvida a partir de `main` e evitar, nas primeiras tarefas, os arquivos
+de maior sobreposição com a 031, especialmente:
+
+- `data/RoomRepositories.kt`;
+- `feature/exercises/ExercisesScreen.kt`.
+
+Integração de repository/UI deve ocorrer em tarefa tardia, depois que a 031 tiver
+sido integrada à `main` ou quando houver baseline comum explicitamente definida.
+A 032 não deve reverter o redesign visual da 031.
+
+## Não objetivos
+
+- GPS de produção, rota, mapa ou treino iniciado pelo celular;
+- integração com Adidas Running, Strava ou API externa;
+- leitura do Health Connect;
+- reconstrução de informação segundo a segundo que o D4 não fornece;
+- uso do total do header como substituto silencioso da série de passos;
+- descobrir fórmula interna de distância do firmware;
+- transformar `sportValue` em métrica fisiológica sem evidência;
+- reescrever histórico legacy automaticamente;
+- apagar calibrações antigas de comprimento de passo;
+- mudar comportamento de `CYCLING`;
+- testes automatizados novos sem pedido explícito do usuário.
+
+## Critérios de aceite
+
+1. D3 preserva o índice físico de slots mesmo com CRC zero/repetido.
+2. `d4-v4` interpreta header e samples conforme o layout fixo observado, sem
+   packing u24 incorreto.
+3. BPM inválido não descarta outros fatos válidos do sample.
+4. Passos por intervalo usam `u16 bytes[9..10]`; header é consistência, não fonte
+   substituta da série.
+5. Distância nativa D4 elegível é persistida separadamente e alimenta a distância
+   canônica antes do fallback por comprimento de passo.
+6. A normalização temporal `T/N` da Spec 021 permanece e fecha exatamente em
+   `startedAt -> endedAt`.
+7. Calibração externa pode corrigir proporcionalmente a série nativa e possui
+   provenance explícita.
+8. Perfis de correção RUNNING/WALKING são independentes e derivados de evidências
+   sem média simples escondida.
+9. Legado `d4-v1/v2/v3` permanece reproduzível e não é reinterpretado em
+   migration.
+10. `CYCLING`, Daily Summary e contabilidade de passos da Spec 027 permanecem
+    semanticamente intactos.
+11. Health Connect continua explícito e idempotente, sem efeito remoto em
+    migration/reprocessamento/calibração.
+12. Integração final não desfaz a Spec 031 e resolve conscientemente os poucos
+    arquivos de sobreposição.
+13. Validação física reproduz pelo menos uma atividade com variação de intensidade
+    e compara header, série temporal e uma referência externa manual sem exigir
+    igualdade perfeita entre relógio e referência.
+
+## Escopo de arquivos provável
+
+### Núcleo/protocolo
+
+- `core/bluetooth/ChampionD3WorkoutIndexProtocol.kt`
+- `core/bluetooth/ChampionD4WorkoutParser.kt`
+- `core/model/WatchWorkoutActivity.kt`
+- `core/model/WatchWorkoutDerivedMetrics.kt`
+- `docs/protocol/workouts-d3-d4.md`
+
+### Persistência
+
+- `core/database/ChampionDatabase.kt`
+- `core/database/ChampionMigrations.kt`
+- schema Room correspondente
+- `data/DatabaseMappers.kt`
+- `data/RoomRepositories.kt` somente na fase de integração
+
+### Produto/projeção
+
+- `feature/exercises/ExercisesFeatureContract.kt`
+- `feature/exercises/ExercisesViewModel.kt`
+- `feature/exercises/ExercisesScreen.kt` somente após integração com a 031
+- projeções Health Connect relacionadas a treino/passos/cadência/distância
+
+## Validação
+
+Conforme `AGENTS.md`, mudanças de código/Gradle devem passar por:
+
+```bash
+./gradlew lint assembleDebug assembleRelease
+git diff --check
+```
+
+Não criar nem executar testes automatizados como etapa padrão sem pedido
+explícito. Validação física e inspeção de banco devem usar evidência sanitizada,
+sem versionar payload BLE integral, identificadores pessoais ou dados de saúde
+não necessários.
