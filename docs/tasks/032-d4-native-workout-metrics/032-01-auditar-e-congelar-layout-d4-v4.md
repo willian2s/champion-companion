@@ -1,8 +1,8 @@
 # 032-01 — Auditar e congelar layout D4 v4
 
-- **Status:** in_progress
+- **Status:** completed
 - **Depende de:** nenhuma
-- **Bloqueia:** 032-02 e 032-03
+- **Libera:** 032-02 e 032-03
 - **Auditoria:** `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`
 
 ## Objetivo
@@ -13,13 +13,14 @@ mudar código.
 
 ## Entregáveis
 
-- [ ] atualizar `docs/protocol/workouts-d3-d4.md` com header de 42 bytes e sample v4;
+- [x] atualizar `docs/protocol/workouts-d3-d4.md` com header de 42 bytes e sample v4;
 - [x] registrar sem payload integral a atividade física/evidência agregada de referência e invariantes;
 - [x] congelar unidades confirmadas, candidatas e desconhecidas;
 - [x] congelar regra de índice físico D3;
 - [x] congelar que `T/N` permanece autoritativo para timeline efetiva;
 - [x] mapear consumidores de `rawMotionValue`, `rawDistanceValue`,
-  `rawCaloriesValue`, `decodedSteps`, distância canônica e calibração.
+  `rawCaloriesValue`, `decodedSteps`, distância canônica e calibração;
+- [x] alinhar a Spec 032 às decisões fechadas nesta auditoria.
 
 ## Evidência auditada
 
@@ -48,7 +49,7 @@ byte  6      BPM raw
 bytes 7..8   sportValue u16 LE
 bytes 9..10  steps u16 LE
 bytes 11..12 caloriesRaw u16 LE
-bytes 13..14 distance u16 LE
+bytes 13..14 distanceMeters u16 LE
 byte  15     pauseStateRaw
 ```
 
@@ -60,8 +61,8 @@ baixo de `steps` quando o byte alto é zero.
 
 Os três primeiros pacotes fornecem 42 bytes por concatenação de
 `packet[6..19]`. O layout completo e os offsets estão congelados no documento de
-auditoria, incluindo timestamps, agregados u32, `recordCount`, pausas, CRC e tipo
-raw.
+auditoria e em `docs/protocol/workouts-d3-d4.md`, incluindo timestamps,
+agregados u32, `recordCount`, pausas, CRC e tipo raw.
 
 ### Distância
 
@@ -148,16 +149,23 @@ reportedCrc
 `rawMotionValue`, `rawDistanceValue` e `rawCaloriesValue` mantêm o significado
 legacy de `d4-v1/v2/v3`; não recebem novo significado por conveniência.
 
-## Pendência antes de concluir 032-01
+## Fechamento
 
-Sincronizar o delta factual congelado em
-`docs/protocol/workouts-d3-d4.md`, removendo do estado atual as lacunas que a
-evidência v4 fechou e mantendo explicitamente as incertezas ainda reais.
+O contrato foi sincronizado em:
 
-Após essa atualização documental e `git diff --check`, `032-02` e `032-03` podem
-ser liberadas em paralelo.
+- `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`;
+- `docs/protocol/workouts-d3-d4.md`;
+- `docs/specs/032-d4-native-workout-metrics.md`;
+- `docs/tasks/032-d4-native-workout-metrics/032-00-overview.md`.
+
+`032-02` e `032-03` estão liberadas para execução paralela depois que a base local
+for atualizada para a branch 032.
 
 ## Validação
 
-Somente documentação/auditoria. Executar `git diff --check`; não há motivo para
-build nesta task.
+A task alterou somente documentação e não exige build. A sessão atual acessa o
+repositório pelo conector GitHub e não possui checkout local montado, portanto o
+comando literal `git diff --check` não pôde ser executado aqui. A comparação
+`main..feat/032-d4-native-workout-metrics` foi inspecionada e não mostrou arquivos
+de runtime modificados. Executar `git diff --check` no checkout local como
+preflight antes de iniciar as mudanças de código de `032-02/032-03`.
