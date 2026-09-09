@@ -1,7 +1,7 @@
 # 032 — D4 v4: métricas nativas, distância e calibração por referência
 
 - **Ticker:** `032`
-- **Status:** `pending`
+- **Status:** `in_progress`
 - **Tipo:** correção arquitetural de parser, derivação e calibração de treinos `WATCH_D3_D4`
 - **Branch:** `feat/032-d4-native-workout-metrics`
 - **ADR:** [ADR-029](../decisions/adr-029-d4-native-metrics-and-distance-calibration.md)
@@ -17,11 +17,16 @@ partir de passos por intervalo multiplicados por um comprimento de passo.
 A inspeção do APK Champion Smartstyle e a validação física posterior mostraram
 que o layout fixo do Sport Model contém mais informação do que o parser atual
 promove. Para cada pacote D4 de dados, o firmware transmite BPM, `sportValue`,
-passos `u16`, calorias raw `u16`, distância raw `u16` e estado de pausa. O header
-D4 também carrega totais de passos, distância, calorias, sport count,
+passos `u16`, calorias raw `u16`, distância `u16` em metros e estado de pausa. O
+header D4 também carrega totais de passos, distância, calorias, sport count,
 `recordCount`, pausas, CRC e tipo de esporte.
 
-A mesma validação mostrou ainda que:
+A auditoria `032-01` consolidou o APK e 34 blocos D4 completos preservados no
+banco. Nos 34 blocos, `recordCount`, passos, distância, calorias raw, sport count
+e CRC fecharam entre header e série temporal. A mesma auditoria confirmou
+`distance = metros` e `kcal = caloriesRaw / 1000.0` para o layout fixo observado.
+
+A evidência mostrou ainda que:
 
 - `recordCount`/quantidade de samples e duração oficial são conceitos distintos;
 - uma atividade íntegra pode possuir quantidade de samples diferente de
@@ -30,9 +35,8 @@ A mesma validação mostrou ainda que:
 - os passos por intervalo são a série útil para passos/cadência do treino;
 - o total de passos do header serve como consistência/diagnóstico e não deve
   substituir a série temporal nem o total diário autoritativo;
-- o campo de distância D4 apresenta comportamento físico coerente com metros e
-  preserva variação de intensidade melhor do que uma reconstrução linear
-  `steps × stepLength`;
+- o campo de distância D4 preserva variação de intensidade melhor do que uma
+  reconstrução linear `steps × stepLength`;
 - a distância externa informada pelo usuário deve ser tratada como referência,
   não como verdade absoluta nem como integração GPS.
 
@@ -79,7 +83,7 @@ byte  6      BPM raw
 bytes 7..8   sportValue u16 little-endian
 bytes 9..10  steps u16 little-endian
 bytes 11..12 caloriesRaw u16 little-endian
-bytes 13..14 distanceRaw u16 little-endian
+bytes 13..14 distanceMeters u16 little-endian
 byte  15     pauseState
 ```
 
@@ -99,7 +103,7 @@ APK, incluindo:
 - início com segundos;
 - fim com segundos;
 - total de passos `u32`;
-- total de distância `u32`;
+- total de distância em metros `u32`;
 - total de calorias raw `u32`;
 - total de sport count `u32`;
 - `recordCount u16`;
@@ -168,9 +172,15 @@ substituído pelo header D4.
 
 ### R6 — Distância nativa D4 torna-se fonte primária elegível
 
-A distância por sample do layout observado deve ser promovida como distância
-nativa do relógio quando a série for estruturalmente válida e a unidade física
-for confirmada no gate da implementação.
+A auditoria `032-01` confirmou para o layout fixo observado:
+
+```text
+sample.distance = metros
+header.totalDistance = metros
+```
+
+A distância por sample deve ser promovida como distância nativa do relógio quando
+a série for estruturalmente válida e fechar contra o total do header.
 
 Para tipos elegíveis de caminhada/corrida:
 
@@ -257,18 +267,27 @@ explícita e congelada no snapshot.
 As calibrações antigas de comprimento de passo não devem ser convertidas
 silenciosamente em fatores de distância.
 
-### R10 — Calorias e `sportValue`
+### R10 — Calorias, `sportValue` e pausa
 
 `caloriesRaw`, `sportValue` e `pauseState` devem ser preservados como fatos de
 origem em `d4-v4`.
 
-A promoção de calorias para kcal exige confirmação explícita da escala do layout
-fixo contra APK/evidência física. Enquanto essa confirmação não estiver fechada,
-o valor raw continua disponível sem ser apresentado como kcal autoritativa.
+A auditoria `032-01` confirmou a escala do layout fixo observado:
 
-`sportValue` permanece semanticamente nomeado conforme o APK, mas não recebe
-unidade ou significado fisiológico inventado. `pauseState` também é preservado
-sem inferência além do comportamento comprovado.
+```text
+caloriesKilocalories = caloriesRaw / 1000.0
+```
+
+A soma de `caloriesRaw` dos samples fechou contra o total raw do header em 34/34
+blocos completos. O raw continua sendo preservado como provenance, mesmo quando
+a projeção em kcal for utilizada.
+
+`sportValue` permanece semanticamente nomeado conforme o APK e fecha contra o
+total do header, mas não recebe unidade ou significado fisiológico inventado.
+
+`pauseState`, `pauseCount` e `pauseTime` permanecem raw: os 34 blocos auditados
+não possuíam pausa registrada, portanto valores não zero ainda não possuem
+semântica operacional fisicamente validada suficiente para alterar a timeline.
 
 ### R11 — Persistência aditiva e compatibilidade
 
@@ -307,8 +326,8 @@ A migration não pode:
 
 Health Connect continua write-only, local-first e explícito.
 
-A nova derivação deve alimentar `DISTANCE`, `SPEED`, `STEPS`, `STEPS_CADENCE` e
-BPM conforme os contratos vigentes, preservando:
+A nova derivação deve alimentar `DISTANCE`, `SPEED`, `STEPS`, `STEPS_CADENCE`,
+BPM e calorias conforme os contratos vigentes, preservando:
 
 - payload congelado;
 - IDs estáveis;
@@ -389,16 +408,16 @@ A 032 não deve reverter o redesign visual da 031.
 
 - `core/database/ChampionDatabase.kt`
 - `core/database/ChampionMigrations.kt`
-- schema Room correspondente
-- `data/DatabaseMappers.kt`
-- `data/RoomRepositories.kt` somente na fase de integração
+- schema Room correspondente;
+- `data/DatabaseMappers.kt`;
+- `data/RoomRepositories.kt` somente na fase de integração.
 
 ### Produto/projeção
 
-- `feature/exercises/ExercisesFeatureContract.kt`
-- `feature/exercises/ExercisesViewModel.kt`
-- `feature/exercises/ExercisesScreen.kt` somente após integração com a 031
-- projeções Health Connect relacionadas a treino/passos/cadência/distância
+- `feature/exercises/ExercisesFeatureContract.kt`;
+- `feature/exercises/ExercisesViewModel.kt`;
+- `feature/exercises/ExercisesScreen.kt` somente após integração com a 031;
+- projeções Health Connect relacionadas a treino/passos/cadência/distância.
 
 ## Validação
 
