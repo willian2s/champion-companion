@@ -1,7 +1,7 @@
 # 031 — Redesign visual integral baseado no Google Health/Fitbit
 
 - **Ticker:** `031`
-- **Status:** pending
+- **Status:** completed
 - **Tipo:** redesign visual e reorganização de navegação
 - **ADR:** [ADR-028](../decisions/adr-028-redesign-visual-integral-google-health.md)
 - **Supersede:** [Spec 024](024-refatoracao-visual-google-health.md), quanto à direção visual
@@ -400,3 +400,22 @@ bruto usado na exceção deve ser apagado ao fim da sessão e auditado.
 | `031-09` | R3, R7, R9, R10 | Dispositivo |
 | `031-10` | R3, R7, R9, R10 | Configurações |
 | `031-11` | R1–R12 | Consolidação e revisão final |
+
+## Fechamento da Spec — 2026-09-10
+
+- **Resultado:** `completed`, com `11/11` subtarefas concluídas e revisão
+  independente final `PASS`, sem bloqueadores.
+- **Validação:** `git diff --check`, `./gradlew lint assembleDebug
+  assembleRelease --no-daemon`, `./gradlew installDebug --no-daemon`, smoke ADB
+  sanitizado e confirmação de processo ativo sem `FATAL EXCEPTION` passaram.
+- **Integridade:** barra final contém somente Home e Saúde; entradas contextuais,
+  back stack, destinos legados e contratos funcionais foram preservados. Nenhum
+  logo, fonte, asset, dependência ou feature proprietária foi adicionado.
+- **Privacidade:** inventário sanitizado em `031-11` lista sessões, descartes
+  individuais e confirmação final dos temporários conhecidos. Nenhum dump,
+  screenshot ou dado bruto permanece no workspace; valores pessoais históricos
+  identificados durante a consolidação foram removidos.
+- **Limitações:** variação da referência, cobertura física distribuída de
+  TalkBack/landscape e ausência de testes automatizados permanecem registradas
+  como riscos não bloqueantes. Nenhuma ação sensível foi iniciada para produzir
+  evidência.

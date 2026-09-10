@@ -122,7 +122,7 @@ contratos e manter uma única fonte de read model.
 - **Resultados/evidências:** compile, lint, builds Debug/Release e instalação
   Debug passaram. Inspeção sanitizada no aparelho autorizado encontrou a
   referência instalada, confirmou `com.fitbit.HealthBrandedAlias`, e observou
-  `1 de 4 dias com exercício`, `Esta semana`, gráfico acessível, `Hoje`,
+  `atividade semanal`, `Esta semana`, gráfico acessível, `Hoje`,
   `Semana`, `Mês`, `Este mês`, `Dias com exercícios` e `Total por semana`.
   Smoke do Champion confirmou tela Exercícios, alternância para `Mês`, ausência
   de CTA separado de Calendário, calendário embutido no lugar do gráfico mensal,
@@ -380,9 +380,9 @@ contratos e manter uma única fonte de read model.
   resumo e gráfico acessível. Área do gráfico ficou dentro da viewport
   compacta (`160 dp`); nenhum gráfico de série, cadência ou parciais foi
   renderizado.
-- **Dados/evidência:** atividade local exibiu duração `42 minutos 22 segundos`,
-  distância `5,50 km`, etapas `6.240`, ritmo `7 min 42 s` e FC `159 bpm`, todos
-  provenientes do estado persistido. Processo permaneceu ativo sem crash.
+- **Dados/evidência:** atividade local exibiu as métricas persistidas de duração,
+  distância, etapas, ritmo e frequência cardíaca, sem retenção de valores no
+  relatório. Processo permaneceu ativo sem crash.
 - **Limpeza:** XML temporários foram removidos do aparelho e a ausência foi
   confirmada. Nenhuma importação, sincronização, medição, exclusão ou alteração
   de dados ocorreu.
@@ -393,8 +393,8 @@ contratos e manter uma única fonte de read model.
 
 - **Correção de escopo:** após comparação por screenshot, alterações de header,
   metadata visual, espaçamentos e demais composição foram revertidas. A
-  formatação compacta dos dados (`42 min 22 s`, `7 min 42 s`) foi mantida,
-  conforme confirmação do usuário.
+  formatação compacta dos dados foi mantida, conforme confirmação do usuário,
+  sem registrar valores pessoais.
 - **Gráfico:** somente gráfico cardíaco foi alterado. Implementação agora usa
   Canvas compacto de `128 dp`, escala fixa inspirada na referência (`204`,
   `141`, `77`), labels laterais, linhas pontilhadas de zonas, linha por zona
@@ -584,9 +584,8 @@ contratos e manter uma única fonte de read model.
   contínua com amostras reais do treino; tela de Saúde mantém comportamento
   anterior com pontos.
 - **Smoke:** detalhe abriu após instalação e dump confirmou métricas, resumo e
-  semântica do gráfico com `44` amostras reais, duração `42 minutos 22 segundos`
-  e zonas visuais. Temporários foram removidos do aparelho; processo permaneceu
-  ativo sem crash.
+  semântica do gráfico com amostras reais e zonas visuais. Temporários foram
+  removidos do aparelho; processo permaneceu ativo sem crash.
 - **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
   --no-daemon`, `./gradlew lint assembleDebug assembleRelease --no-daemon` e
   `./gradlew installDebug --no-daemon` passaram.
@@ -602,8 +601,8 @@ contratos e manter uma única fonte de read model.
   Demais superfícies permanecem sem alteração nesta rodada.
 - **Validação final:** `git diff --check`, `./gradlew app:compileDebugKotlin
   --no-daemon`, `./gradlew lint assembleDebug assembleRelease --no-daemon` e
-  `./gradlew installDebug --no-daemon` passaram. Smoke confirmou `44` amostras
-  reais, duração `42 min 22 s`, gráfico acessível e processo ativo.
+  `./gradlew installDebug --no-daemon` passaram. Smoke confirmou amostras reais,
+  duração persistida, gráfico acessível e processo ativo, sem reter valores.
 - **Status:** permanece `in_progress` até revisão independente e validação final
   do estado instalado; overview mantém `031-07` como `[ ]` e `6/11`.
 
@@ -674,10 +673,9 @@ contratos e manter uma única fonte de read model.
   mantém pontos e janela de 24 horas; detalhe usa mesma composição visual, com
   linha contínua.
 - **Smoke físico:** após instalação, detalhe foi aberto pelo fluxo
-  `Exercícios` e screenshot confirmou bandas Z1–Z4, linhas pontilhadas, linha
-  contínua ocupando largura do gráfico e dados da atividade. Dump confirmou
-  duração `42 min 22 s`, `44` amostras reais e sem crash. Temporários foram
-  removidos do aparelho.
+  `Exercícios` e screenshot confirmou bandas, linhas pontilhadas, linha contínua
+  ocupando largura do gráfico e dados da atividade. Dump confirmou duração,
+  amostras reais e ausência de crash, sem reter valores no relatório.
 - **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
   --no-daemon`, `./gradlew lint assembleDebug assembleRelease --no-daemon` e
   `./gradlew installDebug --no-daemon` passaram.

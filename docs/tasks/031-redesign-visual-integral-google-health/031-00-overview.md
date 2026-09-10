@@ -1,8 +1,8 @@
 # 031 — Redesign visual integral baseado no Google Health/Fitbit
 
-- **Status geral:** in_progress
+- **Status geral:** completed
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 10/11 subtarefas concluídas
+- **Progresso:** 11/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -23,7 +23,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
 - [x] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
 - [x] [031-10-redesenhar-configuracoes.md](031-10-redesenhar-configuracoes.md)
-- [ ] [031-11-consolidar-validacao-e-revisao.md](031-11-consolidar-validacao-e-revisao.md)
+- [x] [031-11-consolidar-validacao-e-revisao.md](031-11-consolidar-validacao-e-revisao.md)
 
 ## Observações
 
@@ -331,7 +331,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
        alcançou Exercícios. Foram confirmados `Semana`, `Mês`, `Esta semana`,
        `Este mês`, `Dias com exercícios`, `Total por semana`, gráfico acessível
        de dias, `Hoje` e ação `Registrar atividade`; a referência mostrou
-       denominador visual de quatro dias na semana. A sessão foi somente leitura,
+        denominador visual semanal. A sessão foi somente leitura,
        sem operação sensível, e dump temporário foi apagado e confirmado ausente.
           `031-07` permanece `[ ]`; progresso continua `6/11`.
 
@@ -457,7 +457,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
          Champion Companion. Detalhe reutiliza componente intraday, troca pontos
          por linha e usa duração real da atividade no eixo X; Saúde mantém
          comportamento anterior. Smoke físico confirmou bandas, linha, largura
-         do gráfico e `44` amostras reais; validações completas passaram.
+         do gráfico e amostras reais; validações completas passaram.
          Segundo gráfico não foi criado porque “vico” não identifica referência.
          `031-07` permanece `[ ]`; progresso continua `6/11`.
 
@@ -707,7 +707,16 @@ somente Home e Saúde; rotas restantes serão contextuais.
      à `MainActivity` sem conceder ou revogar permissões. Revisão independente
      permanece pendente; checklist `[ ]`, progresso `9/11`.
 
-   - Revisão independente da correção de permissões individuais aprovou sem
-     bloqueadores. `031-10` foi concluída e voltou a `[x]`; progresso `10/11`.
-     Riscos residuais: TalkBack, landscape efetivo, screenshot sanitizada e
-     estado vazio transitório.
+    - Revisão independente da correção de permissões individuais aprovou sem
+      bloqueadores. `031-10` foi concluída e voltou a `[x]`; progresso `10/11`.
+      Riscos residuais: TalkBack, landscape efetivo, screenshot sanitizada e
+      estado vazio transitório.
+
+  - Em 2026-09-10, `031-11` consolidou validação, navegação, privacidade e
+    inventário sanitizado das sessões. A revisão independente final retornou
+    `PASS` sem bloqueadores. `git diff --check`, lint, builds Debug/Release,
+    instalação Debug e smoke final passaram; nenhuma ação sensível foi iniciada.
+    Valores pessoais históricos identificados no registro de `031-07` foram
+    removidos. O diff da Spec 031 não contém logo, fonte, asset ou feature
+    proprietária. Progresso final: `11/11`; Spec e overview concluídos. Nenhuma
+    próxima subtarefa foi iniciada.
