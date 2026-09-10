@@ -14,8 +14,8 @@ features próprias do Champion Companion.
 
 O pedido também altera a arquitetura de apresentação: a barra inferior terá
 somente `Home` e `Saúde`; Dispositivo e Perfil ficarão acessíveis pelo header da
-Home; Exercícios concentrará seu calendário; demais rotas continuarão acessíveis
-por contextos da própria aplicação.
+Home; Exercícios concentrará seu calendário na própria tela; demais rotas
+continuarão acessíveis por contextos da própria aplicação.
 
 ## Decisão
 
@@ -34,8 +34,13 @@ por contextos da própria aplicação.
 5. Reduzir barra inferior a `Home` e `Saúde`. Preservar Navigation 3, back stack
    manual, destinos serializáveis, restauração, callbacks e confirmação de saída.
 6. Manter `AppDestination.Calendar` como destino compatível, mas retirar sua
-   posição de topo: calendário será acessado pelo fluxo de Exercícios e pelos
-   resumos contextuais de Home/Saúde.
+   posição de topo: o filtro `Mês` da tela de Exercícios mostra calendário
+   contextual exclusivo de exercícios, resumo e lista mensal agrupada por semana,
+   sem CTA para uma página separada. Setas de mês e semana alteram o período e a
+   lista correspondente, sem permitir períodos futuros. `CalendarScreen` permanece somente para estado
+   restaurado/legado; não há botão `Abrir dia` no fluxo de Exercícios. Na visão
+   `Semana`, o filtro por status fica abaixo do gráfico; na visão `Mês`, filtro e
+   lista individual são omitidos.
 7. Manter Dispositivo e Perfil acessíveis pelas ações nomeadas do header da Home.
    Configurações será acessível pela ação `Configurações` do Perfil, retornando
    ao Perfil, sem desaparecer nem ganhar item na barra.

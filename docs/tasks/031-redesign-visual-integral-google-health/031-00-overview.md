@@ -310,7 +310,183 @@ somente Home e Saúde; rotas restantes serão contextuais.
         `in_progress`, sem alteração no progresso `5/11`.
 
       - Em 2026-09-08, `031-06` foi concluída após revisão independente aprovada
-        com ressalvas e sem bloqueadores funcionais. O item foi marcado `[x]` e
-        o progresso recalculado para `6/11`. Permanecem riscos não bloqueantes de
-        cobertura física de dados representativos, TalkBack completo e origem
-        não repetida em listas agregadas. Nenhuma próxima subtarefa foi iniciada.
+         com ressalvas e sem bloqueadores funcionais. O item foi marcado `[x]` e
+         o progresso recalculado para `6/11`. Permanecem riscos não bloqueantes de
+         cobertura física de dados representativos, TalkBack completo e origem
+         não repetida em listas agregadas. Nenhuma próxima subtarefa foi iniciada.
+
+      - Em 2026-09-08, a inspeção física autorizada de `com.fitbit.FitbitMobile`
+       alcançou Exercícios. Foram confirmados `Semana`, `Mês`, `Esta semana`,
+       `Este mês`, `Dias com exercícios`, `Total por semana`, gráfico acessível
+       de dias, `Hoje` e ação `Registrar atividade`; a referência mostrou
+       denominador visual de quatro dias na semana. A sessão foi somente leitura,
+       sem operação sensível, e dump temporário foi apagado e confirmado ausente.
+          `031-07` permanece `[ ]`; progresso continua `6/11`.
+
+        - Em 2026-09-09, bloco `Status e origem` foi removido. Header passou a
+          exibir `data • hora • origem • status`; demais ações operacionais foram
+          preservadas. Vico segue removido; gráfico D usa linha e duração real.
+          Validações e instalação passaram; revisão independente aprovou sem
+          blockers. `031-07` permanece aberta por solicitação do usuário;
+          progresso `6/11`.
+
+      - Em 2026-09-08, o requisito de `031-07` foi replanejado por confirmação
+        do usuário: o calendário mensal deve substituir gráfico mensal dentro da
+        aba `Mês` de Exercícios, sem página separada como entrada principal.
+        Spec 031 e ADR-028 foram alinhadas; `CalendarScreen` permanece somente
+        compatível com estado legado/restaurado. Implementação foi ajustada e
+        smoke confirmou calendário embutido e resumo semanal; revisão independente
+        ainda está pendente. `031-07` permanece `[ ]`; progresso continua `6/11`.
+
+      - Em 2026-09-08, `031-07` recebeu refinamento visual adicional: filtro por
+        status foi movido para abaixo do gráfico na aba `Semana`; na aba `Mês`, o
+        filtro e a lista individual foram removidos, mantendo somente calendário
+        e agregados semanais. `Mês` normaliza status para `Todos`; implementação e
+        validação seguem em andamento. `031-07` permanece `[ ]`; progresso
+        continua `6/11`.
+
+      - Em 2026-09-08, a lista semanal de `031-07` foi alinhada ao estilo de
+        listas de Saúde, com cards de atividade equivalentes. O agregado mensal
+        passou a ocultar semanas sem exercícios; a aba `Mês` mantém somente
+        calendário e totais. Smoke final confirmou esses estados após reconexão
+        do aparelho ADB. Revisão independente ainda pendente; `031-07` permanece
+        `[ ]`; progresso continua `6/11`.
+
+      - Em 2026-09-08, `031-07` recebeu ajuste final conforme a lista mensal de
+        Frequência cardíaca: cards semanais mostram título/distância, horário e
+        duração sem origem/seta; agregados mensais usam linhas simples e omitem
+        semanas sem exercícios. `031-07` permanece `[ ]`; progresso continua
+        `6/11`, aguardando revisão independente.
+
+      - Em 2026-09-08, a lista semanal foi alinhada à referência observada:
+        agrupamento por dia (`Hoje`), distância sem rótulo, duração junto ao
+        horário, sem origem e sem seta. Smoke confirmou também que visão `Mês`
+        mantém apenas calendário e agregados sem semanas zeradas. `031-07`
+        permanece `[ ]`; progresso continua `6/11`, aguardando revisão
+        independente.
+
+      - Em 2026-09-08, nova diretriz confirmou que o filtro `Mês` deve manter o
+        calendário contextual dentro de Exercícios, junto da lista de cartões
+        semanais com período à esquerda, total de atividades e tipos de exercício
+        à direita, além dos controles `Dias com exercícios`, `Duração` e
+        `Distância`. `031-07` foi alinhada à diretriz; os cards individuais
+        retornaram à cor original, altura compacta e bordas distintas por status.
+        O checklist permanece `[ ]`, progresso `6/11`, aguardando revisão
+        independente.
+
+      - Em 2026-09-08, diretriz complementar restringiu Calendário ao domínio de
+        Exercícios: sem indicadores de passos, frequência cardíaca, peso ou Health
+         Connect e sem botão `Abrir dia`. Setas de `Mês` alteram calendário,
+         resumo e lista; setas de `Semana` alteram gráfico e lista. Setas de
+       `Mês` e `Semana` não permitem períodos futuros. `031-07` permanece
+         `[ ]`; progresso `6/11`, aguardando revisão independente.
+
+       - Em 2026-09-09, a atividade da referência foi finalmente aberta pelo
+         fluxo `Exercícios`, em inspeção somente leitura. Foram confirmados
+         título/tipo, data/hora/origem, estatísticas de duração, distância,
+         etapas, ritmo médio e frequência cardíaca média, seção de faixas de FC
+         e gráfico cardíaco acessível. A diretriz subsequente determinou manter
+         as mesmas informações e dados na nossa tela, enriquecendo somente os
+         gráficos. `031-07` adicionou gráficos de ritmo por intervalos reais e
+         de parciais persistidas, preservando cadência, FC, métricas, estados,
+         revisão, calibração e ações existentes. Smoke confirmou o detalhe
+         local e os novos gráficos; revisão independente ainda está pendente.
+         Checklist permanece `[ ]`; progresso continua `6/11`.
+
+       - Em 2026-09-09, nova diretriz corrigiu o detalhe de Exercícios: ele deve
+         copiar literalmente a composição do detalhe Google Health/Fitbit, com
+         header simples, tipo, data/hora/origem, cinco métricas sem cards,
+         `Faixas de frequência cardíaca`, média e gráfico cardíaco. Gráfico foi
+         reduzido para `160 dp`, mantendo leitura completa na viewport; série
+         canônica, ritmo, cadência e parciais não são renderizados por enquanto.
+         Fluxos operacionais continuam preservados após a área de referência.
+         Compile, lint e builds passaram; instalação/smoke final estão bloqueados
+          temporariamente por ausência de dispositivo ADB. `031-07` permanece
+          `[ ]`; progresso continua `6/11`.
+
+       - Segunda revisão encontrou três pontos adicionais e eles foram corrigidos:
+         seção de FC totalmente omitida sem amostras, ritmo de relógio limitado
+         a métrica canônica disponível e metadata usando origem real. Validações
+         de diff, compile, lint e builds passaram; instalação/smoke físico seguem
+         bloqueados por ausência de dispositivo ADB. Nova revisão ainda pendente.
+         `031-07` permanece `[ ]`; progresso continua `6/11`.
+
+       - Novo bloqueio em 2026-09-09: após reconexão informada pelo usuário,
+         `./gradlew installDebug --no-daemon` falhou com `No connected devices`
+         e `adb devices -l` continuou sem listar aparelho. Código e builds estão
+         aprovados; smoke físico do detalhe compacto não pode ser confirmado.
+         Bloqueio registrado na subtarefa; `031-07` permanece `[ ]` e progresso
+         continua `6/11`.
+
+       - Revisão final aprovou código sem blockers após guarda central de
+         distância canônica exigir estado `AVAILABLE`. Header, cinco métricas,
+         origem real, omissão segura e gráfico compacto de `160 dp` foram
+         confirmados. Builds passaram; instalação e smoke físico continuam
+         bloqueados por ADB sem dispositivo. `031-07` permanece `[ ]`; progresso
+         continua `6/11` até validação física.
+
+       - Após reconexão, `adb devices -l` identificou `SM-S901E`; `installDebug`
+         passou. Smoke Home → Exercícios → semana → atividade confirmou header,
+         cinco métricas, seção de FC, gráfico acessível compacto de `160 dp`,
+         dados persistidos e ausência de gráficos extras. Temporários foram
+         removidos e processo permaneceu ativo sem crash. Restam validações de
+         fonte ampliada, landscape, temas e TalkBack; `031-07` permanece `[ ]` e
+         progresso continua `6/11`.
+
+       - Em 2026-09-09, após comparação por screenshot, alterações fora do
+         gráfico foram revertidas. Formatação compacta dos dados foi mantida;
+         somente gráfico cardíaco recebeu Canvas compacto de `128 dp`, zonas
+         coloridas, linhas pontilhadas, escala inspirada na referência e amostras
+         persistidas. Compile, lint, builds e instalação passaram; screenshot
+         final após esta última troca ainda está pendente. `031-07` permanece
+         `[ ]`; progresso continua `6/11`.
+
+       - Diretriz final confirmou uso do gráfico de FC período `D` do próprio
+         Champion Companion. Detalhe reutiliza componente intraday, troca pontos
+         por linha e usa duração real da atividade no eixo X; Saúde mantém
+         comportamento anterior. Smoke físico confirmou bandas, linha, largura
+         do gráfico e `44` amostras reais; validações completas passaram.
+         Segundo gráfico não foi criado porque “vico” não identifica referência.
+         `031-07` permanece `[ ]`; progresso continua `6/11`.
+
+       - Gráfico Vico foi criado temporariamente para comparação e removido após
+         pedido explícito. Estado vigente usa somente componente do período D de
+         Frequência cardíaca, com pontos trocados por linha e eixo X pela duração
+         real da atividade. Builds, instalação e smoke passaram; revisão final
+         permanece pendente. `031-07` permanece `[ ]`; progresso `6/11`.
+
+       - Correção final de 2026-09-09: gráfico do detalhe mantém visual do
+         período D, mas eixo X agora usa duração real da atividade, do início ao
+         fim, em vez de 24 horas. Saúde preserva janela de 24 horas e pontos;
+         detalhe usa linha. Compile, lint, builds e instalação passaram.
+         Segundo smoke visual após esta correção ainda pendente. `031-07`
+         permanece `[ ]`; progresso continua `6/11`.
+
+       - Diretriz final de 2026-09-09 escolheu gráfico de `Frequência cardíaca`
+         do próprio Champion Companion, período `D`. Detalhe agora reutiliza
+         componente intraday existente e troca somente pontos por linha; bandas,
+         zonas, escala, acessibilidade e dados permanecem os mesmos. Header,
+         métricas e metadata não foram alterados neste ajuste. Compile, lint,
+         builds, instalação e smoke passaram; temporários foram removidos.
+         Segundo gráfico aguarda identificação de “vico”. `031-07` permanece
+         `[ ]`; progresso continua `6/11`.
+
+       - Revisão independente identificou cinco riscos no detalhe: tipo
+         personalizado no header, conteúdo de intervalos/parciais ainda visível,
+         etapas phone sem disponibilidade explícita, métricas canônicas
+         implausíveis e seção de FC sem amostras. Correções foram aplicadas,
+         incluindo gráfico compacto com `160 dp` e série inteira sem rolagem.
+         Compile, lint e builds passaram novamente; instalação e smoke físico
+          seguem bloqueados por `adb devices -l` sem dispositivos. A nova revisão
+          permanece pendente. `031-07` permanece `[ ]`; progresso continua `6/11`.
+
+        - Comparativo Vico removido em 2026-09-09 por pedido explícito. Permanece
+          somente gráfico intraday do período D, com linha e eixo pela duração
+         real da atividade. Header, métricas e demais UI preservados. Diff,
+         compile, lint, builds e instalação passaram. `031-07` permanece `[ ]`;
+         progresso continua `6/11`.
+
+        - Fechamento de 2026-09-09: bloco `Status e origem` e seus helpers foram
+          removidos; status ficou na metadata do header como
+          `data • hora • origem • status`. Revisão independente aprovou sem
+          blockers. `031-07` concluída; progresso `7/11`.

@@ -143,12 +143,14 @@ internal fun HeartRateHistoryChart(
 }
 
 @Composable
-private fun GoogleHealthIntradayHeartRateChart(
+internal fun GoogleHealthIntradayHeartRateChart(
     points: List<ChampionChartPoint>,
     accessibilitySummary: String,
+    showLine: Boolean = false,
+    timeWindowSeconds: Double = DAY_SECONDS,
     modifier: Modifier = Modifier,
 ) {
-    val maxSeconds = 24 * 60 * 60.0
+    val maxSeconds = timeWindowSeconds.coerceAtLeast(1.0)
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -183,14 +185,34 @@ private fun GoogleHealthIntradayHeartRateChart(
                     }
                 }
 
-            points.forEach { point ->
-                val bpm = point.y ?: return@forEach
-                val x = (point.x / maxSeconds * size.width).toFloat().coerceIn(0f, size.width)
-                drawCircle(
-                    color = Color(0xFF2BC7F2),
-                    radius = 2.5.dp.toPx(),
-                    center = Offset(x, yFor(bpm)),
-                )
+            val recordedPoints = points.filter { it.y != null }.sortedBy { it.x }
+            if (showLine) {
+                recordedPoints.zipWithNext().forEach { (start, end) ->
+                    val startBpm = start.y ?: return@forEach
+                    val endBpm = end.y ?: return@forEach
+                    drawLine(
+                        color = Color(0xFF2BC7F2),
+                        start = Offset(
+                            (start.x / maxSeconds * size.width).toFloat().coerceIn(0f, size.width),
+                            yFor(startBpm),
+                        ),
+                        end = Offset(
+                            (end.x / maxSeconds * size.width).toFloat().coerceIn(0f, size.width),
+                            yFor(endBpm),
+                        ),
+                        strokeWidth = 3.dp.toPx(),
+                    )
+                }
+            } else {
+                recordedPoints.forEach { point ->
+                    val bpm = point.y ?: return@forEach
+                    val x = (point.x / maxSeconds * size.width).toFloat().coerceIn(0f, size.width)
+                    drawCircle(
+                        color = Color(0xFF2BC7F2),
+                        radius = 2.5.dp.toPx(),
+                        center = Offset(x, yFor(bpm)),
+                    )
+                }
             }
 
             val labelPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {

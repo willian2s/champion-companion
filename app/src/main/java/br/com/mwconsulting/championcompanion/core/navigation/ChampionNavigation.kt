@@ -532,7 +532,6 @@ private fun ChampionNavDisplay(
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
-                onOpenCalendar = { onNavigateTo(AppDestination.Calendar) },
                 onOpenDebugPoc = onOpenDebugPoc,
             )
             is AppDestination.ExerciseDetail -> ExercisesScreen(
@@ -543,7 +542,6 @@ private fun ChampionNavDisplay(
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
-                onOpenCalendar = { onNavigateTo(AppDestination.Calendar) },
             )
             AppDestination.WorkoutTypeSelection -> if (PhoneWorkoutPolicy.isDiscontinued()) {
                 PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
@@ -663,6 +661,8 @@ private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppD
 
 private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     AppDestination.Exercises,
+    AppDestination.Calendar,
+    is AppDestination.CalendarDay,
     is AppDestination.ExerciseDetail,
     AppDestination.WorkoutTypeSelection,
     is AppDestination.WorkoutPreparation,

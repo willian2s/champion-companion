@@ -8,16 +8,18 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,8 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
@@ -37,6 +38,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -47,12 +51,15 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.lifecycle.Lifecycle
@@ -65,34 +72,40 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.PendingReviewBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PermissionBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionTimeSeriesChart
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionBarChart
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCartesianChartData
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartAxisSpec
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartFormatters
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartInteractionPolicy
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartPoint
-import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartReferenceLine
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartSeries
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartUnit
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisFormatter
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
+import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
 import br.com.mwconsulting.championcompanion.core.model.CanonicalWorkoutSeries
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
@@ -116,16 +129,20 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndic
 import br.com.mwconsulting.championcompanion.core.model.WorkoutSplit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
+import br.com.mwconsulting.championcompanion.feature.health.GoogleHealthIntradayHeartRateChart
 import java.time.Duration
+import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
-private val ExerciseHeartRateGuideBands = listOf(166.0, 135.0, 110.0, 71.0, 30.0)
 private val ExerciseCadenceChartValueFormatter =
     ChampionChartFormatters.decimal(maximumFractionDigits = 1)
 
@@ -135,7 +152,6 @@ fun ExercisesScreen(
     onNavigateBack: (() -> Unit)? = null,
     backLabel: String = "Voltar para Exercícios",
     onOpenActivity: (WorkoutActivityId) -> Unit = {},
-    onOpenCalendar: () -> Unit = {},
     viewModel: ExercisesViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -146,13 +162,44 @@ fun ExercisesScreen(
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by viewModel.state.collectAsState()
+    val zoneId = remember { ZoneId.systemDefault() }
+    val today = LocalDate.now(zoneId)
+    val currentMonth = YearMonth.from(today)
+    val currentWeekStart = today.with(DAY_START)
     val dismissOperationError = remember(viewModel) {
         { viewModel.onIntent(ExercisesIntent.DismissOperationError) }
     }
     val scrollState = rememberScrollState()
+    var selectedHistoryPeriod by rememberSaveable {
+        mutableStateOf(ExerciseHistoryPeriod.WEEK)
+    }
+    var selectedMonthIso by rememberSaveable { mutableStateOf(currentMonth.toString()) }
+    var selectedWeekStartIso by rememberSaveable { mutableStateOf(currentWeekStart.toString()) }
+    var selectedExerciseDateIso by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedMonth = remember(selectedMonthIso, currentMonth) {
+        parseExerciseMonthOrDefault(selectedMonthIso, currentMonth).coerceAtMost(currentMonth)
+    }
+    val selectedWeekStart = remember(selectedWeekStartIso, currentWeekStart) {
+        parseExerciseDateOrDefault(selectedWeekStartIso, currentWeekStart)
+            .with(DAY_START)
+            .coerceAtMost(currentWeekStart)
+    }
+    val selectedExerciseDate = remember(selectedExerciseDateIso, selectedMonth) {
+        selectedExerciseDateIso
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?.takeIf { YearMonth.from(it) == selectedMonth }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.onIntent(ExercisesIntent.Load)
+    }
+
+    LaunchedEffect(selectedHistoryPeriod, state.selectedFilter) {
+        if (selectedHistoryPeriod == ExerciseHistoryPeriod.MONTH &&
+            state.selectedFilter != WorkoutActivityFilter.ALL
+        ) {
+            viewModel.onIntent(ExercisesIntent.SelectFilter(WorkoutActivityFilter.ALL))
+        }
     }
 
     LaunchedEffect(viewModel, onNavigateBack) {
@@ -162,6 +209,7 @@ fun ExercisesScreen(
     }
 
     LaunchedEffect(openedActivityId) {
+        scrollState.scrollTo(0)
         if (openedActivityId == null) {
             viewModel.onIntent(ExercisesIntent.CloseActivity)
         } else if (state.selectedActivity?.id != openedActivityId) {
@@ -191,10 +239,7 @@ fun ExercisesScreen(
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
             if (openedActivityId == null) {
-                ExercisesHeader(
-                    state = state,
-                    onOpenCalendar = onOpenCalendar,
-                )
+                ExercisesHeader(state = state)
                 onOpenDebugPoc?.let { openDebugPoc ->
                     ExercisesDebugPocCard(onOpenDebugPoc = openDebugPoc)
                 }
@@ -208,15 +253,54 @@ fun ExercisesScreen(
                 if (!state.importState.isImportInFlight()) {
                     ExerciseSyncFeedbackCard(state.activityList, state.workflowSummary)
                 }
-                WorkoutFiltersSection(
+                ExerciseHistoryPeriodSelector(
+                    selectedPeriod = selectedHistoryPeriod,
+                    onSelectPeriod = { period ->
+                        selectedHistoryPeriod = period
+                        if (period == ExerciseHistoryPeriod.MONTH &&
+                            state.selectedFilter != WorkoutActivityFilter.ALL
+                        ) {
+                            viewModel.onIntent(ExercisesIntent.SelectFilter(WorkoutActivityFilter.ALL))
+                        }
+                    },
+                )
+                ExerciseHistorySection(
+                    period = selectedHistoryPeriod,
+                    activities = state.activityList,
                     selectedFilter = state.selectedFilter,
                     workflowSummary = state.workflowSummary,
-                    onSelectFilter = { viewModel.onIntent(ExercisesIntent.SelectFilter(it)) },
-                )
-                ExercisesListSection(
-                    selectedFilter = state.selectedFilter,
-                    activities = state.activityList,
-                    onOpenActivity = onOpenActivity,
+                    today = today,
+                    zoneId = zoneId,
+                    selectedMonth = selectedMonth,
+                    selectedWeekStart = selectedWeekStart,
+                     onSelectFilter = { viewModel.onIntent(ExercisesIntent.SelectFilter(it)) },
+                     onOpenActivity = onOpenActivity,
+                     selectedExerciseDate = selectedExerciseDate,
+                     onSelectExerciseDate = { selectedExerciseDateIso = it.toString() },
+                     onPreviousMonth = {
+                         selectedMonthIso = selectedMonth.minusMonths(1).toString()
+                         selectedExerciseDateIso = null
+                     },
+                     onNextMonth = {
+                         if (selectedMonth < currentMonth) {
+                             selectedMonthIso = selectedMonth.plusMonths(1).toString()
+                             selectedExerciseDateIso = null
+                         }
+                     },
+                    onPreviousWeek = { selectedWeekStartIso = selectedWeekStart.minusWeeks(1).toString() },
+                     onNextWeek = {
+                         if (selectedWeekStart < currentWeekStart) {
+                             selectedWeekStartIso = selectedWeekStart.plusWeeks(1).toString()
+                         }
+                     },
+                    onToday = {
+                         if (selectedHistoryPeriod == ExerciseHistoryPeriod.MONTH) {
+                             selectedMonthIso = currentMonth.toString()
+                             selectedExerciseDateIso = null
+                         } else {
+                            selectedWeekStartIso = currentWeekStart.toString()
+                        }
+                    },
                 )
             } else {
                 ExerciseDetailShell(
@@ -250,57 +334,15 @@ fun ExercisesScreen(
 @Composable
 private fun ExercisesHeader(
     state: ExercisesUiState,
-    onOpenCalendar: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = LightColorScheme.primary,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Exercícios",
-                modifier = Modifier.semantics { heading() },
-                color = Color.White,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Importe atividades gravadas no relógio e revise-as localmente.",
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.9f),
-            )
-            Text(
-                text = if (state.hasAssociatedDevice) {
-                    "Relógio associado: ${state.associatedDeviceName ?: "Champion C001"}"
-                } else {
-                    "Nenhum relógio associado. A importação manual ficará disponível após associar um dispositivo."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.82f),
-            )
-            OutlinedButton(
-                onClick = onOpenCalendar,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                border = BorderStroke(1.dp, Color.White),
-            ) {
-                Text("Calendário")
-            }
-        }
-    }
+    ChampionRedesignSurfaceHeader(
+        title = "Exercícios",
+        supportingText = if (state.hasAssociatedDevice) {
+            "Relógio: ${state.associatedDeviceName ?: "Champion C001"}"
+        } else {
+            "Relógio: Pendente"
+        },
+    )
 }
 
 @Composable
@@ -368,6 +410,11 @@ private fun ExercisesImportCard(
             Text(
                 text = "A leitura começa somente por ação explícita. Atividades importadas ficam disponíveis para revisão local.",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
@@ -727,91 +774,849 @@ private fun workoutFilterOptions(
     WorkoutFilterOption(WorkoutActivityFilter.DISCARDED, "Descartadas", workflowSummary.discardedCount),
 )
 
+private enum class ExerciseHistoryPeriod {
+    WEEK,
+    MONTH,
+}
+
 @Composable
-private fun ExercisesListSection(
-    selectedFilter: WorkoutActivityFilter,
-    activities: List<WorkoutActivity>,
-    onOpenActivity: (WorkoutActivityId) -> Unit,
+private fun ExerciseHistoryPeriodSelector(
+    selectedPeriod: ExerciseHistoryPeriod,
+    onSelectPeriod: (ExerciseHistoryPeriod) -> Unit,
 ) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text("Período dos exercícios", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Alterne entre Semana e Mês; use as setas para navegar no período selecionado.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            ) {
+                FilterChip(
+                    selected = selectedPeriod == ExerciseHistoryPeriod.WEEK,
+                    onClick = { onSelectPeriod(ExerciseHistoryPeriod.WEEK) },
+                    label = { Text("Semana") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                )
+                FilterChip(
+                    selected = selectedPeriod == ExerciseHistoryPeriod.MONTH,
+                    onClick = { onSelectPeriod(ExerciseHistoryPeriod.MONTH) },
+                    label = { Text("Mês") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseHistorySection(
+    period: ExerciseHistoryPeriod,
+    activities: List<WorkoutActivity>,
+    selectedFilter: WorkoutActivityFilter,
+    workflowSummary: br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary,
+    today: LocalDate,
+    zoneId: ZoneId,
+    selectedMonth: YearMonth,
+    selectedWeekStart: LocalDate,
+    onSelectFilter: (WorkoutActivityFilter) -> Unit,
+    onOpenActivity: (WorkoutActivityId) -> Unit,
+    selectedExerciseDate: LocalDate?,
+    onSelectExerciseDate: (LocalDate) -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onPreviousWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    onToday: () -> Unit,
+) {
+    val weekStart = selectedWeekStart.with(DAY_START)
+    val range = when (period) {
+        ExerciseHistoryPeriod.WEEK -> CalendarDateRange(weekStart, weekStart.plusDays(7))
+        ExerciseHistoryPeriod.MONTH -> CalendarDateRange(
+            selectedMonth.atDay(1),
+            selectedMonth.plusMonths(1).atDay(1),
+        )
+    }
+    val periodActivities = activities
+        .filter { it.metrics.startedAt.isIn(range.atZone(zoneId)) }
+        .filter { period == ExerciseHistoryPeriod.WEEK || it.isEligibleForExerciseCalendar() }
+        .sortedByDescending { it.metrics.startedAt }
+    val activitiesByDate = periodActivities.groupBy { it.metrics.startedAt.atZone(zoneId).toLocalDate() }
+    val activityListKey = periodActivities.map { it.id.value.toString() }.hashCode()
+    val temporalSelectionKey = if (period == ExerciseHistoryPeriod.WEEK) {
+        weekStart.toString()
+    } else {
+        selectedMonth.toString()
+    }
     val pageSize = 5
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var selectedPage by remember(selectedFilter) { mutableStateOf(0) }
-    var pageNavigationRequested by remember(selectedFilter) { mutableStateOf(false) }
-    val pageCount = (activities.size + pageSize - 1) / pageSize
+    var selectedPage by rememberSaveable(
+        period,
+        selectedFilter,
+        temporalSelectionKey,
+        activityListKey,
+    ) { mutableStateOf(0) }
+    val pageCount = (periodActivities.size + pageSize - 1) / pageSize
     val currentPage = selectedPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
-
-    LaunchedEffect(selectedFilter, activities.size) {
-        selectedPage = 0
-    }
-
-    LaunchedEffect(pageNavigationRequested) {
-        if (pageNavigationRequested) {
-            bringIntoViewRequester.bringIntoView()
-            pageNavigationRequested = false
-        }
-    }
-
-    fun selectPage(page: Int) {
-        val nextPage = page.coerceIn(0, pageCount - 1)
-        if (nextPage != currentPage) {
-            selectedPage = nextPage
-            pageNavigationRequested = true
-        }
-    }
+    val visibleActivities = periodActivities.drop(currentPage * pageSize).take(pageSize)
+    val activityDays = activitiesByDate.keys.size
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
+        ExerciseHistoryPeriodNavigation(
+            period = period,
+            month = selectedMonth,
+            weekStart = weekStart,
+            currentMonth = YearMonth.from(today),
+            currentWeekStart = today.with(DAY_START),
+            onPreviousMonth = onPreviousMonth,
+            onNextMonth = onNextMonth,
+            onPreviousWeek = onPreviousWeek,
+            onNextWeek = onNextWeek,
+            onToday = onToday,
+        )
         Text(
-            text = "${selectedFilter.toSectionTitle()} • ${activities.size}",
-            modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester),
+            text = if (period == ExerciseHistoryPeriod.WEEK) "Resumo da semana" else "Resumo do mês",
+            modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = if (period == ExerciseHistoryPeriod.WEEK) {
+                "$activityDays de 7 dias com exercício"
+            } else {
+                "$activityDays de ${selectedMonth.lengthOfMonth()} dias com exercício"
+            },
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = if (period == ExerciseHistoryPeriod.WEEK) {
+                "Semana iniciada no domingo e terminada no sábado: " +
+                    "${range.fromInclusive.formatExerciseDate()} a " +
+                    "${range.untilExclusive.minusDays(1).formatExerciseDate()}."
+            } else {
+                "Você se exercitou um total de ${periodActivities.size} " +
+                    "${if (periodActivities.size == 1) "vez" else "vezes"} em " +
+                    "$activityDays ${if (activityDays == 1) "dia" else "dias"} com exercícios"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (period == ExerciseHistoryPeriod.WEEK) {
+            Text(
+                text = "Dias com exercícios",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            ExerciseHistoryChart(
+                range = range,
+                activitiesByDate = activitiesByDate,
+            )
+            WorkoutFiltersSection(
+                selectedFilter = selectedFilter,
+                workflowSummary = workflowSummary,
+                onSelectFilter = onSelectFilter,
+            )
+            ExerciseWeeklyActivityList(
+                activities = visibleActivities,
+                today = today,
+                zoneId = zoneId,
+                 pageCount = pageCount,
+                 currentPage = currentPage,
+                 onOpenActivity = onOpenActivity,
+                onPreviousPage = { selectedPage = (currentPage - 1).coerceAtLeast(0) },
+                onNextPage = { selectedPage = (currentPage + 1).coerceAtMost(pageCount - 1) },
+            )
+        } else {
+            ExerciseMonthCalendar(
+                month = selectedMonth,
+                today = today,
+                activitiesByDate = activitiesByDate,
+                selectedDate = selectedExerciseDate,
+                onSelectDate = onSelectExerciseDate,
+            )
+            ExerciseMonthMetricRow(
+                activityDays = activityDays,
+                totalDuration = periodActivities.totalDurationOrNull(),
+                totalDistanceMeters = periodActivities.totalDisplayDistanceMetersOrNull(),
+            )
+            ExerciseMonthActivityList(
+                month = selectedMonth,
+                today = today,
+                activities = periodActivities,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExerciseWeeklyActivityList(
+    activities: List<WorkoutActivity>,
+    today: LocalDate,
+    zoneId: ZoneId,
+    pageCount: Int,
+    currentPage: Int,
+    onOpenActivity: (WorkoutActivityId) -> Unit,
+    onPreviousPage: () -> Unit,
+    onNextPage: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+    ) {
+        Text(
+            text = "Atividades feitas",
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
         )
         if (activities.isEmpty()) {
             EmptyState(
-                title = "Nenhum treino neste filtro",
-                message = "Troque o filtro ou importe novos treinos do relógio para preencher esta lista.",
+                title = "Nenhum exercício neste período",
+                message = "Atividades reais gravadas no período aparecerão aqui.",
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
             activities
-                .drop(currentPage * pageSize)
-                .take(pageSize)
-                .forEach { activity ->
-                WorkoutActivityCard(
-                    activity = activity,
-                    onClick = { onOpenActivity(activity.id) },
-                )
+                .groupBy { it.metrics.startedAt.atZone(zoneId).toLocalDate() }
+                .toSortedMap(compareByDescending { it })
+                .forEach { (date, dayActivities) ->
+                    Text(
+                        text = formatExerciseDayLabel(date, today),
+                        modifier = Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    dayActivities.forEach { activity ->
+                        WorkoutActivityCard(
+                            activity = activity,
+                            onClick = { onOpenActivity(activity.id) },
+                        )
+                    }
+                }
+        }
+        if (pageCount > 1) {
+            ExerciseHistoryPagination(
+                currentPage = currentPage,
+                pageCount = pageCount,
+                onPrevious = onPreviousPage,
+                onNext = onNextPage,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExerciseHistoryPeriodNavigation(
+    period: ExerciseHistoryPeriod,
+    month: YearMonth,
+    weekStart: LocalDate,
+    currentMonth: YearMonth,
+    currentWeekStart: LocalDate,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onPreviousWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    onToday: () -> Unit,
+) {
+    val isWeek = period == ExerciseHistoryPeriod.WEEK
+    val periodLabel = if (isWeek) {
+        formatExerciseWeekRange(weekStart, weekStart.plusDays(6))
+    } else {
+        formatExerciseMonth(month)
+    }
+    val currentPeriod = if (isWeek) currentWeekStart == weekStart else currentMonth == month
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Período de exercícios selecionado: $periodLabel"
+            },
+        shape = ChampionShapeLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = periodLabel,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                IconButton(
+                    onClick = if (isWeek) onPreviousWeek else onPreviousMonth,
+                    modifier = Modifier.semantics {
+                        contentDescription = if (isWeek) "Semana anterior" else "Mês anterior"
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ChevronLeft,
+                        contentDescription = null,
+                    )
+                }
+                Button(
+                    onClick = onToday,
+                    enabled = !currentPeriod,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = exercisePrimaryAccent(),
+                        contentColor = if (isSystemInDarkTheme()) DarkColorScheme.onPrimary else LightColorScheme.onPrimary,
+                    ),
+                ) {
+                    Text("Hoje")
+                }
+                IconButton(
+                    onClick = if (isWeek) onNextWeek else onNextMonth,
+                    enabled = if (isWeek) {
+                        weekStart < currentWeekStart
+                    } else {
+                        month < currentMonth
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = if (isWeek) "Próxima semana" else "Próximo mês"
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                    )
+                }
             }
-            if (pageCount > 1) {
+        }
+    }
+}
+
+@Composable
+private fun ExerciseMonthCalendar(
+    month: YearMonth,
+    today: LocalDate,
+    activitiesByDate: Map<LocalDate, List<WorkoutActivity>>,
+    selectedDate: LocalDate?,
+    onSelectDate: (LocalDate) -> Unit,
+) {
+    val leadingEmptyCells = month.atDay(1).dayOfWeek.value % 7
+    val cellCount = ((leadingEmptyCells + month.lengthOfMonth() + 6) / 7) * 7
+    val dates = (0 until cellCount).map { index ->
+        val dayOffset = index - leadingEmptyCells
+        month.atDay(1).plusDays(dayOffset.toLong()).takeIf { YearMonth.from(it) == month }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "Calendário mensal somente de exercícios" },
+        shape = ChampionShapeLarge,
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = ChampionSpacing.small,
+                vertical = ChampionSpacing.small,
+            ),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+            ) {
+                EXERCISE_WEEKDAY_LABELS.forEachIndexed { index, label ->
+                    Text(
+                        text = label,
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics {
+                                contentDescription = EXERCISE_WEEKDAY_FULL_LABELS[index]
+                            },
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+            dates.chunked(7).forEach { week ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
                 ) {
-                    TextButton(
-                        onClick = { selectPage(currentPage - 1) },
-                        enabled = currentPage > 0,
-                    ) {
-                        Text("Anterior")
-                    }
-                    Text(
-                        text = "Página ${currentPage + 1} de $pageCount",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(
-                        onClick = { selectPage(currentPage + 1) },
-                        enabled = currentPage < pageCount - 1,
-                    ) {
-                        Text("Próxima")
+                    week.forEach { date ->
+                        if (date == null) {
+                            EmptyExerciseCalendarCell()
+                        } else {
+                            ExerciseCalendarDayCell(
+                                date = date,
+                                activities = activitiesByDate[date].orEmpty(),
+                                isToday = date == today,
+                                isSelected = date == selectedDate,
+                                onClick = { onSelectDate(date) },
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun RowScope.EmptyExerciseCalendarCell() {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = 56.dp),
+    )
+}
+
+@Composable
+private fun RowScope.ExerciseCalendarDayCell(
+    date: LocalDate,
+    activities: List<WorkoutActivity>,
+    isToday: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val statusColors = activities
+        .map { it.workflowState }
+        .distinct()
+        .take(3)
+    val count = activities.size
+    val dayDescription = buildString {
+        append(date.formatExerciseCalendarDate())
+        if (isToday) append(", hoje")
+        if (isSelected) append(", selecionado")
+        if (count == 0) {
+            append(", sem exercício")
+        } else {
+            append(", $count ${if (count == 1) "atividade" else "atividades"}")
+            if (statusColors.isNotEmpty()) {
+                append(", status: ${statusColors.joinToString { it.toLabel() }}")
+            }
+        }
+    }
+    val borderColor = when {
+        isSelected -> exercisePrimaryAccent()
+        isToday -> MaterialTheme.colorScheme.onSurface
+        else -> Color.Transparent
+    }
+    Surface(
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = 56.dp)
+            .border(
+                width = when {
+                    isSelected -> 3.dp
+                    isToday -> 2.dp
+                    else -> 0.dp
+                },
+                color = borderColor,
+                shape = ChampionShapeMedium,
+            )
+            .clickable(onClick = onClick)
+            .semantics {
+                contentDescription = dayDescription
+                selected = isSelected
+                stateDescription = if (isSelected) "Selecionado" else "Não selecionado"
+            },
+        shape = ChampionShapeMedium,
+        color = if (activities.isEmpty()) {
+            MaterialTheme.colorScheme.surface
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(ChampionSpacing.extraSmall),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                statusColors.forEach { status ->
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .background(status.toExerciseCalendarColor(), CircleShape),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseMonthMetricRow(
+    activityDays: Int,
+    totalDuration: Duration?,
+    totalDistanceMeters: Double?,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        ExerciseMonthMetricCard(
+            label = "Dias com exercícios",
+            value = activityDays.toString(),
+            modifier = Modifier.weight(1f),
+        )
+        ExerciseMonthMetricCard(
+            label = "Duração",
+            value = totalDuration?.toDurationLabel() ?: "indisponível",
+            modifier = Modifier.weight(1f),
+        )
+        ExerciseMonthMetricCard(
+            label = "Distância",
+            value = totalDistanceMeters.toDistanceLabel(),
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun ExerciseMonthMetricCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .heightIn(min = 72.dp)
+            .semantics { contentDescription = "$label: $value" },
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExerciseMonthActivityList(
+    month: YearMonth,
+    today: LocalDate,
+    activities: List<WorkoutActivity>,
+) {
+    val weekGroups = exerciseMonthWeekGroups(month, ZoneId.systemDefault(), activities)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = formatExerciseMonth(month),
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Total por semana",
+                color = exercisePrimaryAccent(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (weekGroups.isEmpty()) {
+            EmptyState(
+                title = "Nenhum exercício neste mês",
+                message = "Atividades reais gravadas no mês aparecerão aqui.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            weekGroups.forEach { group ->
+                val exerciseTypeCount = group.activities.map { it.displayType() }.distinct().size
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "${group.label(today)}. ${group.activities.size} " +
+                                "${if (group.activities.size == 1) "atividade" else "atividades"}. " +
+                                "$exerciseTypeCount ${if (exerciseTypeCount == 1) "tipo" else "tipos"} de exercício."
+                        },
+                    shape = ChampionShapeMedium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(ChampionSpacing.medium),
+                        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = group.label(today),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+                        ) {
+                            Text(
+                                text = group.activities.size.toString(),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = "$exerciseTypeCount ${if (exerciseTypeCount == 1) "tipo" else "tipos"} de exercício",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class ExerciseMonthWeekGroup(
+    val weekStart: LocalDate,
+    val activities: List<WorkoutActivity>,
+) {
+    fun label(today: LocalDate): String = if (weekStart == today.with(DAY_START)) {
+        "Esta semana"
+    } else {
+        formatExerciseWeekRange(weekStart, weekStart.plusDays(6))
+    }
+}
+
+private fun exerciseMonthWeekGroups(
+    month: YearMonth,
+    zoneId: ZoneId,
+    activities: List<WorkoutActivity>,
+): List<ExerciseMonthWeekGroup> {
+    val firstDay = month.atDay(1)
+    val lastWeekStart = month.atEndOfMonth().with(DAY_START)
+    return activities
+        .groupBy { it.metrics.startedAt.atZone(zoneId).toLocalDate().with(DAY_START) }
+        .filterKeys { weekStart ->
+            !weekStart.plusDays(6).isBefore(firstDay) && !weekStart.isAfter(lastWeekStart)
+        }
+        .map { (weekStart, weekActivities) ->
+            ExerciseMonthWeekGroup(
+                weekStart = weekStart,
+                activities = weekActivities.sortedByDescending { it.metrics.startedAt },
+            )
+        }
+        .sortedByDescending { it.weekStart }
+}
+
+private fun formatExerciseWeekRange(from: LocalDate, until: LocalDate): String =
+    "${from.dayOfMonth} de ${from.exerciseMonthAbbreviation()} – " +
+        "${until.dayOfMonth} de ${until.exerciseMonthAbbreviation()}"
+
+private fun formatExerciseMonth(month: YearMonth): String =
+    month.format(
+        DateTimeFormatter.ofPattern("LLLL yyyy", Locale.forLanguageTag("pt-BR")),
+    ).replaceFirstChar { it.uppercase(Locale.forLanguageTag("pt-BR")) }
+
+private fun parseExerciseMonthOrDefault(value: String, default: YearMonth): YearMonth =
+    runCatching { YearMonth.parse(value) }.getOrDefault(default)
+
+private fun parseExerciseDateOrDefault(value: String, default: LocalDate): LocalDate =
+    runCatching { LocalDate.parse(value) }.getOrDefault(default)
+
+private fun LocalDate.formatExerciseCalendarDate(): String =
+    format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(Locale.forLanguageTag("pt-BR")))
+
+private fun LocalDate.exerciseMonthAbbreviation(): String = EXERCISE_MONTH_ABBREVIATIONS[monthValue - 1]
+
+private val EXERCISE_MONTH_ABBREVIATIONS = listOf(
+    "jan.",
+    "fev.",
+    "mar.",
+    "abr.",
+    "mai.",
+    "jun.",
+    "jul.",
+    "ago.",
+    "set.",
+    "out.",
+    "nov.",
+    "dez.",
+)
+
+private fun List<WorkoutActivity>.totalDurationOrNull(): Duration? {
+    if (isEmpty()) return null
+    var total = Duration.ZERO
+    for (activity in this) {
+        val duration = activity.metrics.duration
+        if (duration.isNegative) return null
+        total = runCatching { total.plus(duration) }.getOrNull() ?: return null
+    }
+    return total
+}
+
+private fun List<WorkoutActivity>.totalDisplayDistanceMetersOrNull(): Double? {
+    if (isEmpty()) return null
+    var total = 0.0
+    for (activity in this) {
+        val distance = activity.displayDistanceMetersOrNull() ?: return null
+        if (!distance.isFinite() || distance < 0.0) return null
+        total += distance
+        if (!total.isFinite()) return null
+    }
+    return total
+}
+
+@Composable
+private fun ExerciseHistoryPagination(
+    currentPage: Int,
+    pageCount: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onPrevious, enabled = currentPage > 0) {
+            Text("Anterior")
+        }
+        Text(
+            text = "Página ${currentPage + 1} de $pageCount",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onNext, enabled = currentPage < pageCount - 1) {
+            Text("Próxima")
+        }
+    }
+}
+
+@Composable
+private fun ExerciseHistoryChart(
+    range: CalendarDateRange,
+    activitiesByDate: Map<LocalDate, List<WorkoutActivity>>,
+) {
+    val dates = range.dates
+    val counts = dates.map { date -> activitiesByDate[date]?.size?.takeIf { it > 0 } }
+    val numberFormatter = ChampionChartFormatters.integer()
+    val maximum = maxOf(counts.filterNotNull().maxOrNull()?.toDouble() ?: 0.0, 1.0)
+    val chartData = ChampionCartesianChartData(
+        series = listOf(
+            ChampionChartSeries(
+                key = "exercises",
+                label = "Exercícios",
+                points = dates.mapIndexed { index, date ->
+                    val count = counts[index]
+                    val label = EXERCISE_WEEKDAY_LABELS[index]
+                    ChampionChartPoint(
+                        x = index.toDouble(),
+                        y = count?.toDouble(),
+                        xLabel = label,
+                        contentDescription = "$label: ${count?.let { "$it ${if (it == 1) "atividade" else "atividades"}" } ?: "sem exercício"}.",
+                    )
+                },
+            ),
+        ),
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                val index = value.roundToInt()
+                if (index in dates.indices) EXERCISE_WEEKDAY_LABELS[index] else "--"
+            },
+            title = "Dia",
+            minimum = -0.5,
+            maximum = dates.size - 0.5,
+            visible = true,
+            gridLinesVisible = false,
+            labelValues = dates.indices.map(Int::toDouble),
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Exercícios",
+            formatter = numberFormatter,
+            unit = ChampionChartUnit("atividades"),
+            minimum = 0.0,
+            maximum = maximum,
+            visible = false,
+            gridLinesVisible = false,
+        ),
+        interaction = ChampionChartInteractionPolicy(scrollEnabled = false),
+        accessibilitySummary = "Gráfico de barras de exercícios da semana civil, de domingo a sábado. " +
+            "${counts.count { it != null }} dias com exercício e ${counts.count { it == null }} sem exercício.",
+    )
+    ChampionBarChart(
+        data = chartData,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        columnWidth = 16.dp,
+        columnCollectionSpacing = 2.dp,
+        groupedColumnSpacing = 1.dp,
+    )
+}
+
+private fun Instant.isIn(range: br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange): Boolean =
+    !isBefore(range.fromInclusive) && isBefore(range.untilExclusive)
+
+private fun LocalDate.formatExerciseDate(): String =
+    DateTimeFormatter.ofPattern("dd/MM", Locale.forLanguageTag("pt-BR")).format(this)
+
+private fun formatExerciseDayLabel(date: LocalDate, today: LocalDate): String = when (date) {
+    today -> "Hoje"
+    today.minusDays(1) -> "Ontem"
+    else -> DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.forLanguageTag("pt-BR")).format(date)
+}
+
+private val DAY_START = TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY)
+private val EXERCISE_WEEKDAY_LABELS = listOf("D", "S", "T", "Q", "Q", "S", "S")
+private val EXERCISE_WEEKDAY_FULL_LABELS = listOf(
+    "Domingo",
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+)
 
 @Composable
 private fun ExerciseSyncFeedbackCard(
@@ -865,11 +1670,17 @@ private fun WorkoutActivityCard(
     onClick: () -> Unit,
 ) {
     val accentColor = activity.workflowState.toListAccentColor()
+    val dateLabel = activity.metrics.startedAt.formatTime()
     Card(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 96.dp),
+            .heightIn(min = 96.dp)
+            .semantics {
+                contentDescription = "${activity.displayListTitle()}. $dateLabel. " +
+                    "${activity.metrics.duration.toDurationLabel()}. ${activity.displayDistanceLabel()}. " +
+                    "${activity.workflowState.toLabel()}. Toque para abrir detalhes."
+            },
         shape = ChampionShapeMedium,
         border = BorderStroke(1.dp, accentColor),
         colors = CardDefaults.cardColors(
@@ -877,7 +1688,8 @@ private fun WorkoutActivityCard(
         ),
     ) {
         Row(
-            modifier = Modifier.padding(ChampionSpacing.medium),
+            modifier = Modifier
+                .padding(ChampionSpacing.medium),
             horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
             verticalAlignment = Alignment.Top,
         ) {
@@ -900,19 +1712,28 @@ private fun WorkoutActivityCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = activity.displayListTitle(),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = activity.displayDistanceLabel(),
+                        modifier = Modifier.padding(start = ChampionSpacing.small),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Text(
-                    text = activity.displayListTitle(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = activity.displayListContextLabel(),
+                    text = "$dateLabel • ${activity.metrics.duration.toDurationLabel()}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = "${activity.metrics.duration.toDurationLabel()} • ${activity.displayDistanceLabel()}",
-                    style = MaterialTheme.typography.bodyMedium,
                 )
                 if (activity.isWatchWorkout && !activity.isCycling &&
                     activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE &&
@@ -972,60 +1793,40 @@ private fun ExerciseDetailShell(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = ChampionShapeLarge,
-            colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(ChampionSpacing.medium),
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                onNavigateBack?.let { navigateBack ->
-                    IconButton(onClick = navigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = backLabel,
-                            tint = Color.White,
-                        )
-                    }
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
-                ) {
-                    Text(
-                        "Detalhe do treino",
-                        modifier = Modifier.semantics { heading() },
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        "Atividade importada",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-        }
-
         when (val detailState = state.detailState) {
-            ExerciseDetailState.Loading -> Text("Carregando atividade $activityId", style = MaterialTheme.typography.bodyMedium)
-            ExerciseDetailState.NotFound -> ErrorState(
-                title = "Treino não encontrado",
-                message = "Nenhuma atividade importada foi encontrada para este identificador.",
-                modifier = Modifier.fillMaxWidth(),
-            )
+            ExerciseDetailState.Loading -> {
+                ActivityDetailHeader(
+                    activity = null,
+                    onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
+                )
+                Text("Carregando atividade $activityId", style = MaterialTheme.typography.bodyMedium)
+            }
+            ExerciseDetailState.NotFound -> {
+                ActivityDetailHeader(
+                    activity = null,
+                    onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
+                )
+                ErrorState(
+                    title = "Treino não encontrado",
+                    message = "Nenhuma atividade importada foi encontrada para este identificador.",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
-            is ExerciseDetailState.Failed -> ErrorState(
-                title = "Não foi possível abrir o treino",
-                message = detailState.error.message,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            is ExerciseDetailState.Failed -> {
+                ActivityDetailHeader(
+                    activity = null,
+                    onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
+                )
+                ErrorState(
+                    title = "Não foi possível abrir o treino",
+                    message = detailState.error.message,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             is ExerciseDetailState.Ready -> {
                 val activity = state.selectedActivity
@@ -1058,6 +1859,8 @@ private fun ExerciseDetailShell(
                         canDeleteSelectedActivity = state.canDeleteSelectedActivity,
                         isDeletingSelectedActivity = state.isDeletingSelectedActivity,
                         onRequestDelete = { showDeleteConfirmation = true },
+                        onNavigateBack = onNavigateBack,
+                        backLabel = backLabel,
                     )
                 }
             }
@@ -1195,6 +1998,8 @@ private fun WorkoutActivityDetailContent(
     canDeleteSelectedActivity: Boolean,
     isDeletingSelectedActivity: Boolean,
     onRequestDelete: () -> Unit,
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
 ) {
     val hasReferenceDistanceCalibration = activity.isReferenceDistanceCalibrationEligible() &&
         referenceDistanceCalibrationAllowed
@@ -1202,7 +2007,22 @@ private fun WorkoutActivityDetailContent(
     Column(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        ActivityHeaderCard(activity)
+        ActivityDetailHeader(
+            activity = activity,
+            onNavigateBack = onNavigateBack,
+            backLabel = backLabel,
+            canDiscard = canDiscardSelectedActivity,
+            canDelete = canDeleteSelectedActivity,
+            isDeleting = isDeletingSelectedActivity,
+            onRequestDiscard = onRequestDiscard,
+            onRequestDelete = onRequestDelete,
+        )
+        ActivityDetailMetadata(activity)
+        ActivityMetricsSection(activity)
+        if (activity.heartRateSamples.isNotEmpty()) {
+            DetailSectionHeading("Faixas de frequência cardíaca")
+            ActivityHeartRateChartSection(activity)
+        }
         if (operationError != null) {
             if (operationError.category == ExerciseOperationErrorCategory.WRITE_ACCEPTED_NO_READBACK) {
                 PermissionBanner(
@@ -1222,24 +2042,12 @@ private fun WorkoutActivityDetailContent(
                 )
             }
         }
-        ActivityStatusOriginSection(activity)
         if (activity.isWatchWorkout && !activity.isCycling && activity.requiresWatchWorkoutReprocessing) {
             WatchWorkoutReprocessSection(
                 activity = activity,
                 isReprocessing = isReprocessing,
                 onRequestReprocess = onRequestReprocess,
             )
-        }
-        DetailSectionHeading("Resumo")
-        ActivityMetricsSection(activity, latestCalibration)
-        DetailSectionHeading("Tendências")
-        ActivityCanonicalChartSection(activity)
-        ActivityCadenceChartSection(activity)
-        ActivityHeartRateChartSection(activity)
-        if (!activity.isCycling) {
-            DetailSectionHeading("Detalhamento")
-            ActivityIntervalsSection(activity)
-            ActivitySplitsSection(activity)
         }
         if (hasReferenceDistanceCalibration) {
             DetailSectionHeading("Revisão e calibração")
@@ -1311,39 +2119,6 @@ private fun WorkoutActivityDetailContent(
                 )
             }
         }
-        if (canDiscardSelectedActivity || canDeleteSelectedActivity) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ChampionShapeMedium,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) {
-                Column(
-                    modifier = Modifier.padding(ChampionSpacing.large),
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                ) {
-                    DetailSectionHeading("Ações locais")
-                    Text(
-                        "Estas ações não iniciam sincronização e exigem confirmação.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (canDiscardSelectedActivity) {
-                        TextButton(onClick = onRequestDiscard, modifier = Modifier.align(Alignment.End)) {
-                            Text("Descartar treino", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                    if (canDeleteSelectedActivity) {
-                        TextButton(
-                            onClick = onRequestDelete,
-                            enabled = !isDeletingSelectedActivity,
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text("Excluir treino permanentemente", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1358,127 +2133,91 @@ private fun DetailSectionHeading(title: String) {
 }
 
 @Composable
-private fun ActivityHeaderCard(activity: WorkoutActivity) {
-    Card(
+private fun ActivityDetailHeader(
+    activity: WorkoutActivity?,
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
+    canDiscard: Boolean = false,
+    canDelete: Boolean = false,
+    isDeleting: Boolean = false,
+    onRequestDiscard: () -> Unit = {},
+    onRequestDelete: () -> Unit = {},
+) {
+    var isOverflowExpanded by remember(activity?.id) { mutableStateOf(false) }
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
-        border = BorderStroke(1.dp, exercisePrimaryAccent()),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(activity.displayTitle(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = "${activity.metrics.startedAt.formatDateTime()} • ${activity.metrics.duration.toDurationLabel()}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActivityStatusOriginSection(activity: WorkoutActivity) {
-    val isCanonicalWarning = activity.isWatchWorkout && !activity.isCycling &&
-        activity.canonicalReadStatus in setOf(
-            WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED,
-            WorkoutCanonicalReadStatus.SERIES_INELIGIBLE,
-        )
-    val statusAccent = if (isCanonicalWarning) {
-        MaterialTheme.colorScheme.error
-    } else {
-        activity.workflowState.toListAccentColor()
-    }
-    val snapshot = activity.derivationSnapshot
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics {
-                stateDescription = activity.workflowState.toLabel()
-                contentDescription = activity.statusOriginAccessibleDescription()
-            },
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        border = BorderStroke(1.dp, statusAccent),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text(
-                "Status e origem",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-            ) {
-                ActivityBadge(activity.workflowState.toChipLabel(), statusAccent)
-                ActivityBadge(activity.displayType().toLabel(), exerciseSecondaryAccent())
-                ActivityBadge(activity.parserValidity.toLabel(), exerciseTertiaryAccent())
-                ActivityBadge(
-                    activity.originLabel(),
-                    exercisePrimaryAccent(),
+        if (onNavigateBack != null) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = backLabel,
                 )
             }
-            if (activity.isWatchWorkout && !activity.isCycling) {
-                Text(
-                    "Derivação canônica",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = activity.canonicalReadStatus.toShortLabel(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = statusAccent,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = activity.canonicalStatusMessage(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                snapshot?.let {
-                    Text(
-                        text = "Comprimento do passo: ${formatStepLength(it.stepLengthMetersUsed)} (${it.stepLengthSource.toLabel()}) • Derivação ${it.derivationVersion}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (snapshot?.plausibility?.indicators?.isNotEmpty() == true) {
-                    Text(
-                        text = "Indicadores: ${snapshot.plausibility.indicators.joinToString { it.toLabel() }}.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
+        } else {
+            Box(modifier = Modifier.size(48.dp))
         }
-    }
-}
-
-@Composable
-private fun ActivityBadge(label: String, accentColor: Color) {
-    Surface(
-        shape = ChampionShapeMedium,
-        color = accentColor.copy(alpha = if (isSystemInDarkTheme()) 0.2f else 0.1f),
-        contentColor = accentColor,
-        border = BorderStroke(1.dp, accentColor),
-    ) {
         Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = ChampionSpacing.medium, vertical = ChampionSpacing.small),
-            style = MaterialTheme.typography.labelLarge,
+            text = activity?.displayType()?.toLabel() ?: "Detalhe do treino",
+            modifier = Modifier
+                .weight(1f)
+                .semantics { heading() },
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
         )
+        Box {
+            IconButton(
+                onClick = { if (canDiscard || canDelete) isOverflowExpanded = true },
+                modifier = Modifier.semantics {
+                    contentDescription = "Mais opções"
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = null,
+                )
+            }
+            if (canDiscard || canDelete) {
+                DropdownMenu(
+                    expanded = isOverflowExpanded,
+                    onDismissRequest = { isOverflowExpanded = false },
+                ) {
+                    if (canDiscard) {
+                        DropdownMenuItem(
+                            text = { Text("Descartar treino") },
+                            onClick = {
+                                isOverflowExpanded = false
+                                onRequestDiscard()
+                            },
+                        )
+                    }
+                    if (canDelete) {
+                        DropdownMenuItem(
+                            text = { Text("Excluir treino permanentemente") },
+                            enabled = !isDeleting,
+                            onClick = {
+                                isOverflowExpanded = false
+                                onRequestDelete()
+                            },
+                        )
+                    }
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun ActivityDetailMetadata(activity: WorkoutActivity) {
+    val localDate = activity.metrics.startedAt.atZone(ZoneId.systemDefault()).toLocalDate()
+    Text(
+        text = "${formatExerciseDayLabel(localDate, LocalDate.now(ZoneId.systemDefault()))} • " +
+            "${activity.metrics.startedAt.formatTime()} • ${activity.originLabel().removePrefix("Origem: ")} • " +
+            activity.workflowState.toLabel(),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 private data class CanonicalActivityMetricReadModel(
@@ -1501,287 +2240,91 @@ private fun WorkoutActivity.canonicalMetricReadModel(): CanonicalActivityMetricR
 }
 
 @Composable
-private fun ActivityCanonicalChartSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout || activity.isCycling) return
-    val series = activity.canonicalSeries
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text("Série canônica", style = MaterialTheme.typography.titleLarge)
-            if (series == null) {
-                Text(
-                    text = "Gráfico indisponível: ${activity.canonicalStatusMessage()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else if (series.intervals.isEmpty()) {
-                Text(
-                    text = "Gráfico indisponível: série sem intervalos derivados.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Text(
-                    text = if (activity.canonicalReadStatus == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED) {
-                        "Distância estimada acumulada para diagnóstico; não é uma série confiável."
-                    } else {
-                        "Distância estimada acumulada, sem suavização."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                WorkoutCanonicalDistanceChart(series)
-            }
-        }
-    }
-}
-
-@Composable
-private fun WorkoutCanonicalDistanceChart(series: CanonicalWorkoutSeries) {
-    val intervals = series.intervals
-    val first = intervals.first().effectiveWindow.start
-    val last = intervals.last().effectiveWindow.end
-    val durationSeconds = elapsedSeconds(first, last).coerceAtLeast(1.0)
-    val maximumDistanceKm = (intervals.last().cumulativeDistanceMeters / 1_000.0).let {
-        if (it == 0.0) 0.01 else it
-    }
-    val points = intervals.map { interval ->
-        val elapsedSeconds = elapsedSeconds(first, interval.effectiveWindow.end)
-        ChampionChartPoint(
-            x = elapsedSeconds,
-            y = interval.cumulativeDistanceMeters / 1_000.0,
-            xLabel = interval.effectiveWindow.end.formatChartTime(),
-            contentDescription = "Intervalo ${interval.index + 1}, " +
-                "${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados em " +
-                interval.effectiveWindow.end.formatDateTime() + ".",
-        )
-    }
-    val axisPadding = (chartAxisPadding(points) / 2.0).coerceAtLeast(0.5)
-    val axisMaximum = durationSeconds + axisPadding
-    val chartData = ChampionCartesianChartData(
-        series = listOf(
-            ChampionChartSeries(
-                key = "canonical-distance",
-                label = "Distância acumulada",
-                points = points,
-            ),
-        ),
-        xAxis = ChampionChartXAxisSpec(
-            formatter = ChampionChartXAxisFormatter { value ->
-                first.plusNanos((value * 1_000_000_000.0).roundToLong()).formatChartAxisTime()
-            },
-            title = "Tempo",
-            minimum = -axisPadding,
-            maximum = axisMaximum,
-        ),
-        yAxis = ChampionChartAxisSpec(
-            title = "Distância acumulada",
-            formatter = ChampionChartFormatters.decimal(maximumFractionDigits = 2),
-            unit = ChampionChartUnit("km"),
-            minimum = 0.0,
-            maximum = maximumDistanceKm,
-        ),
-        interaction = ChampionChartInteractionPolicy(
-            scrollEnabled = intervals.size > 6,
-        ),
-        accessibilitySummary = canonicalChartAccessibleSummary(series) +
-            " Valores em quilômetros; pontos representam o término efetivo de cada intervalo.",
-    )
-    ChampionTimeSeriesChart(
-        data = chartData,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp),
-    )
-}
-
-private fun canonicalChartAccessibleSummary(series: CanonicalWorkoutSeries): String =
-    "Resumo acessível: ${series.intervals.size} intervalos, término em ${series.intervals.last().cumulativeDistanceMeters.toDistanceLabel()} acumulados."
-
-@Composable
-private fun ActivityCadenceChartSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout || activity.isCycling) return
-    val snapshot = activity.derivationSnapshot
-    val series = activity.canonicalSeries
-    val intervals = if (snapshot?.canonicalSeriesEligible == true) {
-        series?.intervals.orEmpty()
-    } else {
-        emptyList()
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text("Cadência D4", style = MaterialTheme.typography.titleLarge)
-            when {
-                snapshot?.canonicalSeriesEligible != true -> Text(
-                    text = "Gráfico indisponível: ${activity.canonicalStatusMessage()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                series == null -> Text(
-                    text = "Gráfico indisponível: série canônica ausente.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                intervals.isEmpty() -> Text(
-                    text = "Gráfico indisponível: não há intervalos D4 elegíveis para cadência.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                else -> {
-                    Text(
-                        text = if (activity.canonicalReadStatus == WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED) {
-                            "Cadência D4 por intervalo real para diagnóstico; a série contém valores implausíveis e não é confiável."
-                        } else {
-                            "Cadência D4 por intervalo real, sem interpolação, suavização ou reamostragem."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    WorkoutCadenceChart(series)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WorkoutCadenceChart(series: CanonicalWorkoutSeries) {
-    val intervals = series.intervals
-    if (intervals.isEmpty()) return
-    val first = intervals.first().effectiveWindow.start
-    val points = intervals.map { interval ->
-        val midpoint = interval.effectiveWindow.start.plus(interval.effectiveDuration.dividedBy(2))
-        ChampionChartPoint(
-            x = elapsedSeconds(first, midpoint),
-            y = interval.cadenceStepsPerMinute,
-            xLabel = cadenceIntervalChartLabel(interval),
-            contentDescription = cadenceIntervalAccessibleDescription(interval),
-        )
-    }
-    val durationSeconds = elapsedSeconds(first, intervals.last().effectiveWindow.end).coerceAtLeast(1.0)
-    val maximumCadence = points.maxOf { it.y ?: 0.0 }.coerceAtLeast(1.0)
-    val axisPadding = (chartAxisPadding(points) / 2.0).coerceAtLeast(0.5)
-    val chartData = ChampionCartesianChartData(
-        series = listOf(
-            ChampionChartSeries(
-                key = "workout-cadence",
-                label = "Cadência D4",
-                points = points,
-            ),
-        ),
-        xAxis = ChampionChartXAxisSpec(
-            formatter = ChampionChartXAxisFormatter { value ->
-                Duration.ofMillis((value * 1_000.0).roundToLong()).toDurationLabel()
-            },
-            title = "Tempo",
-            minimum = 0.0,
-            maximum = durationSeconds + axisPadding,
-        ),
-        yAxis = ChampionChartAxisSpec(
-            title = "Cadência",
-            formatter = ExerciseCadenceChartValueFormatter,
-            unit = ChampionChartUnit("spm"),
-            minimum = 0.0,
-            maximum = maximumCadence,
-        ),
-        interaction = ChampionChartInteractionPolicy(
-            scrollEnabled = intervals.size > 6,
-        ),
-        accessibilitySummary = cadenceChartAccessibleSummary(intervals) +
-            " Cada ponto representa o ponto médio da janela efetiva do intervalo; não há pontos sintéticos.",
-    )
-    ChampionTimeSeriesChart(
-        data = chartData,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp),
-    )
-}
-
-private fun cadenceIntervalChartLabel(interval: DerivedWorkoutInterval): String {
-    val measuredSteps = interval.decodedSteps?.let { " · ${numberLabel(it)} passos" }.orEmpty()
-    return "${interval.effectiveWindow.start.formatChartTime()}–" +
-        "${interval.effectiveWindow.end.formatChartTime()}$measuredSteps"
-}
-
-private fun cadenceIntervalAccessibleDescription(interval: DerivedWorkoutInterval): String =
-    "Intervalo ${interval.index + 1}, período ${interval.effectiveWindow.start.formatDateTime()} a " +
-        "${interval.effectiveWindow.end.formatDateTime()}, cadência " +
-        "${ExerciseCadenceChartValueFormatter.format(interval.cadenceStepsPerMinute)} spm, " +
-        (interval.decodedSteps?.let { "${numberLabel(it)} passos medidos" } ?: "passos medidos indisponíveis") + "."
-
-private fun cadenceChartAccessibleSummary(intervals: List<DerivedWorkoutInterval>): String {
-    if (intervals.isEmpty()) return "Resumo acessível: nenhum intervalo D4 elegível para cadência."
-    val cadenceValues = intervals.map(DerivedWorkoutInterval::cadenceStepsPerMinute)
-    return "Resumo acessível: ${intervals.size} intervalos D4 reais, de " +
-        "${intervals.first().effectiveWindow.start.formatDateTime()} a " +
-        "${intervals.last().effectiveWindow.end.formatDateTime()}, cadência entre " +
-        "${ExerciseCadenceChartValueFormatter.format(cadenceValues.min())} e " +
-        "${ExerciseCadenceChartValueFormatter.format(cadenceValues.max())} spm."
-}
-
-@Composable
-private fun ActivityMetricsSection(
-    activity: WorkoutActivity,
-    latestCalibration: TreadmillCalibrationSnapshot?,
-) {
+private fun ActivityMetricsSection(activity: WorkoutActivity) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        Text("Resumo e métricas", style = MaterialTheme.typography.titleLarge)
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            activity.detailMetricItems().forEachIndexed { index, item ->
-                MetricCard(item.label, item.value, exerciseMetricAccent(index))
-            }
+        activity.referenceDetailMetricItems().forEach { item ->
+            ActivityDetailMetricRow(item)
         }
-        activity.confirmedType?.let {
-            Text(
-                text = "Tipo confirmado: ${it.toLabel()} • Tipo sugerido: ${activity.suggestedType.toLabel()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    }
+}
+
+private fun WorkoutActivity.referenceDetailMetricItems(): List<DetailMetricItem> = buildList {
+    add(DetailMetricItem("Duração", metrics.duration.toReferenceDurationLabel()))
+    val canonical = canonicalMetricReadModel()
+        ?.takeIf { isWatchWorkout && canonicalReadStatus == WorkoutCanonicalReadStatus.AVAILABLE }
+    val distanceMeters = if (isWatchWorkout) canonical?.totalDistanceMeters else displayDistanceMetersOrNull()
+    distanceMeters?.let {
+        add(DetailMetricItem("Distância", distanceMeters.toDistanceLabel()))
+    }
+    val measuredSteps = if (isWatchWorkout) {
+        canonical?.cumulativeSteps
+    } else {
+        metrics.steps.takeIf { metrics.stepsAvailable }
+    }
+    measuredSteps?.let { steps ->
+        add(DetailMetricItem("Etapas", numberLabel(steps)))
+    }
+    referenceAveragePaceSeconds()?.let { paceSeconds ->
+        add(DetailMetricItem("Ritmo médio", paceSeconds.toReferencePaceLabel()))
+    }
+    (metrics.averageBpm as? DomainValue.Present)
+        ?.value
+        ?.takeIf { heartRateSamples.isNotEmpty() }
+        ?.let { averageBpm ->
+            add(DetailMetricItem("Frequência cardíaca média", "$averageBpm bpm"))
         }
-        latestCalibration?.let {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ChampionShapeMedium,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(ChampionSpacing.large),
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                ) {
-                    Text(
-                        text = if (activity.isWatchWorkout) "Calibração histórica (diagnóstico)" else "Calibração ativa",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text("Revisão ${it.revision} • Aplicada em ${it.appliedAt.formatDateTime()}", style = MaterialTheme.typography.bodyMedium)
-                    Text("Distância informada: ${it.reportedDistanceMeters.toDistanceLabel()}", style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
+}
+
+private fun WorkoutActivity.referenceAveragePaceSeconds(): Double? =
+    when {
+        isCycling -> null
+        isWatchWorkout -> canonicalMetricReadModel()
+            ?.takeIf { canonicalReadStatus == WorkoutCanonicalReadStatus.AVAILABLE }
+            ?.paceSecondsPerKilometer
+        else -> metrics.calibratedMetrics?.averagePaceSecondsPerKilometer?.valueOrNull()
+            ?: metrics.averagePaceSecondsPerKilometer.valueOrNull()
+    }
+
+private fun Double.toReferencePaceLabel(): String {
+    if (!isFinite() || this <= 0.0) return "indisponível"
+    val totalSeconds = roundToLong()
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return if (seconds == 0L) {
+        "$minutes min"
+    } else {
+        "$minutes min $seconds s"
+    }
+}
+
+@Composable
+private fun ActivityDetailMetricRow(item: DetailMetricItem) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${item.label}: ${item.value}"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = item.label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = item.value,
+            modifier = Modifier.padding(start = ChampionSpacing.medium),
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -1807,87 +2350,86 @@ private fun MetricCard(label: String, value: String, accentColor: Color) {
 
 @Composable
 private fun ActivityHeartRateChartSection(activity: WorkoutActivity) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text("Frequência cardíaca", style = MaterialTheme.typography.titleLarge)
-            if (activity.heartRateSamples.isEmpty()) {
-                Text(
-                    text = "Sem amostras reais de BPM disponíveis para este treino.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                WorkoutHeartRateChart(activity.heartRateSamples)
-            }
-        }
+    Text(
+        text = activity.referenceAverageHeartRateLabel(),
+        style = MaterialTheme.typography.displaySmall,
+        fontWeight = FontWeight.SemiBold,
+    )
+    WorkoutHeartRateChart(
+        samples = activity.heartRateSamples,
+        activityDuration = activity.metrics.duration,
+    )
+}
+
+private fun WorkoutActivity.referenceAverageHeartRateLabel(): String =
+    when (val average = metrics.averageBpm) {
+        is DomainValue.Present -> "${average.value} bpm (méd.)"
+        is DomainValue.Absent -> "FC indisponível"
     }
+
+private fun Duration.toDetailDurationLabel(): String {
+    if (isNegative) return "indisponível"
+    val totalSeconds = seconds
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val remainingSeconds = totalSeconds % 60
+    return buildList {
+        if (hours > 0) add("$hours ${if (hours == 1L) "hora" else "horas"}")
+        if (minutes > 0) add("$minutes ${if (minutes == 1L) "minuto" else "minutos"}")
+        if (remainingSeconds > 0 || isZero) {
+            add("$remainingSeconds ${if (remainingSeconds == 1L) "segundo" else "segundos"}")
+        }
+    }.joinToString(" ")
+}
+
+private fun Duration.toReferenceDurationLabel(): String {
+    if (isNegative) return "indisponível"
+    val totalSeconds = seconds
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val remainingSeconds = totalSeconds % 60
+    return buildList {
+        if (hours > 0) add("$hours h")
+        if (minutes > 0) add("$minutes min")
+        if (remainingSeconds > 0 || isZero) add("$remainingSeconds s")
+    }.joinToString(" ")
 }
 
 @Composable
-private fun WorkoutHeartRateChart(samples: List<WorkoutHeartRateSample>) {
+private fun WorkoutHeartRateChart(
+    samples: List<WorkoutHeartRateSample>,
+    activityDuration: Duration,
+) {
     val sortedSamples = samples.sortedBy { it.sampledAt }
-    val first = sortedSamples.first().sampledAt
-    val lanes = mutableListOf<MutableList<ChampionChartPoint>>()
-    sortedSamples.forEach { sample ->
-        val x = elapsedSeconds(first, sample.sampledAt)
-        val point = ChampionChartPoint(
-            x = x,
+    val zoneId = ZoneId.systemDefault()
+    val activityStart = sortedSamples.first().sampledAt
+        .atZone(zoneId)
+        .toInstant()
+    val activityDurationSeconds = activityDuration.seconds.toDouble() +
+        activityDuration.nano.toDouble() / 1_000_000_000.0
+    val chartDurationSeconds = activityDurationSeconds
+        .takeIf { it > 0.0 && it.isFinite() }
+        ?: Duration.between(activityStart, sortedSamples.last().sampledAt)
+            .toMillis()
+            .toDouble()
+            .div(1_000.0)
+            .coerceAtLeast(1.0)
+    val chartPoints = sortedSamples.map { sample ->
+        ChampionChartPoint(
+            x = Duration.between(activityStart, sample.sampledAt).toMillis() / 1_000.0,
             y = sample.bpm.toDouble(),
             xLabel = sample.sampledAt.formatChartTime(),
             contentDescription = "${sample.bpm} bpm em ${sample.sampledAt.formatDateTime()}.",
         )
-        lanes.firstOrNull { lane -> lane.lastOrNull()?.x?.let { it < x } != false }
-            ?.add(point)
-            ?: lanes.add(mutableListOf(point))
     }
-    val points = lanes.flatMap { it }
-    val durationSeconds = points.maxOfOrNull { it.x }?.coerceAtLeast(1.0) ?: 1.0
-    val axisPadding = (chartAxisPadding(points) / 2.0).coerceAtLeast(0.5)
-    val axisMaximum = durationSeconds + axisPadding
-    val chartData = ChampionCartesianChartData(
-        series = lanes.mapIndexed { index, pointsInLane ->
-            ChampionChartSeries(
-                key = if (index == 0) "workout-heart-rate" else "workout-heart-rate-$index",
-                label = "Frequência cardíaca",
-                points = pointsInLane,
-            )
-        },
-        xAxis = ChampionChartXAxisSpec(
-            formatter = ChampionChartXAxisFormatter { value ->
-                first.plusNanos((value * 1_000_000_000.0).roundToLong()).formatChartAxisTime()
-            },
-            title = "Tempo",
-            minimum = -axisPadding,
-            maximum = axisMaximum,
-        ),
-        yAxis = ChampionChartAxisSpec(
-            title = "Frequência cardíaca",
-            formatter = ChampionChartFormatters.integer(),
-            unit = ChampionChartUnit("bpm"),
-            minimum = 30.0,
-            maximum = 220.0,
-        ),
-        referenceLines = ExerciseHeartRateGuideBands.map { value ->
-            ChampionChartReferenceLine(
-                value = value,
-                label = "${value.roundToInt()} bpm",
-                contentDescription = "Guideline de ${value.roundToInt()} bpm.",
-            )
-        },
-        interaction = ChampionChartInteractionPolicy(
-            scrollEnabled = points.size > 6,
-        ),
-        accessibilitySummary = "Gráfico de frequência cardíaca do treino. " +
-            "${points.size} amostra(s) reais disponíveis. Valores entre 30 e 220 bpm.",
-    )
-    ChampionTimeSeriesChart(
-        data = chartData,
+    val chartDescription = "Gráfico de frequência cardíaca do treino. " +
+        "Duração ${activityDuration.toDetailDurationLabel()}. " +
+        "${chartPoints.size} amostra(s) real(is) disponível(is)."
+    GoogleHealthIntradayHeartRateChart(
+        points = chartPoints,
+        accessibilitySummary = chartDescription,
+        showLine = true,
+        timeWindowSeconds = chartDurationSeconds,
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp),
@@ -2089,11 +2631,12 @@ private fun ActivitySplitsSection(activity: WorkoutActivity) {
                 WorkoutCanonicalReadStatus.AVAILABLE -> {
                     if (splits.isEmpty()) {
                         Text(
-                            text = "Nenhum split materializado para exibir.",
+                            text = "Nenhuma parcial persistida para exibir.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
+                        Text("Parciais persistidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         splits.forEach { split -> WorkoutSplitCard(split) }
                     }
                 }
@@ -2668,47 +3211,21 @@ private data class DetailMetricItem(
 )
 
 private fun WorkoutActivity.detailMetricItems(): List<DetailMetricItem> {
-    if (isWatchWorkout) {
-        if (isCycling) {
-            return listOf(
-                DetailMetricItem("Distância", cyclingManualDistanceMetersOrNull().toDistanceLabel()),
-                DetailMetricItem("Velocidade média", cyclingAverageSpeedMetersPerSecond().toSpeedLabel()),
-                DetailMetricItem("Calorias", metrics.caloriesKilocalories.toKcalLabel()),
-                DetailMetricItem("BPM médio", metrics.averageBpm.toBpmLabel()),
-                DetailMetricItem("BPM mínimo", metrics.minimumBpm.toBpmLabel()),
-                DetailMetricItem("BPM máximo", metrics.maximumBpm.toBpmLabel()),
-            )
-        }
-        val canonical = canonicalMetricReadModel()
-        return listOf(
-            DetailMetricItem("Distância estimada acumulada", canonical?.totalDistanceMeters.toDistanceLabel()),
-            DetailMetricItem("Passos medidos", canonical?.cumulativeSteps?.let(::numberLabel) ?: "indisponível"),
-            DetailMetricItem("Ritmo estimado", canonical?.paceSecondsPerKilometer.toPaceLabel()),
-            DetailMetricItem("Velocidade estimada", canonical?.speedMetersPerSecond.toSpeedLabel()),
-            DetailMetricItem("Calorias", metrics.caloriesKilocalories.toKcalLabel()),
-            DetailMetricItem("BPM médio", metrics.averageBpm.toBpmLabel()),
-            DetailMetricItem("BPM mínimo", metrics.minimumBpm.toBpmLabel()),
-            DetailMetricItem("BPM máximo", metrics.maximumBpm.toBpmLabel()),
-        )
-    }
-    val common = mutableListOf(
-        DetailMetricItem("Distância final", metrics.distances.toDistanceLabel()),
-        DetailMetricItem("Calorias", metrics.caloriesKilocalories.toKcalLabel()),
-        DetailMetricItem("BPM médio", metrics.averageBpm.toBpmLabel()),
-        DetailMetricItem("BPM mínimo", metrics.minimumBpm.toBpmLabel()),
-        DetailMetricItem("BPM máximo", metrics.maximumBpm.toBpmLabel()),
+    return listOf(
+        DetailMetricItem("Duração", metrics.duration.toDetailDurationLabel()),
+        DetailMetricItem("Distância", displayDistanceLabel()),
+        DetailMetricItem("Etapas", displayStepsLabel()),
+        DetailMetricItem("Ritmo médio", displayAveragePaceLabel()),
+        DetailMetricItem("Frequência cardíaca média", metrics.averageBpm.toBpmLabel()),
     )
+}
 
-    return if (displayType() == WorkoutType.FREE_WORKOUT) {
-        common
-    } else {
-        listOf(
-            DetailMetricItem("Distância importada", metrics.distances.toImportedDistanceLabel()),
-            DetailMetricItem("Passos", numberLabel(metrics.steps)),
-            DetailMetricItem("Ritmo médio", displayAveragePaceLabel()),
-            DetailMetricItem("Velocidade média", displayAverageSpeedLabel()),
-        ) + common
-    }
+private fun WorkoutActivity.displayStepsLabel(): String = if (isWatchWorkout) {
+    canonicalMetricReadModel()?.cumulativeSteps?.let(::numberLabel) ?: "indisponível"
+} else if (metrics.stepsAvailable) {
+    numberLabel(metrics.steps)
+} else {
+    "indisponível"
 }
 
 private fun heartRateAccessibleSummary(samples: List<WorkoutHeartRateSample>): String {
@@ -2748,6 +3265,9 @@ private val WorkoutActivity.isWatchWorkout: Boolean
 private val WorkoutActivity.isCycling: Boolean
     get() = confirmedType == WorkoutType.CYCLING
 
+private fun WorkoutActivity.isEligibleForExerciseCalendar(): Boolean =
+    workflowState != ActivityWorkflowState.DISCARDED
+
 private fun WorkoutActivity.cyclingManualDistanceMetersOrNull(): Double? {
     if (!isCycling) return null
     return when (val distance = metrics.distances.manualDistanceMeters) {
@@ -2765,11 +3285,16 @@ private fun WorkoutActivity.cyclingAverageSpeedMetersPerSecond(): Double? {
     return (distance / durationSeconds).takeIf { it.isFinite() && it > 0.0 }
 }
 
-private fun WorkoutActivity.displayDistanceLabel(): String = when {
-    isCycling -> "Distância ${cyclingManualDistanceMetersOrNull().toDistanceLabel()}"
-    isWatchWorkout -> "Distância estimada ${canonicalMetricReadModel()?.totalDistanceMeters.toDistanceLabel()}"
-    else -> "Distância ${metrics.distances.toDistanceLabel()}"
+private fun WorkoutActivity.displayDistanceMetersOrNull(): Double? = when {
+    isCycling -> cyclingManualDistanceMetersOrNull()
+    isWatchWorkout -> canonicalMetricReadModel()
+        ?.takeIf { canonicalReadStatus == WorkoutCanonicalReadStatus.AVAILABLE }
+        ?.totalDistanceMeters
+    else -> metrics.distances.finalDistanceMetersOrNull()
 }
+
+private fun WorkoutActivity.displayDistanceLabel(): String =
+    displayDistanceMetersOrNull().toDistanceLabel()
 
 private fun WorkoutActivity.canonicalStatusAccessibleDescription(): String =
     "${canonicalReadStatus.toShortLabel()}. ${canonicalStatusMessage()}"
@@ -2948,11 +3473,6 @@ private fun WorkoutActivity.displayAverageSpeedLabel(): String =
 
 private fun <T> DomainValue<T>.valueOrNull(): T? = (this as? DomainValue.Present)?.value
 
-private fun elapsedSeconds(start: Instant, end: Instant): Double {
-    val duration = Duration.between(start, end)
-    return duration.seconds.toDouble() + duration.nano.toDouble() / 1_000_000_000.0
-}
-
 private fun chartAxisPadding(points: List<ChampionChartPoint>): Double =
     points
         .map { it.x }
@@ -3035,6 +3555,18 @@ private fun ActivityWorkflowState.toListAccentColor(): Color = when (this) {
 }
 
 @Composable
+private fun ActivityWorkflowState.toExerciseCalendarColor(): Color = when (this) {
+    ActivityWorkflowState.PENDING_REVIEW -> exerciseSecondaryAccent()
+    ActivityWorkflowState.PENDING_CALIBRATION -> exerciseTertiaryAccent()
+    ActivityWorkflowState.READY_TO_SYNC,
+    ActivityWorkflowState.SYNCING,
+    ActivityWorkflowState.SYNCED,
+    -> exercisePrimaryAccent()
+    ActivityWorkflowState.SYNC_FAILED -> MaterialTheme.colorScheme.error
+    ActivityWorkflowState.DISCARDED -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+@Composable
 private fun exercisePrimaryAccent(): Color = if (isSystemInDarkTheme()) {
     DarkColorScheme.primary
 } else {
@@ -3078,15 +3610,17 @@ private fun ParserValidity.toLabel(): String = when (this) {
 }
 
 private fun WorkoutDistanceMetrics.toDistanceLabel(): String {
-    val finalMeters = when {
-        calibratedMeters is DomainValue.Present -> calibratedMeters.value
-        originalMeters is DomainValue.Present -> originalMeters.value
-        estimatedMeters is DomainValue.Present -> estimatedMeters.value
-        else -> null
-    } ?: return "indisponível"
+    val finalMeters = finalDistanceMetersOrNull() ?: return "indisponível"
 
     val kilometers = finalMeters / 1_000.0
     return String.format(Locale.forLanguageTag("pt-BR"), "%.2f km", kilometers)
+}
+
+private fun WorkoutDistanceMetrics.finalDistanceMetersOrNull(): Double? = when {
+    calibratedMeters is DomainValue.Present -> calibratedMeters.value
+    originalMeters is DomainValue.Present -> originalMeters.value
+    estimatedMeters is DomainValue.Present -> estimatedMeters.value
+    else -> null
 }
 
 private fun WatchWorkoutImportSurfaceState.sessionOrNull(): WatchWorkoutImportSessionState? = when (this) {
@@ -3200,6 +3734,11 @@ private fun WorkoutType.toLabel(): String = when (this) {
 private fun Instant.formatDateTime(): String =
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
         .withLocale(Locale.forLanguageTag("pt-BR"))
+        .withZone(ZoneId.systemDefault())
+        .format(this)
+
+private fun Instant.formatTime(): String =
+    DateTimeFormatter.ofPattern("HH:mm", Locale.forLanguageTag("pt-BR"))
         .withZone(ZoneId.systemDefault())
         .format(this)
 

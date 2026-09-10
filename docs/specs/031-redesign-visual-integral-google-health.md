@@ -24,8 +24,8 @@ possui. O conteúdo exibido continuará limitado aos dados e fluxos já existent
 - Referência: `com.fitbit.FitbitMobile`.
 - Barra inferior: somente `Home` e `Saúde`.
 - Home: resumos principais; header com acesso a Dispositivo e Perfil.
-- Calendário: calendário de exercícios restrito ao fluxo de Exercícios, acessível
-  pela tela de Exercícios; Home e Saúde não ganham integração direta.
+- Exercícios: filtro `Mês` com calendário contextual, resumo e lista mensal
+  agrupada por semana; Home e Saúde não ganham integração direta com Calendário.
 - Escopo: todas as superfícies atuais, incluindo Configurações.
 - Fidelidade: disposição, gráficos, filtros, ícones, textos relevantes,
   espaçamentos e hierarquia visual devem seguir a referência observada.
@@ -146,12 +146,14 @@ fontes ou dependências proprietárias.
 - Barra inferior mostra somente `Home` e `Saúde`.
 - Seleção, back stack, restauração, animações e retorno contextual permanecem
   funcionais.
-- Calendário não aparece como área de topo; entra pelo fluxo de Exercícios.
+- Calendário não aparece como área de topo nem como página principal separada:
+  aparece dentro da tela de Exercícios quando o filtro `Mês` está selecionado.
 - Dispositivo e Perfil ficam acessíveis pelo header da Home.
 - Exercícios, calendário e Configurações mantêm entradas contextuais claras;
   nenhuma rota funcional pode ficar órfã. Calendário permanece restrito ao
   fluxo de Exercícios; Saúde e demais superfícies não ganham integração direta
-  com Calendário.
+  com Calendário. `AppDestination.Calendar` e `CalendarScreen` podem permanecer
+  somente como compatibilidade de estado restaurado/legado, sem CTA principal.
 
 Matriz mínima de entradas e retorno:
 
@@ -163,10 +165,10 @@ Matriz mínima de entradas e retorno:
 | Home/resumo `Atividades` | Exercícios | Home |
 | Saúde/resumo `Atividades` | Exercícios | Saúde |
 | Saúde/card de métrica | detalhe correspondente | Saúde |
-| Exercícios/ação `Calendário` | Calendário | Exercícios |
+| Exercícios/filtro `Mês` | calendário, resumo e lista mensal agrupada por semana | mesma tela de Exercícios |
 | Exercícios/item | detalhe de atividade | Exercícios |
-| Calendário/dia | detalhe diário | Calendário |
-| Calendário/voltar | origem que abriu Calendário | Exercícios |
+| Exercícios/dia selecionado | detalhe diário, quando necessário | Exercícios |
+| rota legada/restaurada `Calendar` | `CalendarScreen` compatível | predecessor salvo |
 | detalhe diário/atividade | detalhe de atividade | detalhe diário |
 | detalhe de atividade/voltar | Exercícios | origem contextual |
 | detalhe de métrica/voltar | Saúde | Saúde |
@@ -191,11 +193,22 @@ Reorganizar hub e detalhes de frequência cardíaca, peso, passos e distância p
 seguir a referência em cards, cabeçalhos, filtros, tendências, listas e ações,
 origem, unidade, período, lacunas e ausência segura.
 
-### R6 — Exercícios e calendário
+### R6 — Exercícios e histórico mensal
 
 Reorganizar lista, filtros, importação, progresso, detalhe, revisão, calibração,
-descarte e sincronização; incorporar calendário ao fluxo de Exercícios e
-preservar detalhe diário e navegação contextual existentes.
+descarte e sincronização; no filtro `Mês`, substituir o gráfico por calendário
+contextual, resumo mensal, controles de Dias com exercícios/Duração/Distância e
+lista agrupada por semana, seguindo a composição observada na referência. A grade
+permite selecionar visualmente um dia, sem CTA ou navegação de abertura. Setas
+de mês atualizam calendário, resumo e lista e não permitem avançar para meses
+futuros. Na visão `Semana`, duas setas alteram a semana civil e atualizam gráfico
+e lista; a seta de avanço não permite semanas futuras. O filtro por status aparece
+abaixo do gráfico e antes da lista. Na visão `Mês`, não há filtro por status nem
+lista individual: calendário e agregados semanais usam todos os status elegíveis
+e semanas sem exercícios são omitidas. Cards individuais seguem a composição das listas de
+Saúde, com título/distância na primeira linha e horário/duração na segunda, sem
+origem ou seta; cards agregados mensais mostram período, total de atividades e
+tipos de exercício.
 
 ### R7 — Perfil, Dispositivo e Configurações
 
@@ -244,8 +257,10 @@ após concluir uma subtarefa; exigir revisão independente.
    escopo e descarte confirmados.
 2. Barra inferior possui somente Home e Saúde, com seleção e restauração corretas.
 3. Dispositivo e Perfil são acessíveis pelo header da Home.
-4. Exercícios é acessível pelos contextos previstos de Home e Saúde; Calendário
-   é acessível somente pelo fluxo de Exercícios, sem rota funcional órfã.
+4. Exercícios é acessível pelos contextos previstos de Home e Saúde; seus filtros
+     `Mês` e `Semana` mostram navegação temporal por setas e lista correspondente
+     na mesma tela, sem permitir meses ou semanas futuras. `Mês` inclui calendário
+     exclusivo de exercícios, sem rota funcional órfã e sem botão `Abrir dia`.
 5. As 13 superfícies — Home, hub Saúde, detalhes de frequência cardíaca, peso,
    passos e distância, lista de Exercícios, detalhe de atividade, Calendário,
    detalhe diário, Perfil, Dispositivo e Configurações — seguem a composição
@@ -270,7 +285,7 @@ após concluir uma subtarefa; exigir revisão independente.
 
 Baseline público/estrutural e físico sanitizado, com inspeção efêmera local
 excepcional quando indispensável → supersessão documental → fundação visual →
-shell de duas áreas → Home → Saúde e métricas → Exercícios e calendário → Perfil
+shell de duas áreas → Home → Saúde e métricas → Exercícios, calendário e histórico mensal → Perfil
 → Dispositivo → Configurações → consolidação. A referência define apresentação;
 contratos locais definem comportamento e verdade dos dados.
 
@@ -279,6 +294,8 @@ contratos locais definem comportamento e verdade dos dados.
 - Manter apenas inspiração visual da Spec 024.
 - Fazer redesign apenas por mudança de paleta.
 - Preservar cinco itens na barra inferior.
+- Abrir Calendário como página separada a partir de Exercícios como fluxo
+  principal.
 - Apagar rotas de Exercícios, Calendário, Perfil, Dispositivo ou Configurações.
 - Migrar para `NavController` sem necessidade funcional.
 - Criar métricas/insights fictícios para preencher telas.
@@ -315,7 +332,9 @@ conforme ADR-028.
   autorizado durante a sessão excepcional; sanitização é obrigatória antes de
   versionar e o descarte precisa ser confirmado.
 - **Regressão de shell:** preservar destinos e saver; smoke de cada rota.
-- **Rota órfã:** matriz de entradas e retorno em `031-04` e `031-11`.
+- **Rota órfã:** calendário, resumo e lista mensal ficam embutidos em Exercícios;
+  destinos de Calendário permanecem serializáveis para estado legado/restaurado e
+  a matriz de detalhe diário é validada em `031-07` e `031-11`.
 - **Perda de semântica:** revisar mapeamento de unidade, origem, período e
   estados antes de alterar composição.
 - **Escopo proprietário:** excluir logo, fonte, assets, IA, premium e dados do
@@ -357,8 +376,9 @@ bruto usado na exceção deve ser apagado ao fim da sessão e auditado.
 - Dados locais e contratos existentes são suficientes para preencher somente
   partes equivalentes da referência.
 - Ausência de equivalente resulta em omissão, nunca em dado sintético.
-- Calendário continua funcional, mas passa a ser contextual ao fluxo de
-  Exercícios e não item da barra inferior.
+- O calendário contextual, resumo e lista mensal agrupada por semana aparecem na
+  própria tela de Exercícios no filtro `Mês` e não são itens da barra inferior;
+  `CalendarScreen` permanece apenas como compatibilidade de rota restaurada/legada.
 - Configurações continua acessível fora da barra inferior.
 - ADB/referência física pode estar indisponível; nesse caso registrar `N/A`.
 - Evidência não sanitizada não será versionada por regra de privacidade. A
