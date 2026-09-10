@@ -24,8 +24,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -33,22 +31,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
-import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.health.connect.client.PermissionController
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
 
 @Composable
 fun SettingsScreen(
@@ -58,6 +58,8 @@ fun SettingsScreen(
             ViewModelProvider(activity)[SettingsViewModel::class.java]
         }
     },
+    onNavigateBack: (() -> Unit)? = null,
+    backLabel: String = "Voltar",
 ) {
     val state by viewModel.state.collectAsState()
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
@@ -84,66 +86,73 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    ChampionRedesignTheme {
+        val tokens = LocalChampionRedesignTokens.current
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
-            SettingsHeaderCard()
-            HealthConnectStatusCard(
-                state = state,
-                isConnected = isConnected,
-                onToggle = { viewModel.onIntent(SettingsIntent.ToggleHealthSync(it)) },
-                onConnect = {
-                    when (state.availability) {
-                        SettingsAvailability.AVAILABLE -> if (missingPermissions.isNotEmpty()) {
-                            permissionLauncher.launch(missingPermissions)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
+            ) {
+                SettingsHeader(
+                    onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
+                )
+                HealthConnectStatusCard(
+                    state = state,
+                    isConnected = isConnected,
+                    onToggle = { viewModel.onIntent(SettingsIntent.ToggleHealthSync(it)) },
+                    onConnect = {
+                        when (state.availability) {
+                            SettingsAvailability.AVAILABLE -> if (missingPermissions.isNotEmpty()) {
+                                permissionLauncher.launch(missingPermissions)
+                            }
+                            SettingsAvailability.PROVIDER_UPDATE_REQUIRED -> activity.openIntentSafely(viewModel.createProviderUpdateIntent())
+                            SettingsAvailability.UNAVAILABLE -> viewModel.onIntent(SettingsIntent.DismissStatus)
                         }
-                        SettingsAvailability.PROVIDER_UPDATE_REQUIRED -> activity.openIntentSafely(viewModel.createProviderUpdateIntent())
-                        SettingsAvailability.UNAVAILABLE -> viewModel.onIntent(SettingsIntent.DismissStatus)
-                    }
-                },
-                onSyncNow = { viewModel.onIntent(SettingsIntent.SyncNow) },
-                onManageAccess = { activity.openIntentSafely(viewModel.createManageAccessIntent()) },
-                onDismissStatus = { viewModel.onIntent(SettingsIntent.DismissStatus) },
-            )
-            PermissionGroupsCard(state.permissionGroups)
-            SyncQueueCard(state)
+                    },
+                    onSyncNow = { viewModel.onIntent(SettingsIntent.SyncNow) },
+                    onManageAccess = {
+                        viewModel.allRequestedPermissions().takeIf { it.isNotEmpty() }?.let {
+                            permissionLauncher.launch(it)
+                        }
+                    },
+                    onDismissStatus = { viewModel.onIntent(SettingsIntent.DismissStatus) },
+                )
+                PermissionGroupsCard(state.permissionGroups)
+                SyncQueueCard(state)
+            }
         }
     }
 }
 
 @Composable
-private fun SettingsHeaderCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = "Configurações",
-                modifier = Modifier.semantics { heading() },
-                color = White,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                "Controle disponibilidade, permissões e sincronização write-only.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = White,
-            )
-        }
-    }
+private fun SettingsHeader(
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
+) {
+    ChampionRedesignSurfaceHeader(
+        title = "Configurações",
+        supportingText = "Controle disponibilidade, permissões e sincronização write-only.",
+        navigationContent = onNavigateBack?.let { navigateBack ->
+            {
+                ChampionRedesignHeaderNavigationAction(
+                    contentDescription = backLabel,
+                    onClick = navigateBack,
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = null,
+                    )
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -158,19 +167,19 @@ private fun HealthConnectStatusCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        border = BorderStroke(1.dp, settingsPrimaryAccent()),
+        elevation = CardDefaults.cardElevation(defaultElevation = LocalChampionRedesignTokens.current.elevation.card),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             Text(
                 text = "Integração Health Connect",
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
-                color = settingsPrimaryAccent(),
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 when (state.availability) {
@@ -193,7 +202,7 @@ private fun HealthConnectStatusCard(
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+                    verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
                 ) {
                     Text("Sincronização", style = MaterialTheme.typography.titleMedium)
                     Text(
@@ -247,16 +256,19 @@ private fun HealthConnectStatusCard(
             state.syncStatusMessage?.let {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ChampionShapeMedium,
+                    shape = LocalChampionRedesignTokens.current.shapes.small,
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                 ) {
                     Column(
-                        modifier = Modifier.padding(ChampionSpacing.medium),
-                        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                        modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.item),
+                        verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
                     ) {
                         Text(
                             it,
-                            modifier = Modifier.semantics { contentDescription = "Status: $it" },
+                            modifier = Modifier.semantics {
+                                contentDescription = "Status: $it"
+                                liveRegion = LiveRegionMode.Polite
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
@@ -272,19 +284,19 @@ private fun HealthConnectStatusCard(
 private fun PermissionGroupsCard(permissionGroups: List<HealthConnectPermissionGroupUiModel>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        border = BorderStroke(1.dp, settingsSecondaryAccent()),
+        elevation = CardDefaults.cardElevation(defaultElevation = LocalChampionRedesignTokens.current.elevation.card),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             Text(
                 text = "Permissões por capacidade",
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
-                color = settingsSecondaryAccent(),
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 "Somente permissões de escrita necessárias para projeções locais.",
@@ -293,11 +305,15 @@ private fun PermissionGroupsCard(permissionGroups: List<HealthConnectPermissionG
             )
             permissionGroups.forEachIndexed { index, group ->
                 if (index > 0) HorizontalDivider()
-                Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall)) {
+                Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact)) {
                     Text(group.title, style = MaterialTheme.typography.bodyLarge)
                     Text(
                         text = if (group.isGranted) "✓ Concedida" else "! Pendente",
-                        color = if (group.isGranted) settingsSecondaryAccent() else settingsTertiaryAccent(),
+                        color = if (group.isGranted) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.tertiary
+                        },
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
@@ -308,31 +324,18 @@ private fun PermissionGroupsCard(permissionGroups: List<HealthConnectPermissionG
 
 @Composable
 private fun SyncQueueCard(state: SettingsUiState) {
-    Card(
+    ChampionRedesignSummaryCard(
+        title = "Fila local",
+        value = state.pendingCount.toString(),
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        border = BorderStroke(1.dp, settingsTertiaryAccent()),
+        supportingText = "A fila concentra escritas foreground pendentes e seus resultados locais.",
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text(
-                text = "Fila local",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.titleLarge,
-                color = settingsTertiaryAccent(),
-            )
-            Text(
-                "A fila concentra escritas foreground pendentes e seus resultados locais.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            SettingsQueueRow("Pendentes", state.pendingCount, settingsTertiaryAccent())
+        Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item)) {
+            SettingsQueueRow("Pendentes", state.pendingCount, MaterialTheme.colorScheme.tertiary)
             SettingsQueueRow("Falhas", state.failedCount, MaterialTheme.colorScheme.error)
-            SettingsQueueRow("Sincronizando", state.syncingCount, settingsPrimaryAccent())
-            SettingsQueueRow("Sincronizados", state.syncedCount, settingsSecondaryAccent())
+            SettingsQueueRow("Sincronizando", state.syncingCount, MaterialTheme.colorScheme.primary)
+            SettingsQueueRow("Sincronizados", state.syncedCount, MaterialTheme.colorScheme.secondary)
             Text(
                 "Sincronizado significa escrita local aceita; o provider não é lido para confirmação.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -366,27 +369,6 @@ private fun SettingsQueueRow(
             fontWeight = FontWeight.SemiBold,
         )
     }
-}
-
-@Composable
-private fun settingsPrimaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.primary
-} else {
-    LightColorScheme.primary
-}
-
-@Composable
-private fun settingsSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.secondary
-} else {
-    LightColorScheme.secondary
-}
-
-@Composable
-private fun settingsTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.tertiary
-} else {
-    LightColorScheme.tertiary
 }
 
 private fun Context.openIntentSafely(intent: Intent) {

@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 9/11 subtarefas concluídas
+- **Progresso:** 10/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -22,7 +22,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
 - [x] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
 - [x] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
-- [ ] [031-10-redesenhar-configuracoes.md](031-10-redesenhar-configuracoes.md)
+- [x] [031-10-redesenhar-configuracoes.md](031-10-redesenhar-configuracoes.md)
 - [ ] [031-11-consolidar-validacao-e-revisao.md](031-11-consolidar-validacao-e-revisao.md)
 
 ## Observações
@@ -634,6 +634,30 @@ somente Home e Saúde; rotas restantes serão contextuais.
               importação real e validação ampla continuam pendentes. `031-07`
                permanece `[ ]`, progresso `6/11`.
 
+  - Em 2026-09-10, `031-10` recebeu a composição visual opt-in de Configurações:
+    superfície rolável, header contextual com retorno para Perfil, cards coerentes
+    e fila local destacada. Callbacks, estado, launcher de permissões, lifecycle,
+    provider update, toggle, acesso, sync explícito e semântica write-only foram
+    preservados. `git diff --check`, compile Debug, lint e builds Debug/Release
+    passaram; a primeira execução completa excedeu timeout operacional e o rerun
+    passou. Revisão independente, instalação/smoke ADB, fonte ampliada, landscape,
+    temas e TalkBack permanecem pendentes. `031-10` continua `[ ]`; progresso
+    permanece `9/11`.
+
+  - Validação física posterior de `031-10` instalou Debug no `SM-S901E` e
+    confirmou Perfil → Configurações, header contextual, retorno para Perfil,
+    integração, permissões, provider, ações e fila local após rolagem. Fonte
+    `1.3x` e tema escuro foram exercitados e restaurados; tentativa de landscape
+    permaneceu portrait por orientação efetiva do aparelho. Nenhuma operação de
+    Health Connect foi iniciada. Revisão independente e TalkBack continuam
+    pendentes; checklist permanece `[ ]`, progresso `9/11`.
+
+  - Revisão independente encontrou ausência de anúncio polite para mensagens de
+    status em Configurações. `SettingsScreen` recebeu `LiveRegionMode.Polite` no
+    feedback de status; lint, builds, instalação e smoke ADB foram repetidos com
+    sucesso. Nova revisão independente permanece pendente; `031-10` continua `[ ]`
+    e progresso `9/11`.
+
   - Em 2026-09-10, `031-08` foi concluída após aplicação da fundação visual opt-in
     ao Perfil. Header passou a usar composição do redesign, com retorno contextual
     e acesso a Configurações; cards, espaçamentos, loading e diálogos foram
@@ -653,6 +677,37 @@ somente Home e Saúde; rotas restantes serão contextuais.
     identificada explicitamente como PoC BLE técnica de debug. Nenhum CTA ou
     `Intent` da PoC MapLibre foi adicionado ou movido. Lint, builds Debug/Release,
     instalação Debug, smoke ADB sanitizado, restauração de configurações e
-    revisão independente passaram. Riscos residuais: TalkBack completo,
-    operações BLE e screenshot versionado não foram exercitados/retidos.
-    Progresso: `9/11`.
+     revisão independente passaram. Riscos residuais: TalkBack completo,
+     operações BLE e screenshot versionado não foram exercitados/retidos.
+     Progresso: `9/11`.
+
+   - Em 2026-09-10, `031-10` foi concluída após revisão independente aprovada
+     com ressalvas não bloqueantes. O feedback de status recebeu live region
+     polite; lint, builds, instalação e smoke ADB foram repetidos. Configurações
+     preserva entrada contextual pelo Perfil, retorno, Health Connect write-only,
+     permissões, fila local e ações explícitas. TalkBack, landscape e screenshot
+   sanitizada permanecem riscos residuais. Progresso: `10/11`.
+
+   - Correção reabriu `031-10`: `Gerenciar acesso` usava ação Health Connect
+     que não resolvia no aparelho. A ação passou a abrir o gerenciador geral
+     `MANAGE_HEALTH_DATA`, sem permissão privilegiada ou leitura remota. Smoke
+     físico confirmou a `DataManagementActivity` do provider e retorno à
+     `MainActivity`; revisão independente da correção permanece pendente.
+     Checklist permanece `[ ]`; progresso `9/11`.
+
+   - Revisão independente da correção de `031-10` aprovou com ressalvas não
+     bloqueantes. O registro foi alinhado para declarar alteração exclusiva do
+     Intent de abertura do gerenciador; contratos, permissões, leitura/escrita e
+     fila permanecem inalterados. `031-10` voltou a `[x]`; progresso `10/11`.
+
+   - Reabertura posterior de `031-10`: requisito esclarecido para `Gerenciar
+     acesso` abrir permissões individuais, não gerenciador de dados. O botão
+     agora lança o contrato nativo de permissões com conjunto completo de
+     capacidades relevantes; smoke físico abriu `PermissionsActivity` e voltou
+     à `MainActivity` sem conceder ou revogar permissões. Revisão independente
+     permanece pendente; checklist `[ ]`, progresso `9/11`.
+
+   - Revisão independente da correção de permissões individuais aprovou sem
+     bloqueadores. `031-10` foi concluída e voltou a `[x]`; progresso `10/11`.
+     Riscos residuais: TalkBack, landscape efetivo, screenshot sanitizada e
+     estado vazio transitório.

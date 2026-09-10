@@ -107,12 +107,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun allRequestedPermissions(): Set<String> = mutableState.value.permissionGroups
+        .flatMap { group -> group.permissions.map(HealthConnectWritePermission::rawValue) }
+        .toSet()
+
     fun requestedPermissions(): Set<String> = mutableState.value.permissionGroups
         .filter { !it.isGranted }
         .flatMap { group -> group.permissions.map(HealthConnectWritePermission::rawValue) }
         .toSet()
-
-    fun createManageAccessIntent(): Intent = healthConnectPlatform.createManageDataIntent()
 
     fun createProviderUpdateIntent(): Intent = healthConnectPlatform.createProviderUpdateIntent()
 

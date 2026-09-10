@@ -592,7 +592,11 @@ private fun ChampionNavDisplay(
                 onNavigateBack = onBackRequested,
                 backLabel = backLabel,
             )
-            AppDestination.Settings -> SettingsScreen(viewModel = settingsViewModel)
+            AppDestination.Settings -> SettingsScreen(
+                viewModel = settingsViewModel,
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
+            )
         }
     }
 }
