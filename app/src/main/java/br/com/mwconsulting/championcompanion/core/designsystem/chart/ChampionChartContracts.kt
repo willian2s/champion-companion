@@ -82,12 +82,14 @@ data class ChampionChartXAxisSpec(
     val maximum: Double? = null,
     val visible: Boolean = true,
     val gridLinesVisible: Boolean = true,
+    val labelValues: List<Double>? = null,
 ) {
     init {
         require(title?.isNotBlank() != false)
         require(minimum?.isFinite() != false)
         require(maximum?.isFinite() != false)
         require(minimum == null || maximum == null || minimum < maximum)
+        require(labelValues?.all { it.isFinite() } != false)
     }
 }
 

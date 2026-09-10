@@ -169,6 +169,9 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.DayOfWeek
+import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -527,11 +530,12 @@ class RoomRepositories @Inject constructor(
     }
 
     override fun observeHistory(query: HeartRateHistoryQuery): Flow<HeartRateHistorySnapshot> {
-        val window = historyWindow(
+        val now = Instant.now()
+        val dateRange = heartRateHistoryDateRange(
             period = query.period,
-            zoneId = query.zoneId,
-            now = Instant.now(),
+            today = LocalDateTime.ofInstant(now, query.zoneId).toLocalDate(),
         )
+        val window = dateRange.atZone(query.zoneId)
         val sources = canonicalHistorySources(query.sources)
         if (sources.isEmpty()) {
             return flowOf(HeartRateHistorySnapshot(
@@ -583,6 +587,7 @@ class RoomRepositories @Inject constructor(
                     zoneId = query.zoneId,
                     measurements = measurementEntities.mapNotNull { it.toDomain() },
                     workoutEntries = activityEntries,
+                    dateRange = dateRange,
                 )
             }
             .flowOn(ioDispatcher)
@@ -5774,6 +5779,44 @@ internal data class HeartRateHistoryWindow(
     val untilExclusive: Instant,
 )
 
+/** Calendário civil usado pela superfície de Saúde, sem janela móvel. */
+internal fun heartRateHistoryDateRange(
+    period: HeartRateHistoryPeriod,
+    today: LocalDate,
+): CalendarDateRange {
+    val currentMonth = YearMonth.from(today)
+    return when (period) {
+        HeartRateHistoryPeriod.TODAY -> CalendarDateRange(
+            fromInclusive = today,
+            untilExclusive = today.plusDays(1),
+        )
+
+        HeartRateHistoryPeriod.LAST_7_DAYS -> {
+            val sunday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+            CalendarDateRange(
+                fromInclusive = sunday,
+                untilExclusive = sunday.plusWeeks(1),
+            )
+        }
+
+        HeartRateHistoryPeriod.LAST_30_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
+
+        HeartRateHistoryPeriod.LAST_90_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.minusMonths(2).atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
+
+        HeartRateHistoryPeriod.LAST_365_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.minusMonths(11).atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
+    }
+}
+
+/** Janela histórica anterior, mantida para consumidores internos legados. */
 internal fun historyWindow(
     period: HeartRateHistoryPeriod,
     zoneId: ZoneId,
@@ -5795,6 +5838,7 @@ internal fun buildHeartRateHistorySnapshot(
     zoneId: ZoneId,
     measurements: List<HeartRateMeasurement>,
     workoutEntries: List<HeartRateHistoryEntry> = emptyList(),
+    dateRange: CalendarDateRange? = null,
 ): HeartRateHistorySnapshot {
     val validMeasurements = measurements.filter { measurement ->
         measurement.validity == br.com.mwconsulting.championcompanion.core.model.DataValidity.VALID &&
@@ -5812,15 +5856,22 @@ internal fun buildHeartRateHistorySnapshot(
     }
     val entries = measurementEntries + workoutEntries.filter { entry ->
         entry.source == HeartRateSource.WATCH_WORKOUT_ACTIVITY && entry.bpm in 30..220
+    }.let { allEntries ->
+        allEntries.sortedWith(
+            compareByDescending<HeartRateHistoryEntry> { it.measuredAt }
+                .thenBy { it.source.name },
+        )
     }
     return HeartRateHistorySnapshot(
         period = period,
-        entries = entries.sortedWith(
-            compareByDescending<HeartRateHistoryEntry> { it.measuredAt }
-                .thenBy { it.source.name },
-        ),
+        entries = entries,
         aggregates = buildHeartRateHistoryAggregates(entries),
-        chart = buildHeartRateChartSeries(period, zoneId, entries),
+        chart = buildHeartRateChartSeries(
+            period = period,
+            zoneId = zoneId,
+            entries = entries,
+            dateRange = dateRange,
+        ),
     )
 }
 
@@ -5840,39 +5891,54 @@ internal fun buildHeartRateChartSeries(
     period: HeartRateHistoryPeriod,
     zoneId: ZoneId,
     entries: List<HeartRateHistoryEntry>,
+    dateRange: CalendarDateRange? = null,
 ): HeartRateChartSeries = when (period) {
-    HeartRateHistoryPeriod.TODAY -> HeartRateChartSeries(
-        resolution = HeartRateChartResolution.INTRADAY,
-        points = entries
-            .sortedBy { it.measuredAt }
-            .map { entry ->
-                HeartRateChartPoint(
-                    timestamp = entry.measuredAt,
-                    bpm = entry.bpm.toDouble(),
-                    minimumBpm = entry.bpm,
-                    maximumBpm = entry.bpm,
-                    sampleCount = 1,
-                )
-            },
-    )
+    HeartRateHistoryPeriod.TODAY -> if (dateRange == null) {
+        HeartRateChartSeries(
+            resolution = HeartRateChartResolution.INTRADAY,
+            points = entries
+                .sortedBy { it.measuredAt }
+                .map { entry -> entry.toHeartRateChartPoint() },
+        )
+    } else {
+        buildIntradayHeartRateChartSeries(dateRange, zoneId, entries)
+    }
 
     HeartRateHistoryPeriod.LAST_7_DAYS,
     HeartRateHistoryPeriod.LAST_30_DAYS,
-    -> HeartRateChartSeries(
-        resolution = HeartRateChartResolution.DAILY,
-        points = entries
-            .groupBy { entry -> LocalDateTime.ofInstant(entry.measuredAt, zoneId).toLocalDate() }
-            .toSortedMap()
-            .map { (localDate, dayEntries) ->
-                HeartRateChartPoint(
-                    timestamp = localDate.atTime(LocalTime.MIDNIGHT).atZone(zoneId).toInstant(),
-                    bpm = dayEntries.map { it.bpm }.average(),
-                    minimumBpm = dayEntries.minOf { it.bpm },
-                    maximumBpm = dayEntries.maxOf { it.bpm },
-                    sampleCount = dayEntries.size,
-                )
-            },
-    )
+    -> if (dateRange == null) {
+        HeartRateChartSeries(
+            resolution = HeartRateChartResolution.DAILY,
+            points = entries
+                .groupBy { entry -> LocalDateTime.ofInstant(entry.measuredAt, zoneId).toLocalDate() }
+                .toSortedMap()
+                .map { (localDate, dayEntries) ->
+                    dayEntries.toHeartRateChartPoint(
+                        timestamp = localDate.atTime(LocalTime.MIDNIGHT).atZone(zoneId).toInstant(),
+                    )
+                },
+        )
+    } else {
+        buildDailyHeartRateChartSeries(dateRange, zoneId, entries)
+    }
+
+    HeartRateHistoryPeriod.LAST_90_DAYS,
+    HeartRateHistoryPeriod.LAST_365_DAYS,
+    -> if (dateRange == null) {
+        HeartRateChartSeries(
+            resolution = HeartRateChartResolution.MONTHLY,
+            points = entries
+                .groupBy { entry -> YearMonth.from(entry.measuredAt.atZone(zoneId)) }
+                .toSortedMap()
+                .map { (month, monthEntries) ->
+                    monthEntries.toHeartRateChartPoint(
+                        timestamp = month.atDay(1).atStartOfDay(zoneId).toInstant(),
+                    )
+                },
+        )
+    } else {
+        buildMonthlyHeartRateChartSeries(dateRange, zoneId, entries)
+    }
 }
 
 internal fun chartResolutionFor(period: HeartRateHistoryPeriod): HeartRateChartResolution = when (period) {
@@ -5880,7 +5946,87 @@ internal fun chartResolutionFor(period: HeartRateHistoryPeriod): HeartRateChartR
     HeartRateHistoryPeriod.LAST_7_DAYS,
     HeartRateHistoryPeriod.LAST_30_DAYS,
     -> HeartRateChartResolution.DAILY
+    HeartRateHistoryPeriod.LAST_90_DAYS,
+    HeartRateHistoryPeriod.LAST_365_DAYS,
+    -> HeartRateChartResolution.MONTHLY
 }
+
+private fun buildIntradayHeartRateChartSeries(
+    dateRange: CalendarDateRange,
+    zoneId: ZoneId,
+    entries: List<HeartRateHistoryEntry>,
+): HeartRateChartSeries {
+    val start = dateRange.fromInclusive.atStartOfDay(zoneId).toInstant()
+    val until = dateRange.untilExclusive.atStartOfDay(zoneId).toInstant()
+    return HeartRateChartSeries(
+        resolution = HeartRateChartResolution.INTRADAY,
+        points = entries
+            .filter { entry ->
+                !entry.measuredAt.isBefore(start) && entry.measuredAt.isBefore(until)
+            }
+            .sortedBy { it.measuredAt }
+            .map { it.toHeartRateChartPoint() },
+    )
+}
+
+private fun buildDailyHeartRateChartSeries(
+    dateRange: CalendarDateRange,
+    zoneId: ZoneId,
+    entries: List<HeartRateHistoryEntry>,
+): HeartRateChartSeries {
+    val entriesByDate = entries.groupBy { it.measuredAt.atZone(zoneId).toLocalDate() }
+    return HeartRateChartSeries(
+        resolution = HeartRateChartResolution.DAILY,
+        points = dateRange.dates.map { localDate ->
+            entriesByDate[localDate].orEmpty().toHeartRateChartPoint(
+                timestamp = localDate.atStartOfDay(zoneId).toInstant(),
+            )
+        },
+    )
+}
+
+private fun buildMonthlyHeartRateChartSeries(
+    dateRange: CalendarDateRange,
+    zoneId: ZoneId,
+    entries: List<HeartRateHistoryEntry>,
+): HeartRateChartSeries {
+    val firstMonth = YearMonth.from(dateRange.fromInclusive)
+    val lastMonth = YearMonth.from(dateRange.untilExclusive.minusDays(1))
+    val entriesByMonth = entries.groupBy { YearMonth.from(it.measuredAt.atZone(zoneId)) }
+    val months = generateSequence(firstMonth) { month ->
+        month.plusMonths(1).takeIf { !it.isAfter(lastMonth) }
+    }.toList()
+    return HeartRateChartSeries(
+        resolution = HeartRateChartResolution.MONTHLY,
+        points = months.map { month ->
+            entriesByMonth[month].orEmpty().toHeartRateChartPoint(
+                timestamp = month.atDay(1).atStartOfDay(zoneId).toInstant(),
+            )
+        },
+    )
+}
+
+private fun HeartRateHistoryEntry.toHeartRateChartPoint(): HeartRateChartPoint =
+    HeartRateChartPoint(
+        timestamp = measuredAt,
+        bpm = bpm.toDouble(),
+        minimumBpm = bpm,
+        maximumBpm = bpm,
+        sampleCount = 1,
+    )
+
+private fun List<HeartRateHistoryEntry>.toHeartRateChartPoint(timestamp: Instant): HeartRateChartPoint =
+    if (isEmpty()) {
+        HeartRateChartPoint(timestamp = timestamp, bpm = null, sampleCount = 0)
+    } else {
+        HeartRateChartPoint(
+            timestamp = timestamp,
+            bpm = map { it.bpm }.average(),
+            minimumBpm = minOf { it.bpm },
+            maximumBpm = maxOf { it.bpm },
+            sampleCount = size,
+        )
+    }
 
 internal fun planD1Import(
     existingMeasurementsByKey: Map<String, br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity>,

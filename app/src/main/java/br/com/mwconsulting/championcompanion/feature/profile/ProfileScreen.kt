@@ -10,20 +10,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,19 +34,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import br.com.mwconsulting.championcompanion.R
-import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
 import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -59,6 +59,9 @@ import java.util.Locale
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onOpenActivity: (br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onNavigateBack: (() -> Unit)? = null,
+    backLabel: String = "Voltar",
 ) {
     val state by viewModel.state.collectAsState()
     var showLearnedProfilesDialog by remember { mutableStateOf(false) }
@@ -68,106 +71,115 @@ fun ProfileScreen(
         viewModel.onIntent(ProfileIntent.Load)
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+    ChampionRedesignTheme {
+        val tokens = LocalChampionRedesignTokens.current
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
-            ProfileHeader()
-            if (state.isLoading) {
-                CircularProgressIndicator()
-            }
-            PersonalMetricsEditorCard(
-                state = state,
-                onHeightChange = { viewModel.onIntent(ProfileIntent.HeightChanged(it)) },
-                onSaveHeight = { viewModel.onIntent(ProfileIntent.SaveHeight) },
-                onDailyStepsGoalChange = { viewModel.onIntent(ProfileIntent.DailyStepsGoalChanged(it)) },
-                onSaveDailyStepsGoal = { viewModel.onIntent(ProfileIntent.SaveDailyStepsGoal) },
-            )
-            StepLengthContextCard(
-                state = state,
-                onAccept = { viewModel.onIntent(ProfileIntent.AcceptHeightSuggestion) },
-                onValueChange = { viewModel.onIntent(ProfileIntent.StepLengthChanged(it)) },
-                onSave = { viewModel.onIntent(ProfileIntent.SaveManualStepLength) },
-            )
-            ProfileDetailsCard(
-                onOpenLearnedProfiles = { showLearnedProfilesDialog = true },
-                onOpenCalibrationHistory = { showCalibrationHistoryDialog = true },
-            )
-            if (state.isConfirmingHeightSuggestion) {
-                HeightSuggestionConfirmationDialog(
-                    suggestionMeters = state.heightSuggestionMeters,
-                    onConfirm = { viewModel.onIntent(ProfileIntent.ConfirmHeightSuggestion) },
-                    onCancel = { viewModel.onIntent(ProfileIntent.CancelHeightSuggestion) },
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
+            ) {
+                ProfileHeader(
+                    onOpenSettings = onOpenSettings,
+                    onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
                 )
-            }
-            state.message?.let { message ->
-                ProfileMessageCard(
-                    message = message,
-                    onDismiss = { viewModel.onIntent(ProfileIntent.DismissMessage) },
+                if (state.isLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                PersonalMetricsEditorCard(
+                    state = state,
+                    onHeightChange = { viewModel.onIntent(ProfileIntent.HeightChanged(it)) },
+                    onSaveHeight = { viewModel.onIntent(ProfileIntent.SaveHeight) },
+                    onDailyStepsGoalChange = { viewModel.onIntent(ProfileIntent.DailyStepsGoalChanged(it)) },
+                    onSaveDailyStepsGoal = { viewModel.onIntent(ProfileIntent.SaveDailyStepsGoal) },
                 )
+                StepLengthContextCard(
+                    state = state,
+                    onAccept = { viewModel.onIntent(ProfileIntent.AcceptHeightSuggestion) },
+                    onValueChange = { viewModel.onIntent(ProfileIntent.StepLengthChanged(it)) },
+                    onSave = { viewModel.onIntent(ProfileIntent.SaveManualStepLength) },
+                )
+                ProfileDetailsCard(
+                    onOpenLearnedProfiles = { showLearnedProfilesDialog = true },
+                    onOpenCalibrationHistory = { showCalibrationHistoryDialog = true },
+                )
+                if (state.isConfirmingHeightSuggestion) {
+                    HeightSuggestionConfirmationDialog(
+                        suggestionMeters = state.heightSuggestionMeters,
+                        onConfirm = { viewModel.onIntent(ProfileIntent.ConfirmHeightSuggestion) },
+                        onCancel = { viewModel.onIntent(ProfileIntent.CancelHeightSuggestion) },
+                    )
+                }
+                state.message?.let { message ->
+                    ProfileMessageCard(
+                        message = message,
+                        onDismiss = { viewModel.onIntent(ProfileIntent.DismissMessage) },
+                    )
+                }
             }
         }
     }
 
-    if (showLearnedProfilesDialog) {
-        AlertDialog(
-            onDismissRequest = { showLearnedProfilesDialog = false },
-            title = { Text(stringResource(R.string.profile_learned_profiles_title)) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    LearnedStepLengthProfilesCard(state.learnedStepLengthProfiles)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLearnedProfilesDialog = false }) {
-                    Text(stringResource(R.string.profile_close_details))
-                }
-            },
-        )
-    }
+    ChampionRedesignTheme {
+        if (showLearnedProfilesDialog) {
+            AlertDialog(
+                onDismissRequest = { showLearnedProfilesDialog = false },
+                title = { Text(stringResource(R.string.profile_learned_profiles_title)) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        LearnedStepLengthProfilesCard(state.learnedStepLengthProfiles)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLearnedProfilesDialog = false }) {
+                        Text(stringResource(R.string.profile_close_details))
+                    }
+                },
+            )
+        }
 
-    if (showCalibrationHistoryDialog) {
-        AlertDialog(
-            onDismissRequest = { showCalibrationHistoryDialog = false },
-            title = { Text(stringResource(R.string.profile_calibration_history_title)) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    CalibrationHistoryCard(
-                        history = state.calibrationHistory,
-                        onRemove = { viewModel.onIntent(ProfileIntent.RemoveCalibration(it)) },
-                        onOpenActivity = onOpenActivity,
-                        correctionActivityId = state.correctionActivityId,
-                        correctionDistanceInput = state.correctionDistanceInput,
-                        onCorrect = { viewModel.onIntent(ProfileIntent.StartCalibrationCorrection(it)) },
-                        onCorrectionChange = { viewModel.onIntent(ProfileIntent.CalibrationCorrectionChanged(it)) },
-                        onSaveCorrection = { viewModel.onIntent(ProfileIntent.SaveCalibrationCorrection) },
-                        onCancelCorrection = { viewModel.onIntent(ProfileIntent.CancelCalibrationCorrection) },
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showCalibrationHistoryDialog = false }) {
-                    Text(stringResource(R.string.profile_close_details))
-                }
-            },
-        )
+        if (showCalibrationHistoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showCalibrationHistoryDialog = false },
+                title = { Text(stringResource(R.string.profile_calibration_history_title)) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        CalibrationHistoryCard(
+                            history = state.calibrationHistory,
+                            onRemove = { viewModel.onIntent(ProfileIntent.RemoveCalibration(it)) },
+                            onOpenActivity = onOpenActivity,
+                            correctionActivityId = state.correctionActivityId,
+                            correctionDistanceInput = state.correctionDistanceInput,
+                            onCorrect = { viewModel.onIntent(ProfileIntent.StartCalibrationCorrection(it)) },
+                            onCorrectionChange = { viewModel.onIntent(ProfileIntent.CalibrationCorrectionChanged(it)) },
+                            onSaveCorrection = { viewModel.onIntent(ProfileIntent.SaveCalibrationCorrection) },
+                            onCancelCorrection = { viewModel.onIntent(ProfileIntent.CancelCalibrationCorrection) },
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showCalibrationHistoryDialog = false }) {
+                        Text(stringResource(R.string.profile_close_details))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -180,55 +192,63 @@ private fun StepLengthContextCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        border = BorderStroke(1.dp, profilePrimaryAccent()),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             Text(
                 text = stringResource(R.string.profile_step_length_context_title),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
-                color = profilePrimaryAccent(),
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 text = stringResource(R.string.profile_step_length_context_description),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             CurrentStepLengthContent(state)
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             HeightSuggestionContent(state, onAccept)
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             StepLengthEditorContent(state, onValueChange, onSave)
         }
     }
 }
 
 @Composable
-private fun ProfileHeader() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = LightColorScheme.primary),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                text = stringResource(R.string.profile_title),
-                modifier = Modifier.semantics { heading() },
-                color = White,
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                text = stringResource(R.string.profile_description),
-                color = White,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
+private fun ProfileHeader(
+    onOpenSettings: () -> Unit,
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
+) {
+    ChampionRedesignSurfaceHeader(
+        title = stringResource(R.string.profile_title),
+        supportingText = stringResource(R.string.profile_description),
+        navigationContent = onNavigateBack?.let { navigateBack ->
+            {
+                ChampionRedesignHeaderNavigationAction(
+                    contentDescription = backLabel,
+                    onClick = navigateBack,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = null,
+                    )
+                }
+            }
+        },
+        actionsContent = {
+            ChampionRedesignHeaderAction(
+                contentDescription = "Abrir Configurações",
+                onClick = onOpenSettings,
+            ) {
+                Icon(imageVector = Icons.Filled.Settings, contentDescription = null)
+            }
+        },
+    )
 }
 
 @Composable
@@ -238,17 +258,18 @@ private fun ProfileDetailsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        border = BorderStroke(1.dp, profilePrimaryAccent()),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
         ) {
             Text(
                 text = stringResource(R.string.profile_details_title),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 text = stringResource(R.string.profile_details_description),
@@ -286,18 +307,18 @@ private fun CalibrationHistoryCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        border = BorderStroke(1.dp, profilePrimaryAccent()),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
         ) {
             Text(
                 text = stringResource(R.string.profile_calibration_history_title),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
             if (history.isEmpty()) {
                 Text(
@@ -307,10 +328,10 @@ private fun CalibrationHistoryCard(
             } else {
                 history.forEach { calibration ->
                     val accentColor = profileAccentFor(calibration.workoutType)
-                    Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+                            horizontalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -412,18 +433,18 @@ private fun LearnedStepLengthProfilesCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        border = BorderStroke(1.dp, profilePrimaryAccent()),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
         ) {
             Text(
                 text = stringResource(R.string.profile_learned_profiles_title),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 text = stringResource(R.string.profile_learned_profiles_description),
@@ -524,17 +545,18 @@ private fun PersonalMetricsEditorCard(
     val goalIsInvalid = state.message == ProfileMessage.INVALID_DAILY_STEPS_GOAL
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        border = BorderStroke(1.dp, profilePrimaryAccent()),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             Text(
                 text = stringResource(R.string.profile_personal_metrics_title),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
             OutlinedTextField(
                 value = state.heightInput,
@@ -615,13 +637,13 @@ private fun HeightSuggestionConfirmationDialog(
 @Composable
 private fun CurrentStepLengthContent(state: ProfileUiState) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
     ) {
         Text(
             text = stringResource(R.string.profile_current_step_length),
             modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleMedium,
-            color = profilePrimaryAccent(),
+            color = MaterialTheme.colorScheme.primary,
         )
         val stepLengthMeters = state.stepLengthMeters
         if (stepLengthMeters == null) {
@@ -637,7 +659,7 @@ private fun CurrentStepLengthContent(state: ProfileUiState) {
                     formatStepLengthMeters(stepLengthMeters),
                 ),
                 style = MaterialTheme.typography.headlineSmall,
-                color = profilePrimaryAccent(),
+                color = MaterialTheme.colorScheme.primary,
             )
             state.stepLengthSource?.let { source ->
                 Text(
@@ -671,13 +693,13 @@ private fun StepLengthEditorContent(
 ) {
     val isInvalid = state.message == ProfileMessage.INVALID_STEP_LENGTH
     Column(
-        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+        verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
     ) {
         Text(
             text = stringResource(R.string.profile_manual_step_length_title),
             modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleMedium,
-            color = profileTertiaryAccent(),
+            color = MaterialTheme.colorScheme.tertiary,
         )
         OutlinedTextField(
             value = state.stepLengthInput,
@@ -719,12 +741,12 @@ private fun HeightSuggestionContent(
     val suggestionAccepted = state.stepLengthSource == StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED &&
         state.stepLengthMeters == suggestion
     Surface(
-        shape = ChampionShapeMedium,
+        shape = LocalChampionRedesignTokens.current.shapes.small,
         color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.item),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             Text(
                 text = stringResource(R.string.profile_height_suggestion_title),
@@ -774,7 +796,7 @@ private fun ProfileMessageCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeMedium,
+        shape = LocalChampionRedesignTokens.current.shapes.small,
         colors = CardDefaults.cardColors(
             containerColor = if (message.isError()) {
                 MaterialTheme.colorScheme.errorContainer
@@ -786,7 +808,7 @@ private fun ProfileMessageCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(ChampionSpacing.medium),
+                .padding(LocalChampionRedesignTokens.current.spacing.item),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
@@ -858,28 +880,16 @@ private fun workoutTypeLabel(workoutType: WorkoutType): String = when (workoutTy
 }
 
 @Composable
-private fun profilePrimaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.primary
-} else {
-    LightColorScheme.primary
-}
+private fun profilePrimaryAccent() = MaterialTheme.colorScheme.primary
 
 @Composable
-private fun profileSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.secondary
-} else {
-    LightColorScheme.secondary
-}
+private fun profileSecondaryAccent() = MaterialTheme.colorScheme.secondary
 
 @Composable
-private fun profileTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.tertiary
-} else {
-    LightColorScheme.tertiary
-}
+private fun profileTertiaryAccent() = MaterialTheme.colorScheme.tertiary
 
 @Composable
-private fun profileAccentFor(workoutType: WorkoutType): Color = when (workoutType) {
+private fun profileAccentFor(workoutType: WorkoutType) = when (workoutType) {
     WorkoutType.RUNNING -> profileSecondaryAccent()
     WorkoutType.WALKING -> profileTertiaryAccent()
     else -> profilePrimaryAccent()

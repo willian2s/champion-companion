@@ -75,6 +75,9 @@ class HealthViewModel internal constructor(
     private val recentMeasurements = MutableStateFlow<List<HeartRateMeasurement>>(emptyList())
     private val selectedHistoryPeriod = MutableStateFlow(HeartRateHistoryPeriod.TODAY)
     private val history = MutableStateFlow(HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY))
+    private val todayHeartRateHistory = MutableStateFlow(
+        HeartRateHistorySnapshot(period = HeartRateHistoryPeriod.TODAY),
+    )
     private val latestD1ImportMetadata = MutableStateFlow<D1HeartRateImportMetadata?>(null)
     private val personalMetrics = MutableStateFlow(PersonalMetricsSnapshot())
     private val weightHistory = MutableStateFlow<HealthWeightHistoryState>(HealthWeightHistoryState.Loading)
@@ -82,6 +85,7 @@ class HealthViewModel internal constructor(
     private val isWeightEditorOpen = MutableStateFlow(false)
     private val isSavingWeight = MutableStateFlow(false)
     private val weightMessage = MutableStateFlow<HealthWeightMessage?>(null)
+    private val selectedWeightHistoryPeriod = MutableStateFlow(WeightHistoryPeriod.THREE_MONTHS)
     private val observedDate = MutableStateFlow(LocalDate.now())
     private val todaySummary = MutableStateFlow<DailySummary?>(null)
     private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
@@ -112,14 +116,28 @@ class HealthViewModel internal constructor(
         }
         scope.launch {
             selectedHistoryPeriod.flatMapLatest { period ->
+                observedDate.flatMapLatest {
+                    heartRateRepository.observeHistory(
+                        HeartRateHistoryQuery(
+                            period = period,
+                            zoneId = java.time.ZoneId.systemDefault(),
+                        ),
+                    )
+                }
+            }.collect { snapshot ->
+                history.value = snapshot
+            }
+        }
+        scope.launch {
+            observedDate.flatMapLatest {
                 heartRateRepository.observeHistory(
                     HeartRateHistoryQuery(
-                        period = period,
+                        period = HeartRateHistoryPeriod.TODAY,
                         zoneId = java.time.ZoneId.systemDefault(),
                     ),
                 )
             }.collect { snapshot ->
-                history.value = snapshot
+                todayHeartRateHistory.value = snapshot
             }
         }
         scope.launch {
@@ -173,12 +191,14 @@ class HealthViewModel internal constructor(
                 d1ImportState,
                 selectedHistoryPeriod,
                 history,
-            ) { currentSurface, currentD1ImportState, period, currentHistory ->
+                todayHeartRateHistory,
+            ) { currentSurface, currentD1ImportState, period, currentHistory, currentTodayHistory ->
                 PartialHealthState(
                     surfaceState = currentSurface,
                     d1ImportState = currentD1ImportState,
                     selectedHistoryPeriod = period,
                     history = currentHistory,
+                    todayHeartRateHistory = currentTodayHistory,
                 )
             }
             val dataFlows = combine(
@@ -200,6 +220,7 @@ class HealthViewModel internal constructor(
                     d1ImportState = partialState.d1ImportState,
                     selectedHistoryPeriod = partialState.selectedHistoryPeriod,
                     history = partialState.history,
+                    todayHeartRateHistory = partialState.todayHeartRateHistory,
                     latestD1ImportMetadata = partialData.latestD1ImportMetadata,
                     latestMeasurement = partialData.latestMeasurement,
                     recentMeasurements = partialData.recentMeasurements,
@@ -207,14 +228,17 @@ class HealthViewModel internal constructor(
                 )
             }
             val weightState = combine(
-                weightHistory,
-                weightInput,
-                isWeightEditorOpen,
-                isSavingWeight,
-                weightMessage,
-            ) { weights, input, editorOpen, saving, message ->
-                WeightUiState(weights, input, editorOpen, saving, message)
-            }
+                combine(
+                    weightHistory,
+                    weightInput,
+                    isWeightEditorOpen,
+                    isSavingWeight,
+                    weightMessage,
+                ) { weights, input, editorOpen, saving, message ->
+                    WeightUiState(weights, input, editorOpen, saving, message)
+                },
+                selectedWeightHistoryPeriod,
+            ) { weights, period -> weights.copy(selectedPeriod = period) }
             val baseState = combine(
                 coreState,
                 personalMetrics,
@@ -227,6 +251,7 @@ class HealthViewModel internal constructor(
                     d1ImportState = core.d1ImportState,
                     selectedHistoryPeriod = core.selectedHistoryPeriod,
                     history = core.history,
+                    todayHeartRateHistory = core.todayHeartRateHistory,
                     latestD1ImportMetadata = core.latestD1ImportMetadata,
                     latestMeasurement = core.latestMeasurement,
                     recentMeasurements = core.recentMeasurements,
@@ -245,6 +270,7 @@ class HealthViewModel internal constructor(
                     isWeightEditorOpen = weight.editorOpen,
                     isSavingWeight = weight.saving,
                     weightMessage = weight.message,
+                    selectedWeightHistoryPeriod = weight.selectedPeriod,
                 )
             }.collect { mutableState.value = it }
         }
@@ -296,6 +322,7 @@ class HealthViewModel internal constructor(
                 cancelD1Import(D1HeartRateImportCancellationReason.BACKGROUND)
             }
             is HealthIntent.SelectHistoryPeriod -> selectHistoryPeriod(intent.period)
+            is HealthIntent.SelectWeightHistoryPeriod -> selectedWeightHistoryPeriod.value = intent.period
             HealthIntent.OpenDevice -> Unit
             HealthIntent.OpenWeightEditor -> openWeightEditor()
             is HealthIntent.WeightChanged -> weightInput.value = intent.value
@@ -663,6 +690,7 @@ class HealthViewModel internal constructor(
         val d1ImportState: D1HeartRateImportSurfaceState,
         val selectedHistoryPeriod: HeartRateHistoryPeriod,
         val history: HeartRateHistorySnapshot,
+        val todayHeartRateHistory: HeartRateHistorySnapshot,
         val latestD1ImportMetadata: D1HeartRateImportMetadata?,
         val latestMeasurement: HeartRateMeasurement?,
         val recentMeasurements: List<HeartRateMeasurement>,
@@ -674,6 +702,7 @@ class HealthViewModel internal constructor(
         val d1ImportState: D1HeartRateImportSurfaceState,
         val selectedHistoryPeriod: HeartRateHistoryPeriod,
         val history: HeartRateHistorySnapshot,
+        val todayHeartRateHistory: HeartRateHistorySnapshot,
     )
 
     private data class PartialHealthData(
@@ -689,6 +718,7 @@ class HealthViewModel internal constructor(
         val editorOpen: Boolean,
         val saving: Boolean,
         val message: HealthWeightMessage?,
+        val selectedPeriod: WeightHistoryPeriod = WeightHistoryPeriod.THREE_MONTHS,
     )
 
     private fun HealthSyncSummary.toHealthConnectSyncUiModel() = HealthConnectSyncUiModel(

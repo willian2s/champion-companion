@@ -1,7 +1,18 @@
 # ADR-023 — Refatoração visual incremental inspirada no Google Health
 
-- **Status:** aceita
+- **Status:** supersedida por [ADR-028](adr-028-redesign-visual-integral-google-health.md)
 - **Data:** 2026-08-17
+- **Spec histórica:** [Spec 024](../specs/024-refatoracao-visual-google-health.md)
+- **Spec vigente:** [Spec 031](../specs/031-redesign-visual-integral-google-health.md)
+
+Esta decisão permanece como histórico da Spec 024. Sua direção foi substituída
+por `docs/decisions/adr-028-redesign-visual-integral-google-health.md`, que
+registra o redesign integral autorizado pelo usuário sem apagar esta decisão.
+A supersessão limita-se à direção visual e à organização/apresentação da
+navegação. Fechamento, evidências, subtarefas e guard rails funcionais da Spec
+024 permanecem preservados, incluindo Room/schema/DataStore, BLE, Health Connect
+write-only, privacidade e `PhoneWorkoutPolicy`; treino phone, GPS, localização,
+rota e mapa continuam proibidos.
 
 ## Contexto
 

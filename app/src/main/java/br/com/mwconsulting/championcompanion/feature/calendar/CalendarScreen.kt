@@ -2,6 +2,7 @@ package br.com.mwconsulting.championcompanion.feature.calendar
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,6 +77,8 @@ import java.util.Locale
 @Composable
 fun CalendarScreen(
     onOpenDate: (LocalDate) -> Unit = {},
+    onNavigateBack: (() -> Unit)? = null,
+    backLabel: String = "Voltar",
     calendarViewModel: CalendarViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) { ViewModelProvider(activity)[CalendarViewModel::class.java] }
@@ -102,7 +106,10 @@ fun CalendarScreen(
                 ),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
         ) {
-            CalendarHeader()
+            CalendarHeader(
+                onNavigateBack = onNavigateBack,
+                backLabel = backLabel,
+            )
             MonthHeader(
                 month = state.selectedMonth,
                 locale = locale,
@@ -180,7 +187,10 @@ fun CalendarScreen(
 }
 
 @Composable
-private fun CalendarHeader() {
+private fun CalendarHeader(
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
@@ -203,6 +213,18 @@ private fun CalendarHeader() {
                 text = "Navegue pelo histórico local e selecione um dia.",
                 style = MaterialTheme.typography.bodyLarge,
             )
+            onNavigateBack?.let { navigateBack ->
+                OutlinedButton(
+                    onClick = navigateBack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = BorderStroke(1.dp, Color.White),
+                ) {
+                    Text(backLabel)
+                }
+            }
         }
     }
 }
@@ -251,6 +273,7 @@ private fun MonthHeader(
                 }
                 Button(
                     onClick = onToday,
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = calendarPrimaryAccent(),
                         contentColor = calendarOnPrimaryAccent(),
@@ -603,7 +626,9 @@ private fun SelectedDateActions(
                 Button(
                     onClick = { onOpenDate(date) },
                     enabled = !dayLoading,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                 ) {
                     Text(if (dayLoading) "Carregando…" else "Abrir dia")
                 }
