@@ -12,14 +12,14 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -28,11 +28,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,8 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -56,18 +57,19 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
 import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
-import br.com.mwconsulting.championcompanion.core.designsystem.HealthCard
-import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
-import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
-import br.com.mwconsulting.championcompanion.core.designsystem.SyncStatusBadge
-import br.com.mwconsulting.championcompanion.core.designsystem.SyncVisualState
-import androidx.compose.foundation.isSystemInDarkTheme
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
@@ -78,6 +80,8 @@ fun DeviceScreen(
             ViewModelProvider(activity)[DeviceManagementViewModel::class.java]
         }
     },
+    onNavigateBack: (() -> Unit)? = null,
+    backLabel: String = "Voltar",
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -153,104 +157,108 @@ fun DeviceScreen(
         return
     }
 
-    DeviceManagementScreen(
-        state = state,
-        isDebugBuild = context.isDebugBuild(),
-        onAddDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.AddDevice) },
-        onRetry = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
-        onCancelScan = { deviceManagementViewModel.onIntent(DeviceManagementIntent.CancelScan) },
-        onSelectCandidate = { deviceManagementViewModel.onIntent(DeviceManagementIntent.SelectCandidate(it)) },
-        onConnectSelectedCandidate = {
-            if (state.associatedDevice != null) {
-                showReplacementConfirmation = true
-            } else {
-                deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectSelectedCandidate)
-            }
-        },
-        onConnectAssociatedDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectAssociatedDevice) },
-        onDisconnectDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DisconnectDevice) },
-        onForgetDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ForgetDevice) },
-        onDismissError = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DismissError) },
-        onRequestPermissions = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
-        onOpenBluetoothSettings = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
-        onOpenDiagnostics = { diagnosticsVisible = true },
-        onExportDiagnostics = {
-            runCatching {
-                val report = buildDeviceDiagnosticsReport(context, state)
-                val exportedReport = DeviceDiagnosticsFeatureReportExporter.export(context, report)
-                val shareIntent = DeviceDiagnosticsFeatureReportExporter.createShareIntent(exportedReport)
-                context.startActivity(Intent.createChooser(shareIntent, "Compartilhar relatório"))
-            }.onFailure {
-                diagnosticsNotice = "Nao foi possivel exportar relatorio sanitizado."
-            }
-        },
-        onOpenDebugPoc = { debugPocVisible = true },
-    )
-
-    if (showForgetConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showForgetConfirmation = false },
-            title = { Text("Esquecer dispositivo?") },
-            text = { Text("A associação atual será removida. Histórico e dados já salvos permanecem intactos.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showForgetConfirmation = false
-                        deviceManagementViewModel.onIntent(DeviceManagementIntent.ConfirmForgetDevice)
-                    },
-                ) {
-                    Text("Esquecer")
+    ChampionRedesignTheme {
+        DeviceManagementScreen(
+            state = state,
+            isDebugBuild = context.isDebugBuild(),
+            onAddDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.AddDevice) },
+            onRetry = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
+            onCancelScan = { deviceManagementViewModel.onIntent(DeviceManagementIntent.CancelScan) },
+            onSelectCandidate = { deviceManagementViewModel.onIntent(DeviceManagementIntent.SelectCandidate(it)) },
+            onConnectSelectedCandidate = {
+                if (state.associatedDevice != null) {
+                    showReplacementConfirmation = true
+                } else {
+                    deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectSelectedCandidate)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showForgetConfirmation = false }) {
-                    Text("Cancelar")
+            onConnectAssociatedDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectAssociatedDevice) },
+            onDisconnectDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DisconnectDevice) },
+            onForgetDevice = { deviceManagementViewModel.onIntent(DeviceManagementIntent.ForgetDevice) },
+            onDismissError = { deviceManagementViewModel.onIntent(DeviceManagementIntent.DismissError) },
+            onRequestPermissions = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
+            onOpenBluetoothSettings = { deviceManagementViewModel.onIntent(DeviceManagementIntent.Retry) },
+            onOpenDiagnostics = { diagnosticsVisible = true },
+            onExportDiagnostics = {
+                runCatching {
+                    val report = buildDeviceDiagnosticsReport(context, state)
+                    val exportedReport = DeviceDiagnosticsFeatureReportExporter.export(context, report)
+                    val shareIntent = DeviceDiagnosticsFeatureReportExporter.createShareIntent(exportedReport)
+                    context.startActivity(Intent.createChooser(shareIntent, "Compartilhar relatório"))
+                }.onFailure {
+                    diagnosticsNotice = "Nao foi possivel exportar relatorio sanitizado."
                 }
             },
+            onOpenDebugPoc = { debugPocVisible = true },
+            onNavigateBack = onNavigateBack,
+            backLabel = backLabel,
         )
-    }
 
-    if (showReplacementConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showReplacementConfirmation = false },
-            title = { Text("Substituir dispositivo associado?") },
-            text = { Text("A conexão bem-sucedida vai trocar a associação principal pelo dispositivo selecionado.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showReplacementConfirmation = false
-                        deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectSelectedCandidate)
-                    },
-                ) {
-                    Text("Continuar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showReplacementConfirmation = false }) {
-                    Text("Cancelar")
-                }
-            },
-        )
-    }
+        if (showForgetConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showForgetConfirmation = false },
+                title = { Text("Esquecer dispositivo?") },
+                text = { Text("A associação atual será removida. Histórico e dados já salvos permanecem intactos.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showForgetConfirmation = false
+                            deviceManagementViewModel.onIntent(DeviceManagementIntent.ConfirmForgetDevice)
+                        },
+                    ) {
+                        Text("Esquecer")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showForgetConfirmation = false }) {
+                        Text("Cancelar")
+                    }
+                },
+            )
+        }
 
-    if (diagnosticsVisible) {
-        DeviceDiagnosticsDialog(
-            report = buildDeviceDiagnosticsReport(context, state),
-            onDismiss = { diagnosticsVisible = false },
-        )
-    }
+        if (showReplacementConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showReplacementConfirmation = false },
+                title = { Text("Substituir dispositivo associado?") },
+                text = { Text("A conexão bem-sucedida vai trocar a associação principal pelo dispositivo selecionado.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showReplacementConfirmation = false
+                            deviceManagementViewModel.onIntent(DeviceManagementIntent.ConnectSelectedCandidate)
+                        },
+                    ) {
+                        Text("Continuar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReplacementConfirmation = false }) {
+                        Text("Cancelar")
+                    }
+                },
+            )
+        }
 
-    diagnosticsNotice?.let { message ->
-        AlertDialog(
-            onDismissRequest = { diagnosticsNotice = null },
-            title = { Text("Ação reservada") },
-            text = { Text(message) },
-            confirmButton = {
-                TextButton(onClick = { diagnosticsNotice = null }) {
-                    Text("Fechar")
-                }
-            },
-        )
+        if (diagnosticsVisible) {
+            DeviceDiagnosticsDialog(
+                report = buildDeviceDiagnosticsReport(context, state),
+                onDismiss = { diagnosticsVisible = false },
+            )
+        }
+
+        diagnosticsNotice?.let { message ->
+            AlertDialog(
+                onDismissRequest = { diagnosticsNotice = null },
+                title = { Text("Ação reservada") },
+                text = { Text(message) },
+                confirmButton = {
+                    TextButton(onClick = { diagnosticsNotice = null }) {
+                        Text("Fechar")
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -265,7 +273,7 @@ private fun DeviceDiagnosticsDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
             ) {
                 DeviceInfoRow(label = "Capturado em", value = report.capturedAt)
                 DeviceInfoRow(label = "Versão do app", value = report.appVersion)
@@ -318,6 +326,8 @@ private fun DeviceManagementScreen(
     onOpenDiagnostics: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onOpenDebugPoc: () -> Unit,
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
 ) {
     val associatedDevice = state.associatedDevice
     val selectedCandidate = state.candidates.firstOrNull { it.isSelected }
@@ -330,23 +340,24 @@ private fun DeviceManagementScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(ChampionSpacing.extraLarge),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+                .padding(
+                    horizontal = LocalChampionRedesignTokens.current.spacing.screen,
+                    vertical = LocalChampionRedesignTokens.current.spacing.compact,
+                ),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
-            DeviceHeader()
+            DeviceHeader(
+                state = state,
+                onNavigateBack = onNavigateBack,
+                backLabel = backLabel,
+            )
 
-            HealthCard(
+            ChampionRedesignSummaryCard(
                 title = "Estado atual",
-                modifier = Modifier
-                    .fillMaxWidth()
-                .border(1.dp, devicePrimaryAccent(), ChampionShapeLarge),
+                value = state.connectionState.label(),
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = "Próxima ação: ${state.nextActionLabel()}",
             ) {
-                Text(
-                    text = state.connectionState.label(),
-                    color = devicePrimaryAccent(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
                 state.activeOperation?.let {
                     Text(
                         text = "Em andamento: ${it.label()}",
@@ -354,12 +365,6 @@ private fun DeviceManagementScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Text(
-                    text = "Próxima ação: ${state.nextActionLabel()}",
-                    color = devicePrimaryAccent(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
             }
 
             when (state.screenState) {
@@ -401,6 +406,7 @@ private fun DeviceManagementScreen(
             if (associatedDevice != null) {
                 AssociatedDeviceSection(
                     device = associatedDevice,
+                    connectionState = state.connectionState,
                 )
             } else if (state.candidates.isEmpty() && state.screenState != DeviceManagementScreenState.Scanning) {
                 EmptyState(
@@ -453,23 +459,23 @@ private fun DeviceManagementScreen(
             )
 
             if (isDebugBuild) {
-                HealthCard(title = "PoC técnica de debug") {
+                DeviceSectionCard(title = "PoC BLE técnica de debug") {
                     Text(
-                        text = "O fluxo técnico permanece separado do gerenciamento principal e fica disponível apenas em builds de debug.",
+                        text = "A PoC técnica BLE permanece separada do gerenciamento principal e fica disponível apenas em builds de debug.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = ChampionSpacing.medium),
+                            .padding(top = LocalChampionRedesignTokens.current.spacing.item),
                         horizontalArrangement = Arrangement.Start,
                     ) {
                         OutlinedButton(
                             onClick = onOpenDebugPoc,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Abrir PoC técnica")
+                            Text("Abrir PoC BLE técnica")
                         }
                     }
                 }
@@ -479,60 +485,99 @@ private fun DeviceManagementScreen(
 }
 
 @Composable
-private fun DeviceHeader() {
+private fun DeviceSectionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val tokens = LocalChampionRedesignTokens.current
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = LightColorScheme.primary,
-        ),
+        shape = tokens.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = tokens.elevation.card),
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            modifier = Modifier.padding(tokens.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
         ) {
             Text(
-                text = "Dispositivo",
+                text = title,
                 modifier = Modifier.semantics { heading() },
-                color = White,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = tokens.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
-            Text(
-                text = "Gerencie busca, conexão, associação e informações seguras do Champion C001.",
-                color = White,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            content()
         }
     }
 }
 
 @Composable
+private fun DeviceHeader(
+    state: DeviceManagementUiState,
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
+) {
+    ChampionRedesignSurfaceHeader(
+        title = "Dispositivo",
+        supportingText = "Relógio: ${state.connectionState.label()}",
+        navigationContent = onNavigateBack?.let { navigateBack ->
+            {
+                ChampionRedesignHeaderNavigationAction(
+                    contentDescription = backLabel,
+                    onClick = navigateBack,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = null,
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
 private fun AssociatedDeviceSection(
     device: DeviceManagementAssociatedDevice,
+    connectionState: DeviceManagementConnectionState,
 ) {
-    HealthCard(
+    ChampionRedesignSummaryCard(
         title = "Dispositivo associado",
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, deviceSecondaryAccent(), ChampionShapeLarge),
+        value = device.displayName,
+        modifier = Modifier.fillMaxWidth(),
+        supportingText = device.modelName,
+        trailingContent = {
+            Text(
+                text = connectionState.label(),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
     ) {
-        Text(device.displayName, style = MaterialTheme.typography.titleLarge)
-        Text(
-            text = device.modelName,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        HorizontalDivider(modifier = Modifier.padding(vertical = ChampionSpacing.medium))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            AssistChip(onClick = {}, enabled = false, label = { Text(device.safeIdentifier) })
+        Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact)) {
+            Text(
+                text = "Identificador seguro: ${device.safeIdentifier}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
             device.firmware?.let { firmware ->
-                AssistChip(onClick = {}, enabled = false, label = { Text("FW $firmware") })
+                Text(
+                    text = "Firmware: $firmware",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-            SyncStatusBadge(state = device.lastImportedAt.toSyncVisualState())
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            DeviceInfoRow(label = "Associado em", value = formatDeviceInstant(device.associatedAt))
+            DeviceInfoRow(
+                label = "Última conexão",
+                value = device.lastSuccessfulConnectionAt?.let(::formatDeviceInstant) ?: "Nunca conectado",
+            )
+            DeviceInfoRow(
+                label = "Última sincronização",
+                value = device.lastImportedAt?.let(::formatDeviceInstant) ?: "Ainda não disponível",
+            )
         }
     }
 }
@@ -547,11 +592,8 @@ private fun ScanResultsSection(
     onCancelScan: () -> Unit,
     onConnectSelectedCandidate: () -> Unit,
 ) {
-    HealthCard(
+    DeviceSectionCard(
         title = if (isScanning) "Busca em andamento" else "Resultados da busca",
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, deviceTertiaryAccent(), ChampionShapeLarge),
     ) {
         if (isScanning) {
             LoadingState(
@@ -575,7 +617,7 @@ private fun ScanResultsSection(
                 message = "Inicie uma nova busca para procurar um dispositivo compatível por perto.",
             )
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
+            Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item)) {
                 candidates.forEach { candidate ->
                     CandidateRow(
                         candidate = candidate,
@@ -602,11 +644,10 @@ private fun CandidateRow(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    HealthCard(
-        title = candidate.displayName,
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, deviceTertiaryAccent(), ChampionShapeLarge)
+            .sizeIn(minHeight = 48.dp)
             .clickable(enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .semantics {
                 contentDescription = buildString {
@@ -616,26 +657,37 @@ private fun CandidateRow(
                     if (candidate.isSelected) append(", selecionado")
                 }
             },
-        status = {
+        shape = LocalChampionRedesignTokens.current.shapes.small,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = LocalChampionRedesignTokens.current.elevation.card),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(LocalChampionRedesignTokens.current.spacing.item),
+            horizontalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(candidate.displayName, style = MaterialTheme.typography.titleMedium)
+                Text(candidate.safeIdentifier, style = MaterialTheme.typography.bodyLarge)
+                if (!candidate.isSelected) {
+                    Text(
+                        text = "Toque para selecionar este dispositivo",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                candidate.signalLabel?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             if (candidate.isSelected) {
                 AssistChip(onClick = {}, enabled = false, label = { Text("Selecionado") })
             }
-        },
-    ) {
-        Text(candidate.safeIdentifier, style = MaterialTheme.typography.bodyLarge)
-        if (!candidate.isSelected) {
-            Text(
-                text = "Toque para selecionar este dispositivo",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        candidate.signalLabel?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
     }
 }
@@ -657,13 +709,8 @@ private fun DiscoveryActionsSection(
             DeviceManagementScreenState.Forgetting,
         )
 
-    HealthCard(
-        title = "Nova busca",
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, devicePrimaryAccent(), ChampionShapeLarge),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
+    DeviceSectionCard(title = "Nova busca") {
+        Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item)) {
             PrimaryActionButton(
                 label = if (hasAssociatedDevice) "Buscar outro dispositivo" else "Buscar dispositivo",
                 onClick = onAddDevice,
@@ -716,15 +763,10 @@ private fun ConnectionActionsSection(
             DeviceManagementConnectionState.SEARCHING_REMEMBERED_DEVICE,
         )
 
-    HealthCard(
-        title = "Conexão",
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, deviceSecondaryAccent(), ChampionShapeLarge),
-    ) {
+    DeviceSectionCard(title = "Conexão") {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            horizontalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             OutlinedButton(
                 onClick = onConnectAssociatedDevice,
@@ -750,12 +792,7 @@ private fun MaintenanceActionsSection(
     hasAssociatedDevice: Boolean,
     onForgetDevice: () -> Unit,
 ) {
-    HealthCard(
-        title = "Manutenção",
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, deviceTertiaryAccent(), ChampionShapeLarge),
-    ) {
+    DeviceSectionCard(title = "Manutenção") {
         OutlinedButton(
             onClick = onForgetDevice,
             enabled = hasAssociatedDevice && state.activeOperation == null,
@@ -773,13 +810,8 @@ private fun DiagnosticsActionsSection(
     onOpenDiagnostics: () -> Unit,
     onExportDiagnostics: () -> Unit,
 ) {
-    HealthCard(
-        title = "Diagnóstico seguro",
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, devicePrimaryAccent(), ChampionShapeLarge),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium)) {
+    DeviceSectionCard(title = "Diagnóstico seguro") {
+        Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item)) {
             OutlinedButton(
                 onClick = onOpenDiagnostics,
                 enabled = hasAssociatedDevice && state.activeOperation == null,
@@ -823,11 +855,12 @@ private fun DeviceFeedbackCard(
         colors = colors,
     ) {
         Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
         ) {
             Text(
                 text = title,
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -847,7 +880,7 @@ private fun DeviceInfoRow(
     label: String,
     value: String,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall)) {
+    Column(verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.compact)) {
         Text(
             text = label,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -986,29 +1019,7 @@ private fun Boolean.yesNo(): String = if (this) "Sim" else "Nao"
 
 private fun List<String>.joinForUi(): String = if (isEmpty()) "nenhuma" else joinToString()
 
-@Composable
-private fun devicePrimaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.primary
-} else {
-    LightColorScheme.primary
-}
-
-@Composable
-private fun deviceSecondaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.secondary
-} else {
-    LightColorScheme.secondary
-}
-
-@Composable
-private fun deviceTertiaryAccent(): Color = if (isSystemInDarkTheme()) {
-    DarkColorScheme.tertiary
-} else {
-    LightColorScheme.tertiary
-}
-
-private fun Instant?.toSyncVisualState(): SyncVisualState = if (this == null) {
-    SyncVisualState.Pending
-} else {
-    SyncVisualState.Success
-}
+private fun formatDeviceInstant(instant: Instant): String = DateTimeFormatter
+    .ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+    .withLocale(Locale.getDefault())
+    .format(instant.atZone(ZoneId.systemDefault()))

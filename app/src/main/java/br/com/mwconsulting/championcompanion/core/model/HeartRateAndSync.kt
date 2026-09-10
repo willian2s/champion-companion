@@ -258,6 +258,8 @@ enum class HeartRateHistoryPeriod {
     TODAY,
     LAST_7_DAYS,
     LAST_30_DAYS,
+    LAST_90_DAYS,
+    LAST_365_DAYS,
 
     ;
 
@@ -266,7 +268,9 @@ enum class HeartRateHistoryPeriod {
             TODAY -> 1L
             LAST_7_DAYS -> 7L
             LAST_30_DAYS -> 30L
-        }
+            LAST_90_DAYS -> 90L
+            LAST_365_DAYS -> 365L
+    }
 }
 
 data class HeartRateHistoryQuery(
@@ -342,15 +346,24 @@ data class HeartRateHistoryAggregates(
 enum class HeartRateChartResolution {
     INTRADAY,
     DAILY,
+    MONTHLY,
 }
 
 data class HeartRateChartPoint(
     val timestamp: Instant,
-    val bpm: Double,
+    /** `null` represents an unfilled display bucket, never zero BPM. */
+    val bpm: Double?,
     val minimumBpm: Int? = null,
     val maximumBpm: Int? = null,
-    val sampleCount: Int = 1,
-)
+    val sampleCount: Int = if (bpm == null) 0 else 1,
+) {
+    init {
+        require(bpm?.isFinite() != false)
+        require(sampleCount >= 0)
+        require((bpm == null) == (sampleCount == 0))
+        require(bpm != null || (minimumBpm == null && maximumBpm == null))
+    }
+}
 
 data class HeartRateChartSeries(
     val resolution: HeartRateChartResolution = HeartRateChartResolution.INTRADAY,

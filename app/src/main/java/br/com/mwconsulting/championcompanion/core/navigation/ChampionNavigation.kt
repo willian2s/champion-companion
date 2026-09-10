@@ -10,20 +10,12 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -45,7 +37,6 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -83,6 +74,7 @@ import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import java.util.UUID
@@ -93,22 +85,9 @@ private data class NavigationItem(
     val icon: ImageVector,
 )
 
-private data class AdditionalNavigationItem(
-    val destination: AppDestination,
-    val label: String,
-)
-
 private val primaryItems = listOf(
-    NavigationItem(AppDestination.Home, "Início", Icons.Filled.Home),
+    NavigationItem(AppDestination.Home, "Home", Icons.Filled.Home),
     NavigationItem(AppDestination.Health, "Saúde", Icons.Filled.Favorite),
-    NavigationItem(AppDestination.Calendar, "Calendário", Icons.Filled.CalendarMonth),
-    NavigationItem(AppDestination.Exercises, "Exercícios", Icons.Filled.FitnessCenter),
-)
-
-private val additionalItems = listOf(
-    AdditionalNavigationItem(AppDestination.Device, "Dispositivo"),
-    AdditionalNavigationItem(AppDestination.Profile, "Perfil"),
-    AdditionalNavigationItem(AppDestination.Settings, "Configurações"),
 )
 
 private enum class ExitConfirmationTarget {
@@ -139,21 +118,13 @@ fun ChampionNavigation(
     }
     var preservedActiveWorkoutSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     val currentDestination = backStack.lastOrNull()
-    var additionalMenuExpanded by remember { mutableStateOf(false) }
     var pendingDestination by remember { mutableStateOf<AppDestination?>(null) }
     var pendingBackNavigation by remember { mutableStateOf(false) }
     var pendingExitConfirmationTarget by remember { mutableStateOf<ExitConfirmationTarget?>(null) }
     var animationDirection by remember { mutableStateOf(NavigationAnimationDirection.Forward) }
     val healthState by healthViewModel.state.collectAsState()
     val exercisesState by exercisesViewModel.state.collectAsState()
-    val contextualBackLabel = when {
-        backStack.contains(AppDestination.Calendar) && currentDestination != AppDestination.Calendar -> {
-            "Voltar para calendário"
-        }
-        backStack.dropLast(1).lastOrNull() == AppDestination.Health -> "Voltar para Saúde"
-        backStack.dropLast(1).lastOrNull() == AppDestination.Exercises -> "Voltar para Exercícios"
-        else -> "Voltar"
-    }
+    val contextualBackLabel = backStack.dropLast(1).lastOrNull().contextualBackLabel()
 
     fun terminateWorkoutPreparationIfVisible() {
         if (currentDestination is AppDestination.WorkoutPreparation) {
@@ -171,40 +142,42 @@ fun ChampionNavigation(
         if (destination != currentDestination) {
             terminateWorkoutPreparationIfVisible()
         }
-        animationDirection = NavigationAnimationDirection.Forward
-        if (destination.isTopLevelDestination()) {
-            if (destination == AppDestination.Device) {
-                val activeWorkout = backStack.lastOrNull { it is AppDestination.ActiveWorkout }
-                    as? AppDestination.ActiveWorkout
-                preservedActiveWorkoutSessionId = activeWorkout?.let {
-                    exercisesViewModel.activeWorkoutSessionIdForNavigation(it.sessionId)
-                }
+        val returnsToExistingPrimary = destination.isPrimaryDestination() && backStack.contains(destination)
+        animationDirection = if (returnsToExistingPrimary) {
+            NavigationAnimationDirection.Backward
+        } else {
+            NavigationAnimationDirection.Forward
+        }
+        if (destination == AppDestination.Device) {
+            val activeWorkout = backStack.lastOrNull { it is AppDestination.ActiveWorkout }
+                as? AppDestination.ActiveWorkout
+            preservedActiveWorkoutSessionId = activeWorkout?.let {
+                exercisesViewModel.activeWorkoutSessionIdForNavigation(it.sessionId)
             }
-            val sessionIdToRestore = if (destination == AppDestination.Exercises) {
-                preservedActiveWorkoutSessionId?.takeIf { sessionId ->
-                    exercisesViewModel.activeWorkoutSessionIdForNavigation(sessionId) == sessionId
-                }
-            } else {
-                null
-            }
-            if (backStack.contains(AppDestination.Calendar)) {
-                backStack.removeCalendarDestinations()
-            }
-            if (currentDestination.isHealthDestination()) {
-                backStack.removeHealthDestinations()
-            }
-            if (currentDestination.isExercisesDestination() || sessionIdToRestore != null) {
-                backStack.removeExercisesDestinations()
-            }
-            backStack.navigateToTopLevel(destination)
-            if (sessionIdToRestore != null) {
-                backStack.navigateForward(AppDestination.ActiveWorkout(sessionIdToRestore))
-            }
-            if (destination == AppDestination.Exercises) {
-                preservedActiveWorkoutSessionId = null
+        }
+        val sessionIdToRestore = if (destination == AppDestination.Exercises) {
+            preservedActiveWorkoutSessionId?.takeIf { sessionId ->
+                exercisesViewModel.activeWorkoutSessionIdForNavigation(sessionId) == sessionId
             }
         } else {
-            backStack.navigateForward(destination)
+            null
+        }
+        if (destination.isPrimaryDestination()) {
+            backStack.navigateToPrimary(destination)
+        } else {
+            if (destination == AppDestination.Exercises &&
+                destination != currentDestination &&
+                currentDestination.isExercisesDestination()
+            ) {
+                backStack.removeExercisesDestinations()
+            }
+            backStack.navigateContextually(destination)
+        }
+        if (sessionIdToRestore != null) {
+            backStack.navigateForward(AppDestination.ActiveWorkout(sessionIdToRestore))
+        }
+        if (destination == AppDestination.Exercises) {
+            preservedActiveWorkoutSessionId = null
         }
     }
 
@@ -369,71 +342,33 @@ fun ChampionNavigation(
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 0.dp,
-            ) {
-                val navigationBarScope = this
-                val isCalendarSubtree = backStack.contains(AppDestination.Calendar) &&
-                    currentDestination != AppDestination.Calendar
-                val navigationAccentScheme = if (isSystemInDarkTheme()) {
-                    DarkColorScheme
-                } else {
-                    LightColorScheme
-                }
-                val navigationItemColors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = navigationAccentScheme.onPrimaryContainer,
-                    selectedTextColor = navigationAccentScheme.primary,
-                    indicatorColor = navigationAccentScheme.primaryContainer,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                primaryItems.forEach { item ->
-                    NavigationBarItem(
-                        selected = if (item.destination == AppDestination.Health) {
-                            !isCalendarSubtree && currentDestination.isHealthDestination()
-                        } else if (item.destination == AppDestination.Exercises) {
-                            !isCalendarSubtree && currentDestination.isExercisesDestination()
-                        } else if (item.destination == AppDestination.Calendar) {
-                            currentDestination == AppDestination.Calendar ||
-                                (backStack.contains(AppDestination.Calendar) && currentDestination != AppDestination.Calendar)
-                        } else {
-                            currentDestination == item.destination
-                        },
-                        onClick = { requestNavigation(item.destination) },
-                        icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
-                        colors = navigationItemColors,
+            ChampionRedesignTheme {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = 0.dp,
+                ) {
+                    val navigationAccentScheme = if (isSystemInDarkTheme()) {
+                        DarkColorScheme
+                    } else {
+                        LightColorScheme
+                    }
+                    val navigationItemColors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = navigationAccentScheme.onPrimaryContainer,
+                        selectedTextColor = navigationAccentScheme.primary,
+                        indicatorColor = navigationAccentScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    navigationBarScope.NavigationBarItem(
-                        modifier = Modifier.fillMaxWidth(),
-                        selected = additionalItems.any { currentDestination == it.destination },
-                        onClick = { additionalMenuExpanded = true },
-                        icon = { Icon(imageVector = Icons.Filled.Menu, contentDescription = "Mais") },
-                        label = { Text("Mais") },
-                        colors = navigationItemColors,
-                    )
-                    DropdownMenu(
-                        expanded = additionalMenuExpanded,
-                        onDismissRequest = { additionalMenuExpanded = false },
-                        modifier = Modifier.align(Alignment.TopEnd),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        tonalElevation = 3.dp,
-                    ) {
-                        additionalItems.forEach { item ->
-                            DropdownMenuItem(
-                                modifier = Modifier.heightIn(min = 48.dp),
-                                text = { Text(item.label) },
-                                onClick = {
-                                    additionalMenuExpanded = false
-                                    requestNavigation(item.destination)
-                                },
-                            )
-                        }
+                    val selectedPrimaryDestination = backStack.selectedPrimaryDestination()
+                    primaryItems.forEach { item ->
+                        NavigationBarItem(
+                            selected = item.destination == selectedPrimaryDestination,
+                            onClick = { requestNavigation(item.destination) },
+                            icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) },
+                            colors = navigationItemColors,
+                        )
                     }
                 }
             }
@@ -549,6 +484,8 @@ private fun ChampionNavDisplay(
                 onOpenDevice = { onNavigateTo(AppDestination.Device) },
                 onOpenProfile = { onNavigateTo(AppDestination.Profile) },
                 onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
+                onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
+                onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
                 onOpenExercises = { onNavigateTo(AppDestination.Exercises) },
             )
             AppDestination.Health -> HealthScreen(
@@ -556,6 +493,9 @@ private fun ChampionNavDisplay(
                 onOpenWeight = { onNavigateTo(AppDestination.HealthWeight) },
                 onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
                 onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
+                onOpenExercises = { onNavigateTo(AppDestination.Exercises) },
+                onOpenDevice = { onNavigateTo(AppDestination.Device) },
+                onOpenProfile = { onNavigateTo(AppDestination.Profile) },
             )
             AppDestination.HealthHeartRate -> HeartRateDetailScreen(
                 onNavigateBack = onBackRequested,
@@ -577,14 +517,19 @@ private fun ChampionNavDisplay(
                 onOpenDate = { localDate ->
                     onNavigateTo(AppDestination.CalendarDay(localDate.toString()))
                 },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
             is AppDestination.CalendarDay -> CalendarDayScreen(
                 localDateIso = destination.localDateIso,
                 onNavigateBack = onBackRequested,
                 onNavigateTo = onNavigateTo,
+                backLabel = backLabel,
             )
             AppDestination.Exercises -> ExercisesScreen(
                 viewModel = exercisesViewModel,
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
@@ -594,9 +539,10 @@ private fun ChampionNavDisplay(
                 viewModel = exercisesViewModel,
                 openedActivityId = destination.activityId.toWorkoutActivityId(),
                 onNavigateBack = onBackRequested,
-                    onOpenActivity = { activityId ->
-                        onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
-                    },
+                backLabel = backLabel,
+                onOpenActivity = { activityId ->
+                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
+                },
             )
             AppDestination.WorkoutTypeSelection -> if (PhoneWorkoutPolicy.isDiscontinued()) {
                 PhoneWorkoutDisabledShell(onGoToExercises = { onNavigateTo(AppDestination.Exercises) })
@@ -633,23 +579,26 @@ private fun ChampionNavDisplay(
                 onNavigateBack = onBackRequested,
                 exercisesViewModel = exercisesViewModel,
             )
-            AppDestination.Device -> DeviceScreen()
+            AppDestination.Device -> DeviceScreen(
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
+            )
             AppDestination.Profile -> ProfileScreen(
                 viewModel = profileViewModel,
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
+                onOpenSettings = { onNavigateTo(AppDestination.Settings) },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
-            AppDestination.Settings -> SettingsScreen(viewModel = settingsViewModel)
+            AppDestination.Settings -> SettingsScreen(
+                viewModel = settingsViewModel,
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
+            )
         }
     }
-}
-
-private fun MutableList<AppDestination>.navigateToTopLevel(destination: AppDestination) {
-    if (lastOrNull() == destination) return
-
-    removeAll { it == destination }
-    add(destination)
 }
 
 private fun MutableList<AppDestination>.navigateForward(destination: AppDestination) {
@@ -657,19 +606,54 @@ private fun MutableList<AppDestination>.navigateForward(destination: AppDestinat
     add(destination)
 }
 
-private fun MutableList<AppDestination>.removeHealthDestinations() {
-    removeAll { it.isHealthDestination() }
+private fun MutableList<AppDestination>.navigateToPrimary(destination: AppDestination) {
+    val destinationIndex = indexOf(destination)
+    if (destinationIndex >= 0) {
+        while (lastIndex > destinationIndex) {
+            removeAt(lastIndex)
+        }
+        return
+    }
+
+    val currentPrimaryIndex = indexOfLast(AppDestination::isPrimaryDestination)
+    if (currentPrimaryIndex >= 0) {
+        while (lastIndex > currentPrimaryIndex) {
+            removeAt(lastIndex)
+        }
+    } else {
+        clear()
+    }
+    add(destination)
+}
+
+private fun MutableList<AppDestination>.navigateContextually(destination: AppDestination) {
+    val destinationIndex = indexOf(destination)
+    if (destinationIndex >= 0) {
+        while (lastIndex > destinationIndex) {
+            removeAt(lastIndex)
+        }
+    } else {
+        add(destination)
+    }
 }
 
 private fun MutableList<AppDestination>.removeExercisesDestinations() {
     removeAll { it.isExercisesDestination() }
 }
 
-private fun MutableList<AppDestination>.removeCalendarDestinations() {
-    val calendarIndex = indexOf(AppDestination.Calendar)
-    if (calendarIndex >= 0) {
-        repeat(size - calendarIndex) { removeAt(calendarIndex) }
-    }
+private fun List<AppDestination>.selectedPrimaryDestination(): AppDestination =
+    lastOrNull(AppDestination::isPrimaryDestination) ?: AppDestination.Home
+
+private fun AppDestination?.contextualBackLabel(): String = when (this) {
+    AppDestination.Home -> "Voltar para Home"
+    AppDestination.Health -> "Voltar para Saúde"
+    AppDestination.Exercises -> "Voltar para Exercícios"
+    AppDestination.Calendar -> "Voltar para Calendário"
+    AppDestination.Profile -> "Voltar para Perfil"
+    AppDestination.Device -> "Voltar para Dispositivo"
+    AppDestination.Settings -> "Voltar para Configurações"
+    is AppDestination.CalendarDay -> "Voltar para detalhe diário"
+    else -> "Voltar"
 }
 
 private fun AppDestination?.isHealthDestination(): Boolean = when (this) {
@@ -687,6 +671,8 @@ private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppD
 
 private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     AppDestination.Exercises,
+    AppDestination.Calendar,
+    is AppDestination.CalendarDay,
     is AppDestination.ExerciseDetail,
     AppDestination.WorkoutTypeSelection,
     is AppDestination.WorkoutPreparation,
@@ -707,27 +693,12 @@ private fun AppDestination.isPhoneWorkoutCreationDestination(): Boolean =
         else -> false
     }
 
-private fun AppDestination.isTopLevelDestination(): Boolean = when (this) {
+private fun AppDestination.isPrimaryDestination(): Boolean = when (this) {
     AppDestination.Home,
     AppDestination.Health,
-    AppDestination.Calendar,
-    AppDestination.Exercises,
-    AppDestination.Device,
-    AppDestination.Profile,
-    AppDestination.Settings,
     -> true
 
-    is AppDestination.ExerciseDetail,
-    AppDestination.WorkoutTypeSelection,
-    is AppDestination.WorkoutPreparation,
-    is AppDestination.ActiveWorkout,
-    is AppDestination.WorkoutRecovery,
-    is AppDestination.CalendarDay,
-    AppDestination.HealthHeartRate,
-    AppDestination.HealthWeight,
-    AppDestination.HealthSteps,
-    AppDestination.HealthDistance,
-    -> false
+    else -> false
 }
 
 private enum class NavigationAnimationDirection {

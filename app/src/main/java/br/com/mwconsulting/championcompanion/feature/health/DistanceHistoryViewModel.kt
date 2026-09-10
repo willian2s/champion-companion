@@ -2,12 +2,16 @@ package br.com.mwconsulting.championcompanion.feature.health
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
 import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.CalendarHistoryQuery
 import br.com.mwconsulting.championcompanion.core.model.CalendarRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -51,10 +55,8 @@ class DistanceHistoryViewModel @Inject constructor(
         observation = viewModelScope.launch {
             try {
                 calendarRepository.observeDistanceHistory(
-                    CalendarHistoryQuery(
-                        period = period,
-                        // Include today while preserving [fromInclusive, untilExclusive).
-                        untilExclusive = LocalDate.now(zoneId).plusDays(1),
+                    period.toDistanceHistoryQuery(
+                        today = LocalDate.now(zoneId),
                         zoneId = zoneId,
                     ),
                 ).collect { snapshot ->
@@ -84,6 +86,19 @@ class DistanceHistoryViewModel @Inject constructor(
         }
     }
 
+    private fun CalendarHistoryPeriod.toDistanceHistoryQuery(
+        today: LocalDate,
+        zoneId: ZoneId,
+    ): CalendarHistoryQuery {
+        val civilRange = distanceHistoryDateRange(today)
+        return CalendarHistoryQuery(
+            period = this,
+            untilExclusive = civilRange.untilExclusive,
+            zoneId = zoneId,
+            dateRangeOverride = civilRange,
+        )
+    }
+
     private fun Throwable.toDistanceHistoryUiError(): DistanceHistoryUiError =
         DistanceHistoryUiError(
             category = if (this is IllegalArgumentException) {
@@ -92,4 +107,31 @@ class DistanceHistoryViewModel @Inject constructor(
                 DistanceHistoryUiErrorCategory.SOURCE_UNAVAILABLE
             },
         )
+}
+
+internal fun CalendarHistoryPeriod.distanceHistoryDateRange(today: LocalDate): CalendarDateRange {
+    val currentMonth = YearMonth.from(today)
+    return when (this) {
+        CalendarHistoryPeriod.LAST_7_DAYS -> currentCivilWeekRange(today)
+        CalendarHistoryPeriod.LAST_30_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
+        CalendarHistoryPeriod.LAST_90_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.minusMonths(2).atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
+        CalendarHistoryPeriod.LAST_365_DAYS -> CalendarDateRange(
+            fromInclusive = currentMonth.minusMonths(11).atDay(1),
+            untilExclusive = today.plusDays(1),
+        )
+    }
+}
+
+internal fun currentCivilWeekRange(today: LocalDate): CalendarDateRange {
+    val sunday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+    return CalendarDateRange(
+        fromInclusive = sunday,
+        untilExclusive = sunday.plusWeeks(1),
+    )
 }

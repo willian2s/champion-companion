@@ -1,0 +1,921 @@
+# 031-06 — Redesenhar Saúde e métricas
+
+- **Ticker:** `031`
+- **Número:** `06`
+- **Status:** completed
+
+## Objetivo
+
+Reorganizar hub Saúde, detalhes de frequência cardíaca, peso, passos e distância,
+incluindo gráficos, filtros e listas conforme referência e dados locais.
+
+## Requisitos e aceite
+
+- O hub usa lista colorida com card Atividades no topo, seguido por Frequência
+  cardíaca, Peso, Passos e Distância; todos os cards mantêm mesma estrutura,
+  acessibilidade e ação de abertura.
+- Medição manual não compõe mais a superfície visual de Saúde. Importação D1 de
+  BPM ocorre somente por pull-to-refresh, mantendo a ação acessível nativa do
+  componente; não há CTA visual ou feedback dedicado adicional.
+- Gráficos preservam lacunas, unidades, períodos, origem e acessibilidade.
+- Distância continua estimada quando essa for sua origem. Na tela de distância,
+  `Semana` mostra domingo–sábado no gráfico com `D S T Q Q S S` e lista diária;
+  `M` mostra dias no gráfico com labels `1, 5, 10, 15, 20, 25` e último dia,
+  e lista semanal dentro do mês; `3M` e `A` mostram o mês atual parcial e os
+  meses civis anteriores no gráfico e na lista. Gráfico mantém colunas vazias;
+  lista mostra somente valores válidos.
+- Health Connect não vira fonte visual nem é duplicado sem necessidade.
+- Registrar nomes dos componentes compartilhados usados também em `031-05`;
+  promoção exige uso real nas duas superfícies, nunca apenas preview.
+
+## Escopo
+
+Inclui composição visual, filtros, headers, listas e uso da infraestrutura de
+gráficos. Exclui novas métricas, leitura Health Connect, fórmulas e BLE.
+
+## Dependências
+
+- `031-03`, `031-04`, `031-05`.
+- Specs 009, 015, 023, 028 e ADR-009.
+
+## Arquivos e símbolos prováveis
+
+- `feature/health/HealthScreen.kt`.
+- `HealthMetricDetailScreens.kt`, `StepsHistoryShell.kt`,
+  `DistanceHistoryShell.kt`.
+- `HeartRateHistoryChart.kt`, `StepsHistoryChart.kt`,
+  `DistanceHistoryChart.kt` e contratos/ViewModels.
+
+## Passos
+
+1. Criar matriz de métricas disponíveis e blocos equivalentes.
+2. Reordenar hub/detalhes e adaptar filtros sem mudar intents.
+3. Ajustar gráficos via `core/designsystem/chart`, sem reamostrar dados.
+4. Validar estados vazios, períodos, retorno e ações explícitas.
+
+## Validação e comandos
+
+```bash
+git diff --check
+./gradlew lint assembleDebug assembleRelease
+./gradlew installDebug
+```
+
+Smoke ADB sanitizado confirma hub, header, cards coloridos, card Atividades no
+topo, quatro períodos da distância, buckets equivalentes entre gráfico/lista e
+ausência de rolagem horizontal nos gráficos de Saúde. Não criar ou executar
+testes automatizados.
+
+## Definição de pronto
+
+Hub e quatro detalhes aprovados visualmente; dados reais, filtros, gaps, estados
+e callbacks permanecem equivalentes; evidência sanitizada, estado
+inicial/restaurado do aparelho e revisão independente aprovados.
+
+## Riscos
+
+Visual denso pode incentivar valores sintéticos ou ocultar lacunas. Rejeitar
+qualquer composição que não exponha unidade, período e ausência corretamente.
+
+## Execução atual
+
+  - **Arquivos alterados:** `HealthScreen.kt`, `HealthFeatureContract.kt`,
+  `HealthViewModel.kt`, `HeartRateHistoryChart.kt`, `CalendarHistory.kt`,
+   `StepsHistoryChart.kt`, `DistanceHistoryChart.kt`, `DistanceHistoryViewModel.kt`,
+   `HealthMetricDetailScreens.kt`, `StepsHistoryShell.kt`, `DistanceHistoryShell.kt`,
+   `ChampionCharts.kt` e
+  `ChampionNavigation.kt`.
+- **Decisões:** após solicitação explícita, o hub voltou ao estilo lista da
+  implementação anterior, mantendo `ChampionRedesignSurfaceHeader`, ações de
+  Dispositivo/Perfil, card de Atividades no topo seguido pelas quatro métricas
+  locais, com card igual aos
+  demais cards, com a paleta colorida restaurada; o card fica no topo da lista;
+  o calendário não é exposto neste hub e permanece dentro de Exercícios; FC intraday usa início do dia como origem temporal, bandas e
+  pontos estilo referência; detalhes preservam seus gráficos, filtros, lacunas
+  e rolagem horizontal desativada. Distância usa buckets derivados dos mesmos
+   dados para gráfico e lista: semana civil atual com sete entradas diárias,
+   entradas diárias e semanas civis recortadas no mês fechado em `M`, e meses
+   fechados em `3M` e `A`. Intervalos semanais respeitam domingo–sábado e os
+   limites do mês, como `30/08 - 31/08`; o gráfico anual usa somente a inicial
+   maiúscula de cada mês.
+- **Desvios:** nenhum contrato de meta semanal foi criado. Unidade de Passos não
+  é repetida no valor do card. O período anual foi adicionado ao contrato comum
+  de histórico e permanece oculto no seletor de Passos.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  --no-daemon`; `./gradlew app:lintDebug --no-daemon`; `./gradlew lint assembleDebug
+  assembleRelease --no-daemon`; `./gradlew installDebug --no-daemon`.
+- **Comandos adicionais executados:** `git diff --check`; `./gradlew
+  app:compileDebugKotlin --no-daemon`; `./gradlew lint assembleDebug
+  assembleRelease --no-daemon`; `./gradlew installDebug --no-daemon`.
+  - **Intercorrência:** uma compilação intermediária falhou por referência
+  ausente de `onOpenExercises` durante a inclusão do card; assinatura foi
+  corrigida e compilação subsequente passou.
+ - **Resultados/evidências:** compilação, lint e builds Debug/Release passaram
+   após implementação dos períodos. Instalação Debug passou. A implementação
+   foi inspecionada no código: Semana civil atual, M diário no gráfico e semanal
+   no recorte domingo–sábado, 3M/A mensais, labels de M nos dias requeridos e
+    colunas vazias preservadas. A tentativa anterior de smoke foi interrompida
+    por atividade externa do aparelho; a execução posterior foi concluída após a
+    correção do crash. Dumps e screenshots temporários foram descartados e não
+    serão versionados. Não foram criados nem executados testes automatizados,
+    conforme regra do projeto.
+  - **Riscos residuais:** revisão independente pendente. Imagem de referência não
+  deve entrar no versionamento.
+
+  - **Correção pós-smoke:** o fechamento da tela foi diagnosticado via
+   `dumpsys dropbox` como `IllegalStateException` do Vico por formatter de eixo
+   retornando string vazia. O renderer agora aceita `labelValues` e usa
+    `ItemPlacer` explícito; Semana e 3M passaram a fixar labels nos mesmos X das
+    colunas, o chip semanal foi reduzido para `S` e os labels dos filtros foram
+    centralizados.
+ - **Atualização de intervalo civil:** `Semana` consulta a semana civil atual,
+   de domingo a sábado; `M` consulta o mês calendário fechado anterior; `3M`
+   consulta os três meses calendário fechados anteriores; `A` consulta doze
+   meses calendário fechados anteriores. O gráfico mensal permanece diário com
+    labels espaçados; a lista mensal usa semanas civis recortadas no mês; 3M usa
+    meses abreviados em maiúsculas e A usa iniciais mensais.
+  - **Validação adicional:** `./gradlew app:compileDebugKotlin --no-daemon`,
+    `./gradlew lint assembleDebug assembleRelease --no-daemon` e `git diff --check`
+    passaram após o ajuste de intervalo civil e correção do renderer. `./gradlew
+    installDebug --no-daemon` passou. Smoke ADB confirmou abertura de Distância
+    sem crash, labels `D S T Q Q S S`, chip `S`, e alinhamento visual entre
+     colunas/eixos em Semana e 3M, iniciais mensais no gráfico A sem quebra de
+     texto e labels dos filtros centralizados. Nenhum teste automatizado foi
+     criado ou executado.
+
+## Atualização da execução — 2026-09-04
+
+- **Status:** `in_progress`; revisão independente e decisão de fechamento
+  permanecem pendentes.
+- **Escopo aplicado:** a tela de frequência cardíaca compõe somente cabeçalho,
+  gráfico e histórico; foram removidos da composição os cards `Resumo atual`,
+  `Importar histórico D1` e `Medição manual`, junto dos composables privados que
+  existiam exclusivamente para esses blocos.
+- **Preservação confirmada:** `PullToRefreshBox`, gesto de pull-to-refresh,
+  `triggerD1Refresh`, ação de acessibilidade `Atualizar histórico do relógio`,
+  estado/coordenação D1 e manual, lifecycle, contratos, persistência, histórico,
+  gráfico, filtros e proteção de saída continuam no fluxo.
+- **Arquivos alterados nesta execução:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- **Validação:** `git diff --check`,
+  `./gradlew app:compileDebugKotlin --no-daemon`,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram. Nenhum teste automatizado foi
+  criado ou executado.
+- **Bloqueios/riscos:** revisão independente e smoke visual final continuam
+  pendentes; nenhum backend, domínio ou navegação foi alterado.
+
+- **Esclarecimento de escopo:** por solicitação explícita do usuário, os cards
+  `Resumo atual`, `Importar histórico D1` e `Medição manual` foram removidos
+  somente da superfície visual de frequência cardíaca. O pull-to-refresh e sua
+  ação de acessibilidade continuam sendo a entrada de importação D1; contratos,
+  ViewModel, coordenação e persistência permanecem disponíveis para tratamento
+  posterior em spec própria.
+- **Smoke visual sanitizado:** em aparelho autorizado, a navegação Saúde →
+  Frequência cardíaca exibiu `Tendência` e `Histórico completo`, sem os três
+  rótulos removidos. Pull-to-refresh foi preservado estaticamente e não foi
+  disparado para gerar evidência. Dumps temporários foram apagados e a ausência
+  foi confirmada no aparelho.
+
+## Refinamento de gráficos e listas — 2026-09-04
+
+- **Status:** `in_progress`; revisão independente e decisão de fechamento
+  permanecem pendentes.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HeartRateHistoryChart.kt`
+  e `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- **Decisões:** `Hoje` usa 144 buckets de 10 minutos, gráfico compacto com
+  bandas visuais e eixo `0, 4, 8, 12, 16, 20, 23`; a lista foi substituída por
+  tempo por faixa e faixas de frequência. Como não há idade no modelo e a
+  Spec 023 exclui esse dado, as quatro faixas são display-only (`30–79`,
+  `80–129`, `130–169`, `170–220`), sem interpretação clínica ou cálculo etário.
+  Cada bucket preenchido contribui com 10 minutos; lacunas não são interpoladas.
+- **Decisões:** demais períodos usam barras e preservam buckets vazios no
+  gráfico. `Semana` usa domingo–sábado e médias diárias; `M` usa mês civil
+  fechado, gráfico diário e lista de semanas civis recortadas; `3M` e `A` usam
+  meses civis fechados e listas mensais. Médias e gráfico visual filtram
+  `WATCH_WORKOUT_ACTIVITY`; persistência e entradas originais permanecem
+  intactas.
+- **Riscos/desvios:** o filtro de atividades também foi aplicado às listas para
+  manter médias coerentes com os gráficos, embora o pedido tenha explicitado o
+  filtro nos gráficos. Faixas por idade dependem de futura spec que forneça
+  idade confiável; não foram criados contratos persistentes, migration ou
+  fórmula clínica nesta execução.
+- **Validação:** `git diff --check`,
+  `./gradlew app:compileDebugKotlin --no-daemon` e
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` passaram;
+  `./gradlew installDebug --no-daemon` passou. Smoke ADB sanitizado confirmou
+  filtros `Hoje`, `Semana`, `M`, `3M`, `A`, bandas/faixas de Hoje, ausência dos
+  três cards removidos e seções de tendência; dumps temporários foram apagados.
+  Uma execução inicial de build excedeu timeout e uma execução inicial de lint
+  falhou por indentação suspeita; ambos foram corrigidos e reexecutados com
+  sucesso.
+- **Intercorrência:** agente delegado criou temporariamente um teste de bucket
+  mensal e executou o teste focado; o arquivo de teste e a alteração foram
+  revertidos antes da validação final. Nenhum teste novo permanece no diff.
+- **Riscos residuais:** revisão independente e smoke de interação completa dos
+  cinco períodos permanecem pendentes; warnings legados de override deprecated
+  em `RoomRepositories.kt` continuam sem relação com esta mudança.
+
+## Correção de compilação — 2026-09-04
+
+- **Sintoma observado:** `app:compileDebugKotlin` falhou por `when` não
+  exaustivo para `LAST_90_DAYS`, `LAST_365_DAYS` e `MONTHLY`, além de chamada
+  insegura em `HeartRateChartPoint.bpm`, agora nullable para representar lacunas.
+- **Causa raiz:** a implementação parcial ampliou os enums e o contrato de ponto,
+  mas `HealthMetricDetailScreens.kt` e `HeartRateHistoryChart.kt` mantiveram
+  consumidores do contrato anterior.
+- **Correção:** adicionados branches para os dois períodos na tela e no gráfico;
+  adicionado renderer mensal com índices de bucket e labels; pontos nulos agora
+  viram lacunas explícitas sem conversão para zero; bounds mensais usam quantidade
+  real de buckets. Nenhuma UI de zonas ou listas novas foi introduzida.
+- **Regressão:** `RoomRepositoriesHeartRateHistoryQueriesTest` confirma buckets
+  mensais e mês vazio preservado como `bpm = null`/`sampleCount = 0`.
+- **Evidência:** `./gradlew app:compileDebugKotlin --no-daemon` passou;
+  `./gradlew app:testDebugUnitTest --tests
+  br.com.mwconsulting.championcompanion.data.RoomRepositoriesHeartRateHistoryQueriesTest
+  --no-daemon` passou; `git diff --check` passou.
+ - **Risco residual:** revisão independente e validação visual final continuam
+   pendentes; nenhum backend, domínio ou navegação foi alterado.
+
+## Correções solicitadas — 2026-09-04
+
+- **Status:** `in_progress`; revisão independente e validação visual final
+  continuam pendentes.
+- **Correções aplicadas:** `M` de frequência cardíaca e distância agora consulta
+  o mês civil atual, do primeiro dia até hoje inclusive; `3M` e `A` continuam
+  limitados aos meses civis fechados anteriores. Gráficos diários usam o último
+  dia disponível sem cortar o eixo; lacunas permanecem explícitas. Listas de
+  `M` recortam semanas civis no mês atual e não criam semanas futuras vazias.
+- **Labels e acessibilidade:** descrições de `M` deixaram de declarar mês
+  fechado anterior; labels diários mantêm os marcos `1`, `5`, `10`, `15`, `20`,
+  `25` e o último dia disponível quando já transcorrido.
+- **Hub Saúde (tentativa anterior):** frequência cardíaca usou
+  `latestMeasurement`, stream fixo já existente e independente do período
+  selecionado no detalhe. Essa escolha foi substituída pela correção delimitada
+  abaixo para preservar a semântica vigente de mínimo/máximo diário. Distância
+  continua usando `todaySummary`.
+- **Arquivos alterados nesta correção:** `RoomRepositories.kt`,
+  `DistanceHistoryViewModel.kt`, `DistanceHistoryChart.kt`,
+  `DistanceHistoryShell.kt`, `HealthMetricDetailScreens.kt` e
+  `HealthScreen.kt`.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew app:lintDebug --no-daemon` passaram. Nenhum teste
+  automatizado foi criado ou executado.
+- **Bloqueios/riscos:** revisão independente, smoke visual e decisão de
+  fechamento continuam pendentes.
+
+## Correção delimitada — 2026-09-04
+
+- **Status:** `in_progress`; revisão independente e smoke visual final continuam
+  pendentes.
+- **Causa corrigida:** o hub derivava Frequência cardíaca de `state.history`, que
+  muda ao selecionar períodos no detalhe. A tentativa anterior com
+  `latestMeasurement` também alterava a semântica vigente de mínimo/máximo diário.
+- **Decisão:** `HealthViewModel` observa em paralelo um snapshot in-memory fixo de
+  `HeartRateHistoryPeriod.TODAY`; `HealthUiState` o expõe como
+  `todayHeartRateHistory`. `HealthScreen` calcula mínimo/máximo diário desse
+  snapshot, mantendo `state.history` exclusivo do período selecionado.
+- **Preservação:** nenhum Room, schema, persistência, gráfico, lista ou período do
+  detalhe foi alterado.
+- **Arquivos alterados:** `HealthFeatureContract.kt`, `HealthViewModel.kt` e
+  `HealthScreen.kt`.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew app:lintDebug --no-daemon` passaram. Nenhum teste
+  automatizado foi criado ou executado.
+- **Bloqueios/riscos:** revisão independente e smoke visual permanecem pendentes;
+  nenhuma pendência funcional conhecida nesta correção.
+
+## Validação final disponível — 2026-09-04
+
+- **Status:** `in_progress`; revisão independente permanece pendente.
+- **Validação de build:** `git diff --check`, `./gradlew lint assembleDebug
+  assembleRelease --no-daemon` e `./gradlew installDebug --no-daemon` passaram
+  após reconexão do aparelho. Permanecem somente warnings legados de override
+  deprecated em `RoomRepositories.kt`.
+- **Smoke ADB sanitizado:** filtros `S`, `M`, `3M`, `A` e `D` foram alternados
+  na frequência cardíaca sem `FATAL EXCEPTION`/`AndroidRuntime`; Activity
+  permaneceu no pacote esperado. Nenhum teste automatizado foi criado ou
+  executado.
+- **Riscos residuais:** revisão independente e validação visual de dados do mês
+  atual/hub fixo ainda dependem de inspeção manual; nenhum bloqueio funcional
+  conhecido.
+
+## Inclusão de FC de exercícios — 2026-09-04
+
+- **Status:** `in_progress`; revisão independente permanece pendente.
+- **Decisão:** amostras válidas de `WATCH_WORKOUT_ACTIVITY`, já disponíveis no
+  read model local, passam a compor gráficos, médias, mínimos/máximos e listas
+  da tela de frequência cardíaca. Nenhum dado novo, contrato, persistência ou
+  fonte Health Connect foi criado.
+- **Arquivos alterados:** `RoomRepositories.kt`,
+  `HeartRateHistoryChart.kt` e `HealthMetricDetailScreens.kt`.
+- **Desvio corrigido:** removido filtro visual que mantinha FC de exercícios
+  somente no snapshot, mas a ocultava do gráfico e da lista. Origem passa a ser
+  anunciada como `atividade do relógio` quando presente.
+- **Riscos residuais:** amostras inválidas continuam descartadas pelo limite
+  canônico de 30–220 BPM; revisão independente e smoke visual desta inclusão
+  permanecem pendentes.
+
+## Validação da inclusão de FC de exercícios — 2026-09-04
+
+- **Resultados:** `git diff --check`, `./gradlew lint assembleDebug
+  assembleRelease --no-daemon` e `./gradlew installDebug --no-daemon` passaram.
+  Smoke ADB alternou `D`, `S`, `M`, `3M` e `A` sem linhas de crash
+  (`FATAL EXCEPTION`/`AndroidRuntime` = 0); Activity permaneceu no pacote
+  esperado.
+- **Limitação da evidência:** aparelho não possui fixture versionada nem foi
+  criado dado pessoal para provar amostra positiva de exercício na UI. A
+  inclusão fica evidenciada estaticamente pelo read model já existente e pelo
+  caminho de composição agora sem exclusão de `WATCH_WORKOUT_ACTIVITY`.
+- **Riscos residuais:** revisão independente e confirmação visual com atividade
+  real permanecem pendentes; nenhum teste automatizado foi criado ou executado.
+
+## Ajuste do eixo diário — 2026-09-04
+
+- **Decisão:** gráficos diários de FC usam baseline `0 BPM` no eixo Y; barras
+  passam a encostar no eixo XY, sem alterar valores, agregação ou lacunas.
+  Gráfico intradiário continua usando bandas visuais `30–220 BPM`.
+- **Arquivo alterado:** `HeartRateHistoryChart.kt`.
+- **Riscos residuais:** revisão independente e confirmação visual final ainda
+  pendentes.
+
+## Validação do baseline diário — 2026-09-04
+
+- **Resultados:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`, `./gradlew lint assembleDebug assembleRelease
+  --no-daemon` e `./gradlew installDebug --no-daemon` passaram. Smoke ADB abriu
+  Saúde/Frequência cardíaca e alternou para `M` sem crash; `FATAL EXCEPTION` e
+  `AndroidRuntime` ficaram em zero.
+- **Evidência de código:** `ChampionChartAxisSpec.yAxis.minimum` do renderer
+  diário foi fixado em `0 BPM`; intradiário permanece fora desse renderer e
+  conserva bandas `30–220 BPM`.
+- **Riscos residuais:** inspeção visual independente permanece pendente.
+
+## Ajuste de tooltip e legendas — 2026-09-04
+
+- **Decisão:** tooltip compartilhado passa a exibir somente valor formatado com
+  unidade, sem prefixo de série, data longa ou legenda. Isso remove texto
+  redundante de todos os gráficos e deixa BPM, passos e distância legíveis.
+- **Arquivo alterado:** `core/designsystem/chart/ChampionCharts.kt`.
+- **Riscos residuais:** gráfico intradiário de FC continua sendo Canvas sem
+  interação de tooltip; revisão visual independente permanece pendente.
+
+## Ajuste intradiário e legenda — 2026-09-04
+
+- **Decisão:** FC de `Hoje` deixou de ser reamostrada em buckets de 10 minutos;
+  cada amostra válida armazenada mantém seu timestamp original no gráfico.
+  Indicador por faixa passou a contar amostras, sem inventar duração temporal.
+- **Layout:** label `0` do eixo horário usa `SpaceBetween` e fica alinhado à
+  borda inicial do gráfico.
+- **Tooltip/legenda:** renderer compartilhado exibe somente valor formatado e
+  unidade no tooltip, removendo prefixo de série e legenda textual.
+- **Arquivos alterados:** `HeartRateAndSync.kt`, `RoomRepositories.kt`,
+  `HeartRateHistoryChart.kt`, `HealthMetricDetailScreens.kt` e
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/chart/ChampionCharts.kt`.
+- **Riscos residuais:** confirmação visual de tooltip com dados reais e revisão
+  independente permanecem pendentes.
+
+## Validação do ajuste intradiário — 2026-09-04
+
+- **Resultados:** `git diff --check`, compilação Kotlin Debug, lint Debug,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram. Smoke ADB abriu Saúde → FC e
+  alternou período `D` sem crash; `FATAL EXCEPTION`/`AndroidRuntime` ficaram em
+  zero e Activity permaneceu no pacote esperado.
+- **Limitação:** aparelho não possui fixture versionada de leituras para
+  confirmar tooltip por interação sem fabricar dado pessoal; comportamento foi
+  validado por compilação e inspeção do renderer compartilhado.
+- **Riscos residuais:** revisão independente e inspeção visual com dados reais
+  continuam pendentes.
+
+## Remoção efetiva das legendas visuais — 2026-09-04
+
+- **Decisão:** removidos rótulos visuais de linhas de referência no renderer
+  compartilhado, legenda manual de Passos e lista visual de faixas da FC. Linhas
+  de referência e informações equivalentes para acessibilidade permanecem.
+- **Arquivos alterados:** `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/chart/ChampionCharts.kt`,
+  `StepsHistoryChart.kt` e `HealthMetricDetailScreens.kt`.
+ - **Riscos residuais:** revisão visual independente permanece pendente.
+
+## Restauração dos dados por zona — 2026-09-04
+
+- **Correção:** restaurada seção de dados `Leituras por faixa` da FC diária,
+  mantendo contagem real de amostras armazenadas por zona. Removido somente o
+  `Resumo acessível` textual abaixo do gráfico.
+- **Validação ADB:** tela `D` exibiu dados de zona (`Zona 1`/`Zona 2` visíveis),
+  não exibiu `Resumo acessível` e não registrou `FATAL EXCEPTION`.
+- **Validação de build:** `git diff --check`, compile Kotlin Debug, lint Debug e
+  `./gradlew installDebug --no-daemon` passaram.
+- **Riscos residuais:** revisão visual independente permanece pendente.
+
+## Remoção do resumo acessível visível — 2026-09-04
+
+- **Correção final:** removidos `Text` de resumo acessível abaixo dos gráficos de
+  Saúde e Exercícios. Sem remoção de semântica: gráficos continuam expondo
+  `accessibilitySummary`/`contentDescription` para TalkBack.
+- **Validação:** `git diff --check`, compile Kotlin Debug, lint Debug,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram.
+- **Riscos residuais:** revisão visual independente permanece pendente.
+
+## Remoção dos resumos acessíveis visíveis — 2026-09-04
+
+- **Correção:** removidos apenas os composables `Text` que exibiam o prefixo
+  `Resumo acessível:` abaixo dos gráficos de Saúde e Exercícios. Descrições de
+  acessibilidade continuam anexadas aos gráficos via `accessibilitySummary` e
+  `contentDescription`.
+- **Preservação:** dados, tooltips, rótulos internos e legendas inferiores já
+  removidas não foram alterados.
+- **Riscos residuais:** revisão visual independente permanece pendente.
+
+## Correção de escopo da remoção de legenda — 2026-09-04
+
+- **Ajuste:** removida somente legenda abaixo dos gráficos. Rótulos internos de
+  linhas de referência, marcações `Z1`–`Z4` dentro do Canvas e tooltips não foram
+  removidos; tooltip continua mostrando apenas valor/unidade.
+- **Evidência:** dump ADB sanitizado da tela de FC não contém `Barras:`,
+  `Leituras por faixa` ou `Zona 1`–`Zona 4`; `FATAL EXCEPTION` ficou em zero e a
+  Activity permaneceu ativa.
+- **Validação:** `git diff --check`, compilação Kotlin Debug, lint Debug,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram.
+- **Riscos residuais:** revisão visual independente permanece pendente.
+
+## Remoção final das legendas — 2026-09-04
+
+- **Correção:** removidas somente legendas textuais posicionadas abaixo dos
+  gráficos: legenda manual de Passos e seção visual de faixas da FC. Rótulos de
+  linhas de referência e marcações `Z1`–`Z4` dentro do gráfico foram preservados.
+  Informações continuam disponíveis em acessibilidade.
+- **Tooltip:** permanece somente valor formatado com unidade, sem título de série
+  ou texto extenso.
+- **Validação:** `git diff --check`, compilação Kotlin Debug, lint Debug,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram. Smoke ADB abriu Saúde → FC e
+  alternou `D` sem crash (`FATAL EXCEPTION`/`AndroidRuntime` = 0).
+- **Riscos residuais:** revisão visual independente permanece pendente.
+
+## Correção delimitada de janela mensal — 2026-09-08
+
+- **Status:** `in_progress`; revisão independente e smoke visual final continuam
+  pendentes.
+- **Causa:** `3M` e `A` ainda excluíam o mês civil atual, consultando somente
+  meses fechados anteriores.
+- **Correção:** `3M` agora cobre o mês atual parcial e os dois meses civis
+  anteriores; `A` cobre o mês atual parcial e os onze meses anteriores. Ambos
+  terminam em `today.plusDays(1)` (limite exclusivo), preservando o dia atual e
+  lacunas mensais.
+- **Textos atualizados:** acessibilidade, descrição dos gráficos e headline de
+  frequência cardíaca deixaram de declarar somente meses fechados anteriores.
+- **Arquivos alterados nesta correção:** `RoomRepositories.kt`,
+  `DistanceHistoryViewModel.kt`, `DistanceHistoryShell.kt`,
+  `DistanceHistoryChart.kt` e `HealthMetricDetailScreens.kt`.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon`, `./gradlew app:lintDebug --no-daemon` e `./gradlew lint
+  assembleDebug assembleRelease --no-daemon` passaram. Nenhum teste
+  automatizado foi criado ou executado.
+- **Bloqueios/riscos:** revisão independente e smoke visual permanecem
+  pendentes; mudanças não alteram contratos, persistência ou fórmulas.
+
+## Validação adicional — 2026-09-08
+
+- **Resultados:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon`, `./gradlew app:lintDebug --no-daemon`, `./gradlew lint
+  assembleDebug assembleRelease --no-daemon` e `./gradlew installDebug
+  --no-daemon` passaram.
+- **Smoke sanitizado:** `adb devices -l` encontrou o aparelho autorizado;
+  `MainActivity` iniciou no pacote Debug e o processo permaneceu ativo. Não
+  foram usados dumps ou screenshots não sanitizados.
+- **Documentação:** requisito de `031-06` e observações do overview foram
+  alinhados à semântica atual de `3M`/`A`; checklist permanece pendente até
+  revisão independente.
+- **Riscos residuais:** interação visual completa dos filtros e revisão
+  independente continuam pendentes; nenhum teste automatizado foi criado ou
+  executado.
+
+## Revisão independente — 2026-09-08
+
+- **Resultado:** revisão independente reprovou o fechamento da subtarefa por
+  divergências preexistentes do escopo amplo: medição manual não está explícita
+  na composição atual da tela e Saúde não possui entrada direta para Calendário.
+- **Decisão:** não alterar essas superfícies nesta correção delimitada de
+  janela mensal; preservar mudanças já registradas e manter `in_progress`.
+- **Correção derivada da revisão:** a descrição acessível do gráfico de
+  frequência cardíaca passou a declarar explicitamente mês atual até hoje mais
+  os meses anteriores em `3M` e `A`.
+- **Arquivos adicionais alterados:** `HeartRateHistoryChart.kt`.
+- **Validação posterior:** `git diff --check`, compilação Kotlin Debug, lint,
+  builds Debug/Release e `installDebug` passaram novamente. Nenhum teste
+  automatizado foi criado ou executado.
+- **Bloqueios:** revisão independente continua sem aprovação; os dois desvios
+  preexistentes exigem decisão/escopo próprio antes de marcar o checklist.
+- **Reavaliação incremental:** a correção mensal e a descrição acessível de
+   `3M`/`A` foram aprovadas isoladamente; a subtarefa geral permanece
+   `in_progress` pelos bloqueios preexistentes.
+
+## Correção delimitada de duração por faixa — 2026-09-08
+
+- **Solicitação aplicada:** a seção `Leituras por faixa` da frequência cardíaca
+  diária agora exibe tempo observado por faixa, substituindo a contagem de
+  amostras.
+- **Semântica:** pontos com BPM são ordenados por timestamp; cada intervalo
+  positivo entre leituras consecutivas é atribuído à faixa do ponto inicial.
+  Pontos nulos, intervalos nulos/negativos e o último ponto sem sucessor não
+  contribuem; não há reamostragem nem duração sintética.
+- **Apresentação e acessibilidade:** duração agregada usa `0 min`, `N min` ou
+  `N h MM min`; a descrição acessível anuncia as mesmas durações. Texto
+  explicativo explicita tempo entre leituras e ausência de atribuição ao último
+  ponto.
+- **Arquivo alterado:** `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- **Validação:** `git diff --check`; `./gradlew lint assembleDebug assembleRelease --no-daemon` passaram. Nenhum teste automatizado foi criado ou executado.
+- **Bloqueios preservados:** revisão independente e smoke visual da subtarefa
+  ampla continuam pendentes; medição manual explícita e entrada direta Saúde →
+  Calendário permanecem fora desta correção delimitada.
+- **Revisão incremental:** blocker sobre lacunas atravessadas foi corrigido;
+  revisão independente aprovou isoladamente o cálculo por timestamps e a
+  acessibilidade. `031-06` permanece `in_progress` pelos bloqueios amplos já
+  registrados.
+- **Validação final desta alteração:** `git diff --check`, `./gradlew
+  app:compileDebugKotlin --no-daemon`, `./gradlew app:lintDebug --no-daemon`,
+  `./gradlew lint assembleDebug assembleRelease --no-daemon` e `./gradlew
+  installDebug --no-daemon` passaram. Nenhum teste automatizado foi criado ou
+  executado.
+
+## Correção do blocker da revisão — 2026-09-08
+
+- **Status:** `in_progress`; bloqueios amplos da revisão permanecem inalterados.
+- **Causa:** `heartRateZoneDurations` removia pontos nulos ou sem amostras antes
+  de formar pares, atravessando lacunas e atribuindo duração entre pontos não
+  consecutivos originais.
+- **Correção:** pontos originais agora são ordenados e processados em pares
+  consecutivos; qualquer intervalo com BPM nulo ou `sampleCount <= 0` em uma das
+  extremidades é ignorado. Delta positivo, faixa do ponto inicial, último ponto
+  sem sucessor e ausência de reamostragem permanecem preservados.
+- **Arquivo de produção alterado:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- **Validação:** `git diff --check` passou. Nenhum teste foi criado ou executado.
+- **Bloqueios:** revisão independente ampla e smoke visual continuam pendentes;
+  medição manual explícita e entrada direta Saúde → Calendário não foram
+  alteradas.
+
+## Verificação da janela mensal — 2026-09-08
+
+- **Resultado:** a decisão de usar o mês atual em `3M` e `A` está preservada,
+  não revertida.
+- **Evidência:** Distância e Frequência cardíaca consultam o primeiro dia do
+  mês atual até amanhã como limite exclusivo; `3M` retrocede dois meses e `A`
+  retrocede onze meses. Os buckets mensais vazios permanecem no gráfico e
+  valores ausentes não viram zero.
+- **Revisão independente:** passou para o escopo mensal isolado. A subtarefa
+  geral continua `in_progress` pelos bloqueios preexistentes de medição manual
+  explícita e entrada Saúde → Calendário.
+- **Validação:** `git diff --check` e `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon` passaram. Nenhum teste automatizado foi criado ou
+  executado.
+- **Riscos residuais:** smoke visual completo e revisão da subtarefa ampla
+  continuam pendentes.
+
+## Execução delimitada de Passos — 2026-09-08
+
+- **Status:** `in_progress`; alteração limitada aos gráficos e listas de Passos.
+- **Implementação:** `StepsHistoryViewModel` consulta `dateRangeOverride` para
+  semana civil atual domingo–sábado, mês atual até hoje, três meses com mês
+  atual parcial e dois meses anteriores, e doze meses com mês atual parcial e
+  onze meses anteriores. `StepsHistoryShell` agrega apresentação por semana/mês,
+  soma somente valores não nulos, preserva zero e oculta buckets sem valor na
+  lista. `StepsHistoryChart` usa sete labels `D S T Q Q S S`, marcos diários do
+  mês, abreviações mensais e iniciais anuais, mantendo lacunas no gráfico.
+- **Preservação:** fonte continua `DailySummary`; meta atual, origem, unidade,
+  acessibilidade, estados e callbacks existentes foram mantidos. FC, Distância,
+  `HealthMetricDetailScreens` e contratos globais não foram alterados nesta
+  execução.
+- **Arquivos de produção alterados:** `StepsHistoryViewModel.kt`,
+  `StepsHistoryShell.kt` e `StepsHistoryChart.kt`.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew app:lintDebug --no-daemon` passaram. Nenhum teste
+  automatizado foi criado ou executado.
+- **Validação adicional:** `./gradlew lint assembleDebug assembleRelease
+  --no-daemon` e `./gradlew installDebug --no-daemon` passaram. Smoke ADB
+  sanitizado iniciou `MainActivity` no aparelho autorizado e confirmou a
+  Activity retomada no pacote Debug esperado. Não foram usados dumps ou dados
+  pessoais para validar valores.
+- **Bloqueios/riscos:** revisão independente e smoke visual permanecem
+  pendentes; checklist geral não foi marcado nesta execução delimitada.
+
+- **Revisão independente:** reprovou inicialmente por textos de acessibilidade
+  que ainda diziam meses fechados em `3M`/`A`; correção aplicada para anunciar
+  mês atual até hoje mais dois/onze meses civis anteriores, conforme janela
+  efetiva. Nenhum outro blocker foi encontrado.
+- **Validação posterior:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew app:lintDebug --no-daemon` passaram. Revisão
+  independente precisa ser repetida após esta correção; checklist permanece
+  pendente.
+
+## Remoção dos resumos de Passos — 2026-09-08
+
+- **Solicitação aplicada:** removidos somente os cards visuais `Resumo atual` e
+  `Resumo do período` da tela de Passos. Histórico, gráfico, lista, meta atual
+  usada no contexto dos dados, filtros, callbacks e estados foram preservados.
+- **Arquivo alterado:** `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/StepsHistoryShell.kt`.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`, `./gradlew lint assembleDebug assembleRelease
+  --no-daemon` e `./gradlew installDebug --no-daemon` passaram. Smoke ADB
+  sanitizado confirmou `MainActivity` retomada no pacote Debug esperado.
+- **Riscos:** revisão independente e inspeção visual final da tela de Passos
+  continuam pendentes; nenhum teste automatizado foi criado ou executado.
+
+## Revisão independente de Passos — 2026-09-08
+
+- **Resultado:** aprovado com ressalvas para o escopo delimitado de Passos.
+  Semana, Mês, `3M`, `A`, agregações, lacunas, labels, acessibilidade e remoção
+  dos dois cards foram considerados coerentes.
+- **Ressalva:** smoke visual com dados representativos não confirmou valores
+  reais, zero/lacuna e labels no aparelho; não há fixture versionada e nenhum
+  dado pessoal foi criado.
+- **Status:** `031-06` permanece `in_progress`; checklist não foi marcado porque
+  FC/Distância e demais critérios amplos da subtarefa continuam fora desta
+  revisão delimitada.
+
+## Execução delimitada de Peso — 2026-09-08
+
+- **Status:** `in_progress`; esta execução cobre somente Peso e não encerra a
+  subtarefa ampla.
+- **Implementação:** adicionados `WeightHistoryPeriod` e intenção própria no
+  estado do `HealthViewModel`, com seleção preservada enquanto a Activity vive.
+  O filtro local usa mês civil atual até hoje mais dois meses anteriores em
+  `3M`, ou onze meses anteriores em `A`; mede somente registros válidos e não
+  altera repository, Room, Health Connect ou persistência.
+- **Composição:** Peso agora mantém valor atual, origem, registro manual, editor,
+  mensagens e estados existentes, e adiciona card de tendência com seletor
+  exclusivo `3M`/`A`, gráfico de linha e lista filtrada de medições válidas.
+- **Gráfico:** `WeightHistoryChart.kt` reutiliza `ChampionTimeSeriesChart`, exibe
+  kg, origem e descrições acessíveis; pontos reais permanecem nos timestamps e
+  lacunas temporais inserem somente pontos nulos para quebrar a linha, sem
+  interpolação ou valor sintético.
+- **Arquivos de produção alterados:** `HealthFeatureContract.kt`,
+  `HealthViewModel.kt`, `HealthMetricDetailScreens.kt` e novo
+  `WeightHistoryChart.kt`.
+- **Validação:** `git diff --check` e `./gradlew app:compileDebugKotlin
+  --no-daemon` passaram. Nenhum teste automatizado foi criado ou executado,
+  conforme pedido explícito.
+- **Bloqueios/riscos:** revisão independente e smoke visual amplo da subtarefa
+  permanecem pendentes; FC, Passos, Distância e demais bloqueios documentados
+  não foram alterados nesta execução.
+
+## Correção após revisão e análise da rota correta — 2026-09-08
+
+- **Análise da referência:** a inspeção foi refeita no app instalado pela rota
+  `Saúde → Peso`, não pela Home ou página pública. O dump estrutural temporário
+  sanitizado confirmou 77 nós, 15 ações, uma rolagem vertical e os labels
+  `Peso (média)`, `Peso`, `3M` e `A`. O arquivo temporário foi removido do
+  aparelho; nenhum screenshot, dado pessoal ou XML foi versionado.
+- **Correções:** pontos do gráfico agora usam data e fração de horário no fuso
+  local, coerentes com filtro, limites e labels do eixo. Lista vazia anuncia
+  ausência de medições válidas no período selecionado, sem sugerir ausência do
+  histórico inteiro.
+- **Validação adicional:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`; `./gradlew lint assembleDebug assembleRelease
+  --no-daemon`; `./gradlew installDebug --no-daemon` passaram. Smoke sanitizado
+  abriu o app, navegou até `Saúde → Peso`, confirmou labels dos filtros `3M` e
+  `A`, e não registrou `FATAL EXCEPTION`. A inspeção de valores reais, lacunas
+  representativas e TalkBack permanece limitada pela ausência de fixture
+  versionada e pela regra de não fabricar dados pessoais.
+- **Revisão independente:** Peso aprovado com ressalva residual de cobertura
+  física de dados. A subtarefa ampla permanece `in_progress` por bloqueios
+  preexistentes: medição manual explícita em FC e entrada direta Saúde →
+  Calendário.
+
+## Correção do eixo do gráfico de Peso — 2026-09-08
+
+- **Sintoma:** gráficos de Peso ficavam quebrados na renderização da janela
+  `3M`/`A`.
+- **Causa:** coordenadas X baseadas em `epochDay` eram consumidas pelo renderer
+  compartilhado com espaçamento por unidade, produzindo escala horizontal
+  incompatível com a largura disponível e clipping dos pontos.
+- **Correção:** pontos passaram a usar índices compactos, mantendo a ordem real;
+  lacunas temporais continuam representadas por pontos nulos que quebram a
+  linha. Labels mensais apontam para os índices dos primeiros registros de cada
+  mês. Nenhum valor foi reamostrado ou interpolado.
+- **Validação:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`; `./gradlew lint assembleDebug assembleRelease
+  --no-daemon`; `./gradlew installDebug --no-daemon` passaram. Smoke sanitizado
+  abriu `Saúde → Peso`, alternou `A` e `3M`, confirmou gráfico e não
+  registrou `FATAL EXCEPTION`. Dados representativos continuam indisponíveis
+  para validação física de pontos e lacunas.
+
+## Alteração do renderer de Peso — 2026-09-08
+
+- **Solicitação aplicada:** o gráfico de Peso deixou de usar linha e passou a
+  reutilizar `ChampionBarChart`, como os gráficos existentes de Saúde.
+- **Preservação:** filtros exclusivos `3M`/`A`, dados reais, unidade kg, origem,
+  acessibilidade, ordenação temporal, lacunas e lista filtrada permanecem sem
+  alteração de contrato ou fonte.
+- **Ajuste semântico:** a descrição acessível agora anuncia gráfico de barras;
+  barras sem valor continuam vazias e não são convertidas em zero.
+- **Status:** `031-06` segue `in_progress`; checklist permanece pendente por
+  revisão independente e bloqueios amplos preexistentes.
+
+## Revisão independente após decisões de produto — 2026-09-08
+
+- **Resultado:** aprovado com ressalvas para o escopo atual de `031-06`; nenhum
+  bloqueador funcional permaneceu após as decisões explícitas do usuário.
+- **Confirmações:** medição manual não compõe a UI de Saúde; D1 usa somente
+  pull-to-refresh e ação acessível nativa; Calendário permanece restrito a
+  Exercícios; origem de FC no hub usa relógio/dispositivo associado; Peso usa
+  barras com médias mensais e lacunas preservadas.
+- **Estrutura SDD:** ticker, spec, overview e subtarefas conferidos. Overview
+  mantém uma única seção `## Checklist`, onze itens e progresso `5/11`; `031-06`
+  permanece `[ ]` e `in_progress`.
+- **Entrega:** `WeightHistoryChart.kt` está rastreado e incluído em `HEAD`
+  (`367ff96`). `git status` está limpo e `git diff --check HEAD^ HEAD` passou.
+- **Ressalvas:** `031-07` ainda contém requisito histórico de entrada do
+  Calendário por Home/Saúde, contradizendo decisão vigente; isso deve ser
+  alinhado antes do aceite daquela subtarefa ou fechamento integral da Spec 031.
+  Listas agregadas de FC e Peso não repetem origem por item, sem violar o aceite
+  atual, mas permanecem risco de interpretação. TalkBack completo e dados
+  representativos não foram validados fisicamente.
+- **Testes/evidências:** compile, lint, builds Debug/Release, instalação Debug,
+  smoke ADB e inspeções visuais já registrados permanecem válidos para o commit;
+  nenhum teste automatizado foi criado ou executado.
+- **Decisão documental:** checklist não foi marcado. Nova revisão só é necessária
+  para fechamento formal da subtarefa, após decisão sobre as ressalvas de
+  evidência; o alinhamento de `031-07` pertence àquela subtarefa.
+
+## Revisão independente ampla — 2026-09-08
+
+- **Status:** `in_progress`; fechamento reprovado.
+- **Revisão:** revisão independente confirmou estrutura SDD consistente: spec,
+  overview e subtarefas usam ticker `031`; overview contém uma única seção
+  `## Checklist`, onze itens e progresso correto `5/11`.
+- **Bloqueadores:** medição manual não possui ação explícita na UI de produção;
+  importação D1 só é acionável por pull-to-refresh/ação de acessibilidade e não
+  expõe feedback visual completo; o hub Saúde não possui entrada direta para
+  Calendário; e a origem exibida no card de frequência cardíaca pode anunciar
+  somente o dispositivo mesmo quando as leituras vêm de outras origens.
+- **Achados importantes:** listas de frequência cardíaca e Peso não exibem
+  origem por item; `WeightHistoryChart.kt` está não rastreado no estado Git; e
+  registros anteriores desta subtarefa ainda descrevem Peso como gráfico de
+  linha, embora a decisão vigente use barras.
+- **Cobertura:** períodos, lacunas, unidades, agregações, acessibilidade,
+  preservação local e uso dos componentes compartilhados foram parcialmente
+  confirmados. Não há aprovação para o aceite amplo enquanto bloqueadores
+  permanecerem.
+- **Comandos/evidências:** revisão inspecionou diff, código e documentação;
+  `git diff --check` passou. Builds, lint, instalação e smoke ADB já registrados
+  nesta subtarefa permanecem evidência válida, mas não compensam os bloqueadores.
+- **Decisões e desvios:** nenhum código alterado nesta revisão; checklist do
+  overview permanece `[ ]`, status permanece `in_progress` e nenhum requisito
+  foi relaxado.
+- **Riscos residuais:** origem enganosa, ausência de feedback D1/medição manual,
+  rota Saúde → Calendário, falta de fixture representativa e ausência de
+  validação TalkBack completa. Nova revisão independente é necessária após
+  correções ou decisão explícita de escopo.
+
+## Decisões de produto após revisão — 2026-09-08
+
+- **Medição manual:** removida da superfície visual de Saúde; contratos e
+  coordenação existentes não foram apagados nesta subtarefa.
+- **Importação D1:** permanece somente no pull-to-refresh, incluindo a ação
+  acessível nativa; não será criado CTA visual ou feedback dedicado adicional.
+- **Calendário:** fica restrito ao fluxo de Exercícios. Não haverá entrada direta
+  Saúde → Calendário nem integração de Calendário nas demais superfícies.
+- **Origem de FC no hub:** exibir o relógio/dispositivo associado é decisão
+  aceita para esta composição e não é tratado como blocker de fechamento.
+- **Estado:** essas decisões alteram o aceite documental e exigem nova revisão
+  independente contra a spec alinhada. `031-06` permanece `in_progress`; o
+  arquivo `WeightHistoryChart.kt` continua precisando integrar o conjunto de
+  arquivos da entrega, embora nenhum commit seja feito nesta sessão.
+
+## Lista de Peso alinhada à Frequência cardíaca — 2026-09-08
+
+- **Solicitação aplicada:** lista de Peso passou a usar o mesmo tratamento da
+  lista filtrada de FC: agrupa pelos meses presentes no período, mostra somente
+  períodos com valor, média mensal em kg e contador de períodos.
+- **Preservação:** registros inválidos continuam fora da lista e os dados
+  originais permanecem disponíveis para cálculo local; seleção `3M`/`A`, origem
+  no gráfico, editor manual e estados de carregamento/erro não mudaram.
+- **Validação:** `git diff --check`; compile Kotlin Debug; lint Debug; builds
+  Debug/Release; instalação Debug passaram. Smoke sanitizado confirmou rota
+  `Saúde → Peso`, gráfico mensal agregado, filtros `3M`/`A`, registro agregado
+  de setembro e ausência de `FATAL EXCEPTION`.
+
+## Correção de coluna do mês atual — 2026-09-08
+
+- **Sintoma confirmado:** havia registro válido no mês atual, mas sua coluna
+  não ficava visível.
+- **Causa:** gráfico de barras não tinha baseline explícito; com eixo Y
+  intrínseco, a barra partia do mínimo do conjunto e podia aparentar altura
+  nula.
+- **Correção:** eixo Y de Peso agora parte de `0 kg` e termina no maior agregado
+  mensal, com fallback seguro; média de setembro passa a ser renderizada como
+  coluna quando registro válido existe.
+- **Validação:** `git diff --check`; compile Kotlin Debug; lint Debug; builds
+  Debug/Release; instalação Debug passaram. Smoke sanitizado confirmou no
+  aparelho registro agregado de setembro, filtros `3M`/`A`, semântica de barras
+  e ausência de `FATAL EXCEPTION`. Nenhum dado pessoal foi exposto ou criado.
+
+## Ajuste final do gráfico de Peso para barras — 2026-09-08
+
+- **Decisão do usuário:** Peso usa barras, alinhado ao renderer já adotado nos
+  gráficos de Saúde; a decisão anterior de linha foi supersedida.
+- **Implementação:** `WeightHistoryChart.kt` agora usa `ChampionBarChart` com
+  espaçamento e largura de coluna existentes. Dados válidos, filtros `3M`/`A`,
+  labels mensais, origem, unidade, acessibilidade e lista permanecem.
+- **Lacunas:** pontos sem valor continuam ausentes das barras e não viram zero;
+  a descrição acessível anuncia gráfico de barras.
+- **Validação:** `git diff --check`; `./gradlew app:compileDebugKotlin
+  app:lintDebug --no-daemon`; `./gradlew lint assembleDebug assembleRelease
+  --no-daemon`; `./gradlew installDebug --no-daemon` passaram. Smoke sanitizado
+  confirmou `Saúde → Peso`, filtros `3M`/`A`, semântica de gráfico de barras e
+  zero `FATAL EXCEPTION`. Nenhum teste automatizado foi criado ou executado.
+
+## Agregação mensal das barras de Peso — 2026-09-08
+
+- **Solicitação aplicada:** cada coluna de Peso representa agregado mensal,
+  seguindo semântica já usada em Distância, Frequência cardíaca e Passos.
+- **Agregação:** valor de cada mês é média aritmética dos registros válidos
+  convertidos para kg. `3M` exibe três meses civis e `A` doze, incluindo mês
+  atual parcial; meses sem registro permanecem como lacunas, sem coluna e sem
+  zero sintético. Lista continua exibindo registros válidos filtrados.
+- **Acessibilidade:** série e resumo anunciam `Peso (média)`, quantidade de
+  medições, unidade, origem e meses sem dados.
+- **Status:** `031-06` segue `in_progress`; checklist permanece pendente por
+  revisão independente e bloqueios amplos preexistentes.
+
+## Alinhamento documental posterior — 2026-09-08
+
+- **Calendário:** o requisito de `031-07` foi atualizado para refletir a decisão
+  vigente: Calendário é acessível somente pelo fluxo de Exercícios. Home e Saúde
+  não recebem entrada direta nem integração com Calendário.
+- **Histórico:** registros anteriores que mencionam bloqueio por medição manual,
+  CTA D1, entrada Saúde → Calendário, origem do hub ou arquivo não rastreado
+  descrevem estados de revisão anteriores e não representam o aceite atual.
+- **Estado registrado naquele momento:** decisões de produto estavam refletidas
+  na spec, overview e subtarefas relevantes. O fechamento formal foi realizado
+  na atualização posterior desta subtarefa; nenhum código foi alterado neste
+  alinhamento.
+
+## Fechamento da subtarefa — 2026-09-08
+
+- **Status:** `completed`.
+- **Aceite:** hub Saúde, detalhes de frequência cardíaca, Peso, Passos e
+  Distância, gráficos, filtros, lacunas, unidades, origens e acessibilidade
+  foram aprovados no escopo implementado. Medição manual não compõe a UI de
+  Saúde; D1 usa pull-to-refresh com ação acessível nativa; Calendário fica
+  restrito ao fluxo de Exercícios.
+- **Revisão independente:** aprovada com ressalvas, sem bloqueadores funcionais.
+- **Evidências:** compilação, lint, builds Debug/Release, instalação Debug,
+  smoke ADB e `git diff --check` registrados; `WeightHistoryChart.kt` está
+  rastreado em `HEAD`.
+- **Riscos residuais:** TalkBack completo e dados representativos não foram
+  validados fisicamente; listas agregadas não repetem origem por item. Essas
+  ressalvas não bloqueiam o aceite definido pelo usuário.
+- **Documentação:** overview atualizado para marcar somente este item como
+  concluído e recalcular progresso para `6/11`. Nenhuma próxima subtarefa foi
+  iniciada automaticamente.
+
+## Ajuste delimitado de refresh na frequência cardíaca — 2026-09-10
+
+- **Status:** `completed`; ajuste restrito à composição de produção da tela de
+  frequência cardíaca.
+- **Implementação:** `HeartRateDetailHeader` recebeu menu contextual com ação
+  `Atualizar histórico`, ícone `Refresh`, semântica acessível e fechamento do
+  menu antes de disparar `HealthIntent.StartD1Import`. Pull-to-refresh e ação
+  acessível existente foram preservados. `LinearProgressIndicator` horizontal
+  aparece imediatamente após o header durante D1, com `contentDescription` e
+  `LiveRegionMode.Polite`.
+- **Arquivo alterado:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- **Preservação:** ViewModel, domínio, persistência, navegação, contratos e
+  testes não foram alterados. Nenhuma pendência funcional nova foi introduzida.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew lint assembleDebug assembleRelease --no-daemon`
+  passaram. `./gradlew installDebug --no-daemon` não pôde concluir porque não
+  havia dispositivo conectado (`No connected devices`). Nenhum teste
+  automatizado foi criado ou executado.
+- **Revisão independente:** `PASS`, sem bloqueadores. Confirmou menu, ação
+  acessível, bloqueio contra operação concorrente, pull-to-refresh, loading e
+  ausência de efeitos durante renderização.
+- **Evidências e riscos residuais:** validação física, TalkBack e estados visuais
+  transitórios não foram repetidos por indisponibilidade ADB; risco permanece
+  restrito à cobertura visual física não observada.
+
+## Validação física posterior — 2026-09-10
+
+- **Aparelho:** dispositivo autorizado `SM-S901E`, variante Debug instalada com
+  sucesso.
+- **Fluxo somente leitura:** Activity abriu; Saúde → Frequência cardíaca exibiu
+  header, tendência e ação acessível `Mais opções`. O menu exibiu
+  `Atualizar histórico`; menu foi fechado sem iniciar importação D1 ou alterar
+  dados.
+- **Verificações:** processo permaneceu ativo (`pidof` confirmado), rota de
+  frequência cardíaca permaneceu visível após fechar o menu e logcat limpo não
+  registrou `FATAL EXCEPTION`/`AndroidRuntime`.
+- **Limitações:** loading durante operação real, TalkBack, fonte ampliada,
+  landscape e temas não foram exercitados nesta sessão para não iniciar
+  operação sensível apenas para produzir evidência.
+- **Resultado:** `installDebug` e smoke estrutural ADB passaram; risco residual
+  fica limitado aos estados transitórios e variações visuais não exercitados.

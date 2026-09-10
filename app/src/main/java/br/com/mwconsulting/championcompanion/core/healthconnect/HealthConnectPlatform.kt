@@ -23,8 +23,6 @@ interface HealthConnectPlatform {
 
     fun getAvailability(): HealthConnectAvailability
 
-    fun createManageDataIntent(): Intent
-
     fun createProviderUpdateIntent(): Intent
 }
 
@@ -44,10 +42,6 @@ class AndroidHealthConnectPlatform @Inject constructor(
 
         else -> HealthConnectAvailability.Unavailable
     }
-
-    override fun createManageDataIntent(): Intent =
-        Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
-            .setPackage(providerPackageName)
 
     override fun createProviderUpdateIntent(): Intent =
         Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$providerPackageName"))

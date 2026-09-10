@@ -67,22 +67,28 @@ enum class CalendarHistoryPeriod(val windowDays: Long) {
     LAST_7_DAYS(7),
     LAST_30_DAYS(30),
     LAST_90_DAYS(90),
+    LAST_365_DAYS(365),
 }
 
 /**
  * Consulta histórica terminada em [untilExclusive]. [zoneId] permanece congelado
- * durante toda formação do snapshot.
+ * durante toda formação do snapshot. Quando informado, [dateRangeOverride]
+ * substitui a janela derivada de [period] por um intervalo civil explícito.
  */
 data class CalendarHistoryQuery(
     val period: CalendarHistoryPeriod,
     val untilExclusive: LocalDate,
     val zoneId: ZoneId,
+    val dateRangeOverride: CalendarDateRange? = null,
 ) {
     val fromInclusive: LocalDate
-        get() = untilExclusive.minusDays(period.windowDays)
+        get() = dateRange.fromInclusive
 
     val dateRange: CalendarDateRange
-        get() = CalendarDateRange(fromInclusive, untilExclusive)
+        get() = dateRangeOverride ?: CalendarDateRange(
+            fromInclusive = untilExclusive.minusDays(period.windowDays),
+            untilExclusive = untilExclusive,
+        )
 
     val instantRange: CalendarInstantRange
         get() = dateRange.atZone(zoneId)
@@ -364,7 +370,7 @@ data class CalendarStepsHistorySnapshot(
     init {
         require(stepsGoal > 0)
         require(entries.isSortedAndUniqueBy { it.localDate })
-        require(entries.size == query.period.windowDays.toInt())
+        require(entries.size == query.dateRange.dates.size)
         require(entries.map { it.localDate } == query.dateRange.dates)
         aggregates
     }
@@ -434,7 +440,7 @@ data class CalendarDistanceHistorySnapshot(
 ) {
     init {
         require(entries.isSortedAndUniqueBy { it.localDate })
-        require(entries.size == query.period.windowDays.toInt())
+        require(entries.size == query.dateRange.dates.size)
         require(entries.map { it.localDate } == query.dateRange.dates)
         aggregates
     }
@@ -447,7 +453,7 @@ data class CalendarDistanceHistorySnapshot(
                 averageDistanceMetersPerDayWithEstimate = values.average().takeIf { values.isNotEmpty() },
                 maximumDistanceMeters = values.maxOrNull(),
                 daysWithEstimateCount = values.size,
-                daysWithoutEstimateCount = query.period.windowDays.toInt() - values.size,
+                daysWithoutEstimateCount = query.dateRange.dates.size - values.size,
             )
         }
 }

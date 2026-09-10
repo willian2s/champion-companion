@@ -18,10 +18,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
+import com.patrykandpatrick.vico.compose.cartesian.CartesianMeasuringContext
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModel
@@ -31,6 +34,7 @@ import com.patrykandpatrick.vico.compose.cartesian.data.ColumnCartesianLayerMode
 import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerModel
 import com.patrykandpatrick.vico.compose.cartesian.decoration.HorizontalLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.ColumnCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.layer.CartesianLayerDimensions
 import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
@@ -102,18 +106,62 @@ private enum class ChartKind {
 
 private val linePointSpacing = 32.dp
 private val linePointSize = 8.dp
-private val columnWidth = 16.dp
-private val columnCollectionSpacing = 16.dp
-private val groupedColumnSpacing = 8.dp
+private val defaultColumnWidth = 8.dp
+private val defaultColumnCollectionSpacing = 4.dp
+private val defaultGroupedColumnSpacing = 2.dp
+
+private class FixedHorizontalAxisItemPlacer(
+    private val labelValues: List<Double>,
+) : HorizontalAxis.ItemPlacer {
+    private val fallback = HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
+
+    override fun getShiftExtremeLines(context: CartesianDrawingContext): Boolean =
+        fallback.getShiftExtremeLines(context)
+
+    override fun getLabelValues(
+        context: CartesianDrawingContext,
+        visibleXRange: ClosedFloatingPointRange<Double>,
+        fullXRange: ClosedFloatingPointRange<Double>,
+        maxLabelWidth: Float,
+    ): List<Double> = labelValues.filter { it in visibleXRange }
+
+    override fun getWidthMeasurementLabelValues(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        fullXRange: ClosedFloatingPointRange<Double>,
+    ): List<Double> = labelValues.filter { it in fullXRange }
+
+    override fun getHeightMeasurementLabelValues(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        fullXRange: ClosedFloatingPointRange<Double>,
+        maxLabelWidth: Float,
+    ): List<Double> = labelValues.filter { it in fullXRange }
+
+    override fun getStartLayerMargin(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        tickThickness: Float,
+        maxLabelWidth: Float,
+    ): Float = fallback.getStartLayerMargin(context, layerDimensions, tickThickness, maxLabelWidth)
+
+    override fun getEndLayerMargin(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        tickThickness: Float,
+        maxLabelWidth: Float,
+    ): Float = fallback.getEndLayerMargin(context, layerDimensions, tickThickness, maxLabelWidth)
+}
 
 /** Shared line renderer. Scroll and zoom stay opt-in through the contract. */
 @Composable
 fun ChampionLineChart(
     data: ChampionCartesianChartData,
     modifier: Modifier = Modifier,
+    minimumHeight: Dp = 192.dp,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)? = null,
 ) {
-    ChampionChartFrame(data = data, modifier = modifier) {
+    ChampionChartFrame(data = data, modifier = modifier, minimumHeight = minimumHeight) {
         ChampionCartesianRenderer(
             data = data,
             kind = ChartKind.LINE,
@@ -127,12 +175,19 @@ fun ChampionLineChart(
 fun ChampionBarChart(
     data: ChampionCartesianChartData,
     modifier: Modifier = Modifier,
+    minimumHeight: Dp = 192.dp,
+    columnWidth: Dp = defaultColumnWidth,
+    columnCollectionSpacing: Dp = defaultColumnCollectionSpacing,
+    groupedColumnSpacing: Dp = defaultGroupedColumnSpacing,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)? = null,
 ) {
-    ChampionChartFrame(data = data, modifier = modifier) {
+    ChampionChartFrame(data = data, modifier = modifier, minimumHeight = minimumHeight) {
         ChampionCartesianRenderer(
             data = data,
             kind = ChartKind.BAR,
+            columnWidth = columnWidth,
+            columnCollectionSpacing = columnCollectionSpacing,
+            groupedColumnSpacing = groupedColumnSpacing,
             onSelectionChanged = onSelectionChanged,
         )
     }
@@ -143,11 +198,13 @@ fun ChampionBarChart(
 fun ChampionTimeSeriesChart(
     data: ChampionCartesianChartData,
     modifier: Modifier = Modifier,
+    minimumHeight: Dp = 192.dp,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)? = null,
 ) {
     ChampionLineChart(
         data = data,
         modifier = modifier,
+        minimumHeight = minimumHeight,
         onSelectionChanged = onSelectionChanged,
     )
 }
@@ -156,13 +213,14 @@ fun ChampionTimeSeriesChart(
 private fun ChampionChartFrame(
     data: ChampionCartesianChartData,
     modifier: Modifier,
+    minimumHeight: Dp,
     content: @Composable () -> Unit,
 ) {
     val summary = buildAccessibleSummary(data)
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 192.dp)
+            .heightIn(min = minimumHeight)
             .semantics {
                 contentDescription = summary
                 if (!data.hasRecordedValues) stateDescription = "Sem dados para exibir"
@@ -190,6 +248,9 @@ private fun ChampionChartFrame(
 private fun ChampionCartesianRenderer(
     data: ChampionCartesianChartData,
     kind: ChartKind,
+    columnWidth: Dp = defaultColumnWidth,
+    columnCollectionSpacing: Dp = defaultColumnCollectionSpacing,
+    groupedColumnSpacing: Dp = defaultGroupedColumnSpacing,
     onSelectionChanged: ((List<ChampionChartSelection>) -> Unit)?,
 ) {
     val theme = championChartTheme()
@@ -265,7 +326,7 @@ private fun ChampionCartesianRenderer(
             val columns = visualSeries.mapIndexed { index, _ ->
                 rememberLineComponent(
                     fill = Fill(palette[index % palette.size]),
-                    thickness = 16.dp,
+                    thickness = columnWidth,
                 )
             }
             rememberColumnCartesianLayer(
@@ -313,13 +374,15 @@ private fun ChampionCartesianRenderer(
         null
     }
     val bottomAxis = if (data.xAxis.visible) {
+        val itemPlacer = remember(data.xAxis.labelValues) {
+            data.xAxis.labelValues?.let(::FixedHorizontalAxisItemPlacer)
+                ?: HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
+        }
         HorizontalAxis.rememberBottom(
             line = axisLine,
             valueFormatter = xFormatter,
             guideline = axisGuideline.takeIf { data.xAxis.gridLinesVisible },
-            itemPlacer = remember {
-                HorizontalAxis.ItemPlacer.aligned(addExtremeLabelPadding = true)
-            },
+            itemPlacer = itemPlacer,
             title = { data.xAxis.title },
         )
     } else {
@@ -341,6 +404,9 @@ private fun ChampionCartesianRenderer(
             data = data,
             kind = kind,
             renderedSeriesCount = visualSeries.size,
+            columnWidth = columnWidth,
+            columnCollectionSpacing = columnCollectionSpacing,
+            groupedColumnSpacing = groupedColumnSpacing,
             xStep = xStepValue,
             zoomFactor = zoomState.value,
         )
@@ -405,12 +471,21 @@ private fun rememberGapAwareMarkerController(
     data: ChampionCartesianChartData,
     kind: ChartKind,
     renderedSeriesCount: Int,
+    columnWidth: Dp,
+    columnCollectionSpacing: Dp,
+    groupedColumnSpacing: Dp,
     xStep: Double,
     zoomFactor: Float,
 ): CartesianMarkerController {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
-    val baseXSpacing = baseXSpacing(kind, renderedSeriesCount)
+    val baseXSpacing = baseXSpacing(
+        kind = kind,
+        renderedSeriesCount = renderedSeriesCount,
+        columnWidth = columnWidth,
+        groupedColumnSpacing = groupedColumnSpacing,
+        columnCollectionSpacing = columnCollectionSpacing,
+    )
     val baseXSpacingPixels = with(density) { baseXSpacing.toPx() }
     return remember(
         data,
@@ -432,7 +507,13 @@ private fun rememberGapAwareMarkerController(
 
 private fun Float.effective(): Double = takeIf { isFinite() && it > 0f }?.toDouble() ?: 1.0
 
-private fun baseXSpacing(kind: ChartKind, renderedSeriesCount: Int): androidx.compose.ui.unit.Dp =
+private fun baseXSpacing(
+    kind: ChartKind,
+    renderedSeriesCount: Int,
+    columnWidth: Dp,
+    groupedColumnSpacing: Dp,
+    columnCollectionSpacing: Dp,
+): Dp =
     when (kind) {
         // Vico line layer: point size (8 dp) + point spacing (32 dp).
         ChartKind.LINE -> linePointSize + linePointSpacing
@@ -656,9 +737,8 @@ private fun List<CartesianMarker.Target>.toTooltip(
 ): CharSequence = toSelections(data, kind).mapNotNull { selection ->
     val point = selection.point
     val yValue = point.y ?: return@mapNotNull null
-    val x = point.xLabel ?: data.xAxis.formatter.format(point.x)
     val y = formatAxisValue(data.yAxis, yValue)
-    "${data.series.first { it.key == selection.seriesKey }.label}: $x · $y"
+    y
 }.joinToString("\n")
 
 private fun targetEntries(
