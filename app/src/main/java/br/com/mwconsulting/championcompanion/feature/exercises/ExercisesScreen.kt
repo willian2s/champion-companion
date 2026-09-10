@@ -1789,6 +1789,17 @@ private fun ExerciseDetailShell(
     var showDiscardConfirmation by remember(activityId) { mutableStateOf(false) }
     var showDeleteConfirmation by remember(activityId) { mutableStateOf(false) }
     var showReprocessConfirmation by remember(activityId) { mutableStateOf(false) }
+    var showReviewCalibrationDialog by remember(activityId) { mutableStateOf(false) }
+    var showWorkflowDialog by remember(activityId) { mutableStateOf(false) }
+    val selectedActivity = state.selectedActivity?.takeIf { it.id == activityId }
+    val canReviewCalibration = selectedActivity?.hasReviewCalibrationForm(
+        referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
+    ) == true
+    val canOpenWorkflow = selectedActivity?.hasWorkflowSection() == true
+    LaunchedEffect(activityId, canReviewCalibration, canOpenWorkflow) {
+        if (!canReviewCalibration) showReviewCalibrationDialog = false
+        if (!canOpenWorkflow) showWorkflowDialog = false
+    }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
@@ -1836,25 +1847,17 @@ private fun ExerciseDetailShell(
                     WorkoutActivityDetailContent(
                         activity = activity,
                         latestCalibration = detailState.latestCalibration,
-                        reviewFormState = state.reviewFormState,
-                        calibrationFormState = state.calibrationFormState,
                         referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
                         operationError = state.operationError,
                         isReprocessing = state.isReprocessing,
                         canDiscardSelectedActivity = state.canDiscardSelectedActivity,
                         onDismissError = onDismissError,
-                        onReviewTypeChange = onReviewTypeChange,
-                        onReviewDistanceChange = onReviewDistanceChange,
-                        onReviewTitleChange = onReviewTitleChange,
-                        onReviewNotesChange = onReviewNotesChange,
-                        onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
-                        onSubmitReview = onSubmitReview,
-                        onCalibrationDistanceChange = onCalibrationDistanceChange,
-                        onSubmitCalibration = onSubmitCalibration,
                         onRequestReprocess = { showReprocessConfirmation = true },
                         isAcceptingPlausibility = state.isAcceptingPlausibility,
                         onAcceptPlausibility = onAcceptPlausibility,
                         onSyncActivity = onSyncActivity,
+                        onRequestReviewCalibration = { showReviewCalibrationDialog = true },
+                        onRequestWorkflow = { showWorkflowDialog = true },
                         onRequestDiscard = { showDiscardConfirmation = true },
                         canDeleteSelectedActivity = state.canDeleteSelectedActivity,
                         isDeletingSelectedActivity = state.isDeletingSelectedActivity,
@@ -1864,6 +1867,40 @@ private fun ExerciseDetailShell(
                     )
                 }
             }
+        }
+    }
+
+    if (showWorkflowDialog && canOpenWorkflow) {
+        selectedActivity?.let { activity ->
+            WorkflowDialog(
+                activity = activity,
+                latestCalibration = (state.detailState as? ExerciseDetailState.Ready)?.latestCalibration,
+                isAcceptingPlausibility = state.isAcceptingPlausibility,
+                onAcceptPlausibility = onAcceptPlausibility,
+                onSyncActivity = onSyncActivity,
+                onDismiss = { showWorkflowDialog = false },
+            )
+        }
+    }
+
+    if (showReviewCalibrationDialog && canReviewCalibration) {
+        selectedActivity?.let { activity ->
+            ReviewCalibrationDialog(
+                activity = activity,
+                latestCalibration = (state.detailState as? ExerciseDetailState.Ready)?.latestCalibration,
+                reviewFormState = state.reviewFormState,
+                calibrationFormState = state.calibrationFormState,
+                referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
+                onReviewTypeChange = onReviewTypeChange,
+                onReviewDistanceChange = onReviewDistanceChange,
+                onReviewTitleChange = onReviewTitleChange,
+                onReviewNotesChange = onReviewNotesChange,
+                onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
+                onSubmitReview = onSubmitReview,
+                onCalibrationDistanceChange = onCalibrationDistanceChange,
+                onSubmitCalibration = onSubmitCalibration,
+                onDismiss = { showReviewCalibrationDialog = false },
+            )
         }
     }
 
@@ -1975,25 +2012,17 @@ private fun ExerciseDetailShell(
 private fun WorkoutActivityDetailContent(
     activity: WorkoutActivity,
     latestCalibration: TreadmillCalibrationSnapshot?,
-    reviewFormState: ExerciseReviewFormState,
-    calibrationFormState: ExerciseCalibrationFormState,
     referenceDistanceCalibrationAllowed: Boolean,
     operationError: ExerciseOperationError?,
     isReprocessing: Boolean,
     canDiscardSelectedActivity: Boolean,
     onDismissError: () -> Unit,
-    onReviewTypeChange: (WorkoutType) -> Unit,
-    onReviewDistanceChange: (String) -> Unit,
-    onReviewTitleChange: (String) -> Unit,
-    onReviewNotesChange: (String) -> Unit,
-    onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
-    onSubmitReview: () -> Unit,
-    onCalibrationDistanceChange: (String) -> Unit,
-    onSubmitCalibration: () -> Unit,
     onRequestReprocess: () -> Unit,
     isAcceptingPlausibility: Boolean,
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
+    onRequestReviewCalibration: () -> Unit,
+    onRequestWorkflow: () -> Unit,
     onRequestDiscard: () -> Unit,
     canDeleteSelectedActivity: Boolean,
     isDeletingSelectedActivity: Boolean,
@@ -2001,9 +2030,6 @@ private fun WorkoutActivityDetailContent(
     onNavigateBack: (() -> Unit)?,
     backLabel: String,
 ) {
-    val hasReferenceDistanceCalibration = activity.isReferenceDistanceCalibrationEligible() &&
-        referenceDistanceCalibrationAllowed
-
     Column(
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
@@ -2014,6 +2040,10 @@ private fun WorkoutActivityDetailContent(
             canDiscard = canDiscardSelectedActivity,
             canDelete = canDeleteSelectedActivity,
             isDeleting = isDeletingSelectedActivity,
+            canReviewCalibration = activity.hasReviewCalibrationForm(referenceDistanceCalibrationAllowed),
+            onRequestReviewCalibration = onRequestReviewCalibration,
+            canOpenWorkflow = activity.hasWorkflowSection(),
+            onRequestWorkflow = onRequestWorkflow,
             onRequestDiscard = onRequestDiscard,
             onRequestDelete = onRequestDelete,
         )
@@ -2049,40 +2079,13 @@ private fun WorkoutActivityDetailContent(
                 onRequestReprocess = onRequestReprocess,
             )
         }
-        if (hasReferenceDistanceCalibration) {
-            DetailSectionHeading("Revisão e calibração")
-            ReferenceDistanceCalibrationSection(
-                activity = activity,
-                formState = calibrationFormState,
-                onDistanceChange = onCalibrationDistanceChange,
-                onSubmit = onSubmitCalibration,
-            )
-        }
         if (activity.parserValidity == ParserValidity.PARTIAL) {
             DetailSectionHeading("Qualidade da importação")
             PartialParserNotice(activity)
         }
         when {
-            activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> {
-                DetailSectionHeading("Revisão e calibração")
-                ReviewFormSection(
-                    activity = activity,
-                    formState = reviewFormState,
-                    calibrationFormState = calibrationFormState,
-                    onReviewTypeChange = onReviewTypeChange,
-                    onReviewDistanceChange = onReviewDistanceChange,
-                    onReviewTitleChange = onReviewTitleChange,
-                    onReviewNotesChange = onReviewNotesChange,
-                    onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
-                    onSubmitReview = onSubmitReview,
-                    onCalibrationDistanceChange = onCalibrationDistanceChange,
-                )
-            }
-
             activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION && activity.isWatchWorkout && !activity.isCycling -> {
-                if (!hasReferenceDistanceCalibration) {
-                    DetailSectionHeading("Revisão e calibração")
-                }
+                DetailSectionHeading("Revisão e calibração")
                 WatchWorkoutPendingDerivationSection(activity)
             }
 
@@ -2091,33 +2094,6 @@ private fun WorkoutActivityDetailContent(
                 CyclingCalibrationBlockedSection()
             }
 
-            activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION -> {
-                DetailSectionHeading("Revisão e calibração")
-                CalibrationFormSection(
-                    activity = activity,
-                    latestCalibration = latestCalibration,
-                    formState = calibrationFormState,
-                    onCalibrationDistanceChange = onCalibrationDistanceChange,
-                    onSubmitCalibration = onSubmitCalibration,
-                )
-            }
-
-            activity.workflowState in setOf(
-                ActivityWorkflowState.READY_TO_SYNC,
-                ActivityWorkflowState.SYNCING,
-                ActivityWorkflowState.SYNCED,
-                ActivityWorkflowState.SYNC_FAILED,
-                ActivityWorkflowState.DISCARDED,
-            ) -> {
-                DetailSectionHeading("Workflow e sincronização")
-                ReadOnlyWorkflowSection(
-                    activity = activity,
-                    latestCalibration = latestCalibration,
-                    isAcceptingPlausibility = isAcceptingPlausibility,
-                    onAcceptPlausibility = onAcceptPlausibility,
-                    onSyncActivity = onSyncActivity,
-                )
-            }
         }
     }
 }
@@ -2140,10 +2116,15 @@ private fun ActivityDetailHeader(
     canDiscard: Boolean = false,
     canDelete: Boolean = false,
     isDeleting: Boolean = false,
+    canReviewCalibration: Boolean = false,
+    onRequestReviewCalibration: () -> Unit = {},
+    canOpenWorkflow: Boolean = false,
+    onRequestWorkflow: () -> Unit = {},
     onRequestDiscard: () -> Unit = {},
     onRequestDelete: () -> Unit = {},
 ) {
     var isOverflowExpanded by remember(activity?.id) { mutableStateOf(false) }
+    val hasOverflowActions = canReviewCalibration || canOpenWorkflow || canDiscard || canDelete
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -2168,7 +2149,8 @@ private fun ActivityDetailHeader(
         )
         Box {
             IconButton(
-                onClick = { if (canDiscard || canDelete) isOverflowExpanded = true },
+                onClick = { if (hasOverflowActions) isOverflowExpanded = true },
+                enabled = hasOverflowActions,
                 modifier = Modifier.semantics {
                     contentDescription = "Mais opções"
                 },
@@ -2178,11 +2160,29 @@ private fun ActivityDetailHeader(
                     contentDescription = null,
                 )
             }
-            if (canDiscard || canDelete) {
+            if (hasOverflowActions) {
                 DropdownMenu(
                     expanded = isOverflowExpanded,
                     onDismissRequest = { isOverflowExpanded = false },
                 ) {
+                    if (canReviewCalibration) {
+                        DropdownMenuItem(
+                            text = { Text("Revisão e calibração") },
+                            onClick = {
+                                isOverflowExpanded = false
+                                onRequestReviewCalibration()
+                            },
+                        )
+                    }
+                    if (canOpenWorkflow) {
+                        DropdownMenuItem(
+                            text = { Text("Workflow e sincronização") },
+                            onClick = {
+                                isOverflowExpanded = false
+                                onRequestWorkflow()
+                            },
+                        )
+                    }
                     if (canDiscard) {
                         DropdownMenuItem(
                             text = { Text("Descartar treino") },
@@ -2747,6 +2747,120 @@ private fun PartialParserNotice(activity: WorkoutActivity) {
 }
 
 @Composable
+private fun ReviewCalibrationDialog(
+    activity: WorkoutActivity,
+    latestCalibration: TreadmillCalibrationSnapshot?,
+    reviewFormState: ExerciseReviewFormState,
+    calibrationFormState: ExerciseCalibrationFormState,
+    referenceDistanceCalibrationAllowed: Boolean,
+    onReviewTypeChange: (WorkoutType) -> Unit,
+    onReviewDistanceChange: (String) -> Unit,
+    onReviewTitleChange: (String) -> Unit,
+    onReviewNotesChange: (String) -> Unit,
+    onReviewPlausibilityAcceptanceChange: (Boolean) -> Unit,
+    onSubmitReview: () -> Unit,
+    onCalibrationDistanceChange: (String) -> Unit,
+    onSubmitCalibration: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val hasReferenceDistanceCalibration = activity.isReferenceDistanceCalibrationEligible() &&
+        referenceDistanceCalibrationAllowed
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Revisão e calibração") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            ) {
+                when {
+                    activity.workflowState == ActivityWorkflowState.PENDING_REVIEW -> {
+                        ReviewFormSection(
+                            activity = activity,
+                            formState = reviewFormState,
+                            calibrationFormState = calibrationFormState,
+                            onReviewTypeChange = onReviewTypeChange,
+                            onReviewDistanceChange = onReviewDistanceChange,
+                            onReviewTitleChange = onReviewTitleChange,
+                            onReviewNotesChange = onReviewNotesChange,
+                            onReviewPlausibilityAcceptanceChange = onReviewPlausibilityAcceptanceChange,
+                            onSubmitReview = onSubmitReview,
+                            onCalibrationDistanceChange = onCalibrationDistanceChange,
+                        )
+                    }
+
+                    hasReferenceDistanceCalibration -> {
+                        ReferenceDistanceCalibrationSection(
+                            activity = activity,
+                            formState = calibrationFormState,
+                            onDistanceChange = onCalibrationDistanceChange,
+                            onSubmit = onSubmitCalibration,
+                        )
+                    }
+
+                    activity.workflowState == ActivityWorkflowState.PENDING_CALIBRATION &&
+                        !activity.isWatchWorkout && !activity.isCycling -> {
+                        CalibrationFormSection(
+                            activity = activity,
+                            latestCalibration = latestCalibration,
+                            formState = calibrationFormState,
+                            onCalibrationDistanceChange = onCalibrationDistanceChange,
+                            onSubmitCalibration = onSubmitCalibration,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar")
+            }
+        },
+    )
+}
+
+@Composable
+private fun WorkflowDialog(
+    activity: WorkoutActivity,
+    latestCalibration: TreadmillCalibrationSnapshot?,
+    isAcceptingPlausibility: Boolean,
+    onAcceptPlausibility: () -> Unit,
+    onSyncActivity: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Workflow e sincronização") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            ) {
+                ReadOnlyWorkflowSection(
+                    activity = activity,
+                    latestCalibration = latestCalibration,
+                    isAcceptingPlausibility = isAcceptingPlausibility,
+                    onAcceptPlausibility = onAcceptPlausibility,
+                    onSyncActivity = onSyncActivity,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar")
+            }
+        },
+    )
+}
+
+@Composable
 private fun ReviewFormSection(
     activity: WorkoutActivity,
     formState: ExerciseReviewFormState,
@@ -2759,14 +2873,10 @@ private fun ReviewFormSection(
     onSubmitReview: () -> Unit,
     onCalibrationDistanceChange: (String) -> Unit,
 ) {
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
             Text("Revisão da atividade", style = MaterialTheme.typography.titleLarge)
             Text(
                 text = "Selecione tipo final, título opcional e observações locais antes de concluir a revisão.",
@@ -2872,7 +2982,6 @@ private fun ReviewFormSection(
                 isLoading = formState.isSaving,
                 modifier = Modifier.fillMaxWidth(),
             )
-        }
     }
 }
 
@@ -2998,14 +3107,10 @@ private fun CalibrationFormSection(
     onCalibrationDistanceChange: (String) -> Unit,
     onSubmitCalibration: () -> Unit,
 ) {
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
             Text("Calibração de esteira", style = MaterialTheme.typography.titleLarge)
             Text(
                 text = "Informe distância real em km para derivar distância final, ritmo e velocidade sem alterar métricas importadas.",
@@ -3047,7 +3152,6 @@ private fun CalibrationFormSection(
                 isLoading = formState.isSaving,
                 modifier = Modifier.fillMaxWidth(),
             )
-        }
     }
 }
 
@@ -3063,6 +3167,22 @@ private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
         derivationSnapshot?.canonicalSeriesEligible == true &&
         intervals.any { it.decodedSteps != null && it.decodedSteps > 0L }
 
+private fun WorkoutActivity.hasReviewCalibrationForm(
+    referenceDistanceCalibrationAllowed: Boolean,
+): Boolean =
+    workflowState == ActivityWorkflowState.PENDING_REVIEW ||
+        (workflowState == ActivityWorkflowState.PENDING_CALIBRATION && !isWatchWorkout && !isCycling) ||
+        (isReferenceDistanceCalibrationEligible() && referenceDistanceCalibrationAllowed)
+
+private fun WorkoutActivity.hasWorkflowSection(): Boolean =
+    workflowState in setOf(
+        ActivityWorkflowState.READY_TO_SYNC,
+        ActivityWorkflowState.SYNCING,
+        ActivityWorkflowState.SYNCED,
+        ActivityWorkflowState.SYNC_FAILED,
+        ActivityWorkflowState.DISCARDED,
+    )
+
 @Composable
 private fun ReferenceDistanceCalibrationSection(
     activity: WorkoutActivity,
@@ -3070,11 +3190,10 @@ private fun ReferenceDistanceCalibrationSection(
     onDistanceChange: (String) -> Unit,
     onSubmit: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = ChampionShapeLarge) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+    ) {
             Text("Calibrar com distância de referência", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Informe distância externa a partir de fonte conhecida. O Champion Companion não coleta GPS.",
@@ -3112,7 +3231,6 @@ private fun ReferenceDistanceCalibrationSection(
                 isLoading = formState.isSaving,
                 modifier = Modifier.fillMaxWidth(),
             )
-        }
     }
 }
 
@@ -3124,17 +3242,10 @@ private fun ReadOnlyWorkflowSection(
     onAcceptPlausibility: () -> Unit,
     onSyncActivity: () -> Unit,
 ) {
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
             Text("Estado atual", style = MaterialTheme.typography.titleLarge)
             Text(
                 text = when (activity.workflowState) {
@@ -3194,7 +3305,6 @@ private fun ReadOnlyWorkflowSection(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-        }
     }
 }
 

@@ -486,7 +486,17 @@ somente Home e Saúde; rotas restantes serão contextuais.
          compile, lint, builds e instalação passaram. `031-07` permanece `[ ]`;
          progresso continua `6/11`.
 
-        - Fechamento de 2026-09-09: bloco `Status e origem` e seus helpers foram
-          removidos; status ficou na metadata do header como
-          `data • hora • origem • status`. Revisão independente aprovou sem
-          blockers. `031-07` concluída; progresso `7/11`.
+         - Registro histórico de 2026-09-09: bloco `Status e origem` e seus
+           helpers foram removidos; status ficou na metadata do header como
+           `data • hora • origem • status`. A subtarefa foi posteriormente
+           reaberta por refinamentos solicitados no detalhe; `031-07` permanece
+           `[ ]` e o progresso correto continua `6/11`.
+
+         - Em 2026-09-10, os formulários de `Revisão e calibração` passaram a ser
+           conteúdo direto de modal rolável aberto pelo menu overflow, sem card
+           aninhado. `Workflow e sincronização` recebeu o mesmo tratamento, e
+           o texto instrucional sob o gráfico foi removido. Callbacks, estados,
+           validações e sync explícito foram preservados; compile, lint, builds,
+           instalação e `git diff --check` passaram. Revisão independente foi
+           solicitada, mas permanece pendente; `031-07` continua `[ ]` e o
+           progresso `6/11`.

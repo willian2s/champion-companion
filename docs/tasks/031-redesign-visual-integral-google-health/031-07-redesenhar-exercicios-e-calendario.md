@@ -517,3 +517,41 @@ contratos e manter uma única fonte de read model.
 - **Comparação:** segundo gráfico não foi adicionado; “vico” permanece sem
   referência identificável. Aguardando caminho/nome exato caso comparação ainda
   seja necessária.
+
+## Ajuste de modais no detalhe — 2026-09-10
+
+- **Diretriz do usuário:** os formulários de `Revisão e calibração` devem ser o
+  conteúdo do modal aberto pelo menu de ações do detalhe, sem card aninhado que
+  reduza sua área. O mesmo padrão foi aplicado a `Workflow e sincronização`.
+- **Implementação:** o menu overflow do detalhe agora oferece `Revisão e
+  calibração` quando há formulário editável e `Workflow e sincronização` nos
+  estados que expõem esse bloco. Formulários e workflow foram removidos da
+  composição inline e renderizados diretamente no conteúdo rolável de seus
+  respectivos modais, com ação `Fechar` e limites de altura para fonte ampliada.
+  O texto instrucional sob o gráfico que anunciava a abertura do formulário foi
+  removido.
+- **Preservação:** callbacks, estados, validações, revisão, calibração,
+  plausibilidade e sincronização Health Connect continuam os mesmos. Abrir
+  modal não inicia operação. Descarte, exclusão, reprocessamento e ações
+  explícitas de sync continuam no mesmo fluxo.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+  e este arquivo.
+- **Desvios:** nenhum contrato, ViewModel, persistência, schema, parser, BLE,
+  GPS ou navegação foi alterado. Não foram criados testes automatizados,
+  conforme `AGENTS.md`.
+- **Comandos executados:** `git diff --check`; `./gradlew
+  app:compileDebugKotlin --no-daemon`; `./gradlew lint assembleDebug
+  assembleRelease --no-daemon`; `./gradlew installDebug --no-daemon`; smoke
+  ADB somente leitura com abertura da variante Debug, confirmação de processo
+  ativo e labels das áreas principais.
+- **Resultados/evidências:** diff, compilação Debug, lint, builds Debug/Release
+  e instalação Debug passaram. O app iniciou no aparelho autorizado e o
+  processo permaneceu ativo. Nenhuma importação, medição, sincronização,
+  exclusão ou alteração de dados foi iniciada para evidência.
+- **Revisão independente:** solicitada, mas interrompida antes de resultado
+  por nova instrução do usuário; aprovação independente ainda pendente.
+- **Riscos residuais:** interação física dos dois novos itens de menu, rolagem
+  do conteúdo modal, fonte ampliada, landscape, temas e TalkBack ainda não
+  foram confirmados. A subtarefa permanece `in_progress` e o checklist não
+  deve ser marcado.
