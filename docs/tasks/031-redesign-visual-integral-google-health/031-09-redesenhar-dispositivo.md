@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `09`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -63,3 +63,68 @@ revisão independente aprovados.
 
 Compactação pode esconder erro ou ação de recuperação. Manter estados textuais e
 alvos acessíveis.
+
+## Implementação atual
+
+- **Arquivos alterados:**
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceScreen.kt`
+  - `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+- **Decisões:**
+  - Aplicado `ChampionRedesignTheme` somente à tela de Dispositivo, com header,
+    espaçamentos e cards opt-in reutilizados da fundação visual.
+  - Header passou a exibir status do relógio e retorno contextual para Home,
+    Saúde ou predecessor salvo, sem alterar back stack manual.
+  - Estados de conexão, operação ativa, próxima ação, associação, busca,
+    diagnóstico e recuperação continuam textuais e acessíveis.
+  - Metadados persistidos de associação, conexão e sincronização continuam sendo
+    exibidos sem criação de valores sintéticos.
+  - Affordance existente foi identificada explicitamente como `PoC BLE técnica`
+    e continua somente em debug; nenhum CTA, `Intent` ou arquivo da PoC MapLibre
+    foi adicionado ou movido.
+- **Desvios:** nenhum desvio funcional. Operações BLE não foram iniciadas apenas
+  para gerar evidência; ao entrar com associação persistida, o auto-connect
+  controlado existente pôde apresentar estados assíncronos reais.
+
+## Comandos executados e resultados
+
+- `git diff --check` — passou.
+- `./gradlew app:compileDebugKotlin app:lintDebug` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — passou.
+- `./gradlew installDebug` — passou no `SM-S901E` (Android 16).
+- `adb devices -l` — aparelho autorizado identificado.
+- Smoke ADB sanitizado — passou: Home → Dispositivo, header/status, retorno
+  `Voltar para Home`, rolagem, estado associado, ações preservadas, fonte `1.3x`
+  restaurada para `1.0x`, landscape restaurado para portrait, temas claro/escuro
+  restaurados, processo ativo sem `FATAL EXCEPTION`/`AndroidRuntime`.
+- Permissões já disponíveis; nenhum prompt foi aberto. Scan, conexão manual,
+  disconnect, retry, esquecer, exportação e diagnóstico não foram acionados para
+  captura.
+- Dumps XML temporários usados somente no aparelho foram removidos. Nenhum
+  screenshot ou dado bruto foi versionado.
+- Testes automatizados não foram criados ou executados, conforme `AGENTS.md`.
+
+## Evidências
+
+- UI dump sanitizado confirmou `Dispositivo`, `Estado atual`, status assíncrono,
+  ação acessível `Voltar para Home`, `Diagnóstico seguro` e `PoC BLE técnica de
+  debug` após rolagem.
+- Variante release compilada sem alteração no isolamento debug-only da PoC
+  MapLibre.
+
+## Revisão independente
+
+Revisão independente solicitada após implementação. Primeira revisão não apontou
+bloqueador funcional, mas pediu registro documental, smoke completo e distinção
+mais explícita da PoC BLE; os dois pontos de código foram ajustados ou
+comprovados. Segunda revisão independente aprovou em 2026-09-10, sem blockers;
+TalkBack completo, operações BLE e screenshot versionado permanecem riscos não
+bloqueantes.
+
+## Riscos residuais
+
+- TalkBack completo não foi exercitado fisicamente.
+- Fluxos destrutivos ou operacionais BLE não foram iniciados nesta captura; seus
+  contratos permanecem sem alteração, mas a prova física desses estados pertence
+  à validação funcional existente.
+- Comparação visual por screenshot não foi versionada para evitar retenção de
+  dados reais do aparelho; evidência estrutural sanitizada foi registrada.

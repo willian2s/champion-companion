@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 8/11 subtarefas concluídas
+- **Progresso:** 9/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -21,7 +21,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
 - [x] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
 - [x] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
-- [ ] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
+- [x] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
 - [ ] [031-10-redesenhar-configuracoes.md](031-10-redesenhar-configuracoes.md)
 - [ ] [031-11-consolidar-validacao-e-revisao.md](031-11-consolidar-validacao-e-revisao.md)
 
@@ -642,6 +642,17 @@ somente Home e Saúde; rotas restantes serão contextuais.
     ampliada, landscape e temas foram exercitados e restaurados. Revisão
     independente aprovou sem bloqueadores. Risco residual: TalkBack não foi
     exercitado explicitamente. Progresso: `8/11`.
-  - A inconsistência documental de `031-07` foi resolvida em 2026-09-10: o
-    cabeçalho agora declara `completed`, alinhado ao item `[x]` do checklist e às
-    evidências de validação funcional já registradas.
+   - A inconsistência documental de `031-07` foi resolvida em 2026-09-10: o
+     cabeçalho agora declara `completed`, alinhado ao item `[x]` do checklist e às
+     evidências de validação funcional já registradas.
+
+  - Em 2026-09-10, `031-09` foi concluída após aplicação da fundação visual
+    opt-in à tela de Dispositivo. Header contextual passou a exibir status do
+    relógio e retorno, cards foram reorganizados sem bordas coloridas, metadados
+    e estados assíncronos foram preservados, e a affordance existente foi
+    identificada explicitamente como PoC BLE técnica de debug. Nenhum CTA ou
+    `Intent` da PoC MapLibre foi adicionado ou movido. Lint, builds Debug/Release,
+    instalação Debug, smoke ADB sanitizado, restauração de configurações e
+    revisão independente passaram. Riscos residuais: TalkBack completo,
+    operações BLE e screenshot versionado não foram exercitados/retidos.
+    Progresso: `9/11`.

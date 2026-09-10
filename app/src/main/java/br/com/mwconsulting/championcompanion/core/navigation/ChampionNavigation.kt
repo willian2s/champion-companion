@@ -579,7 +579,10 @@ private fun ChampionNavDisplay(
                 onNavigateBack = onBackRequested,
                 exercisesViewModel = exercisesViewModel,
             )
-            AppDestination.Device -> DeviceScreen()
+            AppDestination.Device -> DeviceScreen(
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
+            )
             AppDestination.Profile -> ProfileScreen(
                 viewModel = profileViewModel,
                 onOpenActivity = { activityId ->
