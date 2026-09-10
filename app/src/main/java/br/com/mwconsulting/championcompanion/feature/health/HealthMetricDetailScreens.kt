@@ -5,10 +5,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,9 +32,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -68,6 +74,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderAction
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
@@ -107,6 +114,7 @@ fun HeartRateDetailScreen(
     val view = LocalView.current
     val state by healthViewModel.state.collectAsState()
     var showExitConfirmation by rememberSaveable { mutableStateOf(false) }
+    var isActionMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(healthViewModel) {
         healthViewModel.onIntent(HealthIntent.Load)
@@ -220,7 +228,23 @@ fun HeartRateDetailScreen(
                         HeartRateDetailHeader(
                             onNavigateBack = onNavigateBack,
                             backLabel = backLabel,
+                            isActionMenuExpanded = isActionMenuExpanded,
+                            onActionMenuExpandedChange = { isActionMenuExpanded = it },
+                            onRefresh = {
+                                isActionMenuExpanded = false
+                                triggerD1Refresh()
+                            },
                         )
+                        if (isD1ImportInFlight) {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        contentDescription = "Atualizando histórico do relógio"
+                                        liveRegion = LiveRegionMode.Polite
+                                    },
+                            )
+                        }
                         HeartRateHistoryChartSection(
                             state = state,
                             onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
@@ -789,6 +813,7 @@ private fun MetricDetailHeader(
     description: String,
     onNavigateBack: () -> Unit,
     backLabel: String,
+    actionsContent: @Composable RowScope.() -> Unit = {},
 ) {
     ChampionRedesignSurfaceHeader(
         title = title,
@@ -801,6 +826,7 @@ private fun MetricDetailHeader(
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
             }
         },
+        actionsContent = actionsContent,
     )
 }
 
@@ -808,12 +834,37 @@ private fun MetricDetailHeader(
 private fun HeartRateDetailHeader(
     onNavigateBack: () -> Unit,
     backLabel: String,
+    isActionMenuExpanded: Boolean,
+    onActionMenuExpandedChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit,
 ) {
     MetricDetailHeader(
         title = "Frequência cardíaca",
         description = "Acompanhe seu último valor, leituras do relógio e tendência local.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
+        actionsContent = {
+            Box {
+                ChampionRedesignHeaderAction(
+                    contentDescription = "Mais opções",
+                    onClick = { onActionMenuExpandedChange(true) },
+                ) {
+                    Icon(imageVector = Icons.Filled.MoreVert, contentDescription = null)
+                }
+                DropdownMenu(
+                    expanded = isActionMenuExpanded,
+                    onDismissRequest = { onActionMenuExpandedChange(false) },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Atualizar histórico") },
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
+                        },
+                        onClick = onRefresh,
+                    )
+                }
+            }
+        },
     )
 }
 

@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 6/11 subtarefas concluídas
+- **Progresso:** 7/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -19,7 +19,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-04-reorganizar-shell-e-navegacao.md](031-04-reorganizar-shell-e-navegacao.md)
 - [x] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
 - [x] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
-- [ ] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
+- [x] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
 - [ ] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
 - [ ] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
 - [ ] [031-10-redesenhar-configuracoes.md](031-10-redesenhar-configuracoes.md)
@@ -31,6 +31,18 @@ somente Home e Saúde; rotas restantes serão contextuais.
   trabalhos/branches existentes; nenhum arquivo `031` foi sobrescrito.
 - Spec 024 e ADR-023 permanecem como histórico supersedido.
 - Evidência sem sanitização não será versionada; regra de privacidade prevalece.
+- Bloqueio anterior de `031-07` sobre retry/cancelamento foi resolvido por
+  decisão explícita: estados terminais exibem somente Snackbar de sucesso/erro.
+- A diretriz explícita posterior de 2026-09-10 supersede o bloqueio anterior:
+  estados terminais de importação devem exibir somente uma Snackbar temporária
+  de sucesso ou erro, sem retry, cancelamento, resumo ou dados.
+
+- Em 2026-09-10, `031-07` recebeu feedback terminal mínimo: uma única
+  Snackbar temporária para sucesso (`Completed`, `Partial`, `Empty`) ou erro
+  (`Failed`, `Cancelled`), sem ações ou dados. Lint, builds, instalação Debug e
+  smoke de abertura passaram; uma falha concorrente transitória do Gradle foi
+  corrigida por rerun sequencial. Subtarefa concluída após validação funcional
+  confirmada pelo usuário; progresso `7/11`.
   Exceção temporária permite somente inspeção local no aparelho autorizado,
   durante a sessão, sem envio ao contexto, cloud ou logs.
 - Material não sanitizado, quando indispensável para o layout, deve ser apagado
@@ -500,3 +512,124 @@ somente Home e Saúde; rotas restantes serão contextuais.
            instalação e `git diff --check` passaram. Revisão independente foi
            solicitada, mas permanece pendente; `031-07` continua `[ ]` e o
            progresso `6/11`.
+
+          - Em 2026-09-10, por solicitação explícita, o detalhe de Exercícios
+            manteve o gráfico cardíaco atual e ganhou gráfico cardíaco comparativo
+            com amostras persistidas. Ritmo, frequência cardíaca e cadência agora
+            exibem informações de resumo abaixo dos gráficos, sem alterar dados,
+            contratos ou demais superfícies. Compile, lint e builds passaram;
+            instalação/smoke ficaram pendentes por indisponibilidade ADB. Revisão
+            independente e validação visual ampla permanecem pendentes. `031-07`
+            continua `[ ]`; progresso `6/11`.
+
+          - Após nova diretriz de 2026-09-10, o detalhe manteve gráfico cardíaco
+            atual e recebeu gráfico cardíaco de comparação visual, sem alegar
+            segunda série. Informações de ritmo, FC e cadência passaram a aparecer
+            sob seus gráficos usando métricas persistidas; lacunas e duração real
+            foram preservadas. Compile, lint e builds passaram. Instalação/smoke
+            foram bloqueados novamente porque `adb devices -l` não encontrou
+            dispositivo. `031-07` continua `[ ]`; progresso `6/11`.
+
+          - Em 2026-09-10, o usuário escolheu somente o gráfico novo entre as duas
+            versões de frequência cardíaca e pediu redução dos valores. O gráfico
+            anterior foi removido; Ritmo, Cadência e Parciais permanecem. Valores
+            do resumo e das informações sob gráficos foram reduzidos para
+            `titleMedium`, preservando dados e unidades. Compile, lint, builds,
+            instalação Debug e abertura somente leitura passaram; revisão
+            independente e validação visual ampla seguem pendentes. `031-07`
+            continua `[ ]`; progresso `6/11`.
+
+          - Após escolha do gráfico novo, somente essa versão permanece entre os
+            gráficos de FC; Ritmo, Cadência e Parciais seguem renderizados. Valores
+            do resumo e dos dados abaixo dos gráficos foram reduzidos para
+            `titleMedium`; amostras, lacunas e duração efetiva foram preservadas.
+            Compile passou; revisão independente e smoke visual final continuam
+            pendentes. `031-07` segue `[ ]`; progresso `6/11`.
+
+          - Smoke ADB de 2026-09-10 confirmou `Exercícios`, ação acessível
+            `Voltar para Home`, toque e retorno para Home em aparelho Debug.
+            Nenhuma operação de dados foi iniciada. Fonte ampliada, landscape,
+            temas, TalkBack e revisão final permanecem pendentes. `031-07`
+            continua `[ ]`; progresso `6/11`.
+
+          - Em 2026-09-10, `ExercisesHeader` recebeu botão voltar acessível no
+            shell principal, e `ChampionNavigation` passou `onBackRequested` para
+            `AppDestination.Exercises`. Compile, lint, builds e instalação Debug
+            passaram; smoke visual ficou pendente porque o aparelho estava
+            bloqueado. `031-07` continua `[ ]`; progresso `6/11`.
+
+          - Em 2026-09-10, Exercícios recebeu menu contextual `Mais opções` com
+            Importar treinos, Status Health Connect e PoC técnica. Os três blocos
+            saíram da página; loading horizontal acessível permanece visível
+            durante importação. Modais preservam ações explícitas e feedback
+            secundário. Build, lint, instalação e smoke ADB sanitizado passaram;
+            nenhuma operação de dados foi iniciada. `031-07` continua `[ ]`;
+            progresso `6/11`.
+
+          - Em 2026-09-10, `Importar treinos` passou a ser ação direta no menu,
+            sem modal ou dados; o loading horizontal permanece na página para
+            sinalizar execução. Smoke confirmou menu e ações sem tocar importação;
+            build, lint e instalação passaram. Revisão independente e operação
+            real do loading permanecem pendentes. `031-07` continua `[ ]`;
+            progresso `6/11`.
+
+           - Validação posterior da ação direta confirmou compile, lint e builds.
+             Nova instalação foi bloqueada por `adb devices -l` sem dispositivo;
+             nenhum dado foi alterado. `031-07` continua `[ ]`; progresso `6/11`.
+
+           - Em 2026-09-10, a limpeza delimitada de `ExercisesScreen.kt` removeu UI morta
+             de importação sem chamadas (`ExercisesImportDialog`, `ExercisesImportContent`,
+             `ImportResultBanner`, `ImportErrorBanner` e `MetadataSection`), além de
+             imports/helpers exclusivos. O indicador de progresso, helpers de estado e
+             mensagem, diálogo/feedback Health Connect e callbacks foram preservados.
+             `git diff --check` e `./gradlew app:compileDebugKotlin --no-daemon`
+              passaram. `031-07` continua `[ ]`; revisão independente, smoke visual amplo,
+              fonte ampliada, landscape, temas e TalkBack seguem pendentes.
+
+            - Nova execução completa após ação direta passou em compile, lint e builds;
+              `installDebug` ficou bloqueado por `adb devices -l` sem dispositivo.
+              Nenhuma ação de importação ou alteração de dados foi realizada.
+
+          - Em 2026-09-10, a tela de Frequência cardíaca recebeu menu contextual
+            com `Atualizar histórico` e loading horizontal igual ao padrão da
+            Home durante importação D1. Pull-to-refresh, ação acessível e
+            bloqueios existentes foram preservados. `031-06` permanece concluída
+            (`6/11`); revisão independente passou sem bloqueadores. Build/lint
+            passaram; instalação e smoke ADB ficaram `N/A` por ausência de
+            dispositivo conectado.
+
+          - Após reconexão em 2026-09-10, `installDebug` passou no `SM-S901E`.
+            Smoke somente leitura confirmou Saúde → Frequência cardíaca, menu
+            `Mais opções`, item `Atualizar histórico`, retorno à tela e processo
+            ativo sem `FATAL EXCEPTION`/`AndroidRuntime`. Nenhuma importação D1
+            foi iniciada; loading em operação real, TalkBack, fonte ampliada,
+            landscape e temas permanecem não exercitados.
+
+          - Em 2026-09-10, validação física de `031-07` passou no `SM-S901E`:
+            Exercícios abriu pela Home; menu exibiu Importar treinos, Status
+            Health Connect e PoC técnica; `Mês` exibiu setas de calendário sem
+            `Abrir dia`; `Semana` exibiu setas e `Dias com exercícios`; retorno
+            para Home e processo ativo foram confirmados sem crash. PoC técnica
+            foi aberta inadvertidamente ao tocar limite do menu e fechada sem
+            iniciar rota/operação ou persistir dados. Importação real/loading,
+             fonte ampliada, landscape, temas e TalkBack permanecem pendentes;
+             `031-07` continua `[ ]` e progresso `6/11`.
+
+            - Nova validação de `031-07` confirmou mudança de Semana/Mês por hash
+              sanitizado, bloqueio de períodos futuros, resumo, lista e detalhe
+              com retorno. Fonte `1.3x`, landscape, tema claro/escuro e TalkBack
+              foram exercitados; configurações originais foram restauradas.
+              Nenhuma operação de dados foi iniciada. Loading/importação real,
+              status Health Connect e retry/cancelamento permanecem não
+              exercitados; `031-07` continua `[ ]`, progresso `6/11`.
+
+            - Em 2026-09-10, nova diretriz supersedeu a exigência histórica de
+              affordances visíveis de retry/cancelamento: `ExercisesScreen` agora
+              exibe somente uma Snackbar acessível, temporária e genérica na
+              transição para estados terminais da importação. `Completed`,
+              `Partial` e `Empty` são sucesso; `Failed` e `Cancelled` são erro.
+              Sem modal, resumo, metadata, payload ou ação. Loading horizontal,
+              menu e contratos permanecem preservados. `git diff --check` e
+              `app:compileDebugKotlin` passaram; revisão independente, smoke de
+              importação real e validação ampla continuam pendentes. `031-07`
+              permanece `[ ]`, progresso `6/11`.

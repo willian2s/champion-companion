@@ -282,8 +282,9 @@ qualquer composição que não exponha unidade, período e ausência corretament
   detalhe foi alterado.
 - **Arquivos alterados:** `HealthFeatureContract.kt`, `HealthViewModel.kt` e
   `HealthScreen.kt`.
-- **Validação:** `git diff --check` e `./gradlew app:compileDebugKotlin
-  --no-daemon` passaram. Nenhum teste automatizado foi criado ou executado.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew app:lintDebug --no-daemon` passaram. Nenhum teste
+  automatizado foi criado ou executado.
 - **Bloqueios/riscos:** revisão independente e smoke visual permanecem pendentes;
   nenhuma pendência funcional conhecida nesta correção.
 
@@ -875,3 +876,46 @@ qualquer composição que não exponha unidade, período e ausência corretament
 - **Documentação:** overview atualizado para marcar somente este item como
   concluído e recalcular progresso para `6/11`. Nenhuma próxima subtarefa foi
   iniciada automaticamente.
+
+## Ajuste delimitado de refresh na frequência cardíaca — 2026-09-10
+
+- **Status:** `completed`; ajuste restrito à composição de produção da tela de
+  frequência cardíaca.
+- **Implementação:** `HeartRateDetailHeader` recebeu menu contextual com ação
+  `Atualizar histórico`, ícone `Refresh`, semântica acessível e fechamento do
+  menu antes de disparar `HealthIntent.StartD1Import`. Pull-to-refresh e ação
+  acessível existente foram preservados. `LinearProgressIndicator` horizontal
+  aparece imediatamente após o header durante D1, com `contentDescription` e
+  `LiveRegionMode.Polite`.
+- **Arquivo alterado:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`.
+- **Preservação:** ViewModel, domínio, persistência, navegação, contratos e
+  testes não foram alterados. Nenhuma pendência funcional nova foi introduzida.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew lint assembleDebug assembleRelease --no-daemon`
+  passaram. `./gradlew installDebug --no-daemon` não pôde concluir porque não
+  havia dispositivo conectado (`No connected devices`). Nenhum teste
+  automatizado foi criado ou executado.
+- **Revisão independente:** `PASS`, sem bloqueadores. Confirmou menu, ação
+  acessível, bloqueio contra operação concorrente, pull-to-refresh, loading e
+  ausência de efeitos durante renderização.
+- **Evidências e riscos residuais:** validação física, TalkBack e estados visuais
+  transitórios não foram repetidos por indisponibilidade ADB; risco permanece
+  restrito à cobertura visual física não observada.
+
+## Validação física posterior — 2026-09-10
+
+- **Aparelho:** dispositivo autorizado `SM-S901E`, variante Debug instalada com
+  sucesso.
+- **Fluxo somente leitura:** Activity abriu; Saúde → Frequência cardíaca exibiu
+  header, tendência e ação acessível `Mais opções`. O menu exibiu
+  `Atualizar histórico`; menu foi fechado sem iniciar importação D1 ou alterar
+  dados.
+- **Verificações:** processo permaneceu ativo (`pidof` confirmado), rota de
+  frequência cardíaca permaneceu visível após fechar o menu e logcat limpo não
+  registrou `FATAL EXCEPTION`/`AndroidRuntime`.
+- **Limitações:** loading durante operação real, TalkBack, fonte ampliada,
+  landscape e temas não foram exercitados nesta sessão para não iniciar
+  operação sensível apenas para produzir evidência.
+- **Resultado:** `installDebug` e smoke estrutural ADB passaram; risco residual
+  fica limitado aos estados transitórios e variações visuais não exercitados.

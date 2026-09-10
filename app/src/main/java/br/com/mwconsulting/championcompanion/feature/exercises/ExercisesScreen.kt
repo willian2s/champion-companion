@@ -48,11 +48,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -67,7 +72,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -79,10 +92,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import androidx.lifecycle.ViewModelProvider
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeLarge
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionShapeMedium
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
+import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderAction
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
@@ -90,7 +105,6 @@ import br.com.mwconsulting.championcompanion.core.designsystem.EmptyState
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LoadingState
-import br.com.mwconsulting.championcompanion.core.designsystem.PendingReviewBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PermissionBanner
 import br.com.mwconsulting.championcompanion.core.designsystem.PrimaryActionButton
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionTimeSeriesChart
@@ -106,17 +120,12 @@ import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCha
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
-import br.com.mwconsulting.championcompanion.core.model.CanonicalWorkoutSeries
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
-import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
-import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgress
-import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportResult
-import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -129,7 +138,6 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndic
 import br.com.mwconsulting.championcompanion.core.model.WorkoutSplit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
-import br.com.mwconsulting.championcompanion.feature.health.GoogleHealthIntradayHeartRateChart
 import java.time.Duration
 import java.time.DayOfWeek
 import java.time.Instant
@@ -145,6 +153,10 @@ import kotlin.math.roundToLong
 
 private val ExerciseCadenceChartValueFormatter =
     ChampionChartFormatters.decimal(maximumFractionDigits = 1)
+
+private enum class ExercisesActionDialog {
+    HEALTH_CONNECT,
+}
 
 @Composable
 fun ExercisesScreen(
@@ -176,6 +188,10 @@ fun ExercisesScreen(
     var selectedMonthIso by rememberSaveable { mutableStateOf(currentMonth.toString()) }
     var selectedWeekStartIso by rememberSaveable { mutableStateOf(currentWeekStart.toString()) }
     var selectedExerciseDateIso by rememberSaveable { mutableStateOf<String?>(null) }
+    var isActionMenuExpanded by remember { mutableStateOf(false) }
+    var actionDialog by remember { mutableStateOf<ExercisesActionDialog?>(null) }
+    val importSnackbarHostState = remember { SnackbarHostState() }
+    var previousImportState by remember { mutableStateOf<WatchWorkoutImportSurfaceState>(state.importState) }
     val selectedMonth = remember(selectedMonthIso, currentMonth) {
         parseExerciseMonthOrDefault(selectedMonthIso, currentMonth).coerceAtMost(currentMonth)
     }
@@ -199,6 +215,17 @@ fun ExercisesScreen(
             state.selectedFilter != WorkoutActivityFilter.ALL
         ) {
             viewModel.onIntent(ExercisesIntent.SelectFilter(WorkoutActivityFilter.ALL))
+        }
+    }
+
+    LaunchedEffect(state.importState) {
+        val previousState = previousImportState
+        previousImportState = state.importState
+        if (previousState == state.importState) return@LaunchedEffect
+
+        state.importState.toTerminalFeedback()?.let { message ->
+            importSnackbarHostState.currentSnackbarData?.dismiss()
+            importSnackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
         }
     }
 
@@ -231,112 +258,200 @@ fun ExercisesScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
+        Box(
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
                 .padding(ChampionSpacing.extraLarge),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
-        ) {
-            if (openedActivityId == null) {
-                ExercisesHeader(state = state)
-                onOpenDebugPoc?.let { openDebugPoc ->
-                    ExercisesDebugPocCard(onOpenDebugPoc = openDebugPoc)
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
+            ) {
+                if (openedActivityId == null) {
+                    ExercisesHeader(
+                        state = state,
+                        onNavigateBack = onNavigateBack,
+                        backLabel = backLabel,
+                        isActionMenuExpanded = isActionMenuExpanded,
+                        onActionMenuExpandedChange = { isActionMenuExpanded = it },
+                        onOpenImport = {
+                            isActionMenuExpanded = false
+                            viewModel.onIntent(ExercisesIntent.StartImport)
+                        },
+                        onOpenHealthConnect = {
+                            isActionMenuExpanded = false
+                            actionDialog = ExercisesActionDialog.HEALTH_CONNECT
+                        },
+                        onOpenDebugPoc = onOpenDebugPoc?.let { openDebugPoc ->
+                            {
+                                isActionMenuExpanded = false
+                                openDebugPoc()
+                            }
+                        },
+                    )
+                    if (state.importState.isImportInFlight()) {
+                        ExercisesImportProgressIndicator(state = state)
+                    }
+                    ExerciseHistoryPeriodSelector(
+                        selectedPeriod = selectedHistoryPeriod,
+                        onSelectPeriod = { period ->
+                            selectedHistoryPeriod = period
+                            if (period == ExerciseHistoryPeriod.MONTH &&
+                                state.selectedFilter != WorkoutActivityFilter.ALL
+                            ) {
+                                viewModel.onIntent(ExercisesIntent.SelectFilter(WorkoutActivityFilter.ALL))
+                            }
+                        },
+                    )
+                    ExerciseHistorySection(
+                        period = selectedHistoryPeriod,
+                        activities = state.activityList,
+                        selectedFilter = state.selectedFilter,
+                        workflowSummary = state.workflowSummary,
+                        today = today,
+                        zoneId = zoneId,
+                        selectedMonth = selectedMonth,
+                        selectedWeekStart = selectedWeekStart,
+                        onSelectFilter = { viewModel.onIntent(ExercisesIntent.SelectFilter(it)) },
+                        onOpenActivity = onOpenActivity,
+                        selectedExerciseDate = selectedExerciseDate,
+                        onSelectExerciseDate = { selectedExerciseDateIso = it.toString() },
+                        onPreviousMonth = {
+                            selectedMonthIso = selectedMonth.minusMonths(1).toString()
+                            selectedExerciseDateIso = null
+                        },
+                        onNextMonth = {
+                            if (selectedMonth < currentMonth) {
+                                selectedMonthIso = selectedMonth.plusMonths(1).toString()
+                                selectedExerciseDateIso = null
+                            }
+                        },
+                        onPreviousWeek = { selectedWeekStartIso = selectedWeekStart.minusWeeks(1).toString() },
+                        onNextWeek = {
+                            if (selectedWeekStart < currentWeekStart) {
+                                selectedWeekStartIso = selectedWeekStart.plusWeeks(1).toString()
+                            }
+                        },
+                        onToday = {
+                            if (selectedHistoryPeriod == ExerciseHistoryPeriod.MONTH) {
+                                selectedMonthIso = currentMonth.toString()
+                                selectedExerciseDateIso = null
+                            } else {
+                                selectedWeekStartIso = currentWeekStart.toString()
+                            }
+                        },
+                    )
+                } else {
+                    ExerciseDetailShell(
+                        state = state,
+                        activityId = openedActivityId,
+                        onNavigateBack = onNavigateBack,
+                        backLabel = backLabel,
+                        onDismissError = dismissOperationError,
+                        onReviewTypeChange = { viewModel.onIntent(ExercisesIntent.EditReviewType(it)) },
+                        onReviewDistanceChange = { viewModel.onIntent(ExercisesIntent.EditReviewDistance(it)) },
+                        onReviewTitleChange = { viewModel.onIntent(ExercisesIntent.EditReviewTitle(it)) },
+                        onReviewNotesChange = { viewModel.onIntent(ExercisesIntent.EditReviewNotes(it)) },
+                        onReviewPlausibilityAcceptanceChange = {
+                            viewModel.onIntent(ExercisesIntent.EditReviewPlausibilityAcceptance(it))
+                        },
+                        onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
+                        onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
+                        onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
+                        referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
+                        onReprocessActivity = { viewModel.onIntent(ExercisesIntent.ReprocessSelectedActivity) },
+                        onAcceptPlausibility = { viewModel.onIntent(ExercisesIntent.AcceptSelectedPlausibility) },
+                        onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
+                        onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
+                        onDeleteActivity = { viewModel.onIntent(ExercisesIntent.DeleteSelectedActivity) },
+                    )
                 }
-                ExercisesImportCard(
-                    state = state,
-                    onStartImport = { viewModel.onIntent(ExercisesIntent.StartImport) },
-                    onCancelImport = { viewModel.onIntent(ExercisesIntent.CancelImport) },
-                    onRetryImport = { viewModel.onIntent(ExercisesIntent.RetryImport) },
-                    onDismissImport = { viewModel.onIntent(ExercisesIntent.DismissImport) },
-                )
-                if (!state.importState.isImportInFlight()) {
-                    ExerciseSyncFeedbackCard(state.activityList, state.workflowSummary)
-                }
-                ExerciseHistoryPeriodSelector(
-                    selectedPeriod = selectedHistoryPeriod,
-                    onSelectPeriod = { period ->
-                        selectedHistoryPeriod = period
-                        if (period == ExerciseHistoryPeriod.MONTH &&
-                            state.selectedFilter != WorkoutActivityFilter.ALL
-                        ) {
-                            viewModel.onIntent(ExercisesIntent.SelectFilter(WorkoutActivityFilter.ALL))
-                        }
+            }
+
+            SnackbarHost(
+                hostState = importSnackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(ChampionSpacing.large),
+            ) { snackbarData ->
+                Snackbar(
+                    snackbarData = snackbarData,
+                    modifier = Modifier.semantics {
+                        liveRegion = LiveRegionMode.Polite
                     },
-                )
-                ExerciseHistorySection(
-                    period = selectedHistoryPeriod,
-                    activities = state.activityList,
-                    selectedFilter = state.selectedFilter,
-                    workflowSummary = state.workflowSummary,
-                    today = today,
-                    zoneId = zoneId,
-                    selectedMonth = selectedMonth,
-                    selectedWeekStart = selectedWeekStart,
-                     onSelectFilter = { viewModel.onIntent(ExercisesIntent.SelectFilter(it)) },
-                     onOpenActivity = onOpenActivity,
-                     selectedExerciseDate = selectedExerciseDate,
-                     onSelectExerciseDate = { selectedExerciseDateIso = it.toString() },
-                     onPreviousMonth = {
-                         selectedMonthIso = selectedMonth.minusMonths(1).toString()
-                         selectedExerciseDateIso = null
-                     },
-                     onNextMonth = {
-                         if (selectedMonth < currentMonth) {
-                             selectedMonthIso = selectedMonth.plusMonths(1).toString()
-                             selectedExerciseDateIso = null
-                         }
-                     },
-                    onPreviousWeek = { selectedWeekStartIso = selectedWeekStart.minusWeeks(1).toString() },
-                     onNextWeek = {
-                         if (selectedWeekStart < currentWeekStart) {
-                             selectedWeekStartIso = selectedWeekStart.plusWeeks(1).toString()
-                         }
-                     },
-                    onToday = {
-                         if (selectedHistoryPeriod == ExerciseHistoryPeriod.MONTH) {
-                             selectedMonthIso = currentMonth.toString()
-                             selectedExerciseDateIso = null
-                         } else {
-                            selectedWeekStartIso = currentWeekStart.toString()
-                        }
-                    },
-                )
-            } else {
-                ExerciseDetailShell(
-                    state = state,
-                    activityId = openedActivityId,
-                    onNavigateBack = onNavigateBack,
-                    backLabel = backLabel,
-                    onDismissError = dismissOperationError,
-                    onReviewTypeChange = { viewModel.onIntent(ExercisesIntent.EditReviewType(it)) },
-                    onReviewDistanceChange = { viewModel.onIntent(ExercisesIntent.EditReviewDistance(it)) },
-                    onReviewTitleChange = { viewModel.onIntent(ExercisesIntent.EditReviewTitle(it)) },
-                    onReviewNotesChange = { viewModel.onIntent(ExercisesIntent.EditReviewNotes(it)) },
-                    onReviewPlausibilityAcceptanceChange = {
-                        viewModel.onIntent(ExercisesIntent.EditReviewPlausibilityAcceptance(it))
-                    },
-                    onSubmitReview = { viewModel.onIntent(ExercisesIntent.SubmitReview) },
-                    onCalibrationDistanceChange = { viewModel.onIntent(ExercisesIntent.EditCalibrationDistance(it)) },
-                    onSubmitCalibration = { viewModel.onIntent(ExercisesIntent.SubmitCalibration) },
-                    referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
-                    onReprocessActivity = { viewModel.onIntent(ExercisesIntent.ReprocessSelectedActivity) },
-                    onAcceptPlausibility = { viewModel.onIntent(ExercisesIntent.AcceptSelectedPlausibility) },
-                    onSyncActivity = { viewModel.onIntent(ExercisesIntent.SyncSelectedActivity) },
-                    onDiscardActivity = { viewModel.onIntent(ExercisesIntent.DiscardSelectedActivity) },
-                    onDeleteActivity = { viewModel.onIntent(ExercisesIntent.DeleteSelectedActivity) },
                 )
             }
         }
+    }
+
+    when (actionDialog) {
+        ExercisesActionDialog.HEALTH_CONNECT -> HealthConnectStatusDialog(
+            activities = state.activityList,
+            workflowSummary = state.workflowSummary,
+            onDismiss = { actionDialog = null },
+        )
+
+        null -> Unit
     }
 }
 
 @Composable
 private fun ExercisesHeader(
     state: ExercisesUiState,
+    onNavigateBack: (() -> Unit)?,
+    backLabel: String,
+    isActionMenuExpanded: Boolean,
+    onActionMenuExpandedChange: (Boolean) -> Unit,
+    onOpenImport: () -> Unit,
+    onOpenHealthConnect: () -> Unit,
+    onOpenDebugPoc: (() -> Unit)?,
 ) {
     ChampionRedesignSurfaceHeader(
         title = "Exercícios",
+        navigationContent = onNavigateBack?.let { navigateBack ->
+            {
+                ChampionRedesignHeaderNavigationAction(
+                    contentDescription = backLabel,
+                    onClick = navigateBack,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = null,
+                    )
+                }
+            }
+        },
+        actionsContent = {
+            Box {
+                ChampionRedesignHeaderAction(
+                    contentDescription = "Mais opções",
+                    onClick = { onActionMenuExpandedChange(true) },
+                ) {
+                    Icon(imageVector = Icons.Filled.MoreVert, contentDescription = null)
+                }
+                DropdownMenu(
+                    expanded = isActionMenuExpanded,
+                    onDismissRequest = { onActionMenuExpandedChange(false) },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Importar treinos") },
+                        enabled = state.hasAssociatedDevice && !state.importState.isImportInFlight(),
+                        onClick = onOpenImport,
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Status Health Connect") },
+                        onClick = onOpenHealthConnect,
+                    )
+                    onOpenDebugPoc?.let { openDebugPoc ->
+                        DropdownMenuItem(
+                            text = { Text("PoC técnica") },
+                            onClick = openDebugPoc,
+                        )
+                    }
+                }
+            }
+        },
         supportingText = if (state.hasAssociatedDevice) {
             "Relógio: ${state.associatedDeviceName ?: "Champion C001"}"
         } else {
@@ -346,261 +461,61 @@ private fun ExercisesHeader(
 }
 
 @Composable
-private fun ExercisesDebugPocCard(
-    onOpenDebugPoc: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        border = BorderStroke(1.dp, exerciseTertiaryAccent()),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text(
-                text = "PoC técnica de debug",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Acesso técnico para testar GPS + MapLibre. Não inicia treino nem salva dados.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedButton(
-                onClick = onOpenDebugPoc,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Abrir PoC GPS + MapLibre (debug)")
-            }
+private fun ExercisesImportProgressIndicator(state: ExercisesUiState) {
+    val session = state.importState.sessionOrNull()
+    val progressMessage = session?.progress?.toFriendlyMessage(state.importState)
+        ?: "Importação de treinos em andamento"
+    val progress = session?.progress?.overallProgressFraction
+    val modifier = Modifier
+        .fillMaxWidth()
+        .semantics {
+            contentDescription = progressMessage
+            liveRegion = LiveRegionMode.Polite
         }
+    if (progress == null) {
+        LinearProgressIndicator(
+            modifier = modifier,
+            color = exercisePrimaryAccent(),
+            trackColor = exercisePrimaryAccent().copy(alpha = 0.18f),
+        )
+    } else {
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = modifier,
+            color = exercisePrimaryAccent(),
+            trackColor = exercisePrimaryAccent().copy(alpha = 0.18f),
+        )
     }
 }
 
 @Composable
-private fun ExercisesImportCard(
-    state: ExercisesUiState,
-    onStartImport: () -> Unit,
-    onCancelImport: () -> Unit,
-    onRetryImport: () -> Unit,
-    onDismissImport: () -> Unit,
-) {
-    val importSession = state.importState.sessionOrNull()
-    val isImporting = state.importState.isImportInFlight()
-    val metadata = importSession?.metadata ?: state.latestImportMetadata
-    val progressMessage = importSession?.progress?.toFriendlyMessage(state.importState)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeLarge,
-        border = BorderStroke(1.dp, exercisePrimaryAccent()),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
-        ) {
-            Text("Importar do relógio", style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = "A leitura começa somente por ação explícita. Atividades importadas ficam disponíveis para revisão local.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = PhoneWorkoutPolicy.DISCONTINUED_MESSAGE,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            if (state.workflowSummary.pendingReviewCount > 0) {
-                PendingReviewBanner(
-                    message = "Há ${state.workflowSummary.pendingReviewCount} treino(s) aguardando revisão na lista abaixo.",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            if (!state.hasAssociatedDevice) {
-                ErrorState(
-                    title = "Relógio necessário",
-                    message = "Associe um relógio Champion para liberar a importação manual de treinos.",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            PrimaryActionButton(
-                label = if (isImporting) "Importando treinos do relógio" else "Buscar treinos no relógio",
-                onClick = onStartImport,
-                enabled = state.hasAssociatedDevice,
-                isLoading = isImporting,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            if (isImporting) {
-                AssistChip(
-                    onClick = onCancelImport,
-                    label = { Text("Cancelar importação") },
-                )
-            }
-
-            if (isImporting && progressMessage != null) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics {
-                            contentDescription = progressMessage
-                            liveRegion = LiveRegionMode.Polite
-                        },
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                ) {
-                    LinearProgressIndicator(
-                        progress = { importSession.progress.overallProgressFraction ?: 0f },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = exercisePrimaryAccent(),
-                        trackColor = exercisePrimaryAccent().copy(alpha = 0.18f),
-                    )
-                    Text(progressMessage, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = importSession.progress.toTechnicalLine(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            when (state.importState) {
-                WatchWorkoutImportSurfaceState.Idle,
-                is WatchWorkoutImportSurfaceState.Preparing,
-                is WatchWorkoutImportSurfaceState.Connecting,
-                is WatchWorkoutImportSurfaceState.ReadingIndex,
-                is WatchWorkoutImportSurfaceState.ReadingBlocks,
-                is WatchWorkoutImportSurfaceState.Parsing,
-                is WatchWorkoutImportSurfaceState.Persisting,
-                -> Unit
-
-                is WatchWorkoutImportSurfaceState.Completed,
-                is WatchWorkoutImportSurfaceState.Partial,
-                is WatchWorkoutImportSurfaceState.Empty,
-                is WatchWorkoutImportSurfaceState.Cancelled,
-                -> ImportResultBanner(
-                    session = importSession,
-                    onPrimaryAction = onRetryImport,
-                    primaryActionLabel = if (state.importState is WatchWorkoutImportSurfaceState.Empty) {
-                        "Buscar novamente"
-                    } else {
-                        "Importar de novo"
-                    },
-                    onSecondaryAction = onDismissImport,
-                )
-
-                is WatchWorkoutImportSurfaceState.Failed -> ImportErrorBanner(
-                    session = importSession,
-                    onRetry = onRetryImport,
-                    onDismiss = onDismissImport,
-                )
-            }
-
-            MetadataSection(metadata)
-        }
-    }
-}
-
-@Composable
-private fun ImportResultBanner(
-    session: WatchWorkoutImportSessionState?,
-    onPrimaryAction: () -> Unit,
-    primaryActionLabel: String,
-    onSecondaryAction: () -> Unit,
-) {
-    val result = session?.result ?: return
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics {
-                contentDescription = result.toAccessibleTitle()
-                liveRegion = LiveRegionMode.Polite
-            },
-        shape = ChampionShapeMedium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(result.toTitle(), style = MaterialTheme.typography.titleMedium)
-            Text(result.toMessage(), style = MaterialTheme.typography.bodyMedium)
-            result.summary?.let { summary ->
-                Text(summary.toSummaryLine(), style = MaterialTheme.typography.bodySmall)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
-                PrimaryActionButton(label = primaryActionLabel, onClick = onPrimaryAction)
-                AssistChip(onClick = onSecondaryAction, label = { Text("Fechar") })
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImportErrorBanner(
-    session: WatchWorkoutImportSessionState?,
-    onRetry: () -> Unit,
+private fun HealthConnectStatusDialog(
+    activities: List<WorkoutActivity>,
+    workflowSummary: br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary,
     onDismiss: () -> Unit,
 ) {
-    val error = session?.error ?: return
-    ErrorState(
-        title = "Não foi possível importar os treinos",
-        message = error.message,
-        actionLabel = if (error.isRetryable) "Tentar novamente" else null,
-        onAction = if (error.isRetryable) onRetry else null,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    AssistChip(onClick = onDismiss, label = { Text("Dispensar") })
-}
-
-@Composable
-private fun MetadataSection(metadata: WatchWorkoutImportMetadata?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ChampionShapeMedium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ChampionShapeLarge,
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            Text("Última operação", style = MaterialTheme.typography.titleMedium)
-            if (metadata == null) {
-                Text(
-                    text = "Ainda não há importação registrada para este relógio.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-                    verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(ChampionSpacing.large),
+                verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+            ) {
+                Text("Status Health Connect", style = MaterialTheme.typography.headlineSmall)
+                ExerciseSyncFeedbackContent(activities, workflowSummary)
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End),
                 ) {
-                    AssistChip(onClick = {}, enabled = false, label = { Text(metadata.lastResult.toLabel()) })
-                    AssistChip(onClick = {}, enabled = false, label = { Text(metadata.timedOut.toTimeoutLabel()) })
+                    Text("Fechar")
                 }
-                Text("Última tentativa: ${metadata.lastAttemptAt.formatDateTime()}", style = MaterialTheme.typography.bodyMedium)
-                metadata.lastSuccessAt?.let {
-                    Text("Último sucesso: ${it.formatDateTime()}", style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(
-                    text = "Inseridos ${metadata.insertedCount}, duplicados ${metadata.duplicateCount}, inválidos ${metadata.invalidCount}, ausentes ${metadata.missingIndexCount}.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
             }
         }
     }
@@ -1619,48 +1534,37 @@ private val EXERCISE_WEEKDAY_FULL_LABELS = listOf(
 )
 
 @Composable
-private fun ExerciseSyncFeedbackCard(
+private fun ExerciseSyncFeedbackContent(
     activities: List<WorkoutActivity>,
     workflowSummary: br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary,
 ) {
     val syncingCount = activities.count { it.workflowState == ActivityWorkflowState.SYNCING }
-    if (workflowSummary.readyToSyncCount <= 0 && syncingCount <= 0 && workflowSummary.syncedCount <= 0 && workflowSummary.syncFailedCount <= 0) {
-        return
-    }
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, exerciseSecondaryAccent()),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.large),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
-        ) {
-            Text(
-                "Health Connect · feedback secundário",
-                style = MaterialTheme.typography.titleMedium,
-                color = exerciseSecondaryAccent(),
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                when {
-                    syncingCount > 0 -> "Há treino(s) sincronizando com o Health Connect. Os dados locais continuam disponíveis normalmente."
-                    workflowSummary.syncFailedCount > 0 -> "Alguns treinos ficaram com erro ou falha parcial no Health Connect. Os detalhes mostram retry seguro por atividade."
-                    workflowSummary.readyToSyncCount > 0 -> "Existem treinos prontos para sincronização explícita com o Health Connect."
-                    workflowSummary.syncedCount > 0 -> "Escritas locais aceitas permanecem visíveis; o provider não é lido para confirmar records."
-                    else -> "Sem feedback secundário de sincronização no momento."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "Prontas ${workflowSummary.readyToSyncCount} • Sincronizando $syncingCount • Sincronizadas ${workflowSummary.syncedCount} • Com erro ${workflowSummary.syncFailedCount}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            "Feedback secundário",
+            style = MaterialTheme.typography.titleMedium,
+            color = exerciseSecondaryAccent(),
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            when {
+                syncingCount > 0 -> "Há treino(s) sincronizando com o Health Connect. Os dados locais continuam disponíveis normalmente."
+                workflowSummary.syncFailedCount > 0 -> "Alguns treinos ficaram com erro ou falha parcial no Health Connect. Os detalhes mostram retry seguro por atividade."
+                workflowSummary.readyToSyncCount > 0 -> "Existem treinos prontos para sincronização explícita com o Health Connect."
+                workflowSummary.syncedCount > 0 -> "Escritas locais aceitas permanecem visíveis; o provider não é lido para confirmar records."
+                else -> "Sem feedback secundário de sincronização no momento."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "Prontas ${workflowSummary.readyToSyncCount} • Sincronizando $syncingCount • Sincronizadas ${workflowSummary.syncedCount} • Com erro ${workflowSummary.syncFailedCount}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -2049,9 +1953,16 @@ private fun WorkoutActivityDetailContent(
         )
         ActivityDetailMetadata(activity)
         ActivityMetricsSection(activity)
-        if (activity.heartRateSamples.isNotEmpty()) {
-            DetailSectionHeading("Faixas de frequência cardíaca")
-            ActivityHeartRateChartSection(activity)
+        if (activity.canonicalWorkoutChartIntervals() != null) {
+            ActivitySplitsSection(activity)
+            ActivityPaceChartSection(activity)
+        }
+        if (activity.referenceHeartRateChartPoints().isNotEmpty()) {
+            DetailSectionHeading("Frequência cardíaca")
+            ActivityHeartRateComparisonChartSection(activity)
+        }
+        if (activity.canonicalWorkoutChartIntervals() != null) {
+            ActivityCadenceChartSection(activity)
         }
         if (operationError != null) {
             if (operationError.category == ExerciseOperationErrorCategory.WRITE_ACCEPTED_NO_READBACK) {
@@ -2239,6 +2150,12 @@ private fun WorkoutActivity.canonicalMetricReadModel(): CanonicalActivityMetricR
     )
 }
 
+private fun WorkoutActivity.canonicalWorkoutChartIntervals(): List<DerivedWorkoutInterval>? =
+    takeIf { isWatchWorkout && !isCycling && canonicalReadStatus == WorkoutCanonicalReadStatus.AVAILABLE }
+        ?.canonicalSeries
+        ?.intervals
+        ?.takeIf { it.isNotEmpty() }
+
 @Composable
 private fun ActivityMetricsSection(activity: WorkoutActivity) {
     Column(
@@ -2322,7 +2239,7 @@ private fun ActivityDetailMetricRow(item: DetailMetricItem) {
             text = item.value,
             modifier = Modifier.padding(start = ChampionSpacing.medium),
             textAlign = TextAlign.End,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -2349,23 +2266,359 @@ private fun MetricCard(label: String, value: String, accentColor: Color) {
 }
 
 @Composable
-private fun ActivityHeartRateChartSection(activity: WorkoutActivity) {
-    Text(
-        text = activity.referenceAverageHeartRateLabel(),
-        style = MaterialTheme.typography.displaySmall,
-        fontWeight = FontWeight.SemiBold,
+private fun ActivityHeartRateComparisonChartSection(activity: WorkoutActivity) {
+    val points = activity.referenceHeartRateChartPoints()
+    val values = points.mapNotNull { it.y }
+    if (points.isEmpty() || values.isEmpty()) return
+
+    WorkoutReferenceAreaChart(
+        points = points,
+        yValues = values,
+        lineColor = Color(0xFFE96A6A),
+        yLabel = { value -> "${value.roundToInt()}" },
+        xLabel = { value ->
+            Duration.ofMillis((value * 1_000.0).roundToLong()).toDurationLabel()
+        },
+        xMaximum = activity.referenceHeartRateChartDurationSeconds(),
+        accessibilitySummary = "Gráfico de frequência cardíaca do treino, usando " +
+            "${values.size} amostra(s) real(is). Valores em BPM.",
     )
-    WorkoutHeartRateChart(
-        samples = activity.heartRateSamples,
-        activityDuration = activity.metrics.duration,
+    WorkoutDetailInfoRows(
+        *buildList {
+            (activity.metrics.averageBpm as? DomainValue.Present)?.value?.let {
+                add(DetailMetricItem("Frequência cardíaca média", "$it bpm"))
+            }
+            (activity.metrics.maximumBpm as? DomainValue.Present)?.value?.let {
+                add(DetailMetricItem("Frequência cardíaca máxima", "$it bpm"))
+            }
+        }.toTypedArray(),
     )
 }
 
-private fun WorkoutActivity.referenceAverageHeartRateLabel(): String =
-    when (val average = metrics.averageBpm) {
-        is DomainValue.Present -> "${average.value} bpm (méd.)"
-        is DomainValue.Absent -> "FC indisponível"
+private fun WorkoutActivity.referenceHeartRateChartPoints(): List<ChampionChartPoint> {
+    val samples = heartRateSamples.sortedBy { it.sampledAt }
+    val start = metrics.startedAt
+    val durationSeconds = referenceHeartRateChartDurationSeconds()
+    return buildList {
+        var previousSeconds: Double? = null
+        samples.forEach { sample ->
+            val seconds = Duration.between(start, sample.sampledAt).toMillis().toDouble() / 1_000.0
+            if (!seconds.isFinite() || seconds !in 0.0..durationSeconds) return@forEach
+            if (previousSeconds != null && seconds - previousSeconds!! > HEART_RATE_VISUAL_GAP_SECONDS) {
+                val gapSeconds = (previousSeconds!! + seconds) / 2.0
+                add(
+                    ChampionChartPoint(
+                        x = gapSeconds,
+                        y = null,
+                        xLabel = gapSeconds.toDurationChartLabel(),
+                    ),
+                )
+            }
+            add(
+                ChampionChartPoint(
+                    x = seconds,
+                    y = sample.bpm.toDouble(),
+                    xLabel = seconds.toDurationChartLabel(),
+                    contentDescription = "${sample.bpm} bpm em ${sample.sampledAt.formatDateTime()}.",
+                ),
+            )
+            previousSeconds = seconds
+        }
     }
+}
+
+private fun WorkoutActivity.referenceHeartRateChartDurationSeconds(): Double =
+    (Duration.between(metrics.startedAt, metrics.endedAt).toChartSeconds().takeIf { it > 0.0 }
+        ?: metrics.duration.toChartSeconds().takeIf { it > 0.0 }
+        ?: 1.0).coerceAtLeast(1.0)
+
+private const val HEART_RATE_VISUAL_GAP_SECONDS = 120.0
+
+@Composable
+private fun ActivityPaceChartSection(activity: WorkoutActivity) {
+    val intervals = activity.canonicalWorkoutChartIntervals() ?: return
+    val entries = canonicalIntervalChartEntries(intervals)
+    val points = entries.map { (distanceKilometers, interval) ->
+        interval.paceSecondsPerKilometer?.takeIf { it.isFinite() && it > 0.0 }
+            .let { pace ->
+                ChampionChartPoint(
+                    x = distanceKilometers,
+                    y = pace,
+                    xLabel = distanceKilometers.toDistanceAxisLabel(),
+                    contentDescription = "Intervalo ${interval.index + 1}, " +
+                        "${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados, " +
+                        "ritmo ${pace.toPaceChartLabelOrUnavailable()} em " +
+                        interval.cumulativeDuration.toDurationLabel() + ".",
+                )
+            }
+    }
+    val paceValues = points.mapNotNull { it.y }
+    if (paceValues.isEmpty() || points.isEmpty()) return
+
+    DetailSectionHeading("Ritmo")
+    WorkoutReferenceAreaChart(
+        points = points,
+        yValues = paceValues,
+        lineColor = exercisePrimaryAccent(),
+        invertVerticalScale = true,
+        yLabel = { it.toPaceChartLabel() },
+        accessibilitySummary = "Gráfico de ritmo do treino com ${paceValues.size} " +
+            "ponto(s) real(is) de intervalos canônicos, em minutos por quilômetro. " +
+            "Lacunas representam ritmo indisponível.",
+    )
+    WorkoutDetailInfoRows(*activity.referencePaceInfoItems().toTypedArray())
+}
+
+@Composable
+private fun ActivityCadenceChartSection(activity: WorkoutActivity) {
+    val intervals = activity.canonicalWorkoutChartIntervals() ?: return
+    val entries = canonicalIntervalChartEntries(intervals)
+    val points = entries.map { (distanceKilometers, interval) ->
+        val cadence = interval.cadenceStepsPerMinute
+            .takeIf { it.isFinite() && it >= 0.0 }
+        ChampionChartPoint(
+            x = distanceKilometers,
+            y = cadence,
+            xLabel = distanceKilometers.toDistanceAxisLabel(),
+            contentDescription = "Intervalo ${interval.index + 1}, " +
+                "${interval.cumulativeDistanceMeters.toDistanceLabel()} acumulados, " +
+                "cadência ${cadence?.let(ExerciseCadenceChartValueFormatter::format) ?: "indisponível"} " +
+                "passos por minuto em ${interval.cumulativeDuration.toDurationLabel()}.",
+        )
+    }
+    val cadenceValues = points.mapNotNull { it.y }
+    if (cadenceValues.isEmpty() || points.isEmpty()) return
+
+    DetailSectionHeading("Cadência")
+    WorkoutReferenceAreaChart(
+        points = points,
+        yValues = cadenceValues,
+        lineColor = exerciseSecondaryAccent(),
+        yLabel = { ExerciseCadenceChartValueFormatter.format(it) },
+        accessibilitySummary = "Gráfico de cadência do treino com ${cadenceValues.size} " +
+            "ponto(s) real(is) de intervalos canônicos, em passos por minuto. " +
+            "Lacunas representam cadência indisponível.",
+    )
+    WorkoutDetailInfoRows(*activity.referenceCadenceInfoItems().toTypedArray())
+}
+
+@Composable
+private fun WorkoutDetailInfoRows(vararg items: DetailMetricItem) {
+    if (items.isEmpty()) return
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+    ) {
+        items.forEach { item -> ActivityDetailMetricRow(item) }
+    }
+}
+
+private fun WorkoutActivity.referencePaceInfoItems(): List<DetailMetricItem> = buildList {
+    referenceAveragePaceSeconds()?.let { pace ->
+        add(DetailMetricItem("Ritmo médio", pace.toPaceChartLabel()))
+    }
+    add(DetailMetricItem("Tempo de movimentação", metrics.duration.toReferenceDurationLabel()))
+
+    val distanceMeters = canonicalMetricReadModel()?.totalDistanceMeters
+    val elapsedDuration = Duration.between(metrics.startedAt, metrics.endedAt)
+        .takeIf { !it.isNegative && !it.isZero }
+    if (distanceMeters != null && elapsedDuration != null) {
+        val elapsedSeconds = elapsedDuration.seconds.toDouble() +
+            elapsedDuration.nano.toDouble() / 1_000_000_000.0
+        if (elapsedSeconds > 0.0 && distanceMeters > 0.0) {
+            add(
+                DetailMetricItem(
+                    "Ritmo médio decorrido",
+                    (elapsedSeconds * 1_000.0 / distanceMeters).toPaceChartLabel(),
+                ),
+            )
+        }
+    }
+    elapsedDuration?.let { duration ->
+        add(DetailMetricItem("Tempo decorrido", duration.toReferenceDurationLabel()))
+    }
+    derivationSnapshot?.splits
+        ?.mapNotNull { it.averagePaceSecondsPerKilometer }
+        ?.filter { it.isFinite() && it > 0.0 }
+        ?.minOrNull()
+        ?.let { fastest ->
+            add(DetailMetricItem("Parcial mais rápida", fastest.toPaceChartLabel()))
+        }
+}
+
+private fun WorkoutActivity.referenceCadenceInfoItems(): List<DetailMetricItem> {
+    val intervals = canonicalWorkoutChartIntervals() ?: return emptyList()
+    val average = canonicalSeries?.cumulativeMetrics?.cadenceStepsPerMinute
+        ?.takeIf { it.isFinite() && it >= 0.0 }
+    val maximum = intervals.maxOfOrNull { it.cadenceStepsPerMinute }
+        ?.takeIf { it.isFinite() && it >= 0.0 }
+    return buildList {
+        average?.let { add(DetailMetricItem("Cadência média", formatCadence(it))) }
+        maximum?.let { add(DetailMetricItem("Cadência máxima", formatCadence(it))) }
+    }
+}
+
+@Composable
+private fun WorkoutReferenceAreaChart(
+    points: List<ChampionChartPoint>,
+    yValues: List<Double>,
+    lineColor: Color,
+    yLabel: (Double) -> String,
+    accessibilitySummary: String,
+    invertVerticalScale: Boolean = false,
+    xLabel: (Double) -> String = { it.toDistanceAxisLabel() },
+    xMaximum: Double? = null,
+) {
+    val minY = yValues.minOrNull() ?: return
+    val maxY = yValues.maxOrNull() ?: return
+    val padding = ((maxY - minY) * 0.1).coerceAtLeast(1.0)
+    val lowerY = (minY - padding).coerceAtLeast(0.0)
+    val upperY = maxY + padding
+    val maxX = (xMaximum ?: points.maxOfOrNull { it.x })?.coerceAtLeast(1.0) ?: return
+    val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+    val fontScale = LocalDensity.current.fontScale
+    val chartAccessibility = buildString {
+        append(accessibilitySummary)
+        points.mapNotNull { it.contentDescription }
+            .takeIf { it.isNotEmpty() }
+            ?.let { descriptions -> append(" ${descriptions.joinToString(" ")}") }
+    }
+    val segments = buildList {
+        var current = mutableListOf<ChampionChartPoint>()
+        points.forEach { point ->
+            if (point.y == null) {
+                if (current.isNotEmpty()) add(current)
+                current = mutableListOf()
+            } else {
+                current += point
+            }
+        }
+        if (current.isNotEmpty()) add(current)
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(232.dp)
+            .semantics { contentDescription = chartAccessibility },
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val left = 48.dp.toPx()
+            val top = 8.dp.toPx()
+            val right = 8.dp.toPx()
+            val bottom = 30.dp.toPx()
+            val chartWidth = (size.width - left - right).coerceAtLeast(1f)
+            val chartHeight = (size.height - top - bottom).coerceAtLeast(1f)
+            val yRange = (upperY - lowerY).coerceAtLeast(1.0)
+            fun xFor(value: Double): Float = left + (value / maxX * chartWidth).toFloat()
+            fun yFor(value: Double): Float {
+                val normalized = ((value - lowerY) / yRange).coerceIn(0.0, 1.0)
+                return if (invertVerticalScale) {
+                    top + (normalized * chartHeight).toFloat()
+                } else {
+                    top + ((1.0 - normalized) * chartHeight).toFloat()
+                }
+            }
+
+            repeat(5) { index ->
+                val fraction = index / 4f
+                val y = top + fraction * chartHeight
+                drawLine(gridColor, Offset(left, y), Offset(size.width - right, y), 1.dp.toPx())
+                val value = if (invertVerticalScale) {
+                    lowerY + fraction * yRange
+                } else {
+                    upperY - fraction * yRange
+                }
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawText(
+                        yLabel(value),
+                        0f,
+                        y - 2.dp.toPx(),
+                        android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = axisColor.toArgb()
+                            textSize = 10.dp.toPx() * fontScale
+                        },
+                    )
+                }
+            }
+            repeat(6) { index ->
+                val fraction = index / 5f
+                val x = left + fraction * chartWidth
+                drawLine(gridColor, Offset(x, top), Offset(x, top + chartHeight), 1.dp.toPx())
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawText(
+                        xLabel(maxX * fraction),
+                        x - 10.dp.toPx(),
+                        size.height - 6.dp.toPx(),
+                        android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = axisColor.toArgb()
+                            textSize = 10.dp.toPx() * fontScale
+                        },
+                    )
+                }
+            }
+
+            segments.forEach { segment ->
+                    if (segment.isEmpty()) return@forEach
+                    val area = Path().apply {
+                        moveTo(xFor(segment.first().x), yFor(segment.first().y!!))
+                        segment.drop(1).forEach { point ->
+                            lineTo(xFor(point.x), yFor(point.y!!))
+                        }
+                        lineTo(xFor(segment.last().x), top + chartHeight)
+                        lineTo(xFor(segment.first().x), top + chartHeight)
+                        close()
+                    }
+                    drawPath(area, lineColor.copy(alpha = 0.72f))
+                    val line = Path().apply {
+                        moveTo(xFor(segment.first().x), yFor(segment.first().y!!))
+                        segment.drop(1).forEach { point ->
+                            lineTo(xFor(point.x), yFor(point.y!!))
+                        }
+                    }
+                    drawPath(line, lineColor, style = Stroke(width = 2.dp.toPx()))
+                    if (segment.size == 1) {
+                        drawCircle(
+                            color = lineColor,
+                            radius = 4.dp.toPx(),
+                            center = Offset(
+                                xFor(segment.single().x),
+                                yFor(segment.single().y!!),
+                            ),
+                        )
+                    }
+                }
+        }
+    }
+}
+
+private fun canonicalIntervalChartEntries(
+    intervals: List<DerivedWorkoutInterval>,
+): List<Pair<Double, DerivedWorkoutInterval>> = buildList {
+    intervals.forEach { interval ->
+        val distanceKilometers = interval.cumulativeDistanceMeters / 1_000.0
+        if (distanceKilometers.isFinite() && distanceKilometers >= 0.0) {
+            add(distanceKilometers to interval)
+        }
+    }
+}
+
+private fun Double.toDistanceAxisLabel(): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.1f km", this)
+
+private fun Double.toDurationChartLabel(): String =
+    Duration.ofMillis((this * 1_000.0).roundToLong()).toDurationLabel()
+
+private fun Duration.toChartSeconds(): Double =
+    seconds.toDouble() + nano.toDouble() / 1_000_000_000.0
+
+private fun Double?.toPaceChartLabelOrUnavailable(): String =
+    this?.takeIf { it.isFinite() && it > 0.0 }?.toPaceChartLabel() ?: "indisponível"
+
+private fun Double.toPaceChartLabel(): String {
+    val totalSeconds = roundToLong().coerceAtLeast(0L)
+    return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
+}
 
 private fun Duration.toDetailDurationLabel(): String {
     if (isNegative) return "indisponível"
@@ -2393,47 +2646,6 @@ private fun Duration.toReferenceDurationLabel(): String {
         if (minutes > 0) add("$minutes min")
         if (remainingSeconds > 0 || isZero) add("$remainingSeconds s")
     }.joinToString(" ")
-}
-
-@Composable
-private fun WorkoutHeartRateChart(
-    samples: List<WorkoutHeartRateSample>,
-    activityDuration: Duration,
-) {
-    val sortedSamples = samples.sortedBy { it.sampledAt }
-    val zoneId = ZoneId.systemDefault()
-    val activityStart = sortedSamples.first().sampledAt
-        .atZone(zoneId)
-        .toInstant()
-    val activityDurationSeconds = activityDuration.seconds.toDouble() +
-        activityDuration.nano.toDouble() / 1_000_000_000.0
-    val chartDurationSeconds = activityDurationSeconds
-        .takeIf { it > 0.0 && it.isFinite() }
-        ?: Duration.between(activityStart, sortedSamples.last().sampledAt)
-            .toMillis()
-            .toDouble()
-            .div(1_000.0)
-            .coerceAtLeast(1.0)
-    val chartPoints = sortedSamples.map { sample ->
-        ChampionChartPoint(
-            x = Duration.between(activityStart, sample.sampledAt).toMillis() / 1_000.0,
-            y = sample.bpm.toDouble(),
-            xLabel = sample.sampledAt.formatChartTime(),
-            contentDescription = "${sample.bpm} bpm em ${sample.sampledAt.formatDateTime()}.",
-        )
-    }
-    val chartDescription = "Gráfico de frequência cardíaca do treino. " +
-        "Duração ${activityDuration.toDetailDurationLabel()}. " +
-        "${chartPoints.size} amostra(s) real(is) disponível(is)."
-    GoogleHealthIntradayHeartRateChart(
-        points = chartPoints,
-        accessibilitySummary = chartDescription,
-        showLine = true,
-        timeWindowSeconds = chartDurationSeconds,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp),
-    )
 }
 
 @Composable
@@ -2599,91 +2811,101 @@ private fun CanonicalIntervalCard(interval: DerivedWorkoutInterval) {
 
 @Composable
 private fun ActivitySplitsSection(activity: WorkoutActivity) {
-    if (!activity.isWatchWorkout || activity.isCycling) return
-    val snapshot = activity.derivationSnapshot
-    val splits = snapshot?.splits.orEmpty()
+    if (!activity.isWatchWorkout || activity.isCycling ||
+        activity.canonicalReadStatus != WorkoutCanonicalReadStatus.AVAILABLE
+    ) return
+    val splits = activity.derivationSnapshot?.splits.orEmpty()
+    if (splits.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
     ) {
+        val paceValues = splits.mapNotNull { it.averagePaceSecondsPerKilometer }
+            .filter { it.isFinite() && it > 0.0 }
+        val fastestPace = paceValues.minOrNull()
+        val slowestPace = paceValues.maxOrNull()
         Column(
             modifier = Modifier.padding(ChampionSpacing.large),
             verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
         ) {
-            Text("Splits e BPM", style = MaterialTheme.typography.titleLarge)
-            when (activity.canonicalReadStatus) {
-                WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH,
-                WorkoutCanonicalReadStatus.NOT_MATERIALIZED,
-                WorkoutCanonicalReadStatus.SERIES_INELIGIBLE,
-                WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED,
-                -> Text(
-                    text = "Splits indisponíveis: ${activity.canonicalStatusMessage()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text("Parciais", style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            ) {
+                Text("Km", modifier = Modifier.width(24.dp), style = MaterialTheme.typography.labelSmall)
+                Text("Ritmo", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                Text("FC", modifier = Modifier.width(44.dp), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End)
+            }
+            splits.forEach { split ->
+                WorkoutReferenceSplitRow(
+                    split = split,
+                    fastestPace = fastestPace,
+                    slowestPace = slowestPace,
                 )
-
-                WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED -> Text(
-                    text = "A série canônica está disponível, mas os splits ainda não foram materializados. Reprocesse a atividade por ação explícita.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                WorkoutCanonicalReadStatus.AVAILABLE -> {
-                    if (splits.isEmpty()) {
-                        Text(
-                            text = "Nenhuma parcial persistida para exibir.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        Text("Parciais persistidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        splits.forEach { split -> WorkoutSplitCard(split) }
-                    }
-                }
-
-                WorkoutCanonicalReadStatus.NOT_APPLICABLE -> Unit
             }
         }
     }
 }
 
 @Composable
-private fun WorkoutSplitCard(split: WorkoutSplit) {
-    Card(
+private fun WorkoutReferenceSplitRow(
+    split: WorkoutSplit,
+    fastestPace: Double?,
+    slowestPace: Double?,
+) {
+    val pace = split.averagePaceSecondsPerKilometer
+        ?.takeIf { it.isFinite() && it > 0.0 }
+    val progress = pace?.let {
+        if (fastestPace == slowestPace) {
+            1f
+        } else {
+            ((slowestPace!! - it) / (slowestPace - fastestPace!!)).toFloat().coerceIn(0.1f, 1f)
+        }
+    }
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .semantics {
                 contentDescription = splitAccessibleDescription(split)
             },
-        shape = ChampionShapeMedium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        Column(
-            modifier = Modifier.padding(ChampionSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        Text(
+            text = split.number.toString(),
+            modifier = Modifier.width(24.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(12.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            Text("Split ${split.number}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = "${split.distanceMeters.toDistanceLabel()} • ${split.duration.toCanonicalDurationLabel()}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = "Ritmo estimado ${split.averagePaceSecondsPerKilometer.toPaceLabel()} • Velocidade estimada ${split.averageSpeedMetersPerSecond.toSpeedLabel()}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                text = "Cadência média ${formatCadence(split.averageCadenceStepsPerMinute)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = split.averageBpm?.let {
-                    "BPM médio ponderado: ${formatBpm(it)} (${split.bpmCoveredDuration.toCanonicalDurationLabel()} de cobertura)"
-                } ?: "BPM indisponível: sem cobertura temporal elegível.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            progress?.let {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(it)
+                        .height(12.dp)
+                        .background(exercisePrimaryAccent(), CircleShape),
+                )
+            }
         }
+        Text(
+            text = pace.toPaceChartLabelOrUnavailable(),
+            modifier = Modifier.width(60.dp),
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.End,
+        )
+        Text(
+            text = split.averageBpm?.roundToInt()?.let { "$it" } ?: "—",
+            modifier = Modifier.width(44.dp),
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.End,
+        )
     }
 }
 
@@ -3766,6 +3988,26 @@ private fun WatchWorkoutImportSurfaceState.isImportInFlight(): Boolean = when (t
     -> true
 }
 
+private fun WatchWorkoutImportSurfaceState.toTerminalFeedback(): String? = when (this) {
+    is WatchWorkoutImportSurfaceState.Completed,
+    is WatchWorkoutImportSurfaceState.Partial,
+    is WatchWorkoutImportSurfaceState.Empty,
+    -> "Importação concluída."
+
+    is WatchWorkoutImportSurfaceState.Failed,
+    is WatchWorkoutImportSurfaceState.Cancelled,
+    -> "Importação não concluída."
+
+    WatchWorkoutImportSurfaceState.Idle,
+    is WatchWorkoutImportSurfaceState.Preparing,
+    is WatchWorkoutImportSurfaceState.Connecting,
+    is WatchWorkoutImportSurfaceState.ReadingIndex,
+    is WatchWorkoutImportSurfaceState.ReadingBlocks,
+    is WatchWorkoutImportSurfaceState.Parsing,
+    is WatchWorkoutImportSurfaceState.Persisting,
+    -> null
+}
+
 private fun WatchWorkoutImportProgress.toFriendlyMessage(state: WatchWorkoutImportSurfaceState): String = when (state) {
     is WatchWorkoutImportSurfaceState.Preparing -> "Preparando importação dos treinos do relógio"
     is WatchWorkoutImportSurfaceState.Connecting -> "Conectando ao relógio associado"
@@ -3784,54 +4026,6 @@ private fun WatchWorkoutImportProgress.toFriendlyMessage(state: WatchWorkoutImpo
     else -> "Importação em andamento"
 }
 
-private fun WatchWorkoutImportProgress.toTechnicalLine(): String {
-    val discovered = discoveredBlockCount.takeIf { it > 0 }?.toString() ?: "?"
-    val processed = processedBlockCount.toString()
-    val packetPart = if (currentPacketIndex != null && totalPacketsInBlock != null) {
-        " Pacote $currentPacketIndex de $totalPacketsInBlock."
-    } else {
-        ""
-    }
-    return "Blocos processados $processed de $discovered.$packetPart"
-}
-
-private fun WatchWorkoutImportResult.toTitle(): String = when (this) {
-    is WatchWorkoutImportResult.Completed -> "Treinos importados"
-    is WatchWorkoutImportResult.Partial -> "Importação parcial concluída"
-    is WatchWorkoutImportResult.Empty -> "Nenhum treino novo encontrado"
-    is WatchWorkoutImportResult.Cancelled -> "Importação cancelada"
-    is WatchWorkoutImportResult.Failed -> "Importação encerrada com falha"
-}
-
-private fun WatchWorkoutImportResult.toAccessibleTitle(): String = when (this) {
-    is WatchWorkoutImportResult.Completed -> "Treino importado"
-    is WatchWorkoutImportResult.Partial -> "Importação parcial concluída"
-    is WatchWorkoutImportResult.Empty -> "Nenhum treino novo encontrado"
-    is WatchWorkoutImportResult.Cancelled -> "Importação cancelada"
-    is WatchWorkoutImportResult.Failed -> "Não foi possível importar os treinos"
-}
-
-private fun WatchWorkoutImportResult.toMessage(): String = when (this) {
-    is WatchWorkoutImportResult.Completed -> "Os treinos importados já estão disponíveis abaixo como pendentes de revisão."
-    is WatchWorkoutImportResult.Partial -> "Parte dos treinos foi salva com segurança. Uma nova tentativa poderá retomar o restante."
-    is WatchWorkoutImportResult.Empty -> "Não há treino novo elegível no relógio neste momento."
-    is WatchWorkoutImportResult.Cancelled -> "A importação foi interrompida, preservando os blocos já persistidos."
-    is WatchWorkoutImportResult.Failed -> "A importação não pôde ser concluída com segurança."
-}
-
-private fun br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportSummary.toSummaryLine(): String =
-    "Blocos $processedBlockCount de $discoveredBlockCount, inseridos $insertedCount, parciais $partialCount, inválidos $invalidCount, pulados $skippedValidCount."
-
-private fun WatchWorkoutImportStatus.toLabel(): String = when (this) {
-    WatchWorkoutImportStatus.COMPLETED -> "Concluída"
-    WatchWorkoutImportStatus.PARTIAL -> "Parcial"
-    WatchWorkoutImportStatus.EMPTY -> "Sem novos"
-    WatchWorkoutImportStatus.CANCELLED -> "Cancelada"
-    WatchWorkoutImportStatus.FAILED -> "Falha"
-}
-
-private fun Boolean.toTimeoutLabel(): String = if (this) "Timeout" else "Sem timeout"
-
 private fun WorkoutType.toLabel(): String = when (this) {
     WorkoutType.WALKING -> "Caminhada"
     WorkoutType.RUNNING -> "Corrida"
@@ -3849,11 +4043,6 @@ private fun Instant.formatDateTime(): String =
 
 private fun Instant.formatTime(): String =
     DateTimeFormatter.ofPattern("HH:mm", Locale.forLanguageTag("pt-BR"))
-        .withZone(ZoneId.systemDefault())
-        .format(this)
-
-private fun Instant.formatChartTime(): String =
-    DateTimeFormatter.ofPattern("HH:mm:ss", Locale.forLanguageTag("pt-BR"))
         .withZone(ZoneId.systemDefault())
         .format(this)
 

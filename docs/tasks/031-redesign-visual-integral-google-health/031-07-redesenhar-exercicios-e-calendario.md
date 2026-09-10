@@ -406,6 +406,173 @@ contratos e manter uma única fonte de read model.
   última troca visual ainda precisa ser revisado após navegação física.
 - **Status:** permanece `in_progress`; overview continua com `031-07` em `[ ]`.
 
+## Importação direta sem modal — 2026-09-10
+
+- **Diretriz do usuário:** `Importar treinos` no menu contextual deve somente
+  executar ação direta, sem modal ou exibição de dados; serve como backup até
+  push-to-refresh posterior.
+- **Implementação:** o item fecha menu e dispara `ExercisesIntent.StartImport`.
+  Conteúdo/modal/resultados de importação foram removidos da UI. Indicador
+  horizontal continua na página enquanto `isImportInFlight()` estiver ativo.
+  Retry/cancelamento permanecem no estado e ViewModel, sem novo bloco visual.
+- **Validação:** `git diff --check`, compile Debug, lint e assemble Debug/Release
+  passaram. `./gradlew installDebug --no-daemon` falhou nesta repetição por
+  `No connected devices`; smoke anterior confirmou menu, Status Health Connect,
+  PoC e ausência dos blocos sem tocar a ação de importação.
+- **Revisão independente:** aprovada com ressalvas; código morto da UI de
+  importação foi removido. Nova revisão ainda necessária.
+- **Status:** permanece `in_progress`; item `031-07` continua `[ ]` e progresso
+  do overview permanece `6/11`.
+
+## Limpeza de UI morta de importação — 2026-09-10
+
+- **Diretriz:** remover blocos de importação sem chamadas após a ação direta do
+  menu, preservando somente o indicador horizontal de progresso, seus helpers de
+  estado/mensagem, o diálogo de status Health Connect, feedback e callbacks.
+- **Implementação:** `ExercisesImportDialog`, `ExercisesImportContent`,
+  `ImportResultBanner`, `ImportErrorBanner` e `MetadataSection` foram removidos
+  de `ExercisesScreen.kt`. Imports e helpers exclusivos desses blocos também
+  foram removidos. ViewModel, coordinator, contratos e comportamento restante
+  não foram alterados.
+- **Validação:** `git diff --check` passou; `./gradlew
+  app:compileDebugKotlin --no-daemon` passou.
+- **Status:** permanece `in_progress`; revisão independente, smoke visual amplo,
+  fonte ampliada, landscape, temas e TalkBack continuam bloqueados/pendentes.
+
+## Menu contextual — importação como ação direta — 2026-09-10
+
+- **Diretriz do usuário:** `Importar treinos` deve conter somente a ação, sem
+  modal ou dados; funciona como backup até push-to-refresh posterior. Status
+  Health Connect abre modal com feedback secundário. PoC técnica fica no menu;
+  os três blocos deixam a tela. Loading horizontal permanece na página durante
+  importação.
+- **Implementação:** o item `Importar treinos` fecha o menu e dispara diretamente
+  `ExercisesIntent.StartImport`; nenhum modal ou conteúdo de importação é aberto.
+  `Status Health Connect` mantém modal rolável somente para feedback secundário.
+  `PoC técnica` aparece apenas quando callback debug existe. Importação continua
+  explícita e não é iniciada durante renderização.
+- **Validação:** `git diff --check`, compile Debug, lint, assemble Debug/Release
+  passaram. `installDebug` falhou nesta tentativa porque `adb devices -l` não
+  encontrou dispositivo. Smoke anterior confirmou menu e modais sem iniciar
+  importação ou alterar dados.
+- **Status:** permanece `in_progress`; revisão independente e smoke final seguem
+  pendentes. Overview mantém `031-07` em `[ ]`, progresso `6/11`.
+
+## Menu contextual e progresso de importação — 2026-09-10
+
+- **Diretriz do usuário:** a tela principal de Exercícios deve concentrar ações
+  de importação, status Health Connect e PoC técnica em menu contextual, sem
+  manter os cards dessas ações na composição principal.
+- **Implementação:** `ExercisesScreen.kt` passou a usar `MoreVert` no header,
+  com `DropdownMenu` para `Importar treinos`, `Status Health Connect` e, somente
+  quando o callback debug existe, `PoC técnica`. Importação e status abriram
+  diálogos próprios roláveis; callbacks de iniciar, retry, cancelamento e
+  dismiss foram preservados. A tela principal mostra `LinearProgressIndicator`
+  horizontal somente durante `isImportInFlight()`, com `liveRegion` polite e
+  descrição acessível. Nenhuma ação é disparada durante renderização.
+- **Arquivos alterados nesta execução:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+  e este arquivo. Alterações sujas anteriores em navegação, documentação e
+  evidência não foram removidas.
+- **Validação:** `git diff --check` passou; `./gradlew
+  app:compileDebugKotlin --no-daemon` passou. Falha intermediária de compilação
+  por imports e nullable do indicador foi corrigida antes da validação final.
+- **Testes automatizados:** não criados nem executados, conforme pedido e
+  `AGENTS.md`.
+- **Status:** permanece `in_progress`; overview não foi marcado. Revisão
+  independente e validação visual física ampla continuam pendentes.
+- **Riscos residuais:** fonte ampliada, landscape, temas e TalkBack não foram
+  exercitados nesta execução; o isolamento release da PoC depende do callback
+  nulo fornecido pela variante release já existente.
+
+## Botão voltar no shell de Exercícios — 2026-09-10
+
+- **Diretriz do usuário:** adicionar botão voltar na tela principal de
+  Exercícios, alinhado às demais telas redesenhadas.
+- **Implementação:** `ExercisesHeader` agora usa o slot de navegação do header
+  compartilhado, com `ChampionRedesignHeaderNavigationAction`, ícone de voltar,
+  alvo mínimo e descrição acessível. `ChampionNavigation` encaminha
+  `onBackRequested` também para `AppDestination.Exercises`; detalhe de atividade
+  permanece inalterado.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`,
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+  e este arquivo. Nenhum contrato de dados, persistência, parser, BLE, GPS ou
+  Health Connect foi alterado.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon`, `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram. O aparelho ficou bloqueado ao
+  tentar smoke visual; nenhum dado ou fluxo operacional foi alterado.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** ainda necessária; subtarefa permanece `in_progress`
+  e o item `031-07` continua `[ ]`.
+
+## Menu contextual e estados operacionais — 2026-09-10
+
+- **Diretriz do usuário:** concentrar Importar treinos, Status Health Connect e
+  PoC técnica no menu contextual de Exercícios. Remover os três blocos da tela;
+  manter indicador horizontal de importação na página.
+- **Implementação:** `ExercisesHeader` recebeu menu `Mais opções` com ações
+  explícitas. Importação abre modal rolável com conteúdo, retry, cancelamento e
+  dismiss preservados. Status Health Connect abre modal com feedback secundário.
+  PoC só aparece no menu quando callback debug existe. Os cards antigos foram
+  removidos da composição principal; indicador horizontal usa estado de
+  importação e semântica `liveRegion` polida.
+- **Preservação:** nenhuma operação é disparada ao renderizar. Importação só
+  inicia pelo botão explícito; status não lê Health Connect; PoC mantém CTA debug
+  existente. Contratos, ViewModel, persistência, parser, BLE, GPS e navegação
+  de produto não foram alterados.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+  e este arquivo. `ChampionNavigation.kt` permanece apenas com alterações
+  anteriores do botão voltar.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon`, `./gradlew lint assembleDebug assembleRelease --no-daemon` e
+  `./gradlew installDebug --no-daemon` passaram. Smoke ADB sanitizado confirmou
+  menu, ações `Importar treinos`, `Status Health Connect` e `PoC técnica`, modal
+  de importação, modal de status e ausência dos três blocos na página. Nenhuma
+  importação, sincronização, medição, exclusão ou alteração de dados foi iniciada.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** ainda necessária; a subtarefa permanece `in_progress`
+  e o item `031-07` do overview continua `[ ]`.
+- **Riscos residuais:** loading em execução real, TalkBack, fonte ampliada,
+  landscape e temas ainda não foram exercitados fisicamente.
+
+## Importação como ação direta — 2026-09-10
+
+- **Diretriz do usuário:** `Importar treinos` no menu deve conter somente a ação,
+  sem modal nem dados; funciona como fallback até push-to-refresh posterior.
+- **Implementação:** o item `Importar treinos` fecha o menu e dispara diretamente
+  `ExercisesIntent.StartImport`. Modal e conteúdo de importação foram removidos
+  desse caminho. O `LinearProgressIndicator` horizontal permanece na página
+  durante importação; estados de retry/cancelamento continuam sob controle do
+  ViewModel, sem serem renderizados como bloco adicional.
+- **Validação:** `git diff --check`, compile Debug, lint, assemble Debug/Release
+  e instalação Debug passaram. Smoke ADB confirmou Exercícios, menu e os itens
+  `Importar treinos`, `Status Health Connect` e `PoC técnica`; o item de importação
+  não foi tocado para evitar iniciar operação física. Nenhum dado foi alterado.
+- **Status:** permanece `in_progress`; revisão independente e validação do
+  loading durante operação real continuam pendentes. Overview mantém `031-07`
+  em `[ ]` e progresso `6/11`.
+- **Riscos residuais:** toque físico do botão, fonte ampliada, landscape, temas
+  e TalkBack seguem sem confirmação nesta sessão por aparelho bloqueado.
+
+## Smoke do botão voltar — 2026-09-10
+
+- **Aparelho:** `SM-S901E`, variante Debug instalada com sucesso.
+- **Fluxo validado:** abertura da tela Exercícios, confirmação estrutural de
+  `Exercícios` e `Voltar para Home`, bounds interativo de `48 dp` ou maior,
+  toque no botão e retorno confirmado para Home.
+- **Segurança:** navegação somente leitura; nenhuma importação, sincronização,
+  medição, exclusão ou alteração de dados foi iniciada. XML temporário foi
+  removido do aparelho após inspeção.
+- **Validação:** `git diff --check`, compile Debug, lint, assemble Debug/Release,
+  instalação Debug e smoke ADB passaram. Fonte ampliada, landscape, temas e
+  TalkBack continuam pendentes.
+- **Revisão independente:** aprovada com ressalvas; nenhum blocker funcional no
+  botão. A subtarefa permanece `in_progress` até revisão final e validação visual
+  ampla; item `031-07` continua `[ ]`.
+
 ## Gráfico baseado no período D — 2026-09-09
 
 - **Diretriz confirmada:** a referência correta é o gráfico de `Frequência
@@ -555,3 +722,225 @@ contratos e manter uma única fonte de read model.
   do conteúdo modal, fonte ampliada, landscape, temas e TalkBack ainda não
   foram confirmados. A subtarefa permanece `in_progress` e o checklist não
   deve ser marcado.
+
+## Registro adicional — 2026-09-10
+
+- **Causa do escalonamento:** o detalhe preservava somente métricas e gráfico de
+  frequência cardíaca na composição. Os componentes de intervalos/parciais
+  existentes não eram chamados; não havia visualização de ritmo ou cadência.
+- **Implementação delimitada:** `ExercisesScreen.kt` passou a renderizar parciais
+  somente quando `splits` persistidos estão disponíveis e gráficos de ritmo e
+  cadência somente para atividade do relógio não ciclística com
+  `canonicalReadStatus == AVAILABLE`. Ambos usam pontos dos intervalos
+  canônicos persistidos, sem recálculo, interpolação, rolagem ou zoom. Gráfico
+  de frequência cardíaca, header, metadata e ordem das métricas foram
+  preservados.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew app:lintDebug --no-daemon` passaram.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Status:** permanece `in_progress`; revisão independente e validação física
+  dos novos gráficos, incluindo fonte ampliada, landscape, temas e TalkBack,
+  continuam pendentes. Overview não foi alterado.
+
+## Nova diretriz de gráficos — 2026-09-10
+
+- **Diretriz do usuário:** manter o gráfico adicionado e criar um segundo gráfico
+  de frequência cardíaca para comparação com o gráfico atual. Informações de
+  resumo devem aparecer abaixo dos gráficos, seguindo a referência visual.
+- **Implementação:** o detalhe agora mantém o gráfico cardíaco existente e exibe
+  comparação em área preenchida com as mesmas amostras persistidas. Ritmo recebe
+  `Ritmo médio`, tempos de movimentação/decorrido e parcial mais rápida; FC recebe
+  média e máxima; Cadência recebe média e máxima. Valores ausentes continuam
+  omitidos, sem dados sintéticos ou alteração dos dados existentes.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+  e este arquivo. Nenhum contrato, ViewModel, persistência, schema, parser, BLE,
+  GPS ou navegação foi alterado.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew lint assembleDebug assembleRelease --no-daemon`
+  passaram. A tentativa de `adb devices -l` não encontrou dispositivo e
+  `./gradlew installDebug --no-daemon` não pôde instalar o APK nesta rodada.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** nova revisão ainda necessária. A subtarefa permanece
+  `in_progress` e o item `031-07` do overview continua `[ ]`.
+- **Riscos residuais:** validação visual completa dos gráficos comparativos,
+  fonte ampliada, landscape, temas e TalkBack ainda não foi concluída. A imagem
+  de referência não foi incorporada como recurso do app.
+
+## Correções da comparação — 2026-09-10
+
+- **Correções aplicadas:** o gráfico adicional foi identificado como comparação
+  visual, sem alegar segunda série de dados. Resumos de FC usam métricas
+  persistidas quando disponíveis; o gráfico usa duração persistida no eixo X e
+  insere lacunas somente quando há intervalo temporal observável entre amostras.
+  Intervalos canônicos com distância acumulada repetida permanecem representados.
+- **Informações sob gráficos:** ritmo exibe médias, tempos e parcial mais rápida;
+  FC exibe média e máxima; cadência exibe média e máxima. Todas as informações
+  derivam de métricas persistidas ou séries canônicas elegíveis.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon` e `./gradlew lint assembleDebug assembleRelease --no-daemon`
+  passaram. Nova tentativa de `adb devices -l` não encontrou dispositivo e
+  `./gradlew installDebug --no-daemon` falhou com `No connected devices`.
+- **Status:** permanece `in_progress`; revisão independente final e smoke físico
+  dos gráficos comparativos continuam pendentes. Overview permanece com `031-07`
+  em `[ ]`.
+
+## Ajuste final de composição e tipografia — 2026-09-10
+
+- **Diretriz do usuário:** entre as duas versões de frequência cardíaca, manter
+  somente o gráfico novo; reduzir fontes dos valores no resumo da atividade e
+  nos dados abaixo dos gráficos.
+- **Implementação:** o gráfico cardíaco anterior foi removido da composição;
+  permanece a área preenchida nova com amostras reais persistidas. Gráficos de
+  Ritmo e Cadência e a tabela de Parciais permanecem. Valores das linhas de
+  métricas passaram de `headlineSmall` para `titleMedium`; rótulos, unidades e
+  informações abaixo dos gráficos foram preservados.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+  e este arquivo. Nenhum contrato, ViewModel, persistência, schema, parser, BLE,
+  GPS ou navegação foi alterado.
+- **Validação:** `git diff --check`, `./gradlew app:compileDebugKotlin
+  --no-daemon`, `./gradlew lint assembleDebug assembleRelease --no-daemon`,
+  `adb devices -l`, `./gradlew installDebug --no-daemon` e abertura da Activity
+  em modo somente leitura passaram. Processo permaneceu ativo; nenhuma ação
+  operacional foi iniciada.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** revisão confirmou remoção do gráfico cardíaco antigo
+  e redução tipográfica, mas interpretou incorretamente a diretriz como remoção
+  de Ritmo, Cadência e Parciais, que pertencem ao pedido anterior e permanecem.
+  A subtarefa permanece `in_progress`; o item `031-07` continua `[ ]`.
+- **Riscos residuais:** fluxo físico até detalhe, fonte ampliada, landscape,
+  temas e TalkBack ainda não foram validados nesta última composição.
+
+## Ajustes pós-revisão tipográfica — 2026-09-10
+
+- **Correções aplicadas:** somente o gráfico novo de frequência cardíaca é
+  renderizado. A seção só aparece quando há amostras válidas no intervalo
+  efetivo da atividade; o eixo usa `startedAt`–`endedAt`, preservando duração
+  decorrido e amostras reais. Lacunas temporais permanecem visíveis e gráfico
+  com uma única amostra recebe marcador visual.
+- **Tipografia:** valores do resumo e das informações sob os gráficos usam
+  `titleMedium`; valores do quadro de parciais permanecem compactos. Nenhum
+  rótulo ou unidade foi removido dos resumos de Ritmo, FC ou Cadência.
+- **Validação:** `git diff --check` e `./gradlew app:compileDebugKotlin
+  --no-daemon` passaram. Validações completas anteriores de lint/build/install
+  permanecem aprovadas; revisão independente e smoke visual final continuam
+  pendentes.
+- **Status:** permanece `in_progress`; overview continua com `031-07` em `[ ]`.
+
+## Validação física posterior — 2026-09-10
+
+- **Aparelho:** `SM-S901E`, variante Debug instalada com sucesso por
+  `./gradlew installDebug --no-daemon`.
+- **Smoke somente leitura:** Activity abriu; Home exibiu `Exercícios`; a rota
+  abriu com `Voltar para Home`, `Semana` e `Mês`. O menu `Mais opções` exibiu
+  `Importar treinos`, `Status Health Connect` e `PoC técnica`. Nenhum item de
+  importação ou Health Connect foi acionado.
+- **Calendário contextual:** `Mês` exibiu `Mês anterior` e `Próximo mês`, sem
+  `Abrir dia`; `Semana` exibiu `Semana anterior`, `Próxima semana` e
+  `Dias com exercícios`. O retorno pelo botão acessível levou à Home.
+- **Intercorrência controlada:** durante a inspeção do menu, `PoC técnica` foi
+  aberta inadvertidamente ao tocar o limite inferior do menu; a Activity foi
+  fechada imediatamente. Nenhuma captura de rota, operação de treino ou dado
+  foi iniciado/persistido.
+- **Verificações:** processo permaneceu ativo (`pidof` confirmado) e, após
+  limpar o buffer, logcat não registrou `FATAL EXCEPTION`/`AndroidRuntime`.
+- **Limitações:** importação real/loading, status Health Connect, fonte
+  ampliada, landscape, temas e TalkBack não foram exercitados; nenhuma ação de
+  dados foi iniciada somente para produzir evidência. Evidência limita-se a
+  labels e bounds genéricos filtrados do UI dump, sem dados pessoais.
+- **Status:** permanece `in_progress`; revisão independente final e aceite
+  visual amplo continuam pendentes.
+
+## Validação ampliada de comportamento e acessibilidade — 2026-09-10
+
+- **Configuração restaurada:** valores originais capturados foram
+  `font_scale=1.0`, `accelerometer_rotation=0`, `user_rotation=0`,
+  `ui_night_mode=2`, `accessibility_enabled=0` e serviços de acessibilidade
+  nulos. Todos foram restaurados ao fim da sessão.
+- **Navegação temporal:** no filtro `Semana`, `Semana anterior` mudou o hash
+  sanitizado do período; `Próxima semana` ficou habilitada e retornou ao hash
+  original. No período atual, `Próxima semana` ficou desabilitada. No filtro
+  `Mês`, o mesmo comportamento foi confirmado com `Mês anterior`/`Próximo mês`;
+  nenhum período futuro foi aberto.
+- **Resumo e detalhe:** `Resumo da semana`, `Dias com exercícios` e
+  `Atividades feitas` foram localizados após rolagem. Um cartão abriu detalhe
+  somente leitura com `Voltar para Exercícios`, `Parciais` e `Ritmo`; retorno
+  passou. O filtro `Mês` continuou sem `Abrir dia`.
+- **Fonte ampliada:** `font_scale=1.3` preservou header, retorno, menu, filtros
+  e setas temporais, sem truncamento observado nos bounds sanitizados.
+- **Landscape:** `user_rotation=1` preservou header, retorno, menu e filtros;
+  rotação foi restaurada para `0`.
+- **Temas:** `dumpsys uimode` confirmou `mComputedNightMode=false` e
+  `mComputedNightMode=true` após alternância clara/escura; Activity abriu nos
+  dois estados sem crash.
+- **TalkBack:** serviço Samsung foi habilitado; após encerrar treinamento
+  inicial, Exercícios abriu com navegação por toque duplo e exibiu header,
+  retorno e filtros. Serviço foi desabilitado ao final.
+- **Verificações:** processo permaneceu ativo e logcat limpo posterior não
+  registrou `FATAL EXCEPTION`/`AndroidRuntime`. Nenhuma importação, medição,
+  sincronização, exclusão ou alteração de dados foi iniciada.
+- **Limitações restantes:** loading durante importação real, status Health
+  Connect e retry/cancelamento não foram exercitados por serem operações
+  sensíveis. Revisão independente final permanece necessária.
+- **Privacidade da sessão:** nenhum dump bruto, screenshot ou arquivo temporário
+  foi criado ou versionado durante esta validação; somente labels, bounds e
+  hashes sanitizados foram coletados. Não há descarte adicional pendente.
+- **Bloqueio de aceite:** revisão independente identificou que retry,
+  cancelamento e estados finais da importação não possuem affordance visível
+  verificável após a remoção dos blocos de UI. A subtarefa não pode ser marcada
+  concluída sem implementação equivalente ou decisão explícita de escopo.
+- **Status:** permanece `in_progress`; checklist continua `[ ]`.
+
+## Diretriz explícita de feedback da importação — 2026-09-10
+
+- **Causa do escalonamento:** a remoção dos blocos de importação deixou estados
+  terminais sem feedback visual, enquanto a diretriz vigente proíbe modal,
+  resumo, metadata, retry, cancelamento e outros blocos nesse fluxo.
+- **Implementação delimitada:** `ExercisesScreen.kt` observa a transição para
+  estados terminais e exibe uma única Snackbar acessível e temporária. `Completed`,
+  `Partial` e `Empty` usam mensagem genérica de sucesso; `Failed` e `Cancelled`
+  usam mensagem genérica de erro. Não há ação, detalhe técnico ou dado importado.
+  O loading horizontal e a ação direta do menu permanecem inalterados.
+- **Validação:** `git diff --check` e `./gradlew app:compileDebugKotlin
+  --no-daemon` passaram. Nenhum teste automatizado foi criado ou executado,
+  conforme `AGENTS.md`.
+- **Arquivos alterados nesta execução:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`.
+- **Status histórico:** `in_progress` nesta etapa intermediária; o requisito de
+  affordances de retry/cancelamento foi supersedido pela diretriz explícita.
+
+## Validação do popup terminal — 2026-09-10
+
+- **Implementação confirmada:** `Completed`, `Partial` e `Empty` exibem uma
+  única Snackbar temporária de sucesso; `Failed` e `Cancelled` exibem uma única
+  Snackbar temporária de erro. Nenhuma delas possui ação, resumo, metadata,
+  retry, cancelamento ou dados importados.
+- **Preservação:** loading horizontal permanece durante estados em voo; ação
+  direta `Importar treinos`, menu contextual, contratos e ViewModel não foram
+  alterados. Nenhuma ação é disparada durante renderização.
+- **Validação:** `git diff --check`, `./gradlew lint assembleDebug
+  assembleRelease --no-daemon` e `./gradlew installDebug --no-daemon` passaram.
+  Uma tentativa concorrente de build/install falhou por corrida transitória do
+  Gradle em `desugar_graph`; a instalação sequencial foi repetida e passou.
+  Smoke de abertura Debug confirmou Home, Saúde, Exercícios e processo ativo.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** `PASS`, sem bloqueadores. A diretriz explícita do
+  usuário supersedeu o bloqueio anterior de affordances de retry/cancelamento.
+- **Limitações:** importação real não foi iniciada somente para produzir
+  evidência; popup terminal foi validado por fluxo de estado e inspeção de
+  composição. Fonte ampliada, landscape, temas e TalkBack possuem evidência
+  anterior desta sessão.
+- **Status:** `completed`, após confirmação funcional do usuário. Checklist
+  atualizado para `[x]`; nenhuma próxima subtarefa foi iniciada.
+
+## Fechamento após validação funcional — 2026-09-10
+
+- **Aceite:** usuário confirmou que `031-07` está validada e funcional,
+  incluindo feedback terminal mínimo de sucesso/erro.
+- **Evidências:** builds, lint, instalação Debug, smoke de abertura, validação
+  ampliada de comportamento/acessibilidade e revisão independente `PASS` foram
+  registrados acima.
+- **Riscos residuais:** importação real não foi disparada somente para produzir
+  evidência; contratos e loading permanecem preservados. Nenhum bloqueador de
+  aceite permanece sob a diretriz vigente.

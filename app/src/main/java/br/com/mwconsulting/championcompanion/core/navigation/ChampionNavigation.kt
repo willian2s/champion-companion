@@ -528,6 +528,7 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Exercises -> ExercisesScreen(
                 viewModel = exercisesViewModel,
+                onNavigateBack = onBackRequested,
                 backLabel = backLabel,
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
