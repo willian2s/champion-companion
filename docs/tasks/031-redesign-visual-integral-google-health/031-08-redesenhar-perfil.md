@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `08`
-- **Status:** pending
+- **Status:** completed
 
 ## Objetivo
 
@@ -59,3 +59,15 @@ aprovados.
 
 Layout compacto pode cortar precisão de campos ou ocultar ação destrutiva.
 Preservar clareza, validação e confirmação.
+
+## Execução e evidências
+
+- **Status da execução:** concluída; revisão independente aprovada.
+- **Arquivos alterados:** `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileScreen.kt` e `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`.
+- **Decisões:** `ChampionRedesignTheme`, tokens opt-in, `ChampionRedesignSurfaceHeader`, ações acessíveis e cards do redesign foram aplicados somente ao Perfil. Header recebeu retorno contextual e acesso por ícone a Configurações. Diálogos de perfis aprendidos, histórico de calibrações e confirmação de remoção permanecem sob o tema visual redesign.
+- **Desvios:** nenhum desvio funcional. ViewModel, contrato, persistência, Health Connect, BLE, algoritmos, callbacks de edição/calibração e abertura de atividade foram preservados.
+- **Comandos executados:** `git diff --check`; `./gradlew app:compileDebugKotlin --no-daemon`; `./gradlew lint assembleDebug assembleRelease --no-daemon`; `./gradlew installDebug --no-daemon`; `adb devices -l`.
+- **Resultados/evidências:** todos os comandos passaram. Smoke ADB sanitizado no `SM-S901E` confirmou Perfil, retorno `Voltar para Home`, Configurações, campos de altura/meta/comprimento, diálogos de perfis aprendidos e histórico de calibrações, retorno à Home, fonte `1.3x`, landscape e temas claro/escuro. Processo permaneceu ativo sem crash. Configurações do aparelho foram restauradas; nenhuma ação de dados foi iniciada.
+- **Testes automatizados:** não criados nem executados, conforme `AGENTS.md`.
+- **Revisão independente:** aprovada após correção que manteve os diálogos sob `ChampionRedesignTheme`; sem bloqueadores.
+- **Riscos residuais:** TalkBack não foi exercitado explicitamente. Fidelidade à referência física do Perfil permanece inferida pela composição aprovada e pela fundação visual; não foram versionados screenshots ou dados não sanitizados.

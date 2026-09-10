@@ -586,6 +586,8 @@ private fun ChampionNavDisplay(
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
                 onOpenSettings = { onNavigateTo(AppDestination.Settings) },
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
             AppDestination.Settings -> SettingsScreen(viewModel = settingsViewModel)
         }

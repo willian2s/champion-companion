@@ -2,7 +2,7 @@
 
 - **Ticker:** `031`
 - **Número:** `07`
-- **Status:** in_progress
+- **Status:** completed
 
 ## Objetivo
 

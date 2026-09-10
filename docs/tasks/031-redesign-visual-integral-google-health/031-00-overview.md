@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [031-redesign-visual-integral-google-health.md](../../specs/031-redesign-visual-integral-google-health.md)
-- **Progresso:** 7/11 subtarefas concluídas
+- **Progresso:** 8/11 subtarefas concluídas
 
 ## Objetivo
 
@@ -20,7 +20,7 @@ somente Home e Saúde; rotas restantes serão contextuais.
 - [x] [031-05-redesenhar-home.md](031-05-redesenhar-home.md)
 - [x] [031-06-redesenhar-saude-e-metricas.md](031-06-redesenhar-saude-e-metricas.md)
 - [x] [031-07-redesenhar-exercicios-e-calendario.md](031-07-redesenhar-exercicios-e-calendario.md)
-- [ ] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
+- [x] [031-08-redesenhar-perfil.md](031-08-redesenhar-perfil.md)
 - [ ] [031-09-redesenhar-dispositivo.md](031-09-redesenhar-dispositivo.md)
 - [ ] [031-10-redesenhar-configuracoes.md](031-10-redesenhar-configuracoes.md)
 - [ ] [031-11-consolidar-validacao-e-revisao.md](031-11-consolidar-validacao-e-revisao.md)
@@ -632,4 +632,16 @@ somente Home e Saúde; rotas restantes serão contextuais.
               menu e contratos permanecem preservados. `git diff --check` e
               `app:compileDebugKotlin` passaram; revisão independente, smoke de
               importação real e validação ampla continuam pendentes. `031-07`
-              permanece `[ ]`, progresso `6/11`.
+               permanece `[ ]`, progresso `6/11`.
+
+  - Em 2026-09-10, `031-08` foi concluída após aplicação da fundação visual opt-in
+    ao Perfil. Header passou a usar composição do redesign, com retorno contextual
+    e acesso a Configurações; cards, espaçamentos, loading e diálogos foram
+    alinhados sem alterar edições, calibração, callbacks ou persistência. Lint,
+    builds Debug/Release, instalação e smoke ADB sanitizado passaram; fonte
+    ampliada, landscape e temas foram exercitados e restaurados. Revisão
+    independente aprovou sem bloqueadores. Risco residual: TalkBack não foi
+    exercitado explicitamente. Progresso: `8/11`.
+  - A inconsistência documental de `031-07` foi resolvida em 2026-09-10: o
+    cabeçalho agora declara `completed`, alinhado ao item `[x]` do checklist e às
+    evidências de validação funcional já registradas.
