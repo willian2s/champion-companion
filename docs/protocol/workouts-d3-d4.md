@@ -1,94 +1,68 @@
-# Treinos D3/D4 — MotionLog para Champion Companion
+# Treinos D3/D4 — Champion C001
 
 ## Objetivo
 
-Documentar a importação de treinos gravados no Champion C001: índice D3,
-download D4, remontagem, parser, persistência, revisão e bloqueio de envio
-automático.
+Documentar o contrato observado para importação de treinos gravados no Champion
+C001 via D3/D4, separando claramente:
 
-O documento preserva a baseline MotionLog e registra separadamente o estado
-factual do Champion Companion auditado em `014-01`.
+```text
+SOURCE      bytes e campos recebidos do relógio
+MEASURED    unidades promovidas com evidência suficiente
+DERIVED     timeline, distância corrigida, pace, velocidade e cadência
+PROJECTION  payloads congelados para consumidores e Health Connect
+```
+
+O runtime atual de novas importações, após `032-07`, usa `parserVersion = d4-v4`.
+`d4-v1/v2/v3` permanecem versões históricas identificáveis para leitura e
+reprocessamento explícito. O contrato v4 só é publicado quando parser,
+persistência e derivação estão coerentes no mesmo fluxo.
+
+Auditoria autoritativa da Spec 032:
+
+`docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`.
 
 ## Fontes
 
-### Baseline MotionLog
+### APK Champion Smartstyle decompilado
 
-- `../motionlog-app/src/lib/ble/champion-commands.ts`
-- `../motionlog-app/src/lib/ble/watch-workout-sync.ts`
-- `../motionlog-app/src/lib/ble/watch-workout-parser.ts`
-- `../motionlog-app/src/lib/ble/watch-workout-import-adapter.ts`
-- `../motionlog-app/src/lib/repositories/watch-workout-repository.ts`
-- `../motionlog-app/src/lib/repositories/database/migrations.ts`
-- `../motionlog-app/src/lib/health-connect/watch-workout-sync.ts`
-- `../motionlog-app/src/models/watch-workout.ts`
+Arquivos auditados localmente, sem versionar o APK decompilado:
+
+- `com/veepoo/hband/ble/readmanager/SportModelHander.java`;
+- `com/veepoo/hband/modle/SportModelOriginBean.java`;
+- `com/veepoo/hband/modle/SportModelHeadBean.java`.
 
 ### Champion Companion
 
-- `ChampionD4WorkoutBlockProtocol`
-- `ChampionD4WorkoutParser`
-- `ChampionWatchWorkoutImportCoordinator`
-- `WatchWorkoutActivity.kt`
-- `ChampionDatabase.kt`
-- `DatabaseMappers.kt`
-- `RoomRepositories.kt`
-- `ExercisesScreen.kt`
-- `HealthRecordMapper.kt`
-- `HealthConnectSyncCoordinator.kt`
-- `docs/integration/014-01-d4-layout-and-consumer-audit.md`
+- `ChampionD3WorkoutIndexProtocol`;
+- `ChampionD4WorkoutBlockProtocol`;
+- `ChampionD4WorkoutParser`;
+- `ChampionWatchWorkoutImportCoordinator`;
+- `WatchWorkoutActivity.kt`;
+- `WatchWorkoutDerivedMetrics.kt`;
+- `ChampionDatabase.kt`;
+- `DatabaseMappers.kt`;
+- `RoomRepositories.kt`.
+
+### Evidência física local
+
+A auditoria `032-01` inspecionou uma cópia local do banco fornecida pelo usuário.
+Foram reconstruídos 34 blocos D4 completos com header e samples suficientes para
+validar invariantes agregados, sem versionar payload integral, identificadores ou
+dados pessoais.
 
 ## Classificação normativa
 
-Toda afirmação relevante deve usar uma destas classes:
-
 | Classe | Significado |
 | --- | --- |
-| **Comportamento do código atual** | O software existente executa essa leitura ou transformação. Não prova que a semântica atribuída corresponde ao relógio. |
-| **Confirmado no dispositivo** | Evidência física disponível sustenta a afirmação para o cenário observado. Não implica todos os firmwares. |
-| **Desconhecido** | Não há evidência suficiente para nome, unidade ou significado funcional. |
-| **Derivado planejado** | Métrica que será calculada pelo aplicativo por política versionada; não é campo recebido do relógio. |
+| **Comportamento do runtime atual** | O app existente executa essa leitura hoje. Não prova semântica do relógio. |
+| **Confirmado pelo APK** | O APK oficial auditado usa esse campo/layout/conversão. |
+| **Confirmado no dispositivo** | Evidência física do C001 observado sustenta a afirmação. |
+| **Derivado planejado** | Política do Champion Companion; não é campo recebido do relógio. |
+| **Desconhecido** | Evidência insuficiente para atribuir unidade ou significado funcional. |
 
-“Confirmado pelo código” nunca deve ser interpretado como “confirmado pelo
-dispositivo”.
+# Fluxo de produto
 
-## Estado das fases
-
-- Fase 013: `closed`, resultado `partially_delivered`, motivo
-  `product_reorientation`.
-- Fase 014: `completed`, com progresso `17/17` após conclusão de `014-16`.
-- Treinos phone, GPS, rota, mapa, `ExerciseRoute` e BLE live não fazem parte da
-  direção da Fase 014.
-
-## Estado factual final da Fase 014 e da Spec 021
-
-- Novas importações usam `parserVersion = d4-v3`; `d4-v1` e `d4-v2` permanecem
-  identificáveis como legado. `MIGRATION_8_9` preserva o u24 legado como raw e
-  não cria `decodedSteps` automaticamente.
-- O parser novo preserva `rawMotionValue`, deriva `decodedSteps` com deslocamento
-  de 16 bits e mantém os 16 bits inferiores, distância temporal e calorias
-  temporais como desconhecidos/raw. A sequência sanitizada de referência soma
-  `3.737` passos; isso é evidência do caso observado, não garantia para todos os
-  firmwares.
-- A série entregue pela Spec 021 aplica índices contínuos e únicos, timeline
-  normalizada por divisão inteira de `T` entre `N` e resto distribuído nos
-  primeiros intervalos. A soma efetiva fecha exatamente em `T`; `60 s` permanece
-  granularidade nominal, não duração obrigatória.
-- A distância canônica usa a soma dos intervalos `decodedSteps ×
-  stepLengthMetersUsed`. O snapshot congela valor individual, origem, método e
-  versão da derivação. Distâncias original e calibrada histórica permanecem
-  diagnósticas.
-- O fluxo `TREADMILL` de `WATCH_D3_D4` usa série canônica elegível sem calibração
-  histórica. Projeções filhas Health Connect usam IDs, versões, payloads,
-  resultados e retry próprios; a integração continua write-only.
-- A validação física passou apenas nos cenários exercitados. Gates B, C, D, E e G
-  permanecem `N/A`; midpoint, delete-before-insert, round-trip completo e
-  variações de firmware continuam desconhecidos como evidência física.
-
-## Regra obrigatória de produto
-
-Treino importado por D3/D4 nasce pendente de revisão e nunca é enviado
-automaticamente ao Health Connect.
-
-Fluxo vigente:
+Treino importado por D3/D4 permanece local-first e exige ação explícita:
 
 ```text
 Champion C001 inicia e encerra
@@ -99,25 +73,24 @@ normalização e derivação local
         ↓
 revisão do usuário
         ↓
-sincronização explícita
+sincronização Health Connect explícita
 ```
 
-## Transporte compartilhado
+Importar, reprocessar, calibrar ou migrar schema não autoriza sync automático.
 
-| Item | Comportamento do código atual |
+# Transporte compartilhado
+
+| Item | Contrato |
 | --- | --- |
 | Escrita | F008 write com resposta |
-| Resposta | F008 notify; listener filtra primeiro byte `D3` ou `D4` |
-| Preparo | garantir conexão, notifications e handshake A1 |
+| Resposta | F008 notify |
+| Preparo | conexão, notifications e handshake A1 |
 | Execução | foreground, um D3 seguido de D4 sequenciais |
-| Retry interno | nenhum retry interno para D3/D4 |
-| Timeout | D3: 10 s; D4: 15 s por bloco |
+| Timeout atual | D3: 10 s; D4: 15 s por bloco |
+| Retry interno | nenhum |
 | Limpeza | listener específico removido no encerramento |
 
-Detalhes BLE gerais: `ble-transport.md`. Comandos gerais:
-`ble-command-mapping.md`.
-
-# D3 — Índice de CRCs
+# D3 — índice de blocos
 
 ## Requisição
 
@@ -125,25 +98,51 @@ Detalhes BLE gerais: `ble-transport.md`. Comandos gerais:
 D3 01 00 00
 ```
 
-Finalidade observada: listar referências de blocos de treino disponíveis no
-relógio.
+O APK monta um buffer de 20 bytes iniciado por esse prefixo.
 
-## Leitura atual
+## Pares CRC
 
-- aceita apenas notificações cujo primeiro byte seja `D3`;
-- lê pares u16 little-endian a partir do offset 3;
-- ignora `0x0000`;
-- cria `blockIndex` sequencial pela ordem de coleta;
-- encerra coleta multipart quando o cabeçalho é plausível e
-  `packetIndex >= totalPackets`;
-- sem cabeçalho plausível, a primeira notificação encerra a coleta;
-- timeout preserva CRCs já coletados;
-- não há retry interno.
+No layout observado, os candidatos são lidos em pares `u16 little-endian` a
+partir do offset `3`.
 
-A relação entre CRC D3 e CRC do pacote 3 D4 ainda precisa de validação mais ampla
-entre firmwares.
+Cada posição física do par representa o slot usado depois no comando D4.
 
-# D4 — Download e remontagem
+Exemplo:
+
+```text
+slot 0 = 0000
+slot 1 = B945
+slot 2 = 91FC
+```
+
+A leitura correta é:
+
+```text
+ignorar slot 0 como treino ausente
+requisitar D4 slot 1 para B945
+requisitar D4 slot 2 para 91FC
+```
+
+Não é permitido compactar para `slot 0` e `slot 1`.
+
+### Regra v4
+
+```text
+posição física do CRC no D3 = blockIndex usado no D4
+```
+
+- CRC `0x0000` pode ser ignorado como entrada vazia;
+- ignorar CRC zero não desloca slots posteriores;
+- CRC repetido pode ser deduplicado logicamente, mas a entrada preservada mantém
+  a posição física original;
+- o runtime atual ainda possui bug ao avançar o índice apenas após CRC não zero;
+  a correção pertence à `032-02`.
+
+A relação CRC D3 ↔ CRC do header D4 fechou para todos os 34 blocos completos
+inspecionados na auditoria, sem promover isso a garantia universal para firmware
+não observado.
+
+# D4 — framing e coleta
 
 ## Requisição
 
@@ -151,377 +150,498 @@ entre firmwares.
 D4 <blockIndex> 00 00
 ```
 
-O `blockIndex` ocupa um byte e é derivado da ordem dos CRCs D3 válidos.
+## Framing
 
-## Cabeçalho e coleta no Champion Companion
+```text
+byte 0      D4
+bytes 1..2  packetIndex u16 LE
+bytes 3..4  totalPackets u16 LE
+byte 5      framing/valor não consumido pelo parser fixo auditado
+bytes 6..19 payload
+```
 
-| Campo | Leitura atual |
-| --- | --- |
-| comando | byte 0, esperado `D4` |
-| `packetIndex` | u16 LE em `bytes[1..2]` |
-| `totalPackets` | u16 LE em `bytes[3..4]` |
+Pacotes `1..3` formam o header. Pacotes `4+` formam a série temporal.
 
-`ChampionD4WorkoutBlockProtocol.BlockCollector`:
+A coleta pode receber fora de ordem. A remontagem semântica usa `packetIndex`.
+Duplicata e lacuna não são corrigidas por síntese.
 
-- preserva cada pacote recebido;
-- registra índices duplicados;
-- calcula ausentes na faixa `1..totalPackets` conhecida;
-- ordena por `packetIndex` ao finalizar;
-- encerra quando `totalPackets > 0` e `packetIndex >= totalPackets`;
-- preserva coleta parcial em timeout.
+# Header fixo D4 — 42 bytes
 
-Duplicata ou ausência não é corrigida por síntese.
+O APK concatena 14 bytes de cada um dos três primeiros pacotes:
 
-# Parser D4 atual
+```text
+header[0..13]   = packet 1 bytes[6..19]
+header[14..27]  = packet 2 bytes[6..19]
+header[28..41]  = packet 3 bytes[6..19]
+```
 
-## Pacotes obrigatórios
+## Layout congelado para `d4-v4`
 
-O parser atual exige pacotes 1, 2 e 3. Ausência ou falha estrutural de qualquer um
-impede criar uma atividade.
-
-Essa é uma regra do parser, não uma garantia universal do protocolo do relógio.
-
-## Pacote 1 — início e fim
-
-| Item | Comportamento do código atual | Estado semântico |
+| Header | Campo | Tipo |
 | --- | --- | --- |
-| layout preferido | início em `7..13`; fim em `14..19`; anos u16 LE | heurística do código |
-| layout legado | offsets alternativos em `5..19` | fallback do código |
-| segundo final preferido | `packet2[6]`, somente quando o candidato preferido do pacote 2 é selecionado; exige `0..59` | evidência confirmada no dispositivo para três atividades; limite de firmware |
-| segundo final legado | `packet1[14]` | comportamento do código atual; sem alteração de offset |
-| duração | diferença positiva entre `startedAt` e `endedAt` corrigidos; fallback do pacote 3 somente no layout legado | duração oficial separada de `recordCount` e samples |
-| `endedAt` no domínio | layout preferido combina data/hora/minuto de `packet1[14..19]` com `packet2[6]`; valor preferido fora de `0..59` falha fechado | proveniência temporal explícita no domínio |
+| `0` | marker/reservado | `u8` |
+| `1..2` | ano inicial | `u16 LE` |
+| `3` | mês inicial | `u8` |
+| `4` | dia inicial | `u8` |
+| `5` | hora inicial | `u8` |
+| `6` | minuto inicial | `u8` |
+| `7` | segundo inicial | `u8` |
+| `8..9` | ano final | `u16 LE` |
+| `10` | mês final | `u8` |
+| `11` | dia final | `u8` |
+| `12` | hora final | `u8` |
+| `13` | minuto final | `u8` |
+| `14` | segundo final | `u8` |
+| `15..18` | total de passos | `u32 LE` |
+| `19..22` | total de distância | `u32 LE` |
+| `23..26` | total de calorias raw | `u32 LE` |
+| `27..30` | total de `sportCount` | `u32 LE` |
+| `31..32` | `recordCount` | `u16 LE` |
+| `33` | `pauseCount` | `u8` |
+| `34..35` | `pauseTime` | `u16 LE` |
+| `36..37` | CRC | `u16 LE` |
+| `38` | tipo de esporte raw | `u8` |
+| `39..41` | reservados/desconhecidos | bytes |
 
-## Pacote 2 — totais
-
-| Campo | Layout preferido atual | Layout legado atual | Classificação |
-| --- | --- | --- | --- |
-| passos totais | u16 LE `7..8` | u24 LE `5..7` | comportamento do código; coerente na atividade de referência |
-| segundo final | byte `6`, `0..59` | não usado; segundo vem de `packet1[14]` | confirmado no dispositivo somente no layout preferido observado |
-| distância total raw | u16 LE `11..12`, escalado pelo parser | u32 LE `8..11` | unidade/layout do dispositivo não comprovados de forma geral |
-| calorias totais raw | u24 LE `15..17` | u32 LE `12..15` | unidade/layout do dispositivo não comprovados de forma geral |
-
-A seleção entre layouts usa plausibilidade de valores. Plausibilidade não prova o
-layout físico.
-
-## Pacote 3 — contagem e CRC
-
-| Campo | Leitura preferida | Fallback legado | Classificação |
-| --- | --- | --- | --- |
-| `recordCount` | byte 9 | u16 LE `9..10` | heurística do código |
-| CRC | u16 LE `14..15` | u16 LE `11..12` | heurística do código |
-| duração fallback | não usada no preferido | u32 LE `5..8` | comportamento do código |
-
-## Pacotes 4+ — amostras temporais
-
-Para cada pacote presente:
+### Mapeamento relevante para pacotes crus
 
 ```text
-minuteIndex = packetIndex - 4
+packet1[7..13]  início completo
+packet1[14..19] fim até minuto
+packet2[6]      segundo final
+
+packet2[7..10]  totalSteps u32 LE
+packet2[11..14] totalDistance u32 LE
+packet2[15..18] totalCaloriesRaw u32 LE
+packet2[19]     low byte de totalSportCount
+
+packet3[6..8]   restante de totalSportCount
+packet3[9..10]  recordCount u16 LE
+packet3[11]     pauseCount
+packet3[12..13] pauseTime u16 LE
+packet3[14..15] CRC u16 LE
+packet3[16]     sportTypeRaw
 ```
 
-| Campo | Offset/leitura atual | Tratamento atual | Classificação após 014-01 |
-| --- | --- | --- | --- |
-| BPM | byte 6 | 30..220 gera amostra; demais valores viram ausência | medido quando válido no caso observado |
-| movimento | u24 LE `7..9` | `d4-v1` salva o u24 em `steps`; `d4-v2` separa raw e passos deslocados | raw empacotado; somente byte superior é passo confirmado no caso observado |
-| distância temporal | u24 LE `10..12` | `d4-v1` e `d4-v2` transportam somente `rawDistanceValue`; valores legados já persistidos permanecem preservados | valor raw; unidade e semântica não comprovadas |
-| calorias temporais | u16 LE `13..14` | `d4-v1` e `d4-v2` transportam somente `rawCaloriesValue`; valores legados já persistidos permanecem preservados | valor raw; unidade e semântica não comprovadas |
+O `endSecond` historicamente descoberto em `packet2[6]` é simplesmente
+`header[14]`; no v4 não deve existir uma heurística separada para esse byte.
 
-Conversões históricas de distância/calorias podem existir em linhas `d4-v1` já
-persistidas, mas não são reproduzidas por nenhum caminho atual do parser nem
-alimentam a série canônica da Fase 014.
+# Samples D4 fixos — layout `d4-v4`
 
-## Implementação `d4-v2`
+Para cada `packetIndex >= 4`:
 
-Para cada pacote temporal, o parser lê o movimento uma única vez e transporta os
-fatos separadamente:
+```text
+app intervalIndex = packetIndex - 4
+APK minute        = packetIndex - 3  // ordinal 1-based
+APK allMinute     = totalPackets - 3
+```
+
+## Layout
+
+| Offset raw | Campo | Tipo/semântica |
+| --- | --- | --- |
+| `6` | BPM raw | `u8` |
+| `7..8` | `sportValue` / `sportCount` | `u16 LE` |
+| `9..10` | passos | `u16 LE` |
+| `11..12` | calorias raw | `u16 LE` |
+| `13..14` | distância | `u16 LE` |
+| `15` | estado de pausa raw | `u8` |
+| `16..19` | não consumidos pelo parser fixo auditado | desconhecido |
+
+BPM inválido não torna os demais campos inválidos. A política de faixa de BPM é
+independente do aceite estrutural do sample.
+
+# Correção da interpretação histórica de `rawMotionValue`
+
+O runtime `d4-v2/v3` lê atualmente:
 
 ```kotlin
-val rawMotionValue = bytes.readUInt24LittleEndian(7)
-val decodedSteps = rawMotionValue ushr 16
+rawMotionValue = u24LE(bytes[7..9])
+decodedSteps = rawMotionValue ushr 16
 ```
 
-`WorkoutInterval.steps` recebe `decodedSteps` somente em `d4-v2`; o total de
-passos do pacote 2 permanece em `WorkoutMetrics.steps` e não é substituído pela
-soma temporal. `rawMotionValue`, `rawDistanceValue`, `rawCaloriesValue` e
-`decodedSteps` seguem para as colunas raw/measured da migration local `v9`.
+Isso não corresponde a um packing definido pelo protocolo fixo auditado.
 
-Distância e calorias temporais de `d4-v1` e `d4-v2` não são convertidas para
-métricas semânticas. Os 16 bits inferiores de `rawMotionValue` permanecem
-desconhecidos e não participam de qualquer derivação.
+Como `u24LE(bytes[7..9]) >>> 16` devolve apenas `bytes[9]`, o resultado coincide
+com passos somente quando o byte alto real `bytes[10]` é zero.
 
-# Movimento empacotado e passos
-
-## Evidência confirmada no caso de referência
+Portanto:
 
 ```text
-rawMotionValue = 6.553.643
-hex            = 0x0064002B
-decodedSteps   = rawMotionValue ushr 16 = 100
-lower16        = 0x002B = 43
+bytes[7..8]  = sportValue
+bytes[9..10] = steps u16 LE
 ```
 
-O valor `43` permanece sem nome ou uso funcional.
+O caso histórico de `3.737` passos e a atividade posterior de `6.240` passos
+funcionaram porque nenhum bucket ultrapassou `255` passos. `d4-v4` deve ler o
+`u16` real e não reconstruir `rawMotionValue`.
 
-Sequência observada após a extração do byte superior:
+As colunas legacy `rawMotionValue`, `rawDistanceValue` e `rawCaloriesValue`
+continuam preservadas para `d4-v1/v2/v3`; não recebem novo significado por
+migration ou conveniência.
+
+# Unidades confirmadas para o layout fixo observado
+
+## Distância
+
+**Confirmado pelo APK + confirmado no dispositivo:**
 
 ```text
-100, 117, 114, 117, 103, 109, 133, 131, 130, 175, 175, 152,
-123, 116, 176, 169, 121, 155, 184, 178, 136, 115, 120, 110,
-127, 122, 125, 104
+sample.distance       = metros
+header.totalDistance  = metros
 ```
 
-Soma:
+Evidência:
+
+- `SportModelHeadBean` divide o total por `1000` para exibir quilômetros;
+- `SportModelOriginBean.getSpeed()` usa a distância do sample como metros em um
+  intervalo nominal;
+- `Σ sample.distance == header.totalDistance` em 34/34 blocos completos.
+
+A `032-02` pode promover o valor para `watchDistanceMeters`/equivalente.
+A escolha de distância nativa como fonte canônica pertence à `032-05`.
+
+## Calorias
+
+**Confirmado pelo APK + confirmado estruturalmente no dispositivo:**
 
 ```text
-3.737 passos
+kcal = caloriesRaw / 1000.0
 ```
 
-A soma coincide com o total da atividade analisada. Essa evidência sustenta o
-`decodedSteps` para o caso observado, mas não identifica os 16 bits inferiores
-nem garante todos os firmwares.
+- o header usa essa escala no APK;
+- `Σ sample.caloriesRaw == header.totalCaloriesRaw` em 34/34 blocos completos.
 
-# Versionamento e compatibilidade
+O raw deve ser preservado para provenance mesmo quando a projeção em kcal for
+materializada.
 
-## `d4-v1`
+## `sportValue`
 
-`d4-v1` identifica importações legadas que persistiram o u24 empacotado no campo
-`steps`. Essas atividades continuam identificáveis e não recebem
-`decodedSteps` por backfill automático.
-
-Cadeia de persistência auditada:
+Estrutura confirmada no APK e fechamento confirmado no dispositivo:
 
 ```text
-bytes[7..9]
-  → readUInt24LittleEndian(7)
-  → SampleData.rawMotionValue
-  → WorkoutInterval.steps
-  → WorkoutIntervalEntity.steps
+Σ sample.sportValue == header.totalSportCount
 ```
 
-Não há truncamento intermediário. Portanto, para:
+em 34/34 blocos completos.
+
+A unidade ou significado fisiológico permanece **desconhecido**. Não chamar de
+MET, intensidade, energia, carga ou equivalente sem nova evidência.
+
+## Pausa
+
+O APK nomeia:
 
 ```text
-origin == WATCH_D3_D4
-parserVersion == d4-v1
-0 <= legacy steps <= 0xFFFFFF
+sample.pauseStateRaw
+header.pauseCount
+header.pauseTime
 ```
 
-o valor legado pode ser copiado em migration para `rawMotionValue`.
+Nos 34 blocos completos auditados, `pauseCount == 0` e `pauseTime == 0`.
+Logo, offsets/nome estrutural estão documentados, mas semântica operacional de
+valores não zero ainda não está fisicamente validada. `d4-v4` deve preservar raw
+sem inventar enum ou alterar timeline apenas por suposição.
 
-A migration não deve:
+# Invariantes físicos da auditoria `032-01`
 
-- deslocar bits;
-- preencher `decodedSteps`;
-- derivar distância;
-- alterar workflow;
-- depender do payload diagnóstico.
-
-## `d4-v2` — legado
-
-O runtime histórico usava `parserVersion = d4-v2` e produzia
-separadamente:
-
-```kotlin
-val rawMotionValue = bytes.readUInt24LittleEndian(7)
-val decodedSteps = rawMotionValue ushr 16
-```
-
-Versão desconhecida falha fechada na criação da atividade; não há reclassificação
-silenciosa de dados legados.
-
-## `d4-v3` — contrato efetivo
-
-O runtime de novas importações usa `parserVersion = d4-v3` e combina duração
-autoritativa corrigida com timeline normalizada. O parser preserva ordem, passos,
-BPM e valores raw; timestamps e durações efetivas são derivados por
-`watch-d3-d4-v2`. `d4-v1` e `d4-v2` continuam disponíveis somente como
-proveniência legada e para reprocessamento explícito seguro.
-
-## Fronteira da Spec 021 — subtarefa `021-01`
-
-O parser passou a resolver a duração oficial a partir de `startedAt` e `endedAt`
-corrigidos. No layout preferido, `packet2[6]` é `endSecond` e qualquer valor fora
-de `0..59` falha fechado; não há inferência por `recordCount`, quantidade de
-samples ou horário inventado. No layout legado, o segundo continua vindo de
-`packet1[14]`.
-
-Esta correção de fonte temporal integra o contrato efetivo `d4-v3` com a timeline
-normalizada entregue em `021-02`. A correspondência de `packet2[6]` foi observada
-em três atividades; não constitui garantia universal para firmware não observado.
-
-# Índices, parcialidade e duração
-
-## Estado efetivo da Spec 021
-
-- pacotes `4+` presentes são ordenados por `minuteIndex`;
-- duplicatas usam a primeira ocorrência e tornam o parser parcial;
-- lacunas permanecem como lacunas;
-- os intervalos brutos preservam 60 segundos como duração nominal/proveniência;
-- o resolvedor temporal valida índices antes de distribuir `T` por `N`;
-- lacuna, duplicata, primeiro índice não zero ou ordem inconsistente preservam os
-  fatos sem receber janelas efetivas sintetizadas;
-- séries elegíveis distinguem duração exata, residual, insuficiente e cauda não
-  coberta; plausibilidade permanece política separada e tipada;
-- a materialização do snapshot e da duração efetiva persistida pertence à
-  derivação posterior.
-
-## Contrato efetivo V1
-
-A série canônica exige índices:
+Para 34 blocos completos reconstruídos:
 
 ```text
-0, 1, 2, ..., N-1
+recordCount == quantidade de samples            34/34
+header.totalSteps == Σ sample.steps              34/34
+header.totalDistance == Σ sample.distance        34/34
+header.totalCaloriesRaw == Σ sample.caloriesRaw  34/34
+header.totalSportCount == Σ sample.sportValue    34/34
+header.crc == CRC associado ao bloco             34/34
 ```
 
-Primeiro índice diferente de zero, lacuna, duplicata ou ordem inconsistente torna
-a série inelegível, preservando os fatos raw/measured.
+Esses totais são checks semânticos fortes da série para o firmware observado.
+Eles **não** autorizam sobrescrever samples divergentes com valores do header.
 
-Com duração total `T` e `N` intervalos elegíveis:
+## Política para divergência header × série
+
+Quando um bloco completo divergir:
+
+- preservar header e samples recebidos;
+- não alterar sample para forçar fechamento;
+- não substituir série pelo total;
+- marcar pelo menos `PARTIAL` quando a estrutura ainda for reconhecível;
+- distância nativa deve falhar fechada para derivação quando sua soma não fechar
+  no total do header;
+- falha de layout/estrutura pode continuar `INVALID`.
+
+# Passos — autoridade por contexto
+
+## Atividade D4
+
+Para `d4-v4`:
 
 ```text
-base = T / N       (divisão inteira em nanos)
+sample.steps = u16 LE bytes[9..10]
+```
+
+A série por intervalo é a fonte do treino para:
+
+- passos da atividade;
+- cadência;
+- créditos/guards de passos da Spec 027;
+- análises temporais locais.
+
+O `header.totalSteps` é check de consistência, não substituto da série.
+
+## Total diário
+
+`DailySummary.steps` continua sendo a autoridade do acumulado diário do relógio.
+Nada na Spec 032 transforma o total D4 do header em substituto do resumo diário.
+
+# Timeline — duração oficial independente da quantidade de samples
+
+A decisão da Spec 021 permanece autoritativa:
+
+```text
+startedAt + endedAt
+  = janela oficial da atividade
+
+N samples D4
+  = sequência granular ordenada
+
+60 s
+  = granularidade nominal/proveniência
+  ≠ duração física obrigatória de cada sample
+```
+
+Na atividade física de referência:
+
+```text
+startedAt   07:27:14
+endedAt     08:09:36
+duração     42:22
+samples     44
+pauseTime   0
+```
+
+Nos 34 blocos auditados, `duration / sampleCount` variou aproximadamente de
+`48,43 s` a `62,80 s`, portanto não existe base para impor `N × 60 s`.
+
+## Normalização efetiva preservada
+
+Para série estruturalmente elegível, com duração oficial `T` e `N > 0`:
+
+```text
+base = T / N
 resto = T % N
-duration[i] = base + 1 ns quando i < resto
+
+effectiveDuration[i] = base + 1 ns para os primeiros `resto` intervalos
 ```
 
-Todas as janelas são positivas, contíguas e contidas na sessão; a soma fecha
-exatamente em `T`, sem cauda sintética ou descarte de sample.
-
-Exemplo disponível:
+Invariantes:
 
 ```text
-T = 1.637 s
-27 intervalos completos
-último intervalo = 17 s
+Σ effectiveDuration[i] = T
+start[0] = workout.startedAt
+end[N-1] = workout.endedAt
+end[i] = start[i+1]
 ```
 
-Plausibilidade é avaliada separadamente e nunca redistribui passos.
+Não criar primeiro/último bucket sintético, não inferir duração por
+`recordCount` e não voltar a usar `sampleIndex × 60 s` como duração autoritativa.
 
-# Campos e métricas
+# Persistência alvo para `d4-v4`
 
-## Produzidos pelo código atual
+A `032-03` deve decidir o schema final, mas a auditoria congelou a necessidade de
+não reutilizar semanticamente as colunas legacy.
 
-| Campo | Estado atual |
-| --- | --- |
-| início e duração | início e `endedAt` vêm dos cabeçalhos; no preferido, `endedAt` usa `packet1[14..19]` + `packet2[6]` validado |
-| passos totais | interpretados do pacote 2 |
-| `steps` temporal | contém o u24 empacotado no `d4-v1` |
-| distância total | conversão atual de raw, diagnóstica para a Fase 014 |
-| distância temporal | conversão atual não comprovada, deve migrar como raw |
-| calorias totais | conversão atual; elegibilidade permanece dependente de auditoria própria |
-| calorias temporais | conversão atual não comprovada, deve migrar como raw |
-| BPM | amostras válidas de 30..220 |
-| tipo sugerido | `RUNNING` quando passos totais >= 1000; caso contrário `FREE_WORKOUT` |
+## Por intervalo
 
-## Derivados planejados
+Campos mínimos:
+
+```text
+intervalIndex/sourceSampleIndex
+steps u16 promovidos
+sportValueRaw
+watchDistanceMeters
+watchCaloriesRaw
+pauseStateRaw
+BPM + sourceSampleIndex existente
+```
+
+## Por header/importação
+
+Campos mínimos de provenance/consistência:
+
+```text
+reportedTotalSteps
+reportedTotalDistanceMeters
+reportedTotalCaloriesRaw
+reportedTotalSportValue
+reportedRecordCount
+reportedPauseCount
+reportedPauseTime
+reportedSportTypeRaw
+reportedCrc
+```
+
+A `main` auditada no início da Spec 032 está em Room v15; uma eventual migration
+deve revalidar a base e, se necessária, ser aditiva a partir da versão corrente.
+
+Migration nunca deve reinterpretar `d4-v1/v2/v3` como v4 sem payload suficiente,
+ativar snapshot, criar calibração, mudar workflow ou gerar efeito Health Connect.
+
+# Derivação atual e direção da Spec 032
+
+## Runtime antes da 032
+
+O runtime vigente `d4-v3` ainda deriva:
 
 ```text
 canonicalIntervalDistanceMeters = decodedSteps × stepLengthMetersUsed
-canonicalDistanceMeters = soma exata dos intervalos canônicos
-cadência = passos ÷ duração efetiva em minutos
-velocidade = distância ÷ duração efetiva
-ritmo = duração efetiva ÷ distância em quilômetros
+canonicalDistanceMeters = Σ canonicalIntervalDistanceMeters
 ```
 
-Distância original, calibrada histórica, distância temporal raw e estimativa por
-passos totais não são fallback canônico para `WATCH_D3_D4`.
+A normalização temporal já usa `T/N`.
 
-# Persistência atual no Champion Companion
+## Direção `d4-v4`
 
-`WorkoutIntervalEntity` armazena:
+Para tipos elegíveis e série nativa válida, a Spec 032 planeja:
 
 ```text
-id
-activityId
-intervalIndex
-durationNanos
-steps
-distanceMeters
-caloriesKilocalories
-rawMotionValue
-rawDistanceValue
-rawCaloriesValue
-decodedSteps
+baseIntervalDistanceMeters = watchDistanceMeters
+baseWorkoutDistanceMeters  = Σ watchDistanceMeters
 ```
 
-A chave única `(activityId, intervalIndex)` evita duas linhas do mesmo índice,
-mas não exige continuidade.
+Calibração externa opcional deverá corrigir a série proporcionalmente, em vez de
+substituí-la por uma passada fixa.
 
-`WatchWorkoutImportEntity` preserva a `parserVersion` autoritativa da importação.
+Comprimento de passo permanece fallback explícito quando a distância nativa não
+for elegível. Calibrações legacy de comprimento de passo não são convertidas
+silenciosamente em fator de distância.
 
-Durante reimportação, `RoomRepositories.persistImported` substitui todos os
-intervalos e amostras BPM da atividade. Por isso, o mapper grava os fatos raw de
-`d4-v2` na mesma transação e a migration de compatibilidade preserva o raw
-`d4-v1` antes de uma eventual reimportação corrigida.
+`CYCLING` mantém política própria da Spec 022.
 
-# Snapshot histórico dos consumidores na auditoria inicial (`014-01`)
+# Health Connect
 
-| Consumidor | Comportamento atual |
-| --- | --- |
-| parser | calcula ritmo e velocidade pela distância original total |
-| lista/detalhe | prioridade calibrada → original → estimada |
-| calendário | prioridade calibrada → original → estimada |
-| workflow de esteira | qualquer `TREADMILL` entra em `PENDING_CALIBRATION` |
-| Health Connect | um `DistanceRecord` agregado pela prioridade calibrada → original → estimada |
-| fila Health Connect | uma operação de atividade por `recordType`; sem filho temporal |
+O contrato de produto permanece:
 
-Na auditoria inicial, nenhum consumidor usava uma distância principal igual à
-soma dos intervalos canônicos. Esse snapshot não descreve o comportamento
-entregue após `014-07` e `014-10`.
+- write-only;
+- local-first;
+- sync explícito;
+- operações filhas com identidade/payload congelados;
+- retry idempotente;
+- passos da atividade respeitam crédito/cobertura da Spec 027;
+- mudança de derivação local não altera records remotos aceitos silenciosamente.
 
-## Consumidores entregues na Fase 014
-
-| Consumidor | Comportamento efetivo |
-| --- | --- |
-| parser/derivação | preserva raw e usa série canônica derivada por intervalo |
-| lista, detalhe e calendário | usam distância, métricas e acumulado canônicos; ausência permanece ausente |
-| workflow `WATCH_D3_D4` | `TREADMILL` elegível pode avançar sem calibração histórica |
-| Health Connect | usa projeções filhas granulares, sem distância original ou calibrada como fallback |
-| fila Health Connect | mantém uma operação independente por filho, com retry e reconciliação |
-
-# Health Connect entregue na Fase 014
-
-A projeção efetiva de `WATCH_D3_D4` contém:
+A projeção vigente pode conter:
 
 ```text
-EXERCISE_SESSION / singleton
-DISTANCE / interval-000..N
-SPEED / series
-HEART_RATE / series
-TOTAL_CALORIES_BURNED / singleton
+EXERCISE_SESSION
+DISTANCE
+SPEED
+HEART_RATE
+STEPS
+STEPS_CADENCE
+TOTAL_CALORIES_BURNED
 ```
 
-Cada filho possui operação própria, identidade estável, payload congelado e retry
-independente. `SpeedRecord` usa amostra no ponto médio do intervalo.
+conforme elegibilidade e contratos das specs anteriores.
 
-Agregado legado e filhos de distância não podem coexistir após reconciliação.
+## Runtime atual após 032-07
 
-# D8 e A8 relacionados
+Novas importações usam o layout `d4-v4`, com fatos nativos persistidos e
+derivação `watch-d3-d4-v4` quando a série é elegível. A distância nativa é fonte
+primária para RUNNING/WALKING; calibração externa corrige a série
+proporcionalmente. Quando a distância nativa não é elegível, fallback por
+comprimento de passo permanece explícito. `CYCLING` mantém sua política própria.
 
-| Comando | Evidência atual | Relação com D3/D4 |
-| --- | --- | --- |
-| D8 | não localizado em fluxo funcional auditado | desconhecida |
-| A8 | constante relacionada a esporte atual em referências históricas | não substitui nem complementa D3/D4 sem evidência adicional |
+Review-before-sync continua obrigatório. Projeções Health Connect usam payloads
+congelados, provenance, IDs estáveis, versões monotônicas e retry explícito;
+importação, review, calibração e reprocessamento não executam efeito remoto.
 
-# Lacunas abertas
+# Versionamento
 
-- significado dos 16 bits inferiores do movimento;
-- unidades/semântica de distância e calorias temporais;
-- significado de `sportCountRaw` e `pauseRaw`;
-- variações de firmware e layouts;
-- relação CRC D3/D4 em todos os casos;
-- política final de plausibilidade do último bucket;
-- cobertura temporal da última amostra BPM;
+## `d4-v1`
+
+Legado que persistiu leitura empacotada antiga. Continua identificável e não
+recebe interpretação v4 automática.
+
+## `d4-v2`
+
+Legado que passou a preservar `rawMotionValue` e derivar passos por
+`rawMotionValue ushr 16`.
+
+## `d4-v3`
+
+Runtime vigente antes da Spec 032. Corrige duração oficial e usa timeline
+normalizada `T/N`, mas ainda mantém a interpretação histórica dos offsets dos
+samples.
+
+## `d4-v4`
+
+Contrato congelado na `032-01`:
+
+- D3 preserva slot físico;
+- header reconstruído em 42 bytes;
+- passos `u16` em `9..10`;
+- `sportValue u16` em `7..8`;
+- calorias raw `u16` em `11..12`;
+- distância em metros `u16` em `13..14`;
+- pausa raw em `15`;
+- agregados completos do header;
+- timeline efetiva permanece `T/N`.
+
+`parserVersion = d4-v4` é publicado para novas importações após `032-07`, quando
+parser, schema e derivação estão coerentes no mesmo runtime. Histórico legacy não
+é reinterpretado automaticamente.
+
+# Lacunas ainda abertas
+
+- semântica operacional de `pauseStateRaw` com valores não zero;
+- significado/unidade fisiológica de `sportValue`;
+- significado de `header[0]`, `header[39..41]` e sample `bytes[16..19]`;
+- variações de firmware e eventual seleção entre layout fixo e GPS-rich;
+- política exata para reprocessamento de históricos com/sem payload preservado;
+- tolerâncias finais de validade/plausibilidade em divergências físicas futuras;
+- cobertura física de treino com sample de passos acima de 255;
 - retenção final de payload diagnóstico.
 
-Nenhuma dessas lacunas autoriza adivinhação, redistribuição ou fallback para a
-distância original.
+Lacunas já **não** abertas para o layout fixo observado:
+
+- offsets de passos por sample;
+- unidade de distância por sample/header;
+- escala de calorias;
+- largura de `recordCount`;
+- largura dos totais do header;
+- localização do CRC e `sportTypeRaw` no header;
+- regra de índice físico D3;
+- independência entre duração oficial e quantidade de samples.
+
+## Validação física final da Spec 032 — 2026-09-11
+
+A validação manual do Champion C001 foi concluída com conferência em dumps
+sanitizados do banco. Foram considerados válidos os cenários de slot físico D3,
+variação de intensidade, fechamento diagnóstico de header e série, timeline
+`T/N`, distância nativa, calibração manual, perfis RUNNING/WALKING, fallback,
+review-before-sync, Health Connect, Daily Summary, cadência e `CYCLING`.
+
+Payload BLE integral, identificadores pessoais e dump completo não foram
+versionados. Permanecem abertas a semântica operacional de `pauseStateRaw` não
+zero, a unidade funcional de `sportValue`, campos reservados ou desconhecidos,
+política de reprocessamento de históricos, tolerâncias para divergências futuras,
+cobertura de samples acima de 255 passos, retenção de payload diagnóstico e
+variações de firmware/layout não observadas. A referência externa manual
+permanece sujeita a erro e serve somente como referência de calibração.
+
+Evidência detalhada: `docs/integration/032-08-physical-validation.md`.
 
 ## Referências
 
-- `docs/integration/014-01-d4-layout-and-consumer-audit.md`
+- `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`
+- `docs/specs/032-d4-native-workout-metrics.md`
+- `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
+- `docs/decisions/adr-019-authoritative-workout-duration-and-normalized-d4-timeline.md`
 - `docs/decisions/adr-018-canonical-workout-time-series-and-health-projection.md`
-- `docs/specs/014-watch-workout-derived-metrics.md`
+- `docs/specs/021-d4-timeline-normalization-and-calendar-integrity.md`
+- `docs/specs/023-personal-metrics-calibration.md`
+- `docs/specs/027-workout-steps-cadence-1hz-timeline.md`
 - `docs/protocol/ble-transport.md`
 - `docs/protocol/ble-command-mapping.md`

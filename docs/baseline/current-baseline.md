@@ -96,7 +96,7 @@ não há crédito por entregas não realizadas. Specs corretivas independentes
 continuam possíveis sem reabrir fases. Código legado, migrations, schemas,
 dados e evidências permanecem preservados; limpeza exige task explícita.
 
-### Fase 16 concluída
+### Fase 16 concluída — baseline anterior à Spec 032
 
 - A Spec 023 adicionou altura/meta editáveis, histórico local de peso, calibração
   por distância externa e perfis aprendidos independentes para corrida e
@@ -113,6 +113,37 @@ dados e evidências permanecem preservados; limpeza exige task explícita.
   fail-closed. Evidência física: `docs/integration/023-07-phase-16-physical-validation.md`.
 - Validação de migration usou fixture v12 reconstruída por ausência de arquivo
   histórico v12 original; limitação permanece registrada na evidência.
+
+### Estado atual após 032-08
+
+- Novas importações D3/D4 usam `parserVersion = d4-v4`; `d4-v1`, `d4-v2` e
+  `d4-v3` permanecem históricos identificáveis e reprocessáveis somente por ação
+  explícita.
+- Room está na versão `17`, com `MIGRATION_15_16` para fatos nativos D4 e
+  `MIGRATION_16_17` para evidências de calibração contextual. Migrations não criam
+  snapshots, alteram workflow ou executam efeitos Health Connect.
+- Derivação efetiva nativa usa `watch-d3-d4-v4` para séries D4 v4 elegíveis,
+  podendo materializar `WATCH_NATIVE` antes da revisão sem inferir tipo; após
+  confirmação, RUNNING/WALKING aplicam `WATCH_NATIVE` ou
+  `WATCH_NATIVE_CONTEXT_CALIBRATED`, enquanto fallback por comprimento de passo
+  permanece explícito para séries inelegíveis e políticas não nativas.
+- Review-before-sync, Health Connect write-only/local-first, projeções congeladas,
+  crédito de passos da Spec 027 e histórico de BPM `WATCH_WORKOUT_ACTIVITY` foram
+  preservados. Calibração e reprocessamento permanecem locais e explícitos.
+- A baseline visual pós-031 permanece vigente em Exercícios; UI não expõe offsets,
+  packing raw ou semântica não confirmada de `sportValue`/pausa.
+- A Spec 032 foi concluída após validação manual no Champion C001 e conferência
+  por dumps sanitizados do banco. Header/série, timeline `T/N`, distância nativa,
+  calibração contextual, fallback, review-before-sync, Health Connect, Daily
+  Summary, cadência e `CYCLING` foram validados sem regressão. Evidência:
+  `docs/integration/032-08-physical-validation.md`.
+- Permanecem como riscos técnicos semântica de `pauseStateRaw` não zero,
+  unidade funcional de `sportValue`, campos reservados ou desconhecidos,
+  política de reprocessamento de históricos, tolerâncias para divergências
+  futuras, cobertura de samples acima de 255 passos, retenção de payload
+  diagnóstico e variações de firmware/layout não observadas. A referência
+  externa manual permanece sujeita a erro e serve somente como referência de
+  calibração. A Spec 032 não promove essas lacunas.
 
 O Champion Companion é um aplicativo pessoal, sem objetivo de distribuição pública, beta formal, matriz multi-device ou gate de lançamento comercial. Validação física, testes e builds continuam sendo usados quando uma task específica exigir evidência.
 
@@ -180,7 +211,7 @@ Backlog local herdado mapeado no início da Fase 12 passou a ser processado pela
 
 - atividades `READY_TO_SYNC` continuam dependentes de ação explícita do usuário para sincronização.
 
-`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v13`; as migrations efetivas da Fase 014, da Spec/Task `021`, da Spec/Task `022` e da Spec 023 são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas), `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), `MIGRATION_11_12` (schema 12, distância manual de bicicleta) e `MIGRATION_12_13` (schema 13, calibrações de comprimento do passo), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
+`SettingsScreen` deixou de ser placeholder. `AppPreferences.healthSyncEnabled` participa do fluxo funcional da integração. `ChampionDatabase` está em `v17`; as migrations efetivas da Fase 014, da Spec/Task `021`, da Spec/Task `022`, da Spec 023 e da Spec 032 são `MIGRATION_8_9` (Room v9, métricas locais), `MIGRATION_9_10` (schema 10, projeções filhas), `MIGRATION_10_11` (schema 11, índice de origem de amostras D4), `MIGRATION_11_12` (schema 12, distância manual de bicicleta), `MIGRATION_12_13` (schema 13, calibrações de comprimento do passo), `MIGRATION_15_16` (schema 16, fatos nativos D4 e header) e `MIGRATION_16_17` (schema 17, evidências de calibração contextual), todas aditivas e sem efeitos remotos durante upgrade. Distância e calorias continuam dependentes de dados pessoais suficientes; quando indisponíveis, Home, Saúde e Exercícios preservam ausência segura sem inventar valores.
 
 ## Registro factual final da Fase 014
 

@@ -133,6 +133,38 @@ interface StepLengthCalibrationDao {
 }
 
 @Dao
+interface DistanceCalibrationEvidenceDao {
+    @Query(
+        "SELECT * FROM distance_calibration_evidence " +
+            "WHERE profileId = :profileId AND workoutType = :workoutType AND isActive = 1 " +
+            "AND referenceDistanceMeters > 0 AND watchDistanceMeters > 0 " +
+            "ORDER BY updatedAtEpochMillis DESC, id DESC",
+    )
+    fun observeActiveByProfileAndWorkoutType(
+        profileId: String,
+        workoutType: String,
+    ): Flow<List<DistanceCalibrationEvidenceEntity>>
+
+    @Query("SELECT * FROM distance_calibration_evidence WHERE activityId = :activityId LIMIT 1")
+    suspend fun findByActivityId(activityId: String): DistanceCalibrationEvidenceEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(evidence: DistanceCalibrationEvidenceEntity)
+
+    @Update
+    suspend fun update(evidence: DistanceCalibrationEvidenceEntity): Int
+
+    @Query(
+        "UPDATE distance_calibration_evidence SET isActive = 0, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE activityId = :activityId AND isActive = 1",
+    )
+    suspend fun deactivateByActivityId(activityId: String, updatedAtEpochMillis: Long): Int
+
+    @Query("DELETE FROM distance_calibration_evidence WHERE activityId = :activityId")
+    suspend fun deleteByActivityId(activityId: String): Int
+}
+
+@Dao
 interface DailySummaryDao {
     @Query("SELECT * FROM daily_summaries ORDER BY id")
     fun observeAll(): Flow<List<DailySummaryEntity>>
@@ -515,6 +547,24 @@ interface WatchWorkoutImportDao {
     suspend fun update(importRecord: WatchWorkoutImportEntity): Int
 
     @Query("DELETE FROM watch_workout_imports WHERE activityId = :activityId")
+    suspend fun deleteByActivityId(activityId: String): Int
+}
+
+@Dao
+interface WatchWorkoutD4V4HeaderDao {
+    @Query("SELECT * FROM watch_workout_d4_v4_headers ORDER BY activityId")
+    fun observeAll(): Flow<List<WatchWorkoutD4V4HeaderEntity>>
+
+    @Query("SELECT * FROM watch_workout_d4_v4_headers WHERE activityId = :activityId LIMIT 1")
+    suspend fun findByActivityId(activityId: String): WatchWorkoutD4V4HeaderEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(header: WatchWorkoutD4V4HeaderEntity)
+
+    @Update
+    suspend fun update(header: WatchWorkoutD4V4HeaderEntity): Int
+
+    @Query("DELETE FROM watch_workout_d4_v4_headers WHERE activityId = :activityId")
     suspend fun deleteByActivityId(activityId: String): Int
 }
 

@@ -14,6 +14,7 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetada
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgress
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import java.time.Instant
 
 interface ExercisesFeatureContract : UiStateStore<ExercisesUiState> {
@@ -138,6 +139,10 @@ data class ExerciseCalibrationFormState(
     val observedStepLengthMeters: Double? = null,
     val currentProfileStepLengthMeters: Double? = null,
     val futureProfileStepLengthMeters: Double? = null,
+    /** Contratos de calibração nativa; UI final será integrada depois. */
+    val nativeWatchDistanceMeters: Double? = null,
+    val nativeDistanceCalibrationFactor: Double? = null,
+    val nativeDistanceDerivationMethod: WorkoutDerivationMethod? = null,
     val isSaving: Boolean = false,
     val completedAt: Instant? = null,
     val validationError: ExerciseOperationError? = null,
@@ -188,6 +193,7 @@ sealed interface ExercisesIntent {
     data object SubmitReview : ExercisesIntent
     data class EditCalibrationDistance(val distance: String) : ExercisesIntent
     data object SubmitCalibration : ExercisesIntent
+    data object RemoveDistanceCalibrationEvidence : ExercisesIntent
     data object ReprocessSelectedActivity : ExercisesIntent
     data object AcceptSelectedPlausibility : ExercisesIntent
     data object SyncSelectedActivity : ExercisesIntent

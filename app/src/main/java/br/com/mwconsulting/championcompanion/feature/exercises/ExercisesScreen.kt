@@ -91,6 +91,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import androidx.lifecycle.ViewModelProvider
@@ -132,6 +133,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
@@ -2176,6 +2178,11 @@ private fun WorkoutActivity.referenceDetailMetricItems(): List<DetailMetricItem>
     distanceMeters?.let {
         add(DetailMetricItem("Distância", distanceMeters.toDistanceLabel()))
     }
+    if (isWatchWorkout && canonical != null) {
+        derivationSnapshot?.derivationMethod?.let { method ->
+            add(DetailMetricItem("Fonte da distância", method.toDistanceProvenanceLabel()))
+        }
+    }
     val measuredSteps = if (isWatchWorkout) {
         canonical?.cumulativeSteps
     } else {
@@ -2237,10 +2244,14 @@ private fun ActivityDetailMetricRow(item: DetailMetricItem) {
         )
         Text(
             text = item.value,
-            modifier = Modifier.padding(start = ChampionSpacing.medium),
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = ChampionSpacing.medium),
             textAlign = TextAlign.End,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -3387,7 +3398,7 @@ private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
         ) &&
         parserValidity == ParserValidity.VALID &&
         derivationSnapshot?.canonicalSeriesEligible == true &&
-        intervals.any { it.decodedSteps != null && it.decodedSteps > 0L }
+        intervals.any { (it.decodedSteps ?: it.nativeSteps)?.let { steps -> steps > 0L } == true }
 
 private fun WorkoutActivity.hasReviewCalibrationForm(
     referenceDistanceCalibrationAllowed: Boolean,
@@ -3423,6 +3434,19 @@ private fun ReferenceDistanceCalibrationSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             MetricCard("Distância atual estimada", activity.canonicalDistanceMeters.toDistanceLabel(), exercisePrimaryAccent())
+            formState.nativeWatchDistanceMeters?.let { nativeDistance ->
+                MetricCard("Distância nativa do relógio", nativeDistance.toDistanceLabel(), exerciseTertiaryAccent())
+            }
+            formState.nativeDistanceCalibrationFactor?.let { factor ->
+                MetricCard("Fator aplicado", factor.toCalibrationFactorLabel(), exercisePrimaryAccent())
+            }
+            formState.nativeDistanceDerivationMethod?.let { method ->
+                Text(
+                    "Fonte atual: ${method.toDistanceProvenanceLabel()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             MetricCard("Distância após calibração", formState.previewDistanceMeters.toDistanceLabel(), exerciseSecondaryAccent())
             MetricCard("Ritmo após calibração", formState.previewAveragePaceSecondsPerKilometer.toPaceLabel(), exerciseTertiaryAccent())
             MetricCard("Velocidade após calibração", formState.previewAverageSpeedMetersPerSecond.toSpeedLabel(), exercisePrimaryAccent())
@@ -3667,8 +3691,16 @@ private fun WorkoutActivity.canonicalStatusMessage(): String = when (canonicalRe
         "A série canônica está visível para diagnóstico, mas contém valores implausíveis e não deve ser tratada como confiável."
     WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ->
         "A série canônica está disponível; splits de 1 km ainda não foram materializados no read model persistido."
-    WorkoutCanonicalReadStatus.AVAILABLE ->
-        "Distância, ritmo, velocidade e acumulado usam a série canônica persistida."
+    WorkoutCanonicalReadStatus.AVAILABLE -> when (derivationSnapshot?.derivationMethod) {
+        WorkoutDerivationMethod.WATCH_NATIVE ->
+            "Distância, ritmo e velocidade usam a série nativa do relógio."
+        WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED ->
+            "Distância, ritmo e velocidade usam a série nativa corrigida por referência externa."
+        WorkoutDerivationMethod.STEP_LENGTH_FALLBACK,
+        WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
+        null,
+        -> "Distância, ritmo, velocidade e acumulado usam a série canônica persistida."
+    }
 }
 
 private fun ExerciseOperationErrorCategory.toFeedbackTitle(): String = when (this) {
@@ -3698,6 +3730,13 @@ private fun StepLengthSource.toLabel(): String = when (this) {
     StepLengthSource.HEIGHT_SUGGESTION_ACCEPTED -> "sugestão aceita pela altura"
     StepLengthSource.REFERENCE_DISTANCE_CALIBRATION -> "calibração de distância"
     StepLengthSource.CONTEXTUAL_LEARNED_PROFILE -> "perfil contextual aprendido"
+}
+
+private fun WorkoutDerivationMethod.toDistanceProvenanceLabel(): String = when (this) {
+    WorkoutDerivationMethod.WATCH_NATIVE -> "distância nativa do relógio"
+    WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED -> "distância nativa calibrada por referência"
+    WorkoutDerivationMethod.STEP_LENGTH_FALLBACK -> "fallback por comprimento do passo"
+    WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH -> "comprimento pessoal do passo"
 }
 
 private fun WorkoutPlausibilityIndicator.toLabel(): String = when (this) {
@@ -3769,6 +3808,9 @@ private fun Double?.toDistanceLabel(): String =
 
 private fun Double?.toStepLengthLabel(): String =
     if (this == null) "indisponível" else String.format(Locale.forLanguageTag("pt-BR"), "%.3f m", this)
+
+private fun Double.toCalibrationFactorLabel(): String =
+    if (!isFinite() || this <= 0.0) "indisponível" else String.format(Locale.forLanguageTag("pt-BR"), "%.3f×", this)
 
 private fun Double?.toPaceLabel(): String {
     val seconds = this ?: return "indisponível"

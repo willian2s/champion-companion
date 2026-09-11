@@ -31,6 +31,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionCo
 import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V4_PARSER_VERSION
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -609,6 +610,13 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             )
         }
         val snapshot = activity.derivationSnapshot
+        val isV4WatchWorkout = activity.watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION
+        if (isV4WatchWorkout && activity.confirmedType != WorkoutType.CYCLING && snapshot == null) {
+            return PreparedActivityOperations.Failed(
+                error = SafeSyncError.INVALID_LOCAL_DATA,
+                reason = "Atividade v4 do relógio sem snapshot de derivação materializado.",
+            )
+        }
         val usesCanonicalWorkoutProjection = activity.confirmedType != WorkoutType.CYCLING
         if (usesCanonicalWorkoutProjection && snapshot?.requiresExplicitPlausibilityAcceptance == true) {
             return PreparedActivityOperations.PlausibilityAcceptanceRequired

@@ -13,11 +13,14 @@ internal const val WATCH_WORKOUT_D4_V1_PARSER_VERSION = "d4-v1"
 internal const val WATCH_WORKOUT_D4_V2_PARSER_VERSION = "d4-v2"
 /** Parser completo com duração oficial e timeline normalizada. */
 internal const val WATCH_WORKOUT_D4_V3_PARSER_VERSION = "d4-v3"
+/** Contrato interno selecionado para novas importações desde 032-07. */
+internal const val WATCH_WORKOUT_D4_V4_PARSER_VERSION = "d4-v4"
 
 internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
     parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION ||
         parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
-        parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
+        parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION ||
+        parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION
 
 enum class WorkoutType {
     WALKING,
@@ -92,6 +95,12 @@ data class WorkoutInterval(
     val rawCaloriesValue: Long? = null,
     /** Passos medidos após decodificação explícita da versão do parser. */
     val decodedSteps: Long? = null,
+    /** Fatos nativos D4 v4; não reutilizam campos raw legacy. */
+    val nativeSportValue: Long? = null,
+    val nativeSteps: Long? = null,
+    val nativeDistanceMeters: Double? = null,
+    val nativeCaloriesRaw: Long? = null,
+    val nativePauseStateRaw: Long? = null,
 )
 
 data class WorkoutHeartRateSample(
@@ -112,6 +121,8 @@ data class WatchWorkoutParserInput(
     val metrics: WorkoutMetrics,
     val intervals: List<WorkoutInterval>,
     val heartRateSamples: List<WorkoutHeartRateSample>,
+    /** Fatos semanticamente nomeados do parser v4; ausente para v1/v2/v3. */
+    val d4V4Block: WatchWorkoutD4V4Block? = null,
 )
 
 /**
@@ -125,6 +136,8 @@ data class WatchWorkoutActivityImportContext(
     val parserValidity: ParserValidity,
     val diagnosticPayloadId: DiagnosticPayloadId?,
     val importedAt: Instant,
+    /** Header v4 reidratado; versões legacy não possuem este fato. */
+    val d4V4Header: WatchWorkoutD4V4Header? = null,
 ) {
     companion object {
         fun from(input: WatchWorkoutParserInput, importedAt: Instant): DomainResult<WatchWorkoutActivityImportContext> =
@@ -141,6 +154,7 @@ data class WatchWorkoutActivityImportContext(
                     parserValidity = input.parserValidity,
                     diagnosticPayloadId = input.diagnosticPayloadId,
                     importedAt = importedAt,
+                    d4V4Header = input.d4V4Block?.header,
                 ))
             }
 
@@ -158,6 +172,9 @@ data class WatchWorkoutImport private constructor(
     val parserValidity: ParserValidity,
     val diagnosticPayloadId: DiagnosticPayloadId?,
     val importedAt: Instant,
+    /** Fatos estruturais v4 carregados junto da importação; nulo para v1/v2/v3. */
+    val d4V4Block: WatchWorkoutD4V4Block?,
+    val d4V4Header: WatchWorkoutD4V4Header? = null,
 ) {
     val activityContext: WatchWorkoutActivityImportContext
         get() = WatchWorkoutActivityImportContext(
@@ -167,6 +184,7 @@ data class WatchWorkoutImport private constructor(
             parserValidity = parserValidity,
             diagnosticPayloadId = diagnosticPayloadId,
             importedAt = importedAt,
+            d4V4Header = d4V4Header ?: d4V4Block?.header,
         )
 
     companion object {
@@ -176,7 +194,9 @@ data class WatchWorkoutImport private constructor(
             input: WatchWorkoutParserInput,
             importedAt: Instant,
         ): DomainResult<WatchWorkoutImport> = when (val context = WatchWorkoutActivityImportContext.from(input, importedAt)) {
-            is DomainResult.Success -> DomainResult.Success(fromContext(id, activityId, context.value))
+            is DomainResult.Success -> DomainResult.Success(
+                fromContext(id, activityId, context.value, d4V4Block = input.d4V4Block),
+            )
             is DomainResult.Failure -> context
         }
 
@@ -187,7 +207,8 @@ data class WatchWorkoutImport private constructor(
         ): DomainResult<WatchWorkoutImport> =
             if (context.key.origin == DataOrigin.WATCH_D3_D4 && context.key.crc in 1..0xffff &&
                 context.externalBlockIndex >= 0 &&
-                isSupportedWatchWorkoutD4ParserVersion(context.parserVersion)
+                isSupportedWatchWorkoutD4ParserVersion(context.parserVersion) &&
+                (context.parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION || context.d4V4Header != null)
             ) {
                 DomainResult.Success(fromContext(id, activityId, context))
             } else {
@@ -198,6 +219,7 @@ data class WatchWorkoutImport private constructor(
             id: WatchWorkoutImportId,
             activityId: WorkoutActivityId,
             context: WatchWorkoutActivityImportContext,
+            d4V4Block: WatchWorkoutD4V4Block? = null,
         ) = WatchWorkoutImport(
             id = id,
             activityId = activityId,
@@ -207,6 +229,8 @@ data class WatchWorkoutImport private constructor(
             parserValidity = context.parserValidity,
             diagnosticPayloadId = context.diagnosticPayloadId,
             importedAt = context.importedAt,
+            d4V4Block = d4V4Block,
+            d4V4Header = context.d4V4Header ?: d4V4Block?.header,
         )
     }
 }
@@ -263,6 +287,7 @@ data class WorkoutActivity private constructor(
     internal val importedAt: Instant get() = legacyImportContext().importedAt
     internal val parserVersion: ParserVersion get() = legacyImportContext().parserVersion
     val diagnosticPayloadId: DiagnosticPayloadId? get() = watchImportContext?.diagnosticPayloadId
+    val d4V4Header: WatchWorkoutD4V4Header? get() = watchImportContext?.d4V4Header
     val canonicalDistanceMeters: Double?
         get() = derivationSnapshot?.canonicalDistanceMeters
     val canonicalSeries: CanonicalWorkoutSeries?
@@ -286,10 +311,31 @@ data class WorkoutActivity private constructor(
                 derivationSnapshot.derivationVersion !in setOf(
                     WATCH_WORKOUT_DERIVATION_VERSION,
                     WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+                    WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
                 ) ||
                 canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ||
                 confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
-                    derivationSnapshot.derivationVersion != WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION
+                    derivationSnapshot.derivationVersion !in setOf(
+                        WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+                        WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
+                    )
+                || confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+                    watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
+                    derivationSnapshot.derivationMethod !in setOf(
+                        WorkoutDerivationMethod.WATCH_NATIVE,
+                        WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
+                    )
+                || confirmedType !in setOf(
+                    WorkoutType.UNKNOWN,
+                    WorkoutType.RUNNING,
+                    WorkoutType.WALKING,
+                    WorkoutType.CYCLING,
+                ) &&
+                    watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
+                    derivationSnapshot.derivationMethod in setOf(
+                        WorkoutDerivationMethod.WATCH_NATIVE,
+                        WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
+                    )
             )
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {
@@ -745,7 +791,9 @@ data class WorkoutActivity private constructor(
 
         private fun WorkoutActivity.hasValidProvenance(): Boolean = when (activityOrigin) {
             WorkoutActivityOrigin.WATCH_D3_D4 -> appWorkoutSessionId == null && associatedDeviceId != null &&
-                watchImportContext != null && watchImportContext.key.deviceId == associatedDeviceId
+                watchImportContext != null && watchImportContext.key.deviceId == associatedDeviceId &&
+                (watchImportContext.parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION ||
+                    watchImportContext.d4V4Header != null)
             WorkoutActivityOrigin.PHONE_GPS -> appWorkoutSessionId != null && hasValidOptionalWatchContext() &&
                 suggestedType in setOf(WorkoutType.WALKING, WorkoutType.RUNNING)
             WorkoutActivityOrigin.PHONE_TREADMILL -> appWorkoutSessionId != null && hasValidOptionalWatchContext() &&
@@ -766,6 +814,7 @@ data class WorkoutActivity private constructor(
         private fun isValidInput(input: WatchWorkoutParserInput): Boolean =
             input.crc in 1..0xffff && input.externalBlockIndex >= 0 &&
                 input.metrics.duration >= Duration.ZERO && input.metrics.steps >= 0 &&
+                (input.parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION || input.d4V4Block != null) &&
                 areValid(input.metrics) && areValidIntervals(input.intervals, input.parserVersion) &&
                 areValidHeartRateSamples(input.heartRateSamples) && areValidTemporalOrder(input.heartRateSamples)
 
@@ -811,6 +860,7 @@ data class WorkoutActivity private constructor(
             val isD4V1 = parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION
             val isD4V2OrV3 = parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
                 parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
+            val isD4V4 = parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION
             val rawMotionValid = interval.rawMotionValue == null ||
                 interval.rawMotionValue in 0L..MeasuredWorkoutInterval.MAX_RAW_MOTION_VALUE
             val rawDistanceValid = interval.rawDistanceValue == null || interval.rawDistanceValue in 0L..0xFF_FFFFL
@@ -821,13 +871,28 @@ data class WorkoutActivity private constructor(
                     interval.decodedSteps == (interval.rawMotionValue ushr 16) &&
                     interval.steps == interval.decodedSteps
                 )
+            val nativeValuesValid = !isD4V4 || (
+                interval.rawMotionValue == null && interval.rawDistanceValue == null &&
+                    interval.rawCaloriesValue == null && interval.decodedSteps == null &&
+                    interval.nativeSportValue?.let { it in 0L..0xFFFFL } == true &&
+                    interval.nativeSteps?.let { it in 0L..0xFFFFL && it == interval.steps } == true &&
+                    interval.nativeDistanceMeters?.let {
+                        it.isFinite() &&
+                            it in 0.0..0xFFFF.toDouble() &&
+                            it == it.toLong().toDouble()
+                    } == true &&
+                    interval.nativeCaloriesRaw?.let { it in 0L..0xFFFFL } == true &&
+                    interval.nativePauseStateRaw?.let { it in 0L..0xFFL } == true
+                )
             val versionedRawValid = when {
                 isD4V2OrV3 -> interval.rawMotionValue != null && interval.rawDistanceValue != null &&
                     interval.rawCaloriesValue != null && interval.decodedSteps != null
-                isD4V1 -> interval.rawMotionValue != null && interval.decodedSteps == null
+                isD4V1 -> interval.rawMotionValue != null &&
+                    (interval.decodedSteps == null || interval.decodedSteps == (interval.rawMotionValue ushr 16))
                 else -> true
             }
-            return rawMotionValid && rawDistanceValid && rawCaloriesValid && decodedStepsValid && versionedRawValid
+            return rawMotionValid && rawDistanceValid && rawCaloriesValid && decodedStepsValid &&
+                nativeValuesValid && versionedRawValid
         }
 
         private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean {

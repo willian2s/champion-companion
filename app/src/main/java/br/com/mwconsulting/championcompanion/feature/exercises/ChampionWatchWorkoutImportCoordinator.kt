@@ -37,7 +37,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportId
-import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V3_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V4_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
 import java.io.ByteArrayOutputStream
@@ -68,7 +68,7 @@ class ChampionWatchWorkoutImportCoordinator(
     private val workoutActivityRepository: WorkoutActivityRepository,
     @BleDispatcher bleDispatcher: CoroutineDispatcher,
     private val ids: UuidV7Generator = UuidV7Generator(),
-    private val parserVersion: ParserVersion = ParserVersion.create(WATCH_WORKOUT_D4_V3_PARSER_VERSION).valueOrNull()!!,
+    private val parserVersion: ParserVersion = ParserVersion.create(WATCH_WORKOUT_D4_V4_PARSER_VERSION).valueOrNull()!!,
     private val d3Timeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d3WorkoutIndex,
     private val d4Timeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d4WorkoutBlock,
     private val civilNow: () -> Instant = Instant::now,
