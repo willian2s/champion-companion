@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `2/8`
+- **Progresso:** `3/8`
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -111,7 +111,7 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 
 - [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e revalidado sobre a baseline pós-031
 - [x] `032-02-implementar-parser-d3-d4-v4.md` — parser v4 e índice D3 físico implementados; runtime efetivo permanece d4-v3
-- [ ] `032-03-persistir-fatos-nativos-e-provenance.md`
+- [x] `032-03-persistir-fatos-nativos-e-provenance.md` — Room v16, fatos nativos, header D4 v4, provenance e migration aditiva implementados
 - [ ] `032-04-integrar-dominio-adapters-e-reprocessamento.md`
 - [ ] `032-05-derivar-distancia-nativa-e-metricas.md`
 - [ ] `032-06-implementar-calibracao-de-distancia-contextual.md`
@@ -124,6 +124,11 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 testes focados existentes continuam incompatíveis com fixtures legacy e com a
 correção deliberada de slots físicos D3; nenhum teste foi alterado. Validação
 física e integração de persistência/derivação permanecem nas subtarefas seguintes.
+
+032-03 concluída com `MIGRATION_15_16`, schema exportado v16, campos nativos por
+intervalo, header D4 v4 persistido e mappers compatíveis com legacy. Build, lint e
+`git diff --check` passaram; revisão independente foi aprovada. Header ainda não é
+reidratado no domínio após reload, responsabilidade planejada para 032-04.
 
 ## Resultado da 032-01
 

@@ -712,8 +712,21 @@ class RoomRepositories @Inject constructor(
                 database.watchWorkoutImportDao().update(plan.persistedImport)
             }
             val persistedId = plan.persistedActivity.id
+            val existingD4V4Header = database.watchWorkoutD4V4HeaderDao()
+                .findByActivityId(persistedId)
+            val incomingD4V4Header = importRecord.d4V4Block?.let {
+                importRecord.toD4V4HeaderEntity(
+                    id = ids.next().toString(),
+                    activityId = persistedId,
+                    importId = plan.persistedImport.id,
+                )
+            }
             val incomingIntervals = activity
-                .toIntervals(persistedId, generateIds(activity.intervals.size))
+                .toIntervals(
+                    activityId = persistedId,
+                    ids = generateIds(activity.intervals.size),
+                    d4V4Block = importRecord.d4V4Block,
+                )
                 .markPersistedSourceOrder(activity)
             val incomingHeartRateSamples = activity.toHeartRateSamples(
                 persistedId,
@@ -755,6 +768,16 @@ class RoomRepositories @Inject constructor(
             if (!preserveActiveDerivation) {
                 database.workoutDetailDao().deleteIntervalsForActivity(persistedId)
                 database.workoutDetailDao().insertIntervals(incomingIntervals)
+            }
+            if (incomingD4V4Header != null) {
+                val persistedHeader = incomingD4V4Header.copy(id = existingD4V4Header?.id ?: incomingD4V4Header.id)
+                if (existingD4V4Header == null) {
+                    database.watchWorkoutD4V4HeaderDao().insert(persistedHeader)
+                } else if (database.watchWorkoutD4V4HeaderDao().update(persistedHeader) != 1) {
+                    throw WatchWorkoutDerivationPreflightException()
+                }
+            } else if (existingD4V4Header != null) {
+                database.watchWorkoutD4V4HeaderDao().deleteByActivityId(persistedId)
             }
             database.workoutDetailDao().deleteHeartRateSamplesForActivity(persistedId)
             database.workoutDetailDao().insertHeartRateSamples(incomingHeartRateSamples)
@@ -3887,6 +3910,11 @@ class RoomRepositories @Inject constructor(
                 existing.rawDistanceValue == incoming.rawDistanceValue &&
                 existing.rawCaloriesValue == incoming.rawCaloriesValue &&
                 existing.decodedSteps == incoming.decodedSteps &&
+                existing.nativeSportValue == incoming.nativeSportValue &&
+                existing.nativeSteps == incoming.nativeSteps &&
+                existing.nativeDistanceMeters == incoming.nativeDistanceMeters &&
+                existing.nativeCaloriesRaw == incoming.nativeCaloriesRaw &&
+                existing.nativePauseStateRaw == incoming.nativePauseStateRaw &&
                 existing.temporalEligibilityReason == incoming.temporalEligibilityReason
         }) return false
         return existingHeartRateSamples.zip(incomingHeartRateSamples).all { (existing, incoming) ->

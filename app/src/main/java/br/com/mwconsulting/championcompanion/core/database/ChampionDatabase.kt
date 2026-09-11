@@ -364,6 +364,53 @@ data class WatchWorkoutImportEntity(
 )
 
 @Entity(
+    tableName = "watch_workout_d4_v4_headers",
+    foreignKeys = [
+        ForeignKey(
+            entity = WorkoutActivityEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["activityId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = WatchWorkoutImportEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["importId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["activityId"], unique = true),
+        Index(value = ["importId"], unique = true),
+    ],
+)
+data class WatchWorkoutD4V4HeaderEntity(
+    @PrimaryKey val id: String,
+    val activityId: String,
+    val importId: String,
+    val parserVersion: String,
+    val parserValidity: String,
+    val markerRaw: Int,
+    val startedAtEpochMillis: Long,
+    val endedAtEpochMillis: Long,
+    val reportedTotalSteps: Long,
+    val reportedTotalDistanceMeters: Long,
+    val reportedTotalCaloriesRaw: Long,
+    val reportedTotalSportValue: Long,
+    val reportedRecordCount: Int,
+    val reportedPauseCount: Int,
+    val reportedPauseTime: Int,
+    val reportedCrc: Int,
+    val reportedSportTypeRaw: Int,
+    val reservedRaw: ByteArray,
+    val recordCountMatches: Boolean,
+    val stepsMatch: Boolean,
+    val distanceMetersMatch: Boolean,
+    val caloriesRawMatch: Boolean,
+    val sportValueMatch: Boolean,
+)
+
+@Entity(
     tableName = "workout_intervals",
     foreignKeys = [ForeignKey(
         entity = WorkoutActivityEntity::class,
@@ -385,6 +432,12 @@ data class WorkoutIntervalEntity(
     val rawDistanceValue: Long? = null,
     val rawCaloriesValue: Long? = null,
     val decodedSteps: Long? = null,
+    /** Fatos nativos D4 v4; nunca reutilizar colunas raw legacy para estes valores. */
+    val nativeSportValue: Long? = null,
+    val nativeSteps: Long? = null,
+    val nativeDistanceMeters: Double? = null,
+    val nativeCaloriesRaw: Long? = null,
+    val nativePauseStateRaw: Long? = null,
     val effectiveDurationNanos: Long? = null,
     val temporalEligibilityReason: String? = null,
     val plausibilityStatus: String? = null,
@@ -794,6 +847,7 @@ class ChampionDatabaseConverters {
         DailyStepsCheckpointEntity::class,
         DailyStepsCreditReservationEntity::class,
         WatchWorkoutImportEntity::class,
+        WatchWorkoutD4V4HeaderEntity::class,
         WorkoutIntervalEntity::class,
         WorkoutDerivationSnapshotEntity::class,
         DerivedWorkoutIntervalEntity::class,
@@ -807,7 +861,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 15,
+    version = 16,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -831,6 +885,7 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun dailyStepsCheckpointDao(): DailyStepsCheckpointDao
     abstract fun dailyStepsCreditReservationDao(): DailyStepsCreditReservationDao
     abstract fun watchWorkoutImportDao(): WatchWorkoutImportDao
+    abstract fun watchWorkoutD4V4HeaderDao(): WatchWorkoutD4V4HeaderDao
     abstract fun workoutDetailDao(): WorkoutDetailDao
     abstract fun workoutDerivationDao(): WorkoutDerivationDao
     abstract fun treadmillCalibrationDao(): TreadmillCalibrationDao

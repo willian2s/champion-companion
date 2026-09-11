@@ -518,6 +518,21 @@ interface WatchWorkoutImportDao {
     suspend fun deleteByActivityId(activityId: String): Int
 }
 
+@Dao
+interface WatchWorkoutD4V4HeaderDao {
+    @Query("SELECT * FROM watch_workout_d4_v4_headers WHERE activityId = :activityId LIMIT 1")
+    suspend fun findByActivityId(activityId: String): WatchWorkoutD4V4HeaderEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(header: WatchWorkoutD4V4HeaderEntity)
+
+    @Update
+    suspend fun update(header: WatchWorkoutD4V4HeaderEntity): Int
+
+    @Query("DELETE FROM watch_workout_d4_v4_headers WHERE activityId = :activityId")
+    suspend fun deleteByActivityId(activityId: String): Int
+}
+
 data class WatchWorkoutImportLookupRecord(
     val importId: String,
     val activityId: String,

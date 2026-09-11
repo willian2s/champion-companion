@@ -630,6 +630,60 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
     }
 }
 
+/** Migration aditiva: prepara fatos nativos e header completo D4 v4. */
+val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN nativeSportValue INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN nativeSteps INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN nativeDistanceMeters REAL")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN nativeCaloriesRaw INTEGER")
+        connection.execute("ALTER TABLE workout_intervals ADD COLUMN nativePauseStateRaw INTEGER")
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS watch_workout_d4_v4_headers (
+                id TEXT NOT NULL,
+                activityId TEXT NOT NULL,
+                importId TEXT NOT NULL,
+                parserVersion TEXT NOT NULL,
+                parserValidity TEXT NOT NULL,
+                markerRaw INTEGER NOT NULL,
+                startedAtEpochMillis INTEGER NOT NULL,
+                endedAtEpochMillis INTEGER NOT NULL,
+                reportedTotalSteps INTEGER NOT NULL,
+                reportedTotalDistanceMeters INTEGER NOT NULL,
+                reportedTotalCaloriesRaw INTEGER NOT NULL,
+                reportedTotalSportValue INTEGER NOT NULL,
+                reportedRecordCount INTEGER NOT NULL,
+                reportedPauseCount INTEGER NOT NULL,
+                reportedPauseTime INTEGER NOT NULL,
+                reportedCrc INTEGER NOT NULL,
+                reportedSportTypeRaw INTEGER NOT NULL,
+                reservedRaw BLOB NOT NULL,
+                recordCountMatches INTEGER NOT NULL,
+                stepsMatch INTEGER NOT NULL,
+                distanceMetersMatch INTEGER NOT NULL,
+                caloriesRawMatch INTEGER NOT NULL,
+                sportValueMatch INTEGER NOT NULL,
+                PRIMARY KEY(id),
+                FOREIGN KEY(activityId) REFERENCES workout_activities(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(importId) REFERENCES watch_workout_imports(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_watch_workout_d4_v4_headers_activityId " +
+                "ON watch_workout_d4_v4_headers(activityId)",
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_watch_workout_d4_v4_headers_importId " +
+                "ON watch_workout_d4_v4_headers(importId)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

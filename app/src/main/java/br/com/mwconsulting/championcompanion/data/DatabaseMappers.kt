@@ -31,6 +31,7 @@ import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutSplitEntity
+import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutD4V4HeaderEntity
 import br.com.mwconsulting.championcompanion.core.model.AbsenceReason
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
@@ -111,9 +112,12 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Block
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Header
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V3_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V4_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_LEGACY_DERIVATION_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
@@ -575,7 +579,11 @@ internal fun WatchWorkoutImport.toEntity() = WatchWorkoutImportEntity(
     externalBlockIndex, parserVersion.value, parserValidity.name, diagnosticPayloadId?.value?.toString(), importedAt.toEpochMilli(),
 )
 
-internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>) = intervals.map {
+internal fun WorkoutActivity.toIntervals(
+    activityId: String,
+    ids: Iterator<UUID>,
+    d4V4Block: WatchWorkoutD4V4Block? = null,
+) = intervals.map {
     val parserVersion = watchImportContext?.parserVersion?.value
     val isWatchD4 = activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4
     val isD4V1 = isWatchD4 && parserVersion == WATCH_WORKOUT_D4_V1_PARSER_VERSION
@@ -583,6 +591,12 @@ internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>
         WATCH_WORKOUT_D4_V2_PARSER_VERSION,
         WATCH_WORKOUT_D4_V3_PARSER_VERSION,
     )
+    val isD4V4 = isWatchD4 && parserVersion == WATCH_WORKOUT_D4_V4_PARSER_VERSION
+    val nativeSample = if (isD4V4) {
+        d4V4Block?.samples?.singleOrNull { sample -> sample.sourceSampleIndex == it.index }
+    } else {
+        null
+    }
     WorkoutIntervalEntity(
         id = ids.next().toString(),
         activityId = activityId,
@@ -599,8 +613,70 @@ internal fun WorkoutActivity.toIntervals(activityId: String, ids: Iterator<UUID>
         rawDistanceValue = it.rawDistanceValue.takeIf { isD4V1 || isD4V2OrV3 },
         rawCaloriesValue = it.rawCaloriesValue.takeIf { isD4V1 || isD4V2OrV3 },
         decodedSteps = it.decodedSteps.takeIf { isD4V2OrV3 },
+        nativeSportValue = nativeSample?.sportValue?.toLong() ?: it.nativeSportValue,
+        nativeSteps = nativeSample?.steps?.toLong() ?: it.nativeSteps,
+        nativeDistanceMeters = nativeSample?.distanceMeters?.toDouble() ?: it.nativeDistanceMeters,
+        nativeCaloriesRaw = nativeSample?.caloriesRaw?.toLong() ?: it.nativeCaloriesRaw,
+        nativePauseStateRaw = nativeSample?.pauseStateRaw?.toLong() ?: it.nativePauseStateRaw,
     )
 }
+
+/** Persiste header e checks v4 sem substituir CRC do índice D3 ou fatos legacy. */
+internal fun WatchWorkoutImport.toD4V4HeaderEntity(
+    id: String,
+    activityId: String,
+    importId: String = this.id.value.toString(),
+): WatchWorkoutD4V4HeaderEntity? {
+    if (parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION) return null
+    val block = d4V4Block ?: return null
+    val reservedRaw = block.header.reservedRaw.map { value ->
+        if (value !in 0..0xff) return null
+        value.toByte()
+    }.toByteArray()
+    return WatchWorkoutD4V4HeaderEntity(
+        id = id,
+        activityId = activityId,
+        importId = importId,
+        parserVersion = parserVersion.value,
+        parserValidity = parserValidity.name,
+        markerRaw = block.header.markerRaw,
+        startedAtEpochMillis = block.header.startedAt.toEpochMilli(),
+        endedAtEpochMillis = block.header.endedAt.toEpochMilli(),
+        reportedTotalSteps = block.header.totalSteps,
+        reportedTotalDistanceMeters = block.header.totalDistanceMeters,
+        reportedTotalCaloriesRaw = block.header.totalCaloriesRaw,
+        reportedTotalSportValue = block.header.totalSportValue,
+        reportedRecordCount = block.header.recordCount,
+        reportedPauseCount = block.header.pauseCount,
+        reportedPauseTime = block.header.pauseTime,
+        reportedCrc = block.header.crc,
+        reportedSportTypeRaw = block.header.sportTypeRaw,
+        reservedRaw = reservedRaw,
+        recordCountMatches = block.consistency.recordCountMatches,
+        stepsMatch = block.consistency.stepsMatch,
+        distanceMetersMatch = block.consistency.distanceMetersMatch,
+        caloriesRawMatch = block.consistency.caloriesRawMatch,
+        sportValueMatch = block.consistency.sportValueMatch,
+    )
+}
+
+internal fun WatchWorkoutD4V4HeaderEntity.toD4V4Header(): WatchWorkoutD4V4Header? = runCatching {
+    WatchWorkoutD4V4Header(
+        markerRaw = markerRaw,
+        startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+        endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
+        totalSteps = reportedTotalSteps,
+        totalDistanceMeters = reportedTotalDistanceMeters,
+        totalCaloriesRaw = reportedTotalCaloriesRaw,
+        totalSportValue = reportedTotalSportValue,
+        recordCount = reportedRecordCount,
+        pauseCount = reportedPauseCount,
+        pauseTime = reportedPauseTime,
+        crc = reportedCrc,
+        sportTypeRaw = reportedSportTypeRaw,
+        reservedRaw = reservedRaw.map { byte -> byte.toInt() and 0xff },
+    )
+}.getOrNull()
 
 /** Mapeia somente fatos raw/measured já persistidos; não interpreta coluna legada. */
 internal fun WorkoutIntervalEntity.toMeasuredWorkoutInterval(
@@ -1032,6 +1108,8 @@ internal fun WorkoutActivityEntity.toDomain(
             WATCH_WORKOUT_D4_V2_PARSER_VERSION,
             WATCH_WORKOUT_D4_V3_PARSER_VERSION,
         )
+    val isWatchD4V4 = mappedOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
+        importRecord?.parserVersion == WATCH_WORKOUT_D4_V4_PARSER_VERSION
     val mappedDeviceId = deviceId?.let(::uuid)?.let(::DeviceId)
     val mappedSessionId = appWorkoutSessionId?.let(::uuid)?.let(::AppWorkoutSessionId)
     if (deviceId != null && mappedDeviceId == null) return null
@@ -1087,12 +1165,19 @@ internal fun WorkoutActivityEntity.toDomain(
                 it.intervalIndex,
                 Duration.ofNanos(it.durationNanos),
                 it.steps,
-                if (isWatchD4V2OrV3) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.distanceMeters.domainValue(),
-                if (isWatchD4V2OrV3) DomainValue.Absent(AbsenceReason.UNKNOWN) else it.caloriesKilocalories.domainValue(),
+                if (isWatchD4V2OrV3 || isWatchD4V4) DomainValue.Absent(AbsenceReason.UNKNOWN)
+                else it.distanceMeters.domainValue(),
+                if (isWatchD4V2OrV3 || isWatchD4V4) DomainValue.Absent(AbsenceReason.UNKNOWN)
+                else it.caloriesKilocalories.domainValue(),
                 rawMotionValue = it.rawMotionValue.takeIf { isWatchD4V1 || isWatchD4V2OrV3 },
                 rawDistanceValue = it.rawDistanceValue.takeIf { isWatchD4V1 || isWatchD4V2OrV3 },
                 rawCaloriesValue = it.rawCaloriesValue.takeIf { isWatchD4V1 || isWatchD4V2OrV3 },
                 decodedSteps = it.decodedSteps.takeIf { isWatchD4V2OrV3 },
+                nativeSportValue = it.nativeSportValue,
+                nativeSteps = it.nativeSteps,
+                nativeDistanceMeters = it.nativeDistanceMeters,
+                nativeCaloriesRaw = it.nativeCaloriesRaw,
+                nativePauseStateRaw = it.nativePauseStateRaw,
             )
         },
         heartRateSamples = samples.map { it.toDomain() ?: return null },

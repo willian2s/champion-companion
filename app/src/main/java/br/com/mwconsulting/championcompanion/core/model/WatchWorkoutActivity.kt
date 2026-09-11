@@ -19,7 +19,8 @@ internal const val WATCH_WORKOUT_D4_V4_PARSER_VERSION = "d4-v4"
 internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
     parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION ||
         parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
-        parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
+        parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION ||
+        parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION
 
 enum class WorkoutType {
     WALKING,
@@ -94,6 +95,12 @@ data class WorkoutInterval(
     val rawCaloriesValue: Long? = null,
     /** Passos medidos após decodificação explícita da versão do parser. */
     val decodedSteps: Long? = null,
+    /** Fatos nativos D4 v4; não reutilizam campos raw legacy. */
+    val nativeSportValue: Long? = null,
+    val nativeSteps: Long? = null,
+    val nativeDistanceMeters: Double? = null,
+    val nativeCaloriesRaw: Long? = null,
+    val nativePauseStateRaw: Long? = null,
 )
 
 data class WorkoutHeartRateSample(
@@ -162,6 +169,8 @@ data class WatchWorkoutImport private constructor(
     val parserValidity: ParserValidity,
     val diagnosticPayloadId: DiagnosticPayloadId?,
     val importedAt: Instant,
+    /** Fatos estruturais v4 carregados junto da importação; nulo para v1/v2/v3. */
+    val d4V4Block: WatchWorkoutD4V4Block?,
 ) {
     val activityContext: WatchWorkoutActivityImportContext
         get() = WatchWorkoutActivityImportContext(
@@ -180,7 +189,9 @@ data class WatchWorkoutImport private constructor(
             input: WatchWorkoutParserInput,
             importedAt: Instant,
         ): DomainResult<WatchWorkoutImport> = when (val context = WatchWorkoutActivityImportContext.from(input, importedAt)) {
-            is DomainResult.Success -> DomainResult.Success(fromContext(id, activityId, context.value))
+            is DomainResult.Success -> DomainResult.Success(
+                fromContext(id, activityId, context.value, d4V4Block = input.d4V4Block),
+            )
             is DomainResult.Failure -> context
         }
 
@@ -202,6 +213,7 @@ data class WatchWorkoutImport private constructor(
             id: WatchWorkoutImportId,
             activityId: WorkoutActivityId,
             context: WatchWorkoutActivityImportContext,
+            d4V4Block: WatchWorkoutD4V4Block? = null,
         ) = WatchWorkoutImport(
             id = id,
             activityId = activityId,
@@ -211,6 +223,7 @@ data class WatchWorkoutImport private constructor(
             parserValidity = context.parserValidity,
             diagnosticPayloadId = context.diagnosticPayloadId,
             importedAt = context.importedAt,
+            d4V4Block = d4V4Block,
         )
     }
 }
