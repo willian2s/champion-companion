@@ -26,6 +26,11 @@ banco. Nos 34 blocos, `recordCount`, passos, distância, calorias raw, sport cou
 e CRC fecharam entre header e série temporal. A mesma auditoria confirmou
 `distance = metros` e `kcal = caloriesRaw / 1000.0` para o layout fixo observado.
 
+Após a conclusão da Spec 031, a branch 032 foi atualizada sobre a nova `main` e a
+`032-01` foi revalidada em `docs/integration/032-01-post-031-reaudit.md`. Nenhuma
+decisão técnica do contrato D3/D4 v4 foi invalidada; Room permanece em v15 e a
+baseline pós-031 passa a ser a referência obrigatória para integração de produto.
+
 A evidência mostrou ainda que:
 
 - `recordCount`/quantidade de samples e duração oficial são conceitos distintos;
@@ -291,9 +296,9 @@ semântica operacional fisicamente validada suficiente para alterar a timeline.
 
 ### R11 — Persistência aditiva e compatibilidade
 
-A `main` no início do planejamento usa Room v15. A execução deve auditar o estado
-real antes da migration; se novos fatos precisarem ser persistidos, preferir
-migration aditiva `v15 -> v16`.
+A `main` revalidada após a Spec 031 usa Room v15. Se novos fatos precisarem ser
+persistidos, preferir migration aditiva `v15 -> v16`, após a auditoria normal da
+própria task `032-03`.
 
 Não sobrecarregar colunas legacy com novo significado quando isso destruir
 provenance. `rawMotionValue`, `rawDistanceValue` e `rawCaloriesValue` permanecem
@@ -339,18 +344,27 @@ BPM e calorias conforme os contratos vigentes, preservando:
 Mudança de fonte da distância não autoriza duplicar passos nem recalcular
 records remotos já aceitos sem fluxo explícito de reconciliação.
 
-### R14 — Integração com a Spec 031
+### R14 — Integração sobre a baseline pós-031
 
-A Spec 031 está em branch paralela e modifica principalmente UI/design. A 032 deve
-ser desenvolvida a partir de `main` e evitar, nas primeiras tarefas, os arquivos
-de maior sobreposição com a 031, especialmente:
+A Spec 031 está concluída e integrada à `main`. A branch 032 já contém essa
+baseline; a reauditoria de `032-01` confirmou `behind_by = 0` e não encontrou
+mudança de protocolo, persistência D3/D4 ou projeção Health Connect que invalide o
+contrato v4.
+
+A integração tardia deve trabalhar diretamente sobre os read models e a UI
+pós-031, especialmente nos arquivos compartilhados:
 
 - `data/RoomRepositories.kt`;
-- `feature/exercises/ExercisesScreen.kt`.
+- `feature/exercises/ExercisesScreen.kt`;
+- contratos/read models de Saúde e Calendário que consomem FC de workout.
 
-Integração de repository/UI deve ocorrer em tarefa tardia, depois que a 031 tiver
-sido integrada à `main` ou quando houver baseline comum explicitamente definida.
-A 032 não deve reverter o redesign visual da 031.
+A Saúde pós-031 inclui `WATCH_WORKOUT_ACTIVITY` no histórico de frequência
+cardíaca. Portanto, preservar corretamente BPM/sourceSampleIndex/timestamp D4 é
+também requisito dos gráficos e análises de Saúde, sem transformar essas
+superfícies em consumidoras de bytes raw.
+
+A 032 não deve reverter o redesign, reintroduzir navegação antiga ou exigir novo
+merge específico da 031.
 
 ## Não objetivos
 
@@ -388,8 +402,8 @@ A 032 não deve reverter o redesign visual da 031.
     semanticamente intactos.
 11. Health Connect continua explícito e idempotente, sem efeito remoto em
     migration/reprocessamento/calibração.
-12. Integração final não desfaz a Spec 031 e resolve conscientemente os poucos
-    arquivos de sobreposição.
+12. Integração final preserva a baseline pós-031, inclusive os consumidores de FC
+    de workout em Saúde, sem expor packing raw à UI.
 13. Validação física reproduz pelo menos uma atividade com variação de intensidade
     e compara header, série temporal e uma referência externa manual sem exigir
     igualdade perfeita entre relógio e referência.
@@ -410,13 +424,14 @@ A 032 não deve reverter o redesign visual da 031.
 - `core/database/ChampionMigrations.kt`
 - schema Room correspondente;
 - `data/DatabaseMappers.kt`;
-- `data/RoomRepositories.kt` somente na fase de integração.
+- `data/RoomRepositories.kt` somente na fase de integração quando possível.
 
 ### Produto/projeção
 
 - `feature/exercises/ExercisesFeatureContract.kt`;
 - `feature/exercises/ExercisesViewModel.kt`;
-- `feature/exercises/ExercisesScreen.kt` somente após integração com a 031;
+- `feature/exercises/ExercisesScreen.kt` sobre a baseline pós-031;
+- read models de Saúde/Calendário afetados por FC de workout, se necessário;
 - projeções Health Connect relacionadas a treino/passos/cadência/distância.
 
 ## Validação
