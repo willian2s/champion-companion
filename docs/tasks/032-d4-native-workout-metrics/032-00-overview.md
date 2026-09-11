@@ -35,38 +35,55 @@ legado reproduzível, fallback por comprimento de passo e Health Connect explíc
 032-08 Validação física e fechamento
 ```
 
-## Estratégia para trabalhar em paralelo com a Spec 031
+## Baseline pós-031
 
-A branch `feat/031-google-health` está à frente de `main` e altera principalmente
-UI/design. A 032 nasceu de `main` para evitar dependência desnecessária da 031.
+A Spec 031 está concluída e integrada à `main`. A branch 032 foi atualizada sobre
+essa baseline e, na reauditoria pós-031 de `032-01`, a comparação confirmou:
+
+```text
+main...feat/032-d4-native-workout-metrics
+status: ahead
+behind_by: 0
+merge-base: 6025fbaaf119727fbb95c2f51e6f16946ef646ea
+```
+
+A reauditoria está registrada em:
+
+`docs/integration/032-01-post-031-reaudit.md`.
+
+Conclusões relevantes:
+
+- nenhuma decisão técnica do contrato D3/D4 v4 foi invalidada pela 031;
+- Room permanece efetivamente em v15;
+- `ChampionD3WorkoutIndexProtocol` mantém o bug de compressão de slot com CRC zero;
+- `ChampionD4WorkoutParser` continua em `d4-v1/v2/v3` e ainda não conhece o layout v4;
+- `RoomRepositories.persistImported(...)` continua sendo o caminho de persistência/reimportação;
+- Saúde agora consome FC de `WATCH_WORKOUT_ACTIVITY`, portanto BPM D4 também alimenta históricos/gráficos de Saúde;
+- `HealthRecordMapper`, contratos de projeção e coordenador de sync de workout não foram redefinidos pela 031;
+- a pré-condição antiga de integrar a 031 em `032-07` já está satisfeita.
 
 ### Ownership inicial da 032
 
-Até `032-06`, evitar alterações em:
+`032-02` e `032-03` continuam independentes e devem evitar mistura desnecessária de
+responsabilidades:
 
-- `feature/exercises/ExercisesScreen.kt`;
-- `data/RoomRepositories.kt`, salvo impossibilidade técnica documentada;
-- arquivos de design system ou navegação da 031.
+- `032-02`: priorizar `core/bluetooth` e contratos de parser;
+- `032-03`: priorizar `core/database`, migrations, schema exportado e adapters mínimos de persistência;
+- `data/RoomRepositories.kt` só deve entrar antes de `032-04/032-07` se a persistência não puder ser concluída corretamente sem ele;
+- `feature/exercises/ExercisesScreen.kt`, design system e navegação permanecem fora de `032-02/032-03`.
 
-Priorizar:
+A razão agora é separação de escopo, não conflito com uma branch 031 paralela.
 
-- `core/bluetooth`;
-- `core/model`;
-- `core/database`;
-- `data/DatabaseMappers.kt` quando isolável;
-- documentação/protocolo;
-- componentes novos específicos de calibração sem alterar shell visual.
+### Integração tardia
 
-### Momento de integração
+`032-07` continua sendo o ponto deliberado para:
 
-`032-07` é o ponto deliberado para:
+1. integrar repository/read models/UI sobre a baseline pós-031 já presente;
+2. preservar o redesign e os históricos de Saúde que agora incluem FC de workout;
+3. atualizar Health Connect sem alterar os guards de passos da Spec 027;
+4. evitar que consumidores finais conheçam offsets ou packing raw D4.
 
-1. atualizar a branch 032 para a `main` que já contenha a 031, se disponível;
-2. resolver conflitos em `RoomRepositories.kt`, `ExercisesScreen.kt` e contratos
-   compartilhados conscientemente;
-3. preservar o redesign visual e encaixar somente os novos estados/ações.
-
-Não fazer merges cruzados frequentes entre 031 e 032 durante parser/schema.
+Não há nova etapa planejada de merge com a 031.
 
 ## Branches/worktrees sugeridos
 
@@ -92,7 +109,7 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 
 ## Checklist
 
-- [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e protocolo atualizado
+- [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e revalidado sobre a baseline pós-031
 - [ ] `032-02-implementar-parser-d3-d4-v4.md`
 - [ ] `032-03-persistir-fatos-nativos-e-provenance.md`
 - [ ] `032-04-integrar-dominio-adapters-e-reprocessamento.md`
@@ -103,9 +120,13 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 
 ## Resultado da 032-01
 
-Contrato autoritativo:
+Contrato autoritativo original:
 
 `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`.
+
+Revalidação pós-031:
+
+`docs/integration/032-01-post-031-reaudit.md`.
 
 Achados congelados:
 
@@ -122,16 +143,16 @@ Achados congelados:
 - persistência v4 deve usar campos semanticamente novos sem reutilizar o
   significado legacy de `rawMotionValue/rawDistanceValue/rawCaloriesValue`;
 - divergência entre header e série preserva ambos os lados e falha fechada para
-  distância nativa canônica.
+  distância nativa canônica;
+- FC D4 válida também é consumida pelos históricos de Saúde no baseline pós-031.
 
-`docs/protocol/workouts-d3-d4.md` foi reescrito para separar runtime vigente
-`d4-v3` do contrato congelado `d4-v4` e remover lacunas já encerradas pela nova
-evidência.
+`docs/protocol/workouts-d3-d4.md` permanece como contrato de protocolo que separa
+runtime vigente `d4-v3` do contrato congelado `d4-v4`.
 
 ### Preflight local antes de 032-02/032-03
 
-A sessão de planejamento usa o conector GitHub e não possui checkout local da
-branch. Antes de começar código em um worktree local, executar:
+A branch já contém a `main` pós-031. Antes de começar código em um worktree local,
+executar:
 
 ```bash
 git checkout feat/032-d4-native-workout-metrics
@@ -139,8 +160,8 @@ git pull
 git diff --check main...HEAD
 ```
 
-Não há build necessário para `032-01`, pois nenhum arquivo de runtime foi
-alterado.
+Não há build necessário para a reauditoria de `032-01`, pois nenhum arquivo de
+runtime foi alterado por ela.
 
 ## Guard rails
 
@@ -152,6 +173,7 @@ alterado.
 - não converter calibrações antigas de passo para fator de distância;
 - não alterar atividades `SYNCED` silenciosamente;
 - não criar efeitos Health Connect durante migration/reprocessamento;
+- preservar os consumidores de FC de workout introduzidos/ajustados no baseline pós-031;
 - não criar testes automatizados sem pedido explícito;
 - cada task atualiza este overview.
 
@@ -161,7 +183,6 @@ A branch só está pronta para `main` quando:
 
 - parser v4, schema, derivação e provenance estão coerentes juntos;
 - runtime não publica `d4-v4` parcial;
-- 031 foi integrada ou os conflitos previstos foram resolvidos contra uma base
-  comum explícita;
+- integração repository/UI preserva integralmente a baseline pós-031;
 - validação física demonstrou pelo menos um treino com distância nativa;
 - `./gradlew lint assembleDebug assembleRelease` e `git diff --check` passam.
