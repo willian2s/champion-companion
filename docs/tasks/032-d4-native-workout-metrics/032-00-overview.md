@@ -2,8 +2,8 @@
 
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
-- **Status:** `in_progress`
-- **Progresso:** `7/8`
+- **Status:** `completed`
+- **Progresso:** `8/8`
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -116,7 +116,7 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 - [x] `032-05-derivar-distancia-nativa-e-metricas.md` — distância nativa elegível, fallback explícito e métricas recalculadas sobre T/N implementados
 - [x] `032-06-implementar-calibracao-de-distancia-contextual.md` — evidência nativa, perfis contextuais, fator proporcional, provenance e contratos de estado/ação implementados
 - [x] `032-07-integrar-produto-health-connect-e-spec-031.md` — runtime d4-v4, review/rederivação, UI de provenance e integração Health Connect preservados sobre baseline pós-031
-- [ ] `032-08-validar-fisicamente-e-fechar.md`
+- [x] `032-08-validar-fisicamente-e-fechar.md` — validação física, conferência por dumps sanitizados e fechamento documental concluídos
 
 ## Observações
 
@@ -141,8 +141,8 @@ distância nativa canônica e calibração foram entregues nas subtarefas 032-05
 032-05 concluída com elegibilidade nativa fail-closed contra header e série,
 provenance `WATCH_NATIVE`/`STEP_LENGTH_FALLBACK`, preservação independente de
 passos e cadência, métricas derivadas sobre duração efetiva e read path Room v16.
-Health Connect ainda precisa mapear provenance nativa em 032-07; validação física
-da dinâmica temporal permanece em 032-08.
+Health Connect ainda precisava mapear provenance nativa em 032-07; validação física
+da dinâmica temporal foi concluída em 032-08.
 
 032-06 concluída com migration aditiva para Room v17, evidência de distância
 nativa separada da calibração legacy, agregação ponderada independente para
@@ -150,7 +150,7 @@ RUNNING/WALKING, aplicação proporcional por intervalo, fallback por compriment
 de passo, rederivação explícita, remoção sem mutação de snapshot histórico e
 provenance compatível com Health Connect. Contratos de estado/ação foram
   ampliados sem redesenho visual. A integração final de produto foi concluída em
-  032-07; validação física permanece em 032-08.
+  032-07; validação física foi concluída em 032-08.
 
 032-07 concluída sobre a baseline pós-031. Novas importações selecionam `d4-v4`,
 persistência inicial e review materializam derivação nativa quando elegível,
@@ -158,7 +158,7 @@ calibração usa passos nativos sem packing legacy e Exercícios exibe provenanc
 distância nativa e fator aplicado sem reverter o redesign. Health Connect mantém
 projeções congeladas, IDs/versionamento, retry explícito, histórico
 `WATCH_WORKOUT_ACTIVITY`, STEPS/STEPS_CADENCE e crédito da Spec 027. Build,
-lint e `git diff --check` passaram; validação física permanece em 032-08.
+lint e `git diff --check` passaram; validação física foi concluída em 032-08.
 
 Correção posterior à validação física: o review de nova atividade `d4-v4` agora
 considera incompatível qualquer snapshot fallback por comprimento de passo após
@@ -185,6 +185,16 @@ falha ou ausência de derivação v4 desfaz a tentativa antes de persistir
 snapshot, sem alterar a política de legado ou de outros tipos. Compilação,
 lint, builds debug/release e `git diff --check` passaram; não foram criados nem
 executados testes automatizados.
+
+032-08 concluída com validação manual integral no Champion C001 e conferência
+por dumps sanitizados do banco. Header/série, timeline `T/N`, distância nativa,
+calibração contextual, fallback, review-before-sync, Health Connect, Daily
+Summary, cadência e `CYCLING` foram validados sem regressão. Evidência:
+`docs/integration/032-08-physical-validation.md`. Permanecem limitações de
+semântica raw, campos reservados, reprocessamento, tolerâncias futuras,
+ cobertura, retenção diagnóstica e variações de firmware registradas na task. A
+referência externa manual permanece sujeita a erro e serve somente como
+referência de calibração.
 
 ## Resultado da 032-01
 

@@ -1,7 +1,7 @@
 # 032 — D4 v4: métricas nativas, distância e calibração por referência
 
 - **Ticker:** `032`
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Tipo:** correção arquitetural de parser, derivação e calibração de treinos `WATCH_D3_D4`
 - **Branch:** `feat/032-d4-native-workout-metrics`
 - **ADR:** [ADR-029](../decisions/adr-029-d4-native-metrics-and-distance-calibration.md)
@@ -455,3 +455,22 @@ Não criar nem executar testes automatizados como etapa padrão sem pedido
 explícito. Validação física e inspeção de banco devem usar evidência sanitizada,
 sem versionar payload BLE integral, identificadores pessoais ou dados de saúde
 não necessários.
+
+## Fechamento — 2026-09-11
+
+A validação física final do Champion C001 foi concluída com conferência por
+dumps sanitizados do banco. Os cenários mínimos de D3/D4 v4, variação de
+intensidade, coerência header/série, timeline `T/N`, distância nativa,
+calibração externa, perfis RUNNING/WALKING, fallback, review-before-sync,
+Health Connect, Daily Summary, cadência e `CYCLING` foram considerados válidos.
+
+Evidência detalhada:
+`docs/integration/032-08-physical-validation.md`.
+
+Permanecem abertas limitações de firmware e semântica não promovida:
+`pauseStateRaw` não zero, unidade funcional de `sportValue`, campos reservados
+ou desconhecidos, política de reprocessamento de históricos, tolerâncias para
+divergências futuras, cobertura de samples acima de 255 passos e retenção de
+payload diagnóstico. A referência externa manual também permanece sujeita a
+erro e serve somente como referência de calibração. A Spec 032 está encerrada
+sem alterar essas fronteiras.

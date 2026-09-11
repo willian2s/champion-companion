@@ -1,6 +1,6 @@
 # ADR-029 — Métricas nativas D4 e calibração proporcional de distância
 
-- **Status:** proposed
+- **Status:** accepted
 - **Data:** 2026-09-08
 - **Relacionado:** Specs 021, 023, 027 e 032
 
@@ -67,6 +67,25 @@ conceitos independentes; sua normalização `T/N` continua válida e não é rev
 - coexistência de `d4-v1/v2/v3/v4` e estratégias antigas/novas;
 - consumidores precisam distinguir distância nativa, calibrada e fallback;
 - integração tardia com `RoomRepositories` e UI pode conflitar com a Spec 031.
+
+## Validação e fechamento — 2026-09-11
+
+A decisão foi validada fisicamente no Champion C001 com conferência por dumps
+sanitizados do banco. A validação cobriu parser v4, coerência header/série,
+timeline `T/N`, distância nativa, calibração proporcional, perfis contextuais,
+fallback, review-before-sync, Health Connect e preservação de Daily Summary,
+cadência e `CYCLING`.
+
+Evidência:
+`docs/integration/032-08-physical-validation.md`.
+
+Limitações permanecem para semântica operacional de `pauseStateRaw` não zero,
+unidade funcional de `sportValue`, campos reservados ou desconhecidos, política
+de reprocessamento de históricos, tolerâncias para divergências futuras,
+cobertura de samples acima de 255 passos, retenção de payload diagnóstico e
+variações de firmware não observadas. A referência externa manual permanece
+sujeita a erro e serve somente como referência de calibração. Essas limitações
+não invalidam decisão para layout fixo validado.
 
 ## Alternativas rejeitadas
 

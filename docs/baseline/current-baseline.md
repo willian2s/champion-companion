@@ -114,7 +114,7 @@ dados e evidências permanecem preservados; limpeza exige task explícita.
 - Validação de migration usou fixture v12 reconstruída por ausência de arquivo
   histórico v12 original; limitação permanece registrada na evidência.
 
-### Estado atual após 032-07
+### Estado atual após 032-08
 
 - Novas importações D3/D4 usam `parserVersion = d4-v4`; `d4-v1`, `d4-v2` e
   `d4-v3` permanecem históricos identificáveis e reprocessáveis somente por ação
@@ -132,6 +132,18 @@ dados e evidências permanecem preservados; limpeza exige task explícita.
   preservados. Calibração e reprocessamento permanecem locais e explícitos.
 - A baseline visual pós-031 permanece vigente em Exercícios; UI não expõe offsets,
   packing raw ou semântica não confirmada de `sportValue`/pausa.
+- A Spec 032 foi concluída após validação manual no Champion C001 e conferência
+  por dumps sanitizados do banco. Header/série, timeline `T/N`, distância nativa,
+  calibração contextual, fallback, review-before-sync, Health Connect, Daily
+  Summary, cadência e `CYCLING` foram validados sem regressão. Evidência:
+  `docs/integration/032-08-physical-validation.md`.
+- Permanecem como riscos técnicos semântica de `pauseStateRaw` não zero,
+  unidade funcional de `sportValue`, campos reservados ou desconhecidos,
+  política de reprocessamento de históricos, tolerâncias para divergências
+  futuras, cobertura de samples acima de 255 passos, retenção de payload
+  diagnóstico e variações de firmware/layout não observadas. A referência
+  externa manual permanece sujeita a erro e serve somente como referência de
+  calibração. A Spec 032 não promove essas lacunas.
 
 O Champion Companion é um aplicativo pessoal, sem objetivo de distribuição pública, beta formal, matriz multi-device ou gate de lançamento comercial. Validação física, testes e builds continuam sendo usados quando uma task específica exigir evidência.
 

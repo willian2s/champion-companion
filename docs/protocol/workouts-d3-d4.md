@@ -615,6 +615,24 @@ Lacunas já **não** abertas para o layout fixo observado:
 - regra de índice físico D3;
 - independência entre duração oficial e quantidade de samples.
 
+## Validação física final da Spec 032 — 2026-09-11
+
+A validação manual do Champion C001 foi concluída com conferência em dumps
+sanitizados do banco. Foram considerados válidos os cenários de slot físico D3,
+variação de intensidade, fechamento diagnóstico de header e série, timeline
+`T/N`, distância nativa, calibração manual, perfis RUNNING/WALKING, fallback,
+review-before-sync, Health Connect, Daily Summary, cadência e `CYCLING`.
+
+Payload BLE integral, identificadores pessoais e dump completo não foram
+versionados. Permanecem abertas a semântica operacional de `pauseStateRaw` não
+zero, a unidade funcional de `sportValue`, campos reservados ou desconhecidos,
+política de reprocessamento de históricos, tolerâncias para divergências futuras,
+cobertura de samples acima de 255 passos, retenção de payload diagnóstico e
+variações de firmware/layout não observadas. A referência externa manual
+permanece sujeita a erro e serve somente como referência de calibração.
+
+Evidência detalhada: `docs/integration/032-08-physical-validation.md`.
+
 ## Referências
 
 - `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`
