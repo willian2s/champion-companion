@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `1/8`
+- **Progresso:** `2/8`
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -110,13 +110,20 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 ## Checklist
 
 - [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e revalidado sobre a baseline pós-031
-- [ ] `032-02-implementar-parser-d3-d4-v4.md`
+- [x] `032-02-implementar-parser-d3-d4-v4.md` — parser v4 e índice D3 físico implementados; runtime efetivo permanece d4-v3
 - [ ] `032-03-persistir-fatos-nativos-e-provenance.md`
 - [ ] `032-04-integrar-dominio-adapters-e-reprocessamento.md`
 - [ ] `032-05-derivar-distancia-nativa-e-metricas.md`
 - [ ] `032-06-implementar-calibracao-de-distancia-contextual.md`
 - [ ] `032-07-integrar-produto-health-connect-e-spec-031.md`
 - [ ] `032-08-validar-fisicamente-e-fechar.md`
+
+## Observações
+
+032-02 concluída com builds e lint passando e revisão independente aprovada. Os
+testes focados existentes continuam incompatíveis com fixtures legacy e com a
+correção deliberada de slots físicos D3; nenhum teste foi alterado. Validação
+física e integração de persistência/derivação permanecem nas subtarefas seguintes.
 
 ## Resultado da 032-01
 

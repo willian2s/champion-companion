@@ -110,12 +110,11 @@ object ChampionD3WorkoutIndexProtocol {
     class IndexCollector(
         private val context: D3IndexContext,
     ) {
-        private val entriesByCrc = linkedMapOf<Int, D3WorkoutBlockEntry>()
+        private val packetsByIndex = linkedMapOf<Int, D3IndexPacket>()
         private var active = true
         private var receivedPacketCount = 0
         private var highestPacketIndex = 0
         private var highestExpectedPacketCount = 0
-        private var nextOriginalBlockIndex = 0
 
         fun onPacket(packet: ChampionPacket): D3IndexCollectionUpdate {
             if (!active) return D3IndexCollectionUpdate.Ignored
@@ -125,21 +124,10 @@ object ChampionD3WorkoutIndexProtocol {
             receivedPacketCount += 1
             highestPacketIndex = maxOf(highestPacketIndex, parsed.packetIndex)
             highestExpectedPacketCount = maxOf(highestExpectedPacketCount, parsed.totalPackets)
-
-            parsed.crcCandidates.forEach { candidate ->
-                if (candidate.crc == 0) return@forEach
-                val originalBlockIndex = nextOriginalBlockIndex
-                nextOriginalBlockIndex += 1
-                if (entriesByCrc.containsKey(candidate.crc)) return@forEach
-                entriesByCrc[candidate.crc] = D3WorkoutBlockEntry(
-                    blockIndex = originalBlockIndex,
-                    crc = candidate.crc,
-                    rawLittleEndian = candidate.rawLittleEndianCopy(),
-                )
-            }
+            packetsByIndex.putIfAbsent(parsed.packetIndex, parsed)
 
             return if (parsed.hasPlausibleMultipartHeader) {
-                if (parsed.totalPackets > 0 && parsed.packetIndex >= parsed.totalPackets) {
+                if (parsed.totalPackets > 0 && hasReceivedAllPackets(parsed.totalPackets)) {
                     D3IndexCollectionUpdate.Finished(finish(timedOut = false))
                 } else {
                     D3IndexCollectionUpdate.Progress(progressSnapshot())
@@ -149,16 +137,36 @@ object ChampionD3WorkoutIndexProtocol {
             }
         }
 
+        private fun hasReceivedAllPackets(totalPackets: Int): Boolean =
+            (1..totalPackets).all(packetsByIndex::containsKey)
+
         fun onTimeout(): D3IndexCollectionOutcome = finish(timedOut = true)
 
         private fun finish(timedOut: Boolean): D3IndexCollectionOutcome {
             active = false
             return D3IndexCollectionOutcome(
-                entries = entriesByCrc.values.toList(),
+                entries = collectEntries(),
                 progress = progressSnapshot(),
                 timedOut = timedOut,
                 receivedPacketCount = receivedPacketCount,
             )
+        }
+
+        private fun collectEntries(): List<D3WorkoutBlockEntry> {
+            val entriesByCrc = linkedMapOf<Int, D3WorkoutBlockEntry>()
+            var physicalBlockIndex = 0
+            packetsByIndex.toSortedMap().values
+                .flatMap { it.crcCandidates }
+                .forEach { candidate ->
+                    val originalBlockIndex = physicalBlockIndex++
+                    if (candidate.crc == 0 || entriesByCrc.containsKey(candidate.crc)) return@forEach
+                    entriesByCrc[candidate.crc] = D3WorkoutBlockEntry(
+                        blockIndex = originalBlockIndex,
+                        crc = candidate.crc,
+                        rawLittleEndian = candidate.rawLittleEndianCopy(),
+                    )
+                }
+            return entriesByCrc.values.toList()
         }
 
         private fun progressSnapshot(): D3IndexProgress = D3IndexProgress(

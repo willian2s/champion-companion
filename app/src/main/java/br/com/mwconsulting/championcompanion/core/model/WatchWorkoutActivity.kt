@@ -13,6 +13,8 @@ internal const val WATCH_WORKOUT_D4_V1_PARSER_VERSION = "d4-v1"
 internal const val WATCH_WORKOUT_D4_V2_PARSER_VERSION = "d4-v2"
 /** Parser completo com duração oficial e timeline normalizada. */
 internal const val WATCH_WORKOUT_D4_V3_PARSER_VERSION = "d4-v3"
+/** Contrato interno; não é selecionado pelo runtime vigente. */
+internal const val WATCH_WORKOUT_D4_V4_PARSER_VERSION = "d4-v4"
 
 internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
     parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION ||
@@ -112,6 +114,8 @@ data class WatchWorkoutParserInput(
     val metrics: WorkoutMetrics,
     val intervals: List<WorkoutInterval>,
     val heartRateSamples: List<WorkoutHeartRateSample>,
+    /** Fatos semanticamente nomeados do parser v4; ausente para v1/v2/v3. */
+    val d4V4Block: WatchWorkoutD4V4Block? = null,
 )
 
 /**

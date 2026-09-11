@@ -19,6 +19,11 @@ import br.com.mwconsulting.championcompanion.core.model.MeasuredWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V3_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V4_PARSER_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Block
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Consistency
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Header
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Sample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDurationResolver
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Duration
@@ -28,10 +33,15 @@ import java.time.ZoneId
 
 object ChampionD4WorkoutParser {
     private const val minimumPacketSize: Int = 20
+    private const val d4V4HeaderSize: Int = 42
+    private const val d4V4HeaderPacketCount: Int = 3
     private val validBpmRange: IntRange = 30..220
     private const val maxObservedRecordCount: Int = 24 * 60
 
     fun parse(request: Request): WatchWorkoutParserResult {
+        if (request.parserVersion.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION) {
+            return parseV4(request)
+        }
         val usesDecodedIntervalSteps = when (request.parserVersion.value) {
             WATCH_WORKOUT_D4_V1_PARSER_VERSION -> false
             WATCH_WORKOUT_D4_V2_PARSER_VERSION,
@@ -212,6 +222,278 @@ object ChampionD4WorkoutParser {
         } else {
             WatchWorkoutParserResult.Partial(input = input, summary = summary)
         }
+    }
+
+    private fun parseV4(request: Request): WatchWorkoutParserResult {
+        val packetsByIndex = request.block.packets.groupBy { it.packetIndex }
+        val headerPackets = (1..d4V4HeaderPacketCount).map { packetIndex ->
+            packetsByIndex[packetIndex]?.firstOrNull()
+        }
+        if (headerPackets.any { it == null }) {
+            return invalid(WatchWorkoutImportErrorCategory.REQUIRED_PACKET_MISSING, request)
+        }
+
+        val headerBytes = headerPackets.mapNotNull { packet ->
+            packet?.rawBytesCopy()?.takeIf { it.size >= minimumPacketSize }
+                ?.copyOfRange(6, 20)
+        }.takeIf { it.size == d4V4HeaderPacketCount }?.fold(ByteArray(0)) { result, part ->
+            result + part
+        } ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        if (headerBytes.size != d4V4HeaderSize) {
+            return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        }
+
+        val header = parseV4Header(headerBytes)
+            ?: return invalid(WatchWorkoutImportErrorCategory.INVALID_LAYOUT, request)
+        val samplePackets = request.block.packets
+            .filter { it.packetIndex >= 4 }
+            .distinctBy { it.packetIndex }
+            .sortedBy { it.packetIndex }
+        if (samplePackets.any { it.rawBytesCopy().size < minimumPacketSize }) {
+            return invalid(
+                category = WatchWorkoutImportErrorCategory.INVALID_LAYOUT,
+                request = request,
+                layout = WatchWorkoutD4Layout.PREFERRED,
+                recordCount = header.recordCount,
+                reportedBlockCrc = header.crc,
+            )
+        }
+        val samples = samplePackets.map { packet ->
+            parseV4Sample(packet.rawBytesCopy(), packet.packetIndex)
+        }
+        if (samples.any { it == null }) {
+            return invalid(
+                category = WatchWorkoutImportErrorCategory.INVALID_LAYOUT,
+                request = request,
+                layout = WatchWorkoutD4Layout.PREFERRED,
+                recordCount = header.recordCount,
+                reportedBlockCrc = header.crc,
+            )
+        }
+        val parsedSamples = samples.filterNotNull()
+        val consistency = WatchWorkoutD4V4Consistency(
+            recordCountMatches = header.recordCount == parsedSamples.size,
+            stepsMatch = header.totalSteps == parsedSamples.sumOf { it.steps.toLong() },
+            distanceMetersMatch = header.totalDistanceMeters == parsedSamples.sumOf { it.distanceMeters.toLong() },
+            caloriesRawMatch = header.totalCaloriesRaw == parsedSamples.sumOf { it.caloriesRaw.toLong() },
+            sportValueMatch = header.totalSportValue == parsedSamples.sumOf { it.sportValue.toLong() },
+        )
+        val d4V4Block = WatchWorkoutD4V4Block(
+            header = header,
+            samples = parsedSamples,
+            consistency = consistency,
+        )
+        val duration = runCatching { Duration.between(header.startedAt, header.endedAt) }.getOrNull()
+            ?.takeIf { it.isPositive }
+            ?: return invalid(
+                category = WatchWorkoutImportErrorCategory.INVALID_LAYOUT,
+                request = request,
+                layout = WatchWorkoutD4Layout.PREFERRED,
+                recordCount = header.recordCount,
+                reportedBlockCrc = header.crc,
+            )
+        val hasCompleteSampleSequence = header.recordCount > 0 &&
+            consistency.recordCountMatches &&
+            request.block.missingPacketIndices.isEmpty() &&
+            parsedSamples.map { it.sourceSampleIndex } == parsedSamples.indices.toList()
+        val timing = if (hasCompleteSampleSequence) {
+            normalizedV4SampleTiming(
+                samples = parsedSamples,
+                totalDuration = duration,
+                sessionStartedAt = header.startedAt,
+            )
+        } else {
+            null
+        }
+        if (hasCompleteSampleSequence && timing == null) {
+            return invalid(
+                category = WatchWorkoutImportErrorCategory.INVALID_LAYOUT,
+                request = request,
+                layout = WatchWorkoutD4Layout.PREFERRED,
+                recordCount = header.recordCount,
+                reportedBlockCrc = header.crc,
+            )
+        }
+
+        val intervals = parsedSamples.map { sample ->
+            val sampleTiming = timing?.get(sample.sourceSampleIndex)
+            WorkoutInterval(
+                index = sample.sourceSampleIndex,
+                duration = sampleTiming?.duration ?: Duration.ofSeconds(60),
+                steps = sample.steps.toLong(),
+                distanceMeters = DomainValue.Present(sample.distanceMeters.toDouble()),
+                caloriesKilocalories = DomainValue.Present(sample.caloriesRaw.toDouble() / 1000.0),
+            )
+        }
+        val heartRateSamples = parsedSamples.mapNotNull { sample ->
+            sample.bpm?.let { bpm ->
+                WorkoutHeartRateSample(
+                    sampledAt = timing?.get(sample.sourceSampleIndex)?.sampledAt
+                        ?: header.startedAt.plusSeconds(sample.sourceSampleIndex.toLong() * 60L),
+                    bpm = bpm,
+                    sourceSampleIndex = sample.sourceSampleIndex,
+                )
+            }
+        }
+        val validBpms = heartRateSamples.map { it.bpm }
+        val averageBpm = if (validBpms.isEmpty()) {
+            DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE)
+        } else {
+            DomainValue.Present(validBpms.average().toInt())
+        }
+        val minimumBpm = if (validBpms.isEmpty()) {
+            DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE)
+        } else {
+            DomainValue.Present(validBpms.min())
+        }
+        val maximumBpm = if (validBpms.isEmpty()) {
+            DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE)
+        } else {
+            DomainValue.Present(validBpms.max())
+        }
+        val originalDistanceMeters = header.totalDistanceMeters.toDouble()
+        val durationSeconds = duration.seconds.toDouble()
+        val pace = if (originalDistanceMeters > 0.0 && durationSeconds > 0.0) {
+            DomainValue.Present(durationSeconds * 1000.0 / originalDistanceMeters)
+        } else {
+            DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
+        }
+        val speed = if (originalDistanceMeters > 0.0 && durationSeconds > 0.0) {
+            DomainValue.Present(originalDistanceMeters / durationSeconds)
+        } else {
+            DomainValue.Absent(AbsenceReason.NOT_APPLICABLE)
+        }
+        val crcMatchesD3 = header.crc == request.crc
+        val hasPartialCondition = request.block.timedOut ||
+            request.block.missingPacketIndices.isNotEmpty() ||
+            request.block.duplicatePacketIndices.isNotEmpty() ||
+            !consistency.isConsistent ||
+            !crcMatchesD3
+        val metrics = WorkoutMetrics(
+            startedAt = header.startedAt,
+            duration = duration,
+            steps = parsedSamples.sumOf { it.steps.toLong() },
+            caloriesKilocalories = DomainValue.Present(header.totalCaloriesRaw.toDouble() / 1000.0),
+            distances = WorkoutDistanceMetrics(
+                originalMeters = DomainValue.Present(originalDistanceMeters),
+                estimatedMeters = DomainValue.Absent(AbsenceReason.NOT_PROVIDED_BY_SOURCE),
+                calibratedMeters = DomainValue.Absent(AbsenceReason.NOT_YET_RESOLVED),
+            ),
+            averagePaceSecondsPerKilometer = pace,
+            averageSpeedMetersPerSecond = speed,
+            averageBpm = averageBpm,
+            minimumBpm = minimumBpm,
+            maximumBpm = maximumBpm,
+            endedAt = header.endedAt,
+        )
+        val parserValidity = if (hasPartialCondition) ParserValidity.PARTIAL else ParserValidity.VALID
+        val input = WatchWorkoutParserInput(
+            deviceId = request.deviceId,
+            crc = request.crc,
+            externalBlockIndex = request.externalBlockIndex,
+            parserVersion = request.parserVersion,
+            parserValidity = parserValidity,
+            diagnosticPayloadId = request.diagnosticPayloadId,
+            metrics = metrics,
+            intervals = intervals,
+            heartRateSamples = heartRateSamples,
+            d4V4Block = d4V4Block,
+        )
+        val summary = WatchWorkoutParserSummary(
+            layout = WatchWorkoutD4Layout.PREFERRED,
+            timedOut = request.block.timedOut,
+            missingPacketIndices = request.block.missingPacketIndices,
+            duplicatePacketIndices = request.block.duplicatePacketIndices,
+            recordCount = header.recordCount,
+            parsedIntervalCount = intervals.size,
+            validHeartRateSampleCount = heartRateSamples.size,
+            ignoredHeartRateSampleCount = parsedSamples.count { it.bpm == null },
+            reportedBlockCrc = header.crc,
+            crcMatchesD3 = crcMatchesD3,
+        )
+        return if (parserValidity == ParserValidity.VALID) {
+            WatchWorkoutParserResult.Valid(input = input, summary = summary)
+        } else {
+            WatchWorkoutParserResult.Partial(input = input, summary = summary)
+        }
+    }
+
+    private fun parseV4Header(bytes: ByteArray): WatchWorkoutD4V4Header? {
+        if (bytes.size < d4V4HeaderSize) return null
+        val startedAt = buildTimestamp(
+            year = bytes.readUInt16LittleEndian(1),
+            month = bytes[3].toUnsignedInt(),
+            day = bytes[4].toUnsignedInt(),
+            hour = bytes[5].toUnsignedInt(),
+            minute = bytes[6].toUnsignedInt(),
+            second = bytes[7].toUnsignedInt(),
+        ) ?: return null
+        val endedAt = buildTimestamp(
+            year = bytes.readUInt16LittleEndian(8),
+            month = bytes[10].toUnsignedInt(),
+            day = bytes[11].toUnsignedInt(),
+            hour = bytes[12].toUnsignedInt(),
+            minute = bytes[13].toUnsignedInt(),
+            second = bytes[14].toUnsignedInt(),
+        ) ?: return null
+        return WatchWorkoutD4V4Header(
+            markerRaw = bytes[0].toUnsignedInt(),
+            startedAt = startedAt,
+            endedAt = endedAt,
+            totalSteps = bytes.readUInt32LittleEndianUnsigned(15),
+            totalDistanceMeters = bytes.readUInt32LittleEndianUnsigned(19),
+            totalCaloriesRaw = bytes.readUInt32LittleEndianUnsigned(23),
+            totalSportValue = bytes.readUInt32LittleEndianUnsigned(27),
+            recordCount = bytes.readUInt16LittleEndian(31),
+            pauseCount = bytes[33].toUnsignedInt(),
+            pauseTime = bytes.readUInt16LittleEndian(34),
+            crc = bytes.readUInt16LittleEndian(36),
+            sportTypeRaw = bytes[38].toUnsignedInt(),
+            reservedRaw = bytes.copyOfRange(39, 42).map { it.toUnsignedInt() },
+        )
+    }
+
+    private fun parseV4Sample(bytes: ByteArray, packetIndex: Int): WatchWorkoutD4V4Sample? {
+        if (bytes.size < minimumPacketSize ||
+            bytes[0].toUnsignedInt() != ChampionD4WorkoutBlockProtocol.commandCode ||
+            packetIndex < 4
+        ) return null
+        val bpmRaw = bytes[6].toUnsignedInt()
+        return WatchWorkoutD4V4Sample(
+            sourceSampleIndex = packetIndex - 4,
+            bpmRaw = bpmRaw,
+            bpm = bpmRaw.takeIf { it in validBpmRange },
+            sportValue = bytes.readUInt16LittleEndian(7),
+            steps = bytes.readUInt16LittleEndian(9),
+            caloriesRaw = bytes.readUInt16LittleEndian(11),
+            distanceMeters = bytes.readUInt16LittleEndian(13),
+            pauseStateRaw = bytes[15].toUnsignedInt(),
+        )
+    }
+
+    private fun normalizedV4SampleTiming(
+        samples: List<WatchWorkoutD4V4Sample>,
+        totalDuration: Duration,
+        sessionStartedAt: Instant,
+    ): Map<Int, NormalizedSampleTiming>? {
+        if (samples.isEmpty()) return null
+        val totalDurationNanos = runCatching { totalDuration.toNanos() }.getOrNull() ?: return null
+        val count = samples.size.toLong()
+        val baseDurationNanos = totalDurationNanos / count
+        val remainderNanos = totalDurationNanos % count
+        if (baseDurationNanos <= 0L) return null
+        var currentStart = sessionStartedAt
+        val result = linkedMapOf<Int, NormalizedSampleTiming>()
+        samples.forEachIndexed { index, sample ->
+            val duration = Duration.ofNanos(baseDurationNanos + if (index.toLong() < remainderNanos) 1L else 0L)
+            val windowEnd = runCatching { currentStart.plus(duration) }.getOrNull() ?: return null
+            result[sample.sourceSampleIndex] = NormalizedSampleTiming(
+                duration = duration,
+                sampledAt = currentStart.plus(duration.dividedBy(2)),
+            )
+            currentStart = windowEnd
+        }
+        return result.takeIf { currentStart == sessionStartedAt.plus(totalDuration) }
     }
 
     data class Request(
@@ -469,6 +751,12 @@ object ChampionD4WorkoutParser {
             (this[offset + 1].toUnsignedInt() shl 8) or
             (this[offset + 2].toUnsignedInt() shl 16) or
             (this[offset + 3].toUnsignedInt() shl 24)
+
+    private fun ByteArray.readUInt32LittleEndianUnsigned(offset: Int): Long =
+        (this[offset].toUnsignedInt().toLong()) or
+            (this[offset + 1].toUnsignedInt().toLong() shl 8) or
+            (this[offset + 2].toUnsignedInt().toLong() shl 16) or
+            (this[offset + 3].toUnsignedInt().toLong() shl 24)
 
     private fun Byte.toUnsignedInt(): Int = toInt() and 0xFF
 }
