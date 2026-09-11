@@ -113,12 +113,14 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetada
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportStatus
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Block
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Consistency
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutD4V4Header
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V1_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V2_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V3_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_D4_V4_PARSER_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_LEGACY_DERIVATION_VERSION
+import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_NATIVE_DERIVATION_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
@@ -148,6 +150,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.isStructurallyValid
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutContractAdapters
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCredit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditBlockReason
@@ -677,7 +680,16 @@ internal fun WatchWorkoutD4V4HeaderEntity.toD4V4Header(): WatchWorkoutD4V4Header
         sportTypeRaw = reportedSportTypeRaw,
         reservedRaw = reservedRaw.map { byte -> byte.toInt() and 0xff },
     )
-}.getOrNull()
+}.getOrNull()?.takeIf { it.isStructurallyValid() }
+
+internal fun WatchWorkoutD4V4HeaderEntity.toD4V4Consistency(): WatchWorkoutD4V4Consistency =
+    WatchWorkoutD4V4Consistency(
+        recordCountMatches = recordCountMatches,
+        stepsMatch = stepsMatch,
+        distanceMetersMatch = distanceMetersMatch,
+        caloriesRawMatch = caloriesRawMatch,
+        sportValueMatch = sportValueMatch,
+    )
 
 /** Mapeia somente fatos raw/measured já persistidos; não interpreta coluna legada. */
 internal fun WorkoutIntervalEntity.toMeasuredWorkoutInterval(
@@ -753,8 +765,13 @@ internal fun WorkoutDerivationSnapshot.toEntity(
         WorkoutDerivationSnapshotEntity(
             id = id,
             activityId = activityId,
-            stepLengthMetersUsed = stepLengthMetersUsed,
-            stepLengthSource = stepLengthSource.name,
+            // Room v16 keeps these columns non-null. Native derivation does
+            // not use step length; sentinel values preserve schema/provenance
+            // without turning native distance into a fallback.
+            stepLengthMetersUsed = stepLengthMetersUsed ?: 0.0,
+            // Source is ignored for native snapshots; MANUAL is only a
+            // non-null Room compatibility sentinel in schema v16.
+            stepLengthSource = (stepLengthSource ?: StepLengthSource.MANUAL).name,
             derivationMethod = derivationMethod.name,
             derivationVersion = derivationVersion,
             derivedAtEpochMillis = derivedAtParts.epochMillis,
@@ -862,7 +879,8 @@ internal fun WorkoutSplit.toEntity(
 
 internal fun DerivedWorkoutIntervalEntity.toDomain(
     rawInterval: WorkoutIntervalEntity,
-    stepLengthMeters: Double,
+    stepLengthMeters: Double?,
+    derivationMethod: WorkoutDerivationMethod,
     parserVersion: String? = null,
 ): DerivedWorkoutInterval? {
     if (rawInterval.intervalIndex != intervalIndex) return null
@@ -879,11 +897,23 @@ internal fun DerivedWorkoutIntervalEntity.toDomain(
         .toMeasuredWorkoutInterval(effectiveWindowStart = start, parserVersion = parserVersion)
         ?.takeIf { it.measuredSteps == decodedSteps }
         ?: return null
+    if (!canonicalIntervalDistanceMeters.isFinite() || canonicalIntervalDistanceMeters < 0.0) return null
+    val expectedSourceDistance = when (derivationMethod) {
+        WorkoutDerivationMethod.WATCH_NATIVE -> measured.nativeDistanceMeters ?: return null
+        WorkoutDerivationMethod.STEP_LENGTH_FALLBACK,
+        WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
+        -> {
+            val stepLength = stepLengthMeters ?: return null
+            if (!stepLength.isFinite() || stepLength <= 0.0) return null
+            measured.measuredSteps?.toDouble()?.times(stepLength) ?: return null
+        }
+    }
+    if (!expectedSourceDistance.isFinite() || expectedSourceDistance != canonicalIntervalDistanceMeters) return null
     val cumulativeDuration = runCatching { Duration.ofNanos(cumulativeDurationNanos) }.getOrNull()
         ?.takeUnless { it.isNegative || it.isZero } ?: return null
     val mapped = DerivedWorkoutInterval.create(
         measured = measured,
-        stepLengthMeters = stepLengthMeters,
+        canonicalIntervalDistanceMeters = canonicalIntervalDistanceMeters,
         cumulativeSteps = cumulativeSteps,
         cumulativeDistanceMeters = cumulativeDistanceMeters,
         cumulativeDuration = cumulativeDuration,
@@ -949,6 +979,11 @@ internal fun WorkoutDerivationRecord.toDomain(
     rawIntervals: List<WorkoutIntervalEntity>,
     heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
     parserVersion: String? = null,
+    confirmedType: WorkoutType? = null,
+    parserValidity: ParserValidity? = null,
+    d4V4Header: WatchWorkoutD4V4Header? = null,
+    d4V4Consistency: WatchWorkoutD4V4Consistency? = null,
+    expectedCrc: Int? = null,
 ): WorkoutDerivationSnapshot? = snapshot.toDomain(
     activityOrigin = activityOrigin,
     activityStartedAt = activityStartedAt,
@@ -958,6 +993,11 @@ internal fun WorkoutDerivationRecord.toDomain(
     splits = splits,
     heartRateSamples = heartRateSamples,
     parserVersion = parserVersion,
+    confirmedType = confirmedType,
+    parserValidity = parserValidity,
+    d4V4Header = d4V4Header,
+    d4V4Consistency = d4V4Consistency,
+    expectedCrc = expectedCrc,
 )
 
 internal fun WorkoutDerivationSnapshotEntity.toDomain(
@@ -969,13 +1009,30 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
     splits: List<WorkoutSplitEntity>,
     heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
     parserVersion: String? = null,
+    confirmedType: WorkoutType? = null,
+    parserValidity: ParserValidity? = null,
+    d4V4Header: WatchWorkoutD4V4Header? = null,
+    d4V4Consistency: WatchWorkoutD4V4Consistency? = null,
+    expectedCrc: Int? = null,
 ): WorkoutDerivationSnapshot? {
     if (activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
         activityDurationNanos != totalDurationNanos
     ) return null
     if ((isActive && activeActivityId != activityId) || (!isActive && activeActivityId != null)) return null
-    val source = enum<StepLengthSource>(stepLengthSource) ?: return null
     val method = enum<WorkoutDerivationMethod>(derivationMethod) ?: return null
+    val persistedSource = enum<StepLengthSource>(stepLengthSource) ?: return null
+    if (method == WorkoutDerivationMethod.WATCH_NATIVE) {
+        if (stepLengthMetersUsed != 0.0 || persistedSource != StepLengthSource.MANUAL ||
+            parserVersion != WATCH_WORKOUT_D4_V4_PARSER_VERSION ||
+            confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) ||
+            parserValidity != ParserValidity.VALID ||
+            d4V4Header == null || d4V4Consistency == null
+        ) return null
+    } else if (stepLengthMetersUsed <= 0.0) {
+        return null
+    }
+    val source = persistedSource.takeUnless { method == WorkoutDerivationMethod.WATCH_NATIVE }
+    val resolvedStepLengthMeters = stepLengthMetersUsed.takeUnless { method == WorkoutDerivationMethod.WATCH_NATIVE }
     val durationCase = enum<WorkoutDurationCase>(durationCase) ?: return null
     val eligibility = enum<TemporalSeriesEligibility>(temporalEligibility) ?: return null
     val policy = enum<WorkoutPlausibilityPolicy>(plausibilityPolicy) ?: return null
@@ -1009,34 +1066,65 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
             diagnosticAggregateDistanceMeters == null -> return null
         else -> diagnosticAggregateTotalSteps
     }
+    if (method == WorkoutDerivationMethod.WATCH_NATIVE &&
+        (diagnosticAggregateTotalSteps != null ||
+            diagnosticAggregateStepLengthMeters != null ||
+            diagnosticAggregateDistanceMeters != null)
+    ) return null
     val totalDuration = runCatching { Duration.ofNanos(totalDurationNanos) }.getOrNull() ?: return null
     val snapshot = when (derivationVersion) {
-        WATCH_WORKOUT_LEGACY_DERIVATION_VERSION -> WorkoutDerivationSnapshot.deriveLegacy(
-            intervals = measuredIntervals,
-            totalDuration = totalDuration,
-            sessionStartedAt = activityStartedAt,
-            stepLengthMeters = stepLengthMetersUsed,
-            stepLengthSource = source,
-            derivationVersion = derivationVersion,
-            derivedAt = persistedDerivedAt,
-            totalSteps = totalSteps,
-            plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
-        )
-
-        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION,
-        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
-        ->
-            WorkoutDerivationSnapshot.derive(
+        WATCH_WORKOUT_LEGACY_DERIVATION_VERSION -> if (method == WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH) {
+            WorkoutDerivationSnapshot.deriveLegacy(
                 intervals = measuredIntervals,
                 totalDuration = totalDuration,
                 sessionStartedAt = activityStartedAt,
-                stepLengthMeters = stepLengthMetersUsed,
-                stepLengthSource = source,
+                stepLengthMeters = resolvedStepLengthMeters ?: return null,
+                stepLengthSource = source ?: return null,
                 derivationVersion = derivationVersion,
                 derivedAt = persistedDerivedAt,
                 totalSteps = totalSteps,
                 plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
             )
+        } else {
+            return null
+        }
+
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_DERIVATION_VERSION,
+        br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+        -> if (method != WorkoutDerivationMethod.WATCH_NATIVE) {
+            WorkoutDerivationSnapshot.derive(
+                intervals = measuredIntervals,
+                totalDuration = totalDuration,
+                sessionStartedAt = activityStartedAt,
+                stepLengthMeters = resolvedStepLengthMeters ?: return null,
+                stepLengthSource = source ?: return null,
+                derivationVersion = derivationVersion,
+                derivedAt = persistedDerivedAt,
+                totalSteps = totalSteps,
+                plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
+                derivationMethod = method,
+            )
+        } else {
+            return null
+        }
+
+        WATCH_WORKOUT_NATIVE_DERIVATION_VERSION -> if (method == WorkoutDerivationMethod.WATCH_NATIVE) {
+            WorkoutDerivationSnapshot.deriveNative(
+                intervals = measuredIntervals,
+                totalDuration = totalDuration,
+                sessionStartedAt = activityStartedAt,
+                workoutType = confirmedType,
+                header = d4V4Header ?: return null,
+                parserValidity = parserValidity ?: return null,
+                headerConsistency = d4V4Consistency,
+                expectedCrc = expectedCrc,
+                derivationVersion = derivationVersion,
+                derivedAt = persistedDerivedAt,
+                plausibility = WorkoutSeriesPlausibility(indicators = indicators, policy = policy),
+            )
+        } else {
+            return null
+        }
 
         else -> return null
     }.successOrNull() ?: return null
@@ -1071,6 +1159,7 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
         entity.toDomain(
             rawInterval = rawByIndex[entity.intervalIndex] ?: return null,
             stepLengthMeters = stepLengthMetersUsed,
+            derivationMethod = method,
             parserVersion = parserVersion,
         )
             ?: return null
@@ -1206,7 +1295,10 @@ internal fun WorkoutActivityEntity.toDomain(
                         it.nativeSportValue == null ||
                         it.nativeSteps == null ||
                         it.nativeSteps != it.steps ||
-                        it.nativeDistanceMeters?.let { value -> !value.isFinite() || value < 0.0 } == true ||
+                        it.nativeDistanceMeters?.let {
+                            value -> !value.isFinite() || value !in 0.0..0xFFFF.toDouble() ||
+                                value != value.toLong().toDouble()
+                        } == true ||
                         it.nativeCaloriesRaw == null ||
                         it.nativePauseStateRaw == null
                     )
@@ -1258,6 +1350,12 @@ internal fun HealthSyncWorkoutCandidateRecord.toHealthSyncCandidateDomain(
         activityDurationNanos = activity.durationNanos,
         rawIntervals = derivationIntervals,
         heartRateSamples = samples.map { it.toDomain() ?: return null },
+        parserVersion = importRecord?.parserVersion,
+        confirmedType = activity.confirmedType?.let { enum<WorkoutType>(it) ?: return null },
+        parserValidity = importRecord?.parserValidity?.let { enum<ParserValidity>(it) },
+        d4V4Header = d4V4Header?.toD4V4Header(),
+        d4V4Consistency = d4V4Header?.toD4V4Consistency(),
+        expectedCrc = importRecord?.crc,
     )
     return activity.toDomain(
         importRecord = importRecord,

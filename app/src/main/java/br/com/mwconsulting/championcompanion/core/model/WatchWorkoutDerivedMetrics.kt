@@ -14,6 +14,9 @@ const val WATCH_WORKOUT_DERIVATION_VERSION = "watch-d3-d4-v2"
 /** Versão usada pela derivação contextual e pela calibração externa da atividade. */
 const val WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION = "watch-d3-d4-v3"
 
+/** Versão da derivação que usa a série nativa D4 v4 como fonte canônica. */
+const val WATCH_WORKOUT_NATIVE_DERIVATION_VERSION = "watch-d3-d4-v4"
+
 /** Versão legada preservada somente para leitura de snapshots já persistidos. */
 internal const val WATCH_WORKOUT_LEGACY_DERIVATION_VERSION = "watch-d3-d4-v1"
 
@@ -399,10 +402,12 @@ data class MeasuredWorkoutInterval private constructor(
             val validNativeValues = native == null || (
                 native.sportValue in 0L..MAX_NATIVE_U16 &&
                     native.measuredSteps in 0L..MAX_NATIVE_U16 &&
-                    native.distanceMeters.isFinite() && native.distanceMeters in 0.0..MAX_NATIVE_U16.toDouble() &&
+                    native.distanceMeters.isFinite() &&
+                    native.distanceMeters in 0.0..MAX_NATIVE_U16.toDouble() &&
+                    native.distanceMeters == native.distanceMeters.toLong().toDouble() &&
                     native.caloriesRaw in 0L..MAX_NATIVE_U16 &&
                     native.pauseStateRaw in 0L..MAX_NATIVE_PAUSE
-                )
+            )
             val validEffectiveTime = when {
                 effectiveDuration == null && effectiveWindow == null -> true
                 effectiveDuration == null || effectiveWindow == null -> false
@@ -927,6 +932,86 @@ object WorkoutDurationResolver {
     }
 }
 
+/**
+ * Elegibilidade fechada da distância nativa D4 v4.
+ *
+ * A série temporal continua sendo a única fonte dos intervalos. O total do
+ * header apenas comprova que essa série fecha; ele nunca preenche ou corrige
+ * uma linha ausente.
+ */
+object WatchWorkoutNativeDistancePolicy {
+    fun isEligible(
+        workoutType: WorkoutType?,
+        parserValidity: ParserValidity?,
+        header: WatchWorkoutD4V4Header?,
+        headerConsistency: WatchWorkoutD4V4Consistency?,
+        intervals: List<MeasuredWorkoutInterval>,
+        resolution: WorkoutDurationResolution,
+        sessionStartedAt: Instant,
+        totalDuration: Duration,
+        expectedCrc: Int? = null,
+    ): Boolean {
+        if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) ||
+            parserValidity != ParserValidity.VALID ||
+            header == null ||
+            headerConsistency?.isConsistent != true ||
+            expectedCrc?.let { it != header.crc } == true ||
+            !header.isStructurallyValid() ||
+            !resolution.isEligible ||
+            intervals.isEmpty() ||
+            resolution.intervals.size != intervals.size ||
+            header.recordCount != intervals.size ||
+            header.startedAt != sessionStartedAt ||
+            header.endedAt != runCatching { sessionStartedAt.plus(totalDuration) }.getOrNull()
+        ) {
+            return false
+        }
+
+        val indexValidation = TemporalSeriesValidator.validate(intervals)
+        if (!indexValidation.isEligible) return false
+
+        var totalSteps = 0L
+        var totalDistance = 0.0
+        var totalCaloriesRaw = 0L
+        var totalSportValue = 0L
+        for (interval in intervals) {
+            val native = interval.source as? MeasuredWorkoutIntervalSource.D4V4Native
+                ?: return false
+            totalSteps = runCatching { Math.addExact(totalSteps, native.measuredSteps) }.getOrNull()
+                ?: return false
+            val distance = native.distanceMeters
+            if (!distance.isFinite() || distance < 0.0 ||
+                distance != distance.toLong().toDouble()
+            ) return false
+            totalDistance += distance
+            if (!totalDistance.isFinite()) return false
+            totalCaloriesRaw = runCatching { Math.addExact(totalCaloriesRaw, native.caloriesRaw) }.getOrNull()
+                ?: return false
+            totalSportValue = runCatching { Math.addExact(totalSportValue, native.sportValue) }.getOrNull()
+                ?: return false
+        }
+        return totalSteps == header.totalSteps &&
+            totalDistance == header.totalDistanceMeters.toDouble() &&
+            totalCaloriesRaw == header.totalCaloriesRaw &&
+            totalSportValue == header.totalSportValue
+    }
+}
+
+internal fun WatchWorkoutD4V4Header.isStructurallyValid(): Boolean =
+    markerRaw in 0..0xff &&
+        !endedAt.isBefore(startedAt) &&
+        totalSteps in 0L..0xffff_ffffL &&
+        totalDistanceMeters in 0L..0xffff_ffffL &&
+        totalCaloriesRaw in 0L..0xffff_ffffL &&
+        totalSportValue in 0L..0xffff_ffffL &&
+        recordCount in 1..0xffff &&
+        pauseCount in 0..0xff &&
+        pauseTime in 0..0xffff &&
+        crc in 0..0xffff &&
+        sportTypeRaw in 0..0xff &&
+        reservedRaw.size == 3 &&
+        reservedRaw.all { it in 0..0xff }
+
 enum class WorkoutPlausibilityIndicator {
     IMPLAUSIBLE_CADENCE,
     IMPLAUSIBLE_SPEED,
@@ -1038,7 +1123,7 @@ data class DerivedWorkoutInterval private constructor(
     companion object {
         internal fun create(
             measured: MeasuredWorkoutInterval,
-            stepLengthMeters: Double,
+            canonicalIntervalDistanceMeters: Double,
             cumulativeSteps: Long,
             cumulativeDistanceMeters: Double,
             cumulativeDuration: Duration,
@@ -1046,20 +1131,27 @@ data class DerivedWorkoutInterval private constructor(
             val duration = measured.effectiveDuration ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
             val window = measured.effectiveWindow ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
             val steps = measured.measuredSteps ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
-            if (!stepLengthMeters.isFinite() || stepLengthMeters <= 0.0 || steps < 0L || !duration.isPositive()) {
+            if (!canonicalIntervalDistanceMeters.isFinite() ||
+                canonicalIntervalDistanceMeters < 0.0 ||
+                steps < 0L ||
+                !duration.isPositive()
+            ) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }
-            val intervalDistance = steps.toDouble() * stepLengthMeters
             val durationSeconds = duration.secondsAsDouble()
-            if (!intervalDistance.isFinite() || !durationSeconds.isFinite() || durationSeconds <= 0.0 ||
+            if (!durationSeconds.isFinite() || durationSeconds <= 0.0 ||
                 cumulativeSteps < 0L || !cumulativeDistanceMeters.isFinite() || cumulativeDistanceMeters < 0.0
             ) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }
             val intervalMetrics = WorkoutIntervalMetrics(
                 cadenceStepsPerMinute = if (steps == 0L) 0.0 else steps.toDouble() / (durationSeconds / 60.0),
-                speedMetersPerSecond = if (intervalDistance == 0.0) 0.0 else intervalDistance / durationSeconds,
-                paceSecondsPerKilometer = intervalDistance.takeIf { it > 0.0 }
+                speedMetersPerSecond = if (canonicalIntervalDistanceMeters == 0.0) {
+                    0.0
+                } else {
+                    canonicalIntervalDistanceMeters / durationSeconds
+                },
+                paceSecondsPerKilometer = canonicalIntervalDistanceMeters.takeIf { it > 0.0 }
                     ?.let { durationSeconds / (it / 1_000.0) },
             )
             val cumulativeMetrics = WorkoutCumulativeMetrics(
@@ -1075,7 +1167,7 @@ data class DerivedWorkoutInterval private constructor(
                     effectiveDuration = duration,
                     effectiveWindow = window,
                     decodedSteps = steps,
-                    canonicalIntervalDistanceMeters = intervalDistance,
+                    canonicalIntervalDistanceMeters = canonicalIntervalDistanceMeters,
                     metrics = intervalMetrics,
                     cumulativeSteps = cumulativeSteps,
                     cumulativeDistanceMeters = cumulativeDistanceMeters,
@@ -1184,8 +1276,8 @@ data class DiagnosticAggregateStepEstimate private constructor(
 
 @ConsistentCopyVisibility
 data class WorkoutDerivationSnapshot private constructor(
-    val stepLengthMetersUsed: Double,
-    val stepLengthSource: StepLengthSource,
+    val stepLengthMetersUsed: Double?,
+    val stepLengthSource: StepLengthSource?,
     val derivationMethod: WorkoutDerivationMethod,
     val derivationVersion: String,
     val derivedAt: Instant,
@@ -1257,12 +1349,14 @@ data class WorkoutDerivationSnapshot private constructor(
             derivedAt: Instant,
             totalSteps: Long? = null,
             plausibility: WorkoutSeriesPlausibility = WorkoutSeriesPlausibility(),
+            derivationMethod: WorkoutDerivationMethod = WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
         ): DomainResult<WorkoutDerivationSnapshot> = createInternal(
             intervals = intervals,
             totalDuration = totalDuration,
             sessionStartedAt = sessionStartedAt,
             stepLengthMetersUsed = stepLength.stepLengthMeters,
             stepLengthSource = stepLength.source,
+            derivationMethod = derivationMethod,
             derivationVersion = derivationVersion,
             derivedAt = derivedAt,
             totalSteps = totalSteps,
@@ -1279,16 +1373,48 @@ data class WorkoutDerivationSnapshot private constructor(
             derivedAt: Instant,
             totalSteps: Long? = null,
             plausibility: WorkoutSeriesPlausibility = WorkoutSeriesPlausibility(),
+            derivationMethod: WorkoutDerivationMethod = WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
         ): DomainResult<WorkoutDerivationSnapshot> = createInternal(
             intervals = intervals,
             totalDuration = totalDuration,
             sessionStartedAt = sessionStartedAt,
             stepLengthMetersUsed = stepLengthMeters,
             stepLengthSource = stepLengthSource,
+            derivationMethod = derivationMethod,
             derivationVersion = derivationVersion,
             derivedAt = derivedAt,
             totalSteps = totalSteps,
             plausibility = plausibility,
+        )
+
+        fun deriveNative(
+            intervals: List<MeasuredWorkoutInterval>,
+            totalDuration: Duration,
+            sessionStartedAt: Instant,
+            workoutType: WorkoutType?,
+            header: WatchWorkoutD4V4Header,
+            parserValidity: ParserValidity,
+            headerConsistency: WatchWorkoutD4V4Consistency? = null,
+            expectedCrc: Int? = null,
+            derivationVersion: String = WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
+            derivedAt: Instant,
+            plausibility: WorkoutSeriesPlausibility = WorkoutSeriesPlausibility(),
+        ): DomainResult<WorkoutDerivationSnapshot> = createInternal(
+            intervals = intervals,
+            totalDuration = totalDuration,
+            sessionStartedAt = sessionStartedAt,
+            stepLengthMetersUsed = null,
+            stepLengthSource = null,
+            derivationMethod = WorkoutDerivationMethod.WATCH_NATIVE,
+            derivationVersion = derivationVersion,
+            derivedAt = derivedAt,
+            totalSteps = null,
+            plausibility = plausibility,
+            nativeWorkoutType = workoutType,
+            nativeHeader = header,
+            nativeParserValidity = parserValidity,
+            nativeHeaderConsistency = headerConsistency,
+            nativeExpectedCrc = expectedCrc,
         )
 
         /**
@@ -1312,6 +1438,7 @@ data class WorkoutDerivationSnapshot private constructor(
             sessionStartedAt = sessionStartedAt,
             stepLengthMetersUsed = stepLengthMeters,
             stepLengthSource = stepLengthSource,
+            derivationMethod = WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
             derivationVersion = derivationVersion,
             derivedAt = derivedAt,
             totalSteps = totalSteps,
@@ -1323,15 +1450,31 @@ data class WorkoutDerivationSnapshot private constructor(
             intervals: List<MeasuredWorkoutInterval>,
             totalDuration: Duration,
             sessionStartedAt: Instant,
-            stepLengthMetersUsed: Double,
-            stepLengthSource: StepLengthSource,
+            stepLengthMetersUsed: Double?,
+            stepLengthSource: StepLengthSource?,
+            derivationMethod: WorkoutDerivationMethod,
             derivationVersion: String,
             derivedAt: Instant,
             totalSteps: Long?,
             plausibility: WorkoutSeriesPlausibility,
             useLegacyTemporalPolicy: Boolean = false,
+            nativeWorkoutType: WorkoutType? = null,
+            nativeHeader: WatchWorkoutD4V4Header? = null,
+            nativeParserValidity: ParserValidity? = null,
+            nativeHeaderConsistency: WatchWorkoutD4V4Consistency? = null,
+            nativeExpectedCrc: Int? = null,
         ): DomainResult<WorkoutDerivationSnapshot> {
-            if (!stepLengthMetersUsed.isFinite() || stepLengthMetersUsed <= 0.0 || derivationVersion.isBlank()) {
+            val hasValidStepLength = stepLengthMetersUsed?.let {
+                it.isFinite() && it > 0.0 && stepLengthSource != null
+            } == true
+            val hasNoStepLength = stepLengthMetersUsed == null && stepLengthSource == null
+            val derivationInputsValid = when (derivationMethod) {
+                WorkoutDerivationMethod.WATCH_NATIVE -> hasNoStepLength
+                WorkoutDerivationMethod.STEP_LENGTH_FALLBACK,
+                WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
+                -> hasValidStepLength
+            }
+            if (!derivationInputsValid || derivationVersion.isBlank()) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }
             if (totalSteps != null && totalSteps < 0L) {
@@ -1350,18 +1493,36 @@ data class WorkoutDerivationSnapshot private constructor(
                     sessionStartedAt = sessionStartedAt,
                 )
             }
+            if (derivationMethod == WorkoutDerivationMethod.WATCH_NATIVE &&
+                !WatchWorkoutNativeDistancePolicy.isEligible(
+                    workoutType = nativeWorkoutType,
+                    parserValidity = nativeParserValidity,
+                    header = nativeHeader,
+                    headerConsistency = nativeHeaderConsistency,
+                    intervals = intervals,
+                    resolution = temporalResolution,
+                    sessionStartedAt = sessionStartedAt,
+                    totalDuration = totalDuration,
+                    expectedCrc = nativeExpectedCrc,
+                )
+            ) {
+                return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+            }
             val diagnosticEstimate = totalSteps?.let {
-                DiagnosticAggregateStepEstimate.create(it, stepLengthMetersUsed).valueOrNull()
+                stepLengthMetersUsed?.let { stepLength ->
+                    DiagnosticAggregateStepEstimate.create(it, stepLength).valueOrNull()
+                }
             }
             val canonicalSeries = deriveCanonicalSeries(
                 resolution = temporalResolution,
+                derivationMethod = derivationMethod,
                 stepLengthMetersUsed = stepLengthMetersUsed,
             )
             return DomainResult.Success(
                 WorkoutDerivationSnapshot(
                     stepLengthMetersUsed = stepLengthMetersUsed,
                     stepLengthSource = stepLengthSource,
-                    derivationMethod = WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
+                    derivationMethod = derivationMethod,
                     derivationVersion = derivationVersion,
                     derivedAt = derivedAt,
                     temporalResolution = temporalResolution,
@@ -1374,7 +1535,8 @@ data class WorkoutDerivationSnapshot private constructor(
 
         private fun deriveCanonicalSeries(
             resolution: WorkoutDurationResolution,
-            stepLengthMetersUsed: Double,
+            derivationMethod: WorkoutDerivationMethod,
+            stepLengthMetersUsed: Double?,
         ): CanonicalWorkoutSeries? {
             if (!resolution.isEligible) return null
             if (resolution.intervals.any { it.measuredSteps == null }) return null
@@ -1389,7 +1551,12 @@ data class WorkoutDerivationSnapshot private constructor(
                 } catch (_: ArithmeticException) {
                     return null
                 }
-                val distance = steps.toDouble() * stepLengthMetersUsed
+                val distance = when (derivationMethod) {
+                    WorkoutDerivationMethod.WATCH_NATIVE -> measured.nativeDistanceMeters ?: return null
+                    WorkoutDerivationMethod.STEP_LENGTH_FALLBACK,
+                    WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
+                    -> steps.toDouble() * (stepLengthMetersUsed ?: return null)
+                }
                 if (!distance.isFinite()) return null
                 cumulativeDistance += distance
                 cumulativeDuration = try {
@@ -1399,7 +1566,7 @@ data class WorkoutDerivationSnapshot private constructor(
                 }
                 val derivedInterval = DerivedWorkoutInterval.create(
                     measured = measured,
-                    stepLengthMeters = stepLengthMetersUsed,
+                    canonicalIntervalDistanceMeters = distance,
                     cumulativeSteps = cumulativeSteps,
                     cumulativeDistanceMeters = cumulativeDistance,
                     cumulativeDuration = cumulativeDuration,
@@ -1413,6 +1580,8 @@ data class WorkoutDerivationSnapshot private constructor(
 
 enum class WorkoutDerivationMethod {
     FIXED_PERSONAL_STEP_LENGTH,
+    STEP_LENGTH_FALLBACK,
+    WATCH_NATIVE,
 }
 
 /**

@@ -142,6 +142,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDurationResolver
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
@@ -155,6 +156,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutSeriesPlausibilit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutNativeDistancePolicy
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCredit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditBlockReason
@@ -3144,6 +3146,7 @@ class RoomRepositories @Inject constructor(
             importRecord = importRecord,
             intervals = intervals,
             samples = samples,
+            d4V4Header = d4V4Header,
         )
         val canonicalReadStatusOverride = if (
             activity.origin == WorkoutActivityOrigin.WATCH_D3_D4.name && derivationSnapshot == null &&
@@ -3234,15 +3237,6 @@ class RoomRepositories @Inject constructor(
             return WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.INDEX_INELIGIBLE)
         }
 
-        val currentProfile = database.userProfileDao().findCurrent()?.toDomain()
-        val confirmedType = activity.confirmedType
-            ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
-            ?: WorkoutType.UNKNOWN
-        if (resolveEffectiveStepLengthInternal(confirmedType, currentProfile) == null) {
-            return WatchWorkoutReprocessResult.Blocked(
-                WatchWorkoutReprocessFailureReason.STEP_LENGTH_PROFILE_INVALID,
-            )
-        }
         val totalDuration = runCatching { Duration.ofNanos(activity.durationNanos) }.getOrNull()
             ?.takeIf { it.isPositive() }
             ?: return WatchWorkoutReprocessResult.Blocked(WatchWorkoutReprocessFailureReason.TEMPORAL_INCONSISTENCY)
@@ -3464,7 +3458,10 @@ class RoomRepositories @Inject constructor(
             entity.decodedSteps == null &&
             entity.nativeSportValue?.let { it in 0L..0xFFFFL } == true &&
             entity.nativeSteps?.let { it in 0L..0xFFFFL && it == entity.steps } == true &&
-            entity.nativeDistanceMeters?.let { it.isFinite() && it in 0.0..0xFFFF.toDouble() } == true &&
+            entity.nativeDistanceMeters?.let {
+                it.isFinite() && it in 0.0..0xFFFF.toDouble() &&
+                    it == it.toLong().toDouble()
+            } == true &&
             entity.nativeCaloriesRaw?.let { it in 0L..0xFFFFL } == true &&
             entity.nativePauseStateRaw?.let { it in 0L..0xFFL } == true
 
@@ -3507,6 +3504,13 @@ class RoomRepositories @Inject constructor(
         val persistedHeartRateSamples = samples.map { it.toDomain() }
         if (persistedHeartRateSamples.any { it == null }) return RepositoryResult.UnexpectedState
         val persistedHeartRateDomains = persistedHeartRateSamples.filterNotNull()
+        val d4V4HeaderEntity = if (importRecord.parserVersion == WATCH_WORKOUT_D4_V4_PARSER_VERSION) {
+            database.watchWorkoutD4V4HeaderDao().findByActivityId(activity.id)
+        } else {
+            null
+        }
+        val d4V4Header = d4V4HeaderEntity?.toD4V4Header()
+        val parserValidity = runCatching { ParserValidity.valueOf(importRecord.parserValidity) }.getOrNull()
         val derivationRawIntervals = prepareWatchWorkoutIntervalsForDerivation(
             parserVersion = importRecord.parserVersion,
             rawIntervals = rawIntervals,
@@ -3528,6 +3532,11 @@ class RoomRepositories @Inject constructor(
             rawIntervals = derivationRawIntervals,
             heartRateSamples = persistedHeartRateDomains,
             parserVersion = importRecord.parserVersion,
+            confirmedType = activity.confirmedType?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() },
+            parserValidity = parserValidity,
+            d4V4Header = d4V4Header,
+            d4V4Consistency = d4V4HeaderEntity?.toD4V4Consistency(),
+            expectedCrc = importRecord.crc,
         )
         if (activeRecord != null && !replaceActive) {
             val persistedSnapshot = existingSnapshot ?: return RepositoryResult.UnexpectedState
@@ -3535,46 +3544,85 @@ class RoomRepositories @Inject constructor(
             return RepositoryResult.Success(persistedSnapshot)
         }
 
-        val currentProfile = database.userProfileDao().findCurrent()?.toDomain()
         val confirmedType = activity.confirmedType
             ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
             ?: WorkoutType.UNKNOWN
-        val profile = explicitStepLength
-            ?: resolveEffectiveStepLengthInternal(confirmedType, currentProfile)
-        if (profile == null) {
-            // Perfil ausente nunca transforma distância diagnóstica em fallback.
-            if (existingSnapshot != null) {
-                promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
-                return RepositoryResult.Success(existingSnapshot)
-            }
-            return RepositoryResult.Success(null)
-        }
         val totalDuration = runCatching { Duration.ofNanos(activity.durationNanos) }.getOrNull()
             ?: return RepositoryResult.UnexpectedState
+        val sessionStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis)
         val measuredIntervals = measuredIntervalsForDerivation(
-            activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
+            activityStartedAt = sessionStartedAt,
             rawIntervals = rawIntervals,
             parserVersion = importRecord.parserVersion,
         ) ?: return RepositoryResult.UnexpectedState
-        val derivationVersion = if (
-            profile.source == StepLengthSource.CONTEXTUAL_LEARNED_PROFILE ||
-            profile.source == StepLengthSource.REFERENCE_DISTANCE_CALIBRATION ||
-            confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)
-        ) {
-            WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION
-        } else {
-            explicitDerivationVersion
-        }
-        val snapshot = WorkoutDerivationSnapshot.derive(
-            intervals = measuredIntervals,
+        val temporalResolution = WorkoutDurationResolver.resolve(
             totalDuration = totalDuration,
-            sessionStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
-            stepLength = profile,
-            derivationVersion = derivationVersion,
-            derivedAt = derivedAt,
-            totalSteps = activity.steps,
-            plausibility = existingSnapshot?.plausibility ?: WorkoutSeriesPlausibility(),
-        ).valueOrNull() ?: return RepositoryResult.UnexpectedState
+            intervals = measuredIntervals,
+            sessionStartedAt = sessionStartedAt,
+        )
+        val nativeEligible = importRecord.parserVersion == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
+            WatchWorkoutNativeDistancePolicy.isEligible(
+                workoutType = confirmedType,
+                parserValidity = parserValidity,
+                header = d4V4Header,
+                headerConsistency = d4V4HeaderEntity?.toD4V4Consistency(),
+                intervals = measuredIntervals,
+                resolution = temporalResolution,
+                sessionStartedAt = sessionStartedAt,
+                totalDuration = totalDuration,
+                expectedCrc = importRecord.crc,
+            )
+        val currentProfile = database.userProfileDao().findCurrent()?.toDomain()
+        val profile = explicitStepLength
+            ?: resolveEffectiveStepLengthInternal(confirmedType, currentProfile)
+        val snapshot = if (nativeEligible) {
+            WorkoutDerivationSnapshot.deriveNative(
+                intervals = measuredIntervals,
+                totalDuration = totalDuration,
+                sessionStartedAt = sessionStartedAt,
+                workoutType = confirmedType,
+                header = d4V4Header ?: return RepositoryResult.UnexpectedState,
+                parserValidity = parserValidity ?: return RepositoryResult.UnexpectedState,
+                headerConsistency = d4V4HeaderEntity?.toD4V4Consistency()
+                    ?: return RepositoryResult.UnexpectedState,
+                expectedCrc = importRecord.crc,
+                derivedAt = derivedAt,
+                plausibility = existingSnapshot?.plausibility ?: WorkoutSeriesPlausibility(),
+            ).valueOrNull() ?: return RepositoryResult.UnexpectedState
+        } else {
+            if (profile == null) {
+                // Perfil ausente nunca transforma distância diagnóstica em fallback.
+                if (existingSnapshot != null) {
+                    promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
+                    return RepositoryResult.Success(existingSnapshot)
+                }
+                return RepositoryResult.Success(null)
+            }
+            val derivationVersion = if (
+                profile.source == StepLengthSource.CONTEXTUAL_LEARNED_PROFILE ||
+                profile.source == StepLengthSource.REFERENCE_DISTANCE_CALIBRATION ||
+                confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)
+            ) {
+                WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION
+            } else {
+                explicitDerivationVersion
+            }
+            WorkoutDerivationSnapshot.derive(
+                intervals = measuredIntervals,
+                totalDuration = totalDuration,
+                sessionStartedAt = sessionStartedAt,
+                stepLength = profile,
+                derivationVersion = derivationVersion,
+                derivedAt = derivedAt,
+                totalSteps = activity.steps,
+                plausibility = existingSnapshot?.plausibility ?: WorkoutSeriesPlausibility(),
+                derivationMethod = if (importRecord.parserVersion == WATCH_WORKOUT_D4_V4_PARSER_VERSION) {
+                    WorkoutDerivationMethod.STEP_LENGTH_FALLBACK
+                } else {
+                    WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH
+                },
+            ).valueOrNull() ?: return RepositoryResult.UnexpectedState
+        }
 
         val splits = if (snapshot.isEligibleForFunctionalSplits) {
             val canonicalSeries = snapshot.canonicalSeries ?: return RepositoryResult.UnexpectedState
@@ -3634,6 +3682,11 @@ class RoomRepositories @Inject constructor(
             splits = splitEntities,
             heartRateSamples = persistedHeartRateDomains,
             parserVersion = importRecord.parserVersion,
+            confirmedType = confirmedType,
+            parserValidity = parserValidity,
+            d4V4Header = d4V4Header,
+            d4V4Consistency = d4V4HeaderEntity?.toD4V4Consistency(),
+            expectedCrc = importRecord.crc,
         ) ?: return RepositoryResult.UnexpectedState
 
         // Normalized timestamps are derivation-only. Persisted BPM facts and
@@ -3678,6 +3731,7 @@ class RoomRepositories @Inject constructor(
         importRecord: WatchWorkoutImportEntity?,
         intervals: List<WorkoutIntervalEntity>,
         samples: List<WorkoutHeartRateSampleEntity>,
+        d4V4Header: WatchWorkoutD4V4HeaderEntity? = null,
     ): WorkoutDerivationSnapshot? {
         if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
             importRecord == null ||
@@ -3689,6 +3743,10 @@ class RoomRepositories @Inject constructor(
         ) ?: return null
         val mappedSamples = samples.map { it.toDomain() }
         if (mappedSamples.any { it == null }) return null
+        val confirmedType = activity.confirmedType
+            ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
+        val persistedHeader = d4V4Header ?: database.watchWorkoutD4V4HeaderDao()
+            .findByActivityId(activity.id)
         return database.workoutDerivationDao().findActiveForActivity(activity.id)?.toDomain(
             activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4,
             activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
@@ -3696,6 +3754,11 @@ class RoomRepositories @Inject constructor(
             rawIntervals = derivationIntervals,
             heartRateSamples = mappedSamples.filterNotNull(),
             parserVersion = importRecord.parserVersion,
+            confirmedType = confirmedType,
+            parserValidity = runCatching { ParserValidity.valueOf(importRecord.parserValidity) }.getOrNull(),
+            d4V4Header = persistedHeader?.toD4V4Header(),
+            d4V4Consistency = persistedHeader?.toD4V4Consistency(),
+            expectedCrc = importRecord.crc,
         )
     }
 

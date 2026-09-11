@@ -311,10 +311,14 @@ data class WorkoutActivity private constructor(
                 derivationSnapshot.derivationVersion !in setOf(
                     WATCH_WORKOUT_DERIVATION_VERSION,
                     WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+                    WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
                 ) ||
                 canonicalReadStatus == WorkoutCanonicalReadStatus.SPLITS_NOT_MATERIALIZED ||
                 confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
-                    derivationSnapshot.derivationVersion != WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION
+                    derivationSnapshot.derivationVersion !in setOf(
+                        WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
+                        WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
+                    )
             )
 
     private fun legacyImportContext(): WatchWorkoutActivityImportContext = checkNotNull(watchImportContext) {
@@ -855,7 +859,11 @@ data class WorkoutActivity private constructor(
                     interval.rawCaloriesValue == null && interval.decodedSteps == null &&
                     interval.nativeSportValue?.let { it in 0L..0xFFFFL } == true &&
                     interval.nativeSteps?.let { it in 0L..0xFFFFL && it == interval.steps } == true &&
-                    interval.nativeDistanceMeters?.let { it.isFinite() && it in 0.0..0xFFFF.toDouble() } == true &&
+                    interval.nativeDistanceMeters?.let {
+                        it.isFinite() &&
+                            it in 0.0..0xFFFF.toDouble() &&
+                            it == it.toLong().toDouble()
+                    } == true &&
                     interval.nativeCaloriesRaw?.let { it in 0L..0xFFFFL } == true &&
                     interval.nativePauseStateRaw?.let { it in 0L..0xFFL } == true
                 )
