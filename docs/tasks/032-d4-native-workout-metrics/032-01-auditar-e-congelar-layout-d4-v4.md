@@ -4,6 +4,7 @@
 - **Depende de:** nenhuma
 - **Libera:** 032-02 e 032-03
 - **Auditoria:** `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`
+- **Reauditoria pós-031:** `docs/integration/032-01-post-031-reaudit.md`
 
 ## Objetivo
 
@@ -20,7 +21,8 @@ mudar código.
 - [x] congelar que `T/N` permanece autoritativo para timeline efetiva;
 - [x] mapear consumidores de `rawMotionValue`, `rawDistanceValue`,
   `rawCaloriesValue`, `decodedSteps`, distância canônica e calibração;
-- [x] alinhar a Spec 032 às decisões fechadas nesta auditoria.
+- [x] alinhar a Spec 032 às decisões fechadas nesta auditoria;
+- [x] revalidar o contrato sobre a `main` pós-031 antes de iniciar runtime.
 
 ## Evidência auditada
 
@@ -149,23 +151,59 @@ reportedCrc
 `rawMotionValue`, `rawDistanceValue` e `rawCaloriesValue` mantêm o significado
 legacy de `d4-v1/v2/v3`; não recebem novo significado por conveniência.
 
+## Reauditoria pós-031 — 2026-09-10
+
+Depois da conclusão da Spec 031 e atualização da branch 032 sobre a nova `main`,
+o contrato foi revalidado antes de iniciar código.
+
+A comparação confirmou `behind_by = 0` contra `main`, com merge-base
+`6025fbaaf119727fbb95c2f51e6f16946ef646ea`.
+
+Achados:
+
+- Room permanece efetivamente em v15;
+- o bug de compressão de slot D3 por CRC zero permanece no runtime;
+- o parser D4 continua limitado a `d4-v1/v2/v3`, portanto nenhum trecho de v4 foi
+  implementado acidentalmente pela 031;
+- `RoomRepositories.persistImported(...)` continua sendo o caminho de
+  persistência/reimportação de atividades do relógio;
+- a 031 não alterou `HealthRecordMapper`, `HealthProjectionContracts` nem o
+  coordenador de sync de workout;
+- Saúde agora consome explicitamente FC de `WATCH_WORKOUT_ACTIVITY`, tornando a
+  preservação correta das amostras BPM D4 também um requisito dos históricos de
+  Saúde;
+- a antiga pré-condição de esperar a 031 antes da integração tardia está
+  satisfeita.
+
+Nenhuma decisão de offsets, unidades, timeline, compatibilidade ou provenance foi
+alterada. O documento completo da reauditoria é
+`docs/integration/032-01-post-031-reaudit.md`.
+
 ## Fechamento
 
-O contrato foi sincronizado em:
+O contrato está sincronizado em:
 
 - `docs/integration/032-01-d4-v4-layout-and-consumer-audit.md`;
+- `docs/integration/032-01-post-031-reaudit.md`;
 - `docs/protocol/workouts-d3-d4.md`;
 - `docs/specs/032-d4-native-workout-metrics.md`;
 - `docs/tasks/032-d4-native-workout-metrics/032-00-overview.md`.
 
-`032-02` e `032-03` estão liberadas para execução paralela depois que a base local
-for atualizada para a branch 032.
+`032-02` e `032-03` estão liberadas para execução paralela sobre a branch 032 já
+atualizada para a baseline pós-031.
 
 ## Validação
 
-A task alterou somente documentação e não exige build. A sessão atual acessa o
-repositório pelo conector GitHub e não possui checkout local montado, portanto o
-comando literal `git diff --check` não pôde ser executado aqui. A comparação
-`main..feat/032-d4-native-workout-metrics` foi inspecionada e não mostrou arquivos
-de runtime modificados. Executar `git diff --check` no checkout local como
-preflight antes de iniciar as mudanças de código de `032-02/032-03`.
+A task e sua reauditoria alteraram somente documentação e não exigem build. A
+sessão acessa o repositório pelo conector GitHub e não possui checkout local
+montado, portanto o comando literal `git diff --check` não foi executado aqui.
+A comparação remota confirmou a branch 032 sem atraso em relação à `main` e sem
+mudanças de runtime próprias da 032 até o início desta reauditoria.
+
+Executar localmente como preflight antes de `032-02/032-03`:
+
+```bash
+git checkout feat/032-d4-native-workout-metrics
+git pull
+git diff --check main...HEAD
+```
