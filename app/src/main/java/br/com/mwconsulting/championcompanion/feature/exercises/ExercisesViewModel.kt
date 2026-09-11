@@ -55,6 +55,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRoute
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
 import br.com.mwconsulting.championcompanion.core.model.LearnedStepLengthProfile
@@ -550,6 +551,7 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.SubmitReview -> submitReview()
             is ExercisesIntent.EditCalibrationDistance -> updateCalibrationDistance(intent.distance)
             ExercisesIntent.SubmitCalibration -> submitCalibration()
+            ExercisesIntent.RemoveDistanceCalibrationEvidence -> removeDistanceCalibrationEvidence()
             ExercisesIntent.ReprocessSelectedActivity -> reprocessSelectedActivity()
             ExercisesIntent.AcceptSelectedPlausibility -> acceptSelectedPlausibility()
             ExercisesIntent.SyncSelectedActivity -> syncSelectedActivity()
@@ -2147,6 +2149,13 @@ class ExercisesViewModel internal constructor(
                 observedStepLengthMeters = previewObservedStepLength(activity, input),
                 currentProfileStepLengthMeters = currentEffectiveProfile(activity),
                 futureProfileStepLengthMeters = previewFutureProfile(activity, input),
+                nativeWatchDistanceMeters = nativeWatchDistance(activity),
+                nativeDistanceCalibrationFactor = activity.derivationSnapshot?.distanceCalibrationFactor,
+                nativeDistanceDerivationMethod = activity.derivationSnapshot?.derivationMethod
+                    ?.takeIf {
+                        it == WorkoutDerivationMethod.WATCH_NATIVE ||
+                            it == WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED
+                    },
                 completedAt = previous.completedAt.takeIf { preserveCompleted },
             )
         }
@@ -2163,6 +2172,13 @@ class ExercisesViewModel internal constructor(
             observedStepLengthMeters = previewObservedStepLength(activity, distance),
             currentProfileStepLengthMeters = currentEffectiveProfile(activity),
             futureProfileStepLengthMeters = previewFutureProfile(activity, distance),
+            nativeWatchDistanceMeters = nativeWatchDistance(activity),
+            nativeDistanceCalibrationFactor = activity?.derivationSnapshot?.distanceCalibrationFactor,
+            nativeDistanceDerivationMethod = activity?.derivationSnapshot?.derivationMethod
+                ?.takeIf {
+                    it == WorkoutDerivationMethod.WATCH_NATIVE ||
+                        it == WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED
+                },
             completedAt = null,
             validationError = null,
         )
@@ -2265,6 +2281,33 @@ class ExercisesViewModel internal constructor(
         }
         ?.takeIf { it > 0L }
 
+    private fun nativeWatchDistance(activity: WorkoutActivity?): Double? = activity
+        ?.intervals
+        ?.mapNotNull { it.nativeDistanceMeters }
+        ?.takeIf { it.isNotEmpty() }
+        ?.sum()
+        ?.takeIf { it.isFinite() && it > 0.0 }
+
+    private fun removeDistanceCalibrationEvidence() {
+        val activityId = selectedActivity.value?.id ?: return
+        scope.launch {
+            when (personalMetricsRepository.removeDistanceCalibrationEvidence(activityId)) {
+                is RepositoryResult.Success -> operationError.value = null
+                RepositoryResult.NotFound -> operationError.value = ExerciseOperationError(
+                    ExerciseOperationErrorCategory.NOT_FOUND,
+                    "Evidência contextual não encontrada.",
+                )
+                RepositoryResult.Conflict,
+                RepositoryResult.UnexpectedState,
+                RepositoryResult.StorageUnavailable,
+                -> operationError.value = ExerciseOperationError(
+                    ExerciseOperationErrorCategory.INVALID_STATE,
+                    "A evidência contextual não pode ser removida nesta atividade.",
+                )
+            }
+        }
+    }
+
     private fun previewObservedStepLength(activity: WorkoutActivity?, input: String): Double? {
         val steps = eligibleSteps(activity) ?: return null
         val meters = parseDistanceMeters(input) ?: return null
@@ -2303,6 +2346,13 @@ class ExercisesViewModel internal constructor(
                 observedStepLengthMeters = previewObservedStepLength(activity, current.reportedDistanceInput),
                 currentProfileStepLengthMeters = currentEffectiveProfile(activity),
                 futureProfileStepLengthMeters = previewFutureProfile(activity, current.reportedDistanceInput),
+                nativeWatchDistanceMeters = nativeWatchDistance(activity),
+                nativeDistanceCalibrationFactor = activity.derivationSnapshot?.distanceCalibrationFactor,
+                nativeDistanceDerivationMethod = activity.derivationSnapshot?.derivationMethod
+                    ?.takeIf {
+                        it == WorkoutDerivationMethod.WATCH_NATIVE ||
+                            it == WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED
+                    },
             )
         }
     }

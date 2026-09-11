@@ -684,6 +684,41 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
     }
 }
 
+/** Migration aditiva: separa evidência de fator nativo da calibração legacy. */
+val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            "ALTER TABLE workout_derivation_snapshots ADD COLUMN distanceCalibrationFactor REAL",
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS distance_calibration_evidence (
+                id TEXT NOT NULL,
+                profileId TEXT NOT NULL,
+                activityId TEXT NOT NULL,
+                workoutType TEXT NOT NULL,
+                referenceDistanceMeters REAL NOT NULL,
+                watchDistanceMeters REAL NOT NULL,
+                acceptedAtEpochMillis INTEGER NOT NULL,
+                updatedAtEpochMillis INTEGER NOT NULL,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY(id),
+                FOREIGN KEY(profileId) REFERENCES user_profiles(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_distance_calibration_evidence_activityId " +
+                "ON distance_calibration_evidence(activityId)",
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS index_distance_calibration_evidence_profileId_workoutType_isActive " +
+                "ON distance_calibration_evidence(profileId, workoutType, isActive)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

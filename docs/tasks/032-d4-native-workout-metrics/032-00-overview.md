@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `5/8`
+- **Progresso:** `7/8`
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -110,12 +110,12 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 ## Checklist
 
 - [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e revalidado sobre a baseline pós-031
-- [x] `032-02-implementar-parser-d3-d4-v4.md` — parser v4 e índice D3 físico implementados; runtime efetivo permanece d4-v3
+- [x] `032-02-implementar-parser-d3-d4-v4.md` — parser v4 e índice D3 físico implementados; na conclusão da subtarefa, runtime efetivo permanecia d4-v3
 - [x] `032-03-persistir-fatos-nativos-e-provenance.md` — Room v16, fatos nativos, header D4 v4, provenance e migration aditiva implementados
 - [x] `032-04-integrar-dominio-adapters-e-reprocessamento.md` — domínio v4, adapters, reidratação de header e reprocessamento local implementados
 - [x] `032-05-derivar-distancia-nativa-e-metricas.md` — distância nativa elegível, fallback explícito e métricas recalculadas sobre T/N implementados
-- [ ] `032-06-implementar-calibracao-de-distancia-contextual.md`
-- [ ] `032-07-integrar-produto-health-connect-e-spec-031.md`
+- [x] `032-06-implementar-calibracao-de-distancia-contextual.md` — evidência nativa, perfis contextuais, fator proporcional, provenance e contratos de estado/ação implementados
+- [x] `032-07-integrar-produto-health-connect-e-spec-031.md` — runtime d4-v4, review/rederivação, UI de provenance e integração Health Connect preservados sobre baseline pós-031
 - [ ] `032-08-validar-fisicamente-e-fechar.md`
 
 ## Observações
@@ -134,14 +134,57 @@ para 032-04 e concluída abaixo.
 032-04 concluída com adapters measured/source explícitos para v1/v2/v3/v4,
 reidratação estrita do header v4 em leituras locais e Health Sync, reprocessamento
 local compatível com fatos nativos e bloqueio fail-closed de reimportação diferente
-em atividades `SYNCED`. Runtime permanece `d4-v3`; distância nativa canônica e
-calibração continuam nas subtarefas 032-05 e 032-06.
+em atividades `SYNCED`. Na conclusão da subtarefa, runtime permanecia `d4-v3`;
+distância nativa canônica e calibração foram entregues nas subtarefas 032-05 e
+032-06, e promoção para `d4-v4` foi concluída em 032-07.
 
 032-05 concluída com elegibilidade nativa fail-closed contra header e série,
 provenance `WATCH_NATIVE`/`STEP_LENGTH_FALLBACK`, preservação independente de
 passos e cadência, métricas derivadas sobre duração efetiva e read path Room v16.
 Health Connect ainda precisa mapear provenance nativa em 032-07; validação física
 da dinâmica temporal permanece em 032-08.
+
+032-06 concluída com migration aditiva para Room v17, evidência de distância
+nativa separada da calibração legacy, agregação ponderada independente para
+RUNNING/WALKING, aplicação proporcional por intervalo, fallback por comprimento
+de passo, rederivação explícita, remoção sem mutação de snapshot histórico e
+provenance compatível com Health Connect. Contratos de estado/ação foram
+  ampliados sem redesenho visual. A integração final de produto foi concluída em
+  032-07; validação física permanece em 032-08.
+
+032-07 concluída sobre a baseline pós-031. Novas importações selecionam `d4-v4`,
+persistência inicial e review materializam derivação nativa quando elegível,
+calibração usa passos nativos sem packing legacy e Exercícios exibe provenance,
+distância nativa e fator aplicado sem reverter o redesign. Health Connect mantém
+projeções congeladas, IDs/versionamento, retry explícito, histórico
+`WATCH_WORKOUT_ACTIVITY`, STEPS/STEPS_CADENCE e crédito da Spec 027. Build,
+lint e `git diff --check` passaram; validação física permanece em 032-08.
+
+Correção posterior à validação física: o review de nova atividade `d4-v4` agora
+considera incompatível qualquer snapshot fallback por comprimento de passo após
+confirmação `RUNNING`/`WALKING`, mesmo quando a versão da derivação é
+`watch-d3-d4-v3`. A rederivação nativa ou nativa contextual ocorre antes de
+`READY_TO_SYNC`; tipos não elegíveis, legacy e `SYNCED` preservam seus guards.
+Build, lint e `git diff --check` passaram novamente.
+
+Complemento de produto: série `d4-v4` íntegra agora recebe `WATCH_NATIVE` já na
+importação, sem inferir tipo nem aplicar fator contextual. A revisão de
+`RUNNING`/`WALKING` reavalia fator aprendido; tipos não elegíveis retornam às suas
+políticas próprias e `STEP_LENGTH_FALLBACK` permanece reservado a ausência ou
+inelegibilidade da distância nativa.
+
+A linha visual `Fonte da distância` agora trunca valores longos com reticências em
+uma linha, preservando descrição semântica completa.
+
+Review v4 sem snapshot permanece fail-closed: somente `TREADMILL` pode aguardar
+`PENDING_CALIBRATION`; demais tipos não chegam a `READY_TO_SYNC` sem derivação.
+
+Revisão independente posterior corrigiu a fronteira transacional do review:
+falha ou ausência de derivação v4 desfaz a tentativa antes de persistir
+`READY_TO_SYNC`. Health Connect também bloqueia explicitamente `d4-v4` sem
+snapshot, sem alterar a política de legado ou de outros tipos. Compilação,
+lint, builds debug/release e `git diff --check` passaram; não foram criados nem
+executados testes automatizados.
 
 ## Resultado da 032-01
 
@@ -171,8 +214,9 @@ Achados congelados:
   distância nativa canônica;
 - FC D4 válida também é consumida pelos históricos de Saúde no baseline pós-031.
 
-`docs/protocol/workouts-d3-d4.md` permanece como contrato de protocolo que separa
-runtime vigente `d4-v3` do contrato congelado `d4-v4`.
+`docs/protocol/workouts-d3-d4.md` permanece como contrato de protocolo que registra
+`d4-v4` como runtime efetivo de novas importações e preserva `d4-v1/v2/v3` como
+histórico identificável.
 
 ### Preflight local antes de 032-02/032-03
 

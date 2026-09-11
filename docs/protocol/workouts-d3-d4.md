@@ -12,10 +12,10 @@ DERIVED     timeline, distância corrigida, pace, velocidade e cadência
 PROJECTION  payloads congelados para consumidores e Health Connect
 ```
 
-O runtime vigente antes da execução funcional da Spec 032 continua usando
-`parserVersion = d4-v3`. O contrato `d4-v4` documentado aqui foi congelado na
-`032-01` e só pode virar runtime efetivo quando parser, persistência e derivação
-estiverem coerentes no mesmo fluxo.
+O runtime atual de novas importações, após `032-07`, usa `parserVersion = d4-v4`.
+`d4-v1/v2/v3` permanecem versões históricas identificáveis para leitura e
+reprocessamento explícito. O contrato v4 só é publicado quando parser,
+persistência e derivação estão coerentes no mesmo fluxo.
 
 Auditoria autoritativa da Spec 032:
 
@@ -545,6 +545,18 @@ TOTAL_CALORIES_BURNED
 
 conforme elegibilidade e contratos das specs anteriores.
 
+## Runtime atual após 032-07
+
+Novas importações usam o layout `d4-v4`, com fatos nativos persistidos e
+derivação `watch-d3-d4-v4` quando a série é elegível. A distância nativa é fonte
+primária para RUNNING/WALKING; calibração externa corrige a série
+proporcionalmente. Quando a distância nativa não é elegível, fallback por
+comprimento de passo permanece explícito. `CYCLING` mantém sua política própria.
+
+Review-before-sync continua obrigatório. Projeções Health Connect usam payloads
+congelados, provenance, IDs estáveis, versões monotônicas e retry explícito;
+importação, review, calibração e reprocessamento não executam efeito remoto.
+
 # Versionamento
 
 ## `d4-v1`
@@ -577,8 +589,9 @@ Contrato congelado na `032-01`:
 - agregados completos do header;
 - timeline efetiva permanece `T/N`.
 
-`parserVersion = d4-v4` só deve ser publicado quando parser, schema e derivação
-estiverem coerentes no mesmo runtime.
+`parserVersion = d4-v4` é publicado para novas importações após `032-07`, quando
+parser, schema e derivação estão coerentes no mesmo runtime. Histórico legacy não
+é reinterpretado automaticamente.
 
 # Lacunas ainda abertas
 

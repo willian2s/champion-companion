@@ -47,6 +47,7 @@ import br.com.mwconsulting.championcompanion.core.model.WeightUnit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
+import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
@@ -928,8 +929,14 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
         if (child !is HealthProjectionChildKey.DistanceInterval && child != HealthProjectionChildKey.SpeedSeries) {
             return null
         }
-        val source = derivationSnapshot?.stepLengthSource
-        return when (source) {
+        val snapshot = derivationSnapshot ?: return null
+        if (snapshot.derivationMethod == WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED) {
+            return HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION
+        }
+        if (snapshot.derivationMethod == WorkoutDerivationMethod.WATCH_NATIVE) {
+            return HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED
+        }
+        return when (val source = snapshot.stepLengthSource) {
             StepLengthSource.REFERENCE_DISTANCE_CALIBRATION ->
                 HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION
 

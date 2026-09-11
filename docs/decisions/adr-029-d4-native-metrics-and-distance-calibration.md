@@ -32,6 +32,9 @@ conceitos independentes; sua normalização `T/N` continua válida e não é rev
    como consistência/diagnóstico.
 5. Para RUNNING/WALKING com distância D4 elegível, usar distância nativa como base
    da distância canônica antes do fallback por comprimento de passo.
+   A série D4 íntegra também pode ser materializada como `WATCH_NATIVE` antes da
+   confirmação do tipo, sem inferir contexto; a revisão reavalia o fator de
+   RUNNING/WALKING e mantém as políticas próprias dos demais tipos.
 6. Distância externa manual corrige proporcionalmente a série nativa por fator
    `reference/watch`, preservando sua forma temporal.
 7. Aprender fatores contextuais separados para RUNNING e WALKING pela razão

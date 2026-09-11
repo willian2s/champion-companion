@@ -951,7 +951,11 @@ object WatchWorkoutNativeDistancePolicy {
         totalDuration: Duration,
         expectedCrc: Int? = null,
     ): Boolean {
-        if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) ||
+        if (workoutType != null && workoutType !in setOf(
+                WorkoutType.UNKNOWN,
+                WorkoutType.RUNNING,
+                WorkoutType.WALKING,
+            ) ||
             parserValidity != ParserValidity.VALID ||
             header == null ||
             headerConsistency?.isConsistent != true ||
@@ -1279,6 +1283,8 @@ data class WorkoutDerivationSnapshot private constructor(
     val stepLengthMetersUsed: Double?,
     val stepLengthSource: StepLengthSource?,
     val derivationMethod: WorkoutDerivationMethod,
+    /** Fator manual/aprendido aplicado à série nativa; nulo para demais fontes. */
+    val distanceCalibrationFactor: Double?,
     val derivationVersion: String,
     val derivedAt: Instant,
     val temporalResolution: WorkoutDurationResolution,
@@ -1396,6 +1402,7 @@ data class WorkoutDerivationSnapshot private constructor(
             parserValidity: ParserValidity,
             headerConsistency: WatchWorkoutD4V4Consistency? = null,
             expectedCrc: Int? = null,
+            distanceCalibrationFactor: Double? = null,
             derivationVersion: String = WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
             derivedAt: Instant,
             plausibility: WorkoutSeriesPlausibility = WorkoutSeriesPlausibility(),
@@ -1405,7 +1412,11 @@ data class WorkoutDerivationSnapshot private constructor(
             sessionStartedAt = sessionStartedAt,
             stepLengthMetersUsed = null,
             stepLengthSource = null,
-            derivationMethod = WorkoutDerivationMethod.WATCH_NATIVE,
+            derivationMethod = if (distanceCalibrationFactor == null) {
+                WorkoutDerivationMethod.WATCH_NATIVE
+            } else {
+                WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED
+            },
             derivationVersion = derivationVersion,
             derivedAt = derivedAt,
             totalSteps = null,
@@ -1415,6 +1426,7 @@ data class WorkoutDerivationSnapshot private constructor(
             nativeParserValidity = parserValidity,
             nativeHeaderConsistency = headerConsistency,
             nativeExpectedCrc = expectedCrc,
+            nativeDistanceCalibrationFactor = distanceCalibrationFactor,
         )
 
         /**
@@ -1463,16 +1475,22 @@ data class WorkoutDerivationSnapshot private constructor(
             nativeParserValidity: ParserValidity? = null,
             nativeHeaderConsistency: WatchWorkoutD4V4Consistency? = null,
             nativeExpectedCrc: Int? = null,
+            nativeDistanceCalibrationFactor: Double? = null,
         ): DomainResult<WorkoutDerivationSnapshot> {
             val hasValidStepLength = stepLengthMetersUsed?.let {
                 it.isFinite() && it > 0.0 && stepLengthSource != null
             } == true
             val hasNoStepLength = stepLengthMetersUsed == null && stepLengthSource == null
+            val hasValidDistanceCalibrationFactor = nativeDistanceCalibrationFactor?.let {
+                it.isFinite() && it > 0.0
+            } == true
             val derivationInputsValid = when (derivationMethod) {
-                WorkoutDerivationMethod.WATCH_NATIVE -> hasNoStepLength
+                WorkoutDerivationMethod.WATCH_NATIVE -> hasNoStepLength && nativeDistanceCalibrationFactor == null
+                WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED ->
+                    hasNoStepLength && hasValidDistanceCalibrationFactor
                 WorkoutDerivationMethod.STEP_LENGTH_FALLBACK,
                 WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
-                -> hasValidStepLength
+                -> hasValidStepLength && nativeDistanceCalibrationFactor == null
             }
             if (!derivationInputsValid || derivationVersion.isBlank()) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
@@ -1493,7 +1511,10 @@ data class WorkoutDerivationSnapshot private constructor(
                     sessionStartedAt = sessionStartedAt,
                 )
             }
-            if (derivationMethod == WorkoutDerivationMethod.WATCH_NATIVE &&
+            if (derivationMethod in setOf(
+                    WorkoutDerivationMethod.WATCH_NATIVE,
+                    WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
+                ) &&
                 !WatchWorkoutNativeDistancePolicy.isEligible(
                     workoutType = nativeWorkoutType,
                     parserValidity = nativeParserValidity,
@@ -1517,12 +1538,14 @@ data class WorkoutDerivationSnapshot private constructor(
                 resolution = temporalResolution,
                 derivationMethod = derivationMethod,
                 stepLengthMetersUsed = stepLengthMetersUsed,
+                distanceCalibrationFactor = nativeDistanceCalibrationFactor,
             )
             return DomainResult.Success(
                 WorkoutDerivationSnapshot(
                     stepLengthMetersUsed = stepLengthMetersUsed,
                     stepLengthSource = stepLengthSource,
                     derivationMethod = derivationMethod,
+                    distanceCalibrationFactor = nativeDistanceCalibrationFactor,
                     derivationVersion = derivationVersion,
                     derivedAt = derivedAt,
                     temporalResolution = temporalResolution,
@@ -1537,6 +1560,7 @@ data class WorkoutDerivationSnapshot private constructor(
             resolution: WorkoutDurationResolution,
             derivationMethod: WorkoutDerivationMethod,
             stepLengthMetersUsed: Double?,
+            distanceCalibrationFactor: Double?,
         ): CanonicalWorkoutSeries? {
             if (!resolution.isEligible) return null
             if (resolution.intervals.any { it.measuredSteps == null }) return null
@@ -1553,6 +1577,10 @@ data class WorkoutDerivationSnapshot private constructor(
                 }
                 val distance = when (derivationMethod) {
                     WorkoutDerivationMethod.WATCH_NATIVE -> measured.nativeDistanceMeters ?: return null
+                    WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED -> {
+                        val nativeDistance = measured.nativeDistanceMeters ?: return null
+                        nativeDistance * (distanceCalibrationFactor ?: return null)
+                    }
                     WorkoutDerivationMethod.STEP_LENGTH_FALLBACK,
                     WorkoutDerivationMethod.FIXED_PERSONAL_STEP_LENGTH,
                     -> steps.toDouble() * (stepLengthMetersUsed ?: return null)
@@ -1582,6 +1610,7 @@ enum class WorkoutDerivationMethod {
     FIXED_PERSONAL_STEP_LENGTH,
     STEP_LENGTH_FALLBACK,
     WATCH_NATIVE,
+    WATCH_NATIVE_CONTEXT_CALIBRATED,
 }
 
 /**
@@ -1596,7 +1625,11 @@ object WatchWorkoutWorkflowPolicy {
     ): ActivityWorkflowState = if (
         confirmedType == WorkoutType.TREADMILL &&
         !(origin == WorkoutActivityOrigin.WATCH_D3_D4 &&
-            derivationSnapshot?.isEligibleForCanonicalWorkflow == true)
+            derivationSnapshot?.isEligibleForCanonicalWorkflow == true &&
+            derivationSnapshot.derivationMethod !in setOf(
+                WorkoutDerivationMethod.WATCH_NATIVE,
+                WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
+            ))
     ) {
         ActivityWorkflowState.PENDING_CALIBRATION
     } else {

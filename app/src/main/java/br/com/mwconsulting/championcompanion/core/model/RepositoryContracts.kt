@@ -146,6 +146,10 @@ interface PersonalMetricsRepository {
 
     fun observeLearnedStepLengthProfiles(): Flow<List<LearnedStepLengthProfile>> = flowOf(emptyList())
 
+    /** Perfis contextuais nativos independentes para RUNNING e WALKING. */
+    fun observeLearnedDistanceCalibrationProfiles(): Flow<List<LearnedDistanceCalibrationProfile>> =
+        flowOf(emptyList())
+
     suspend fun applyReferenceDistanceCalibration(
         input: ApplyReferenceDistanceCalibrationInput,
     ): RepositoryResult<ReferenceDistanceCalibrationResult> = RepositoryResult.UnexpectedState
@@ -158,7 +162,16 @@ interface PersonalMetricsRepository {
         input: UpdateStepLengthCalibrationEvidenceInput,
     ): RepositoryResult<StepLengthCalibration> = RepositoryResult.UnexpectedState
 
+    /** Substitui evidência nativa e rederiva somente a atividade de referência. */
+    suspend fun updateDistanceCalibrationEvidence(
+        input: UpdateDistanceCalibrationEvidenceInput,
+    ): RepositoryResult<DistanceCalibrationEvidence> = RepositoryResult.UnexpectedState
+
     suspend fun removeStepLengthCalibration(activityId: WorkoutActivityId): RepositoryResult<Unit> =
+        RepositoryResult.UnexpectedState
+
+    /** Desativa evidência nativa sem alterar snapshot histórico ou atividade. */
+    suspend fun removeDistanceCalibrationEvidence(activityId: WorkoutActivityId): RepositoryResult<Unit> =
         RepositoryResult.UnexpectedState
 
     suspend fun findReferenceDistanceCalibrationSteps(
@@ -185,8 +198,23 @@ data class ApplyReferenceDistanceCalibrationInput(
 )
 
 data class ReferenceDistanceCalibrationResult(
-    val calibration: StepLengthCalibration,
+    /** Preenchido somente para caminho legacy/fallback por comprimento de passo. */
+    val calibration: StepLengthCalibration?,
     val snapshot: WorkoutDerivationSnapshot,
+    /** Preenchido somente para d4-v4 nativo contextual. */
+    val contextualEvidence: DistanceCalibrationEvidence? = null,
+) {
+    /** Alias curto para consumidores que tratam evidência contextual genericamente. */
+    val evidence: DistanceCalibrationEvidence?
+        get() = contextualEvidence
+}
+
+data class UpdateDistanceCalibrationEvidenceInput(
+    val activityId: WorkoutActivityId,
+    val referenceDistanceMeters: Double,
+    /** Quando informado, protege contra mudança dos fatos observados desde a UI. */
+    val watchDistanceMeters: Double? = null,
+    val updatedAt: Instant = Instant.now(),
 )
 
 data class UpdateStepLengthCalibrationEvidenceInput(

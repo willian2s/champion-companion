@@ -198,6 +198,14 @@ A derivação não deve reconstruir por `steps × stepLength` quando existe uma 
 nativa elegível. O comprimento de passo permanece fallback explícito para casos
 sem distância nativa utilizável.
 
+A elegibilidade estrutural da série é independente da revisão do tipo. Portanto,
+uma nova importação `d4-v4` íntegra pode materializar `WATCH_NATIVE` antes de
+`confirmedType` existir, sem inferir que a atividade é corrida ou caminhada e sem
+aplicar fator contextual. Após a revisão, `RUNNING`/`WALKING` reavaliam o mesmo
+snapshot para aplicar eventual fator independente do contexto; tipos com política
+própria, como `TREADMILL`, `CYCLING` e `FREE_WORKOUT`, continuam sem promover a
+distância D4 quando confirmados.
+
 `CYCLING` continua usando a política própria da Spec 022. Nenhum comportamento de
 bicicleta é alterado implicitamente.
 

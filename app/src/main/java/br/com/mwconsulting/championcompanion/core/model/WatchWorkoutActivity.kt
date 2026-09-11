@@ -13,7 +13,7 @@ internal const val WATCH_WORKOUT_D4_V1_PARSER_VERSION = "d4-v1"
 internal const val WATCH_WORKOUT_D4_V2_PARSER_VERSION = "d4-v2"
 /** Parser completo com duração oficial e timeline normalizada. */
 internal const val WATCH_WORKOUT_D4_V3_PARSER_VERSION = "d4-v3"
-/** Contrato interno; não é selecionado pelo runtime vigente. */
+/** Contrato interno selecionado para novas importações desde 032-07. */
 internal const val WATCH_WORKOUT_D4_V4_PARSER_VERSION = "d4-v4"
 
 internal fun isSupportedWatchWorkoutD4ParserVersion(parserVersion: ParserVersion?): Boolean =
@@ -318,6 +318,23 @@ data class WorkoutActivity private constructor(
                     derivationSnapshot.derivationVersion !in setOf(
                         WATCH_WORKOUT_REFERENCE_CALIBRATION_DERIVATION_VERSION,
                         WATCH_WORKOUT_NATIVE_DERIVATION_VERSION,
+                    )
+                || confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+                    watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
+                    derivationSnapshot.derivationMethod !in setOf(
+                        WorkoutDerivationMethod.WATCH_NATIVE,
+                        WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
+                    )
+                || confirmedType !in setOf(
+                    WorkoutType.UNKNOWN,
+                    WorkoutType.RUNNING,
+                    WorkoutType.WALKING,
+                    WorkoutType.CYCLING,
+                ) &&
+                    watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
+                    derivationSnapshot.derivationMethod in setOf(
+                        WorkoutDerivationMethod.WATCH_NATIVE,
+                        WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
                     )
             )
 
