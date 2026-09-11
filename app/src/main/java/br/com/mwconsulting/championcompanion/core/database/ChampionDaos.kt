@@ -520,6 +520,9 @@ interface WatchWorkoutImportDao {
 
 @Dao
 interface WatchWorkoutD4V4HeaderDao {
+    @Query("SELECT * FROM watch_workout_d4_v4_headers ORDER BY activityId")
+    fun observeAll(): Flow<List<WatchWorkoutD4V4HeaderEntity>>
+
     @Query("SELECT * FROM watch_workout_d4_v4_headers WHERE activityId = :activityId LIMIT 1")
     suspend fun findByActivityId(activityId: String): WatchWorkoutD4V4HeaderEntity?
 

@@ -137,6 +137,39 @@ data class WorkoutIntervalWindow private constructor(
     }
 }
 
+/**
+ * Fonte medida de intervalo, discriminada pelo contrato do parser.
+ *
+ * O ramo legacy mantém o packing u24 que já existia. O ramo v4 mantém cada
+ * fato nativo em seu próprio campo; não existe conversão artificial para
+ * [rawMotionValue].
+ */
+sealed interface MeasuredWorkoutIntervalSource {
+    val parserVersion: String
+    val measuredSteps: Long?
+
+    data class LegacyPacked(
+        override val parserVersion: String,
+        val rawMotionValue: Long,
+        val decodedSteps: Long?,
+        val rawTemporalDistance: Long?,
+        val rawTemporalCalories: Long?,
+    ) : MeasuredWorkoutIntervalSource {
+        override val measuredSteps: Long?
+            get() = decodedSteps
+    }
+
+    data class D4V4Native(
+        val sportValue: Long,
+        override val measuredSteps: Long,
+        val distanceMeters: Double,
+        val caloriesRaw: Long,
+        val pauseStateRaw: Long,
+    ) : MeasuredWorkoutIntervalSource {
+        override val parserVersion: String = WATCH_WORKOUT_D4_V4_PARSER_VERSION
+    }
+}
+
 /** Fatos D4 crus, sem promover unidade ou semântica não comprovada. */
 @ConsistentCopyVisibility
 data class RawWorkoutInterval private constructor(
@@ -194,25 +227,52 @@ data class RawWorkoutInterval private constructor(
 @ConsistentCopyVisibility
 data class MeasuredWorkoutInterval private constructor(
     val index: Int,
-    val rawMotionValue: Long,
-    val decodedSteps: Long?,
-    val rawTemporalDistance: Long?,
-    val rawTemporalCalories: Long?,
+    val source: MeasuredWorkoutIntervalSource,
     val effectiveDuration: Duration?,
     val effectiveWindow: WorkoutIntervalWindow?,
 ) {
-    val raw: RawWorkoutInterval
-        get() = RawWorkoutInterval.fromValidated(
+    /** Compatibilidade de leitura para consumidores do contrato legacy. */
+    val rawMotionValue: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.rawMotionValue
+
+    /** Passos medidos, independentemente de packing legacy ou layout nativo. */
+    val measuredSteps: Long?
+        get() = source.measuredSteps
+
+    /** Alias histórico; v4 não possui decodedSteps legacy. */
+    val decodedSteps: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.decodedSteps
+
+    val rawTemporalDistance: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.rawTemporalDistance
+
+    val rawTemporalCalories: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.rawTemporalCalories
+
+    val nativeSportValue: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.D4V4Native)?.sportValue
+
+    val nativeDistanceMeters: Double?
+        get() = (source as? MeasuredWorkoutIntervalSource.D4V4Native)?.distanceMeters
+
+    val nativeCaloriesRaw: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.D4V4Native)?.caloriesRaw
+
+    val nativePauseStateRaw: Long?
+        get() = (source as? MeasuredWorkoutIntervalSource.D4V4Native)?.pauseStateRaw
+
+    val raw: RawWorkoutInterval?
+        get() = rawMotionValue?.let { rawMotion -> RawWorkoutInterval.fromValidated(
             index = index,
-            rawMotionValue = rawMotionValue,
+            rawMotionValue = rawMotion,
             rawTemporalDistance = rawTemporalDistance,
             rawTemporalCalories = rawTemporalCalories,
-        )
+        ) }
 
-    val unknownLower16: Int
-        get() = (rawMotionValue and U16_MASK).toInt()
+    val unknownLower16: Int?
+        get() = rawMotionValue?.let { (it and U16_MASK).toInt() }
 
-    val lower16BitsUnknown: Int
+    val lower16BitsUnknown: Int?
         get() = unknownLower16
 
     val rawTemporalDistanceValue: Long?
@@ -222,7 +282,7 @@ data class MeasuredWorkoutInterval private constructor(
         get() = rawTemporalCalories
 
     val decodedStepsConfirmed: Boolean
-        get() = decodedSteps != null
+        get() = measuredSteps != null
 
     val isTemporallyResolved: Boolean
         get() = effectiveDuration != null && effectiveWindow != null
@@ -234,16 +294,15 @@ data class MeasuredWorkoutInterval private constructor(
     fun withEffectiveWindow(window: WorkoutIntervalWindow): DomainResult<MeasuredWorkoutInterval> =
         create(
             index = index,
-            rawMotionValue = rawMotionValue,
-            decodedSteps = decodedSteps,
-            rawTemporalDistance = rawTemporalDistance,
-            rawTemporalCalories = rawTemporalCalories,
+            source = source,
             effectiveDuration = window.duration,
             effectiveWindow = window,
         )
 
     companion object {
         const val MAX_RAW_MOTION_VALUE: Long = 0xFF_FFFFL
+        private const val MAX_NATIVE_U16: Long = 0xFFFFL
+        private const val MAX_NATIVE_PAUSE: Long = 0xFFL
 
         fun create(
             index: Int,
@@ -254,11 +313,96 @@ data class MeasuredWorkoutInterval private constructor(
             effectiveDuration: Duration? = null,
             effectiveWindow: WorkoutIntervalWindow? = null,
         ): DomainResult<MeasuredWorkoutInterval> {
-            val expectedDecodedSteps = rawMotionValue ushr 16
+            val source = MeasuredWorkoutIntervalSource.LegacyPacked(
+                parserVersion = WATCH_WORKOUT_D4_V3_PARSER_VERSION,
+                rawMotionValue = rawMotionValue,
+                decodedSteps = decodedSteps,
+                rawTemporalDistance = rawTemporalDistance,
+                rawTemporalCalories = rawTemporalCalories,
+            )
+            return create(
+                index = index,
+                source = source,
+                effectiveDuration = effectiveDuration,
+                effectiveWindow = effectiveWindow,
+            )
+        }
+
+        fun fromD4V2(
+            index: Int,
+            rawMotionValue: Long,
+            decodedSteps: Long? = null,
+            rawTemporalDistance: Long? = null,
+            rawTemporalCalories: Long? = null,
+        ): DomainResult<MeasuredWorkoutInterval> = create(
+            index = index,
+            source = MeasuredWorkoutIntervalSource.LegacyPacked(
+                parserVersion = WATCH_WORKOUT_D4_V2_PARSER_VERSION,
+                rawMotionValue = rawMotionValue,
+                decodedSteps = decodedSteps ?: (rawMotionValue ushr 16),
+                rawTemporalDistance = rawTemporalDistance,
+                rawTemporalCalories = rawTemporalCalories,
+            ),
+        )
+
+        fun fromD4V3(
+            index: Int,
+            rawMotionValue: Long,
+            decodedSteps: Long,
+            rawTemporalDistance: Long? = null,
+            rawTemporalCalories: Long? = null,
+        ): DomainResult<MeasuredWorkoutInterval> = create(
+            index = index,
+            source = MeasuredWorkoutIntervalSource.LegacyPacked(
+                parserVersion = WATCH_WORKOUT_D4_V3_PARSER_VERSION,
+                rawMotionValue = rawMotionValue,
+                decodedSteps = decodedSteps,
+                rawTemporalDistance = rawTemporalDistance,
+                rawTemporalCalories = rawTemporalCalories,
+            ),
+        )
+
+        fun fromD4V4(
+            index: Int,
+            sportValue: Long,
+            nativeSteps: Long,
+            distanceMeters: Double,
+            caloriesRaw: Long,
+            pauseStateRaw: Long,
+        ): DomainResult<MeasuredWorkoutInterval> = create(
+            index = index,
+            source = MeasuredWorkoutIntervalSource.D4V4Native(
+                sportValue = sportValue,
+                measuredSteps = nativeSteps,
+                distanceMeters = distanceMeters,
+                caloriesRaw = caloriesRaw,
+                pauseStateRaw = pauseStateRaw,
+            ),
+        )
+
+        private fun create(
+            index: Int,
+            source: MeasuredWorkoutIntervalSource,
+            effectiveDuration: Duration? = null,
+            effectiveWindow: WorkoutIntervalWindow? = null,
+        ): DomainResult<MeasuredWorkoutInterval> {
+            val rawMotionValue = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.rawMotionValue
+            val decodedSteps = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.decodedSteps
+            val rawTemporalDistance = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.rawTemporalDistance
+            val rawTemporalCalories = (source as? MeasuredWorkoutIntervalSource.LegacyPacked)?.rawTemporalCalories
+            val expectedDecodedSteps = rawMotionValue?.ushr(16)
             val validDecodedSteps = decodedSteps == null ||
                 (decodedSteps >= 0L && decodedSteps == expectedDecodedSteps)
             val validTemporalValues = rawTemporalDistance.isValidRawDistance() &&
                 rawTemporalCalories.isValidRawCalories()
+            val native = source as? MeasuredWorkoutIntervalSource.D4V4Native
+            val validNativeValues = native == null || (
+                native.sportValue in 0L..MAX_NATIVE_U16 &&
+                    native.measuredSteps in 0L..MAX_NATIVE_U16 &&
+                    native.distanceMeters.isFinite() && native.distanceMeters in 0.0..MAX_NATIVE_U16.toDouble() &&
+                    native.caloriesRaw in 0L..MAX_NATIVE_U16 &&
+                    native.pauseStateRaw in 0L..MAX_NATIVE_PAUSE
+                )
             val validEffectiveTime = when {
                 effectiveDuration == null && effectiveWindow == null -> true
                 effectiveDuration == null || effectiveWindow == null -> false
@@ -266,18 +410,16 @@ data class MeasuredWorkoutInterval private constructor(
             }
             return if (
                 index >= 0 &&
-                rawMotionValue in 0L..MAX_RAW_MOTION_VALUE &&
+                (rawMotionValue == null || rawMotionValue in 0L..MAX_RAW_MOTION_VALUE) &&
                 validDecodedSteps &&
                 validTemporalValues &&
+                validNativeValues &&
                 validEffectiveTime
             ) {
                 DomainResult.Success(
                     MeasuredWorkoutInterval(
                         index = index,
-                        rawMotionValue = rawMotionValue,
-                        decodedSteps = decodedSteps,
-                        rawTemporalDistance = rawTemporalDistance,
-                        rawTemporalCalories = rawTemporalCalories,
+                        source = source,
                         effectiveDuration = effectiveDuration,
                         effectiveWindow = effectiveWindow,
                     ),
@@ -287,27 +429,20 @@ data class MeasuredWorkoutInterval private constructor(
             }
         }
 
-        fun fromD4V2(
-            index: Int,
-            rawMotionValue: Long,
-            rawTemporalDistance: Long? = null,
-            rawTemporalCalories: Long? = null,
-        ): DomainResult<MeasuredWorkoutInterval> = create(
-            index = index,
-            rawMotionValue = rawMotionValue,
-            decodedSteps = rawMotionValue ushr 16,
-            rawTemporalDistance = rawTemporalDistance,
-            rawTemporalCalories = rawTemporalCalories,
-        )
-
         /** Ponte d4-v1: legado vira raw e permanece sem passos decodificados. */
         fun fromD4V1Legacy(
             index: Int,
             legacySteps: Long,
+            decodedSteps: Long? = null,
         ): DomainResult<MeasuredWorkoutInterval> = create(
             index = index,
-            rawMotionValue = legacySteps,
-            decodedSteps = null,
+            source = MeasuredWorkoutIntervalSource.LegacyPacked(
+                parserVersion = WATCH_WORKOUT_D4_V1_PARSER_VERSION,
+                rawMotionValue = legacySteps,
+                decodedSteps = decodedSteps,
+                rawTemporalDistance = null,
+                rawTemporalCalories = null,
+            ),
         )
     }
 }
@@ -317,6 +452,76 @@ data class MeasuredWorkoutInterval private constructor(
  * legado. A ponte não decodifica d4-v1 nem promove distância/calorias antigas.
  */
 object WatchWorkoutContractAdapters {
+    fun fromInterval(
+        interval: WorkoutInterval,
+        parserVersion: ParserVersion,
+    ): DomainResult<MeasuredWorkoutInterval> = when (parserVersion.value) {
+        WATCH_WORKOUT_D4_V1_PARSER_VERSION -> fromD4V1(interval)
+        WATCH_WORKOUT_D4_V2_PARSER_VERSION -> fromD4V2(interval)
+        WATCH_WORKOUT_D4_V3_PARSER_VERSION -> fromD4V3(interval)
+        WATCH_WORKOUT_D4_V4_PARSER_VERSION -> fromD4V4(interval)
+        else -> DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+    }
+
+    fun fromD4V1(interval: WorkoutInterval): DomainResult<MeasuredWorkoutInterval> =
+        MeasuredWorkoutInterval.fromD4V1Legacy(
+            index = interval.index,
+            legacySteps = interval.rawMotionValue ?: interval.steps,
+            decodedSteps = interval.decodedSteps,
+        )
+
+    fun fromD4V2(interval: WorkoutInterval): DomainResult<MeasuredWorkoutInterval> {
+        val rawMotionValue = interval.rawMotionValue
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        if (interval.decodedSteps == null) return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        return MeasuredWorkoutInterval.fromD4V2(
+            index = interval.index,
+            rawMotionValue = rawMotionValue,
+            decodedSteps = interval.decodedSteps,
+            rawTemporalDistance = interval.rawDistanceValue,
+            rawTemporalCalories = interval.rawCaloriesValue,
+        )
+    }
+
+    fun fromD4V3(interval: WorkoutInterval): DomainResult<MeasuredWorkoutInterval> {
+        val rawMotionValue = interval.rawMotionValue
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val decodedSteps = interval.decodedSteps
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        return MeasuredWorkoutInterval.fromD4V3(
+            index = interval.index,
+            rawMotionValue = rawMotionValue,
+            decodedSteps = decodedSteps,
+            rawTemporalDistance = interval.rawDistanceValue,
+            rawTemporalCalories = interval.rawCaloriesValue,
+        )
+    }
+
+    fun fromD4V4(interval: WorkoutInterval): DomainResult<MeasuredWorkoutInterval> {
+        val sportValue = interval.nativeSportValue
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val nativeSteps = interval.nativeSteps
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val distanceMeters = interval.nativeDistanceMeters
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val caloriesRaw = interval.nativeCaloriesRaw
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        val pauseStateRaw = interval.nativePauseStateRaw
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
+        if (interval.rawMotionValue != null || interval.rawDistanceValue != null ||
+            interval.rawCaloriesValue != null || interval.decodedSteps != null ||
+            interval.steps != nativeSteps
+        ) return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+        return MeasuredWorkoutInterval.fromD4V4(
+            index = interval.index,
+            sportValue = sportValue,
+            nativeSteps = nativeSteps,
+            distanceMeters = distanceMeters,
+            caloriesRaw = caloriesRaw,
+            pauseStateRaw = pauseStateRaw,
+        )
+    }
+
     fun fromLegacyInterval(
         interval: WorkoutInterval,
         activityOrigin: WorkoutActivityOrigin,
@@ -332,7 +537,9 @@ object WatchWorkoutContractAdapters {
 
     fun toLegacyInterval(interval: MeasuredWorkoutInterval): DomainResult<WorkoutInterval> {
         val duration = interval.effectiveDuration ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
-        val legacySteps = interval.decodedSteps ?: interval.rawMotionValue
+        val legacy = interval.source as? MeasuredWorkoutIntervalSource.LegacyPacked
+            ?: return DomainResult.Failure(DomainValidationError.INVALID_IDENTIFIER)
+        val legacySteps = interval.decodedSteps ?: legacy.rawMotionValue
         return DomainResult.Success(
             WorkoutInterval(
                 index = interval.index,
@@ -463,7 +670,7 @@ object WorkoutDurationResolver {
         val indexValidation = TemporalSeriesValidator.validate(intervals)
         val reasons = linkedSetOf<TemporalSeriesValidationReason>().apply {
             addAll(indexValidation.reasons)
-            if (intervals.any { it.decodedSteps == null }) {
+            if (intervals.any { it.measuredSteps == null }) {
                 add(TemporalSeriesValidationReason.MISSING_DECODED_STEPS)
             }
         }
@@ -591,7 +798,7 @@ object WorkoutDurationResolver {
         val indexValidation = TemporalSeriesValidator.validate(intervals)
         val reasons = linkedSetOf<TemporalSeriesValidationReason>().apply {
             addAll(indexValidation.reasons)
-            if (intervals.any { it.decodedSteps == null }) {
+            if (intervals.any { it.measuredSteps == null }) {
                 add(TemporalSeriesValidationReason.MISSING_DECODED_STEPS)
             }
         }
@@ -838,7 +1045,7 @@ data class DerivedWorkoutInterval private constructor(
         ): DomainResult<DerivedWorkoutInterval> {
             val duration = measured.effectiveDuration ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
             val window = measured.effectiveWindow ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
-            val steps = measured.decodedSteps ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
+            val steps = measured.measuredSteps ?: return DomainResult.Failure(DomainValidationError.INVALID_STATE)
             if (!stepLengthMeters.isFinite() || stepLengthMeters <= 0.0 || steps < 0L || !duration.isPositive()) {
                 return DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }
@@ -1170,13 +1377,13 @@ data class WorkoutDerivationSnapshot private constructor(
             stepLengthMetersUsed: Double,
         ): CanonicalWorkoutSeries? {
             if (!resolution.isEligible) return null
-            if (resolution.intervals.any { it.decodedSteps == null }) return null
+            if (resolution.intervals.any { it.measuredSteps == null }) return null
             var cumulativeSteps = 0L
             var cumulativeDistance = 0.0
             var cumulativeDuration = Duration.ZERO
             val derived = mutableListOf<DerivedWorkoutInterval>()
             for (measured in resolution.intervals) {
-                val steps = measured.decodedSteps ?: return null
+                val steps = measured.measuredSteps ?: return null
                 cumulativeSteps = try {
                     Math.addExact(cumulativeSteps, steps)
                 } catch (_: ArithmeticException) {

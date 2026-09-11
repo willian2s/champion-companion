@@ -323,6 +323,11 @@ object ChampionD4WorkoutParser {
                 steps = sample.steps.toLong(),
                 distanceMeters = DomainValue.Present(sample.distanceMeters.toDouble()),
                 caloriesKilocalories = DomainValue.Present(sample.caloriesRaw.toDouble() / 1000.0),
+                nativeSportValue = sample.sportValue.toLong(),
+                nativeSteps = sample.steps.toLong(),
+                nativeDistanceMeters = sample.distanceMeters.toDouble(),
+                nativeCaloriesRaw = sample.caloriesRaw.toLong(),
+                nativePauseStateRaw = sample.pauseStateRaw.toLong(),
             )
         }
         val heartRateSamples = parsedSamples.mapNotNull { sample ->

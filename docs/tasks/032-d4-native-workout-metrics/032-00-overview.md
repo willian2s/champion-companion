@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/032-d4-native-workout-metrics.md`
 - **ADR:** `docs/decisions/adr-029-d4-native-metrics-and-distance-calibration.md`
 - **Status:** `in_progress`
-- **Progresso:** `3/8`
+- **Progresso:** `4/8`
 - **Branch de integração:** `feat/032-d4-native-workout-metrics`
 
 ## Objetivo
@@ -112,7 +112,7 @@ Depois de uma subtarefa revisada, integrar na branch 032; não integrar direto e
 - [x] `032-01-auditar-e-congelar-layout-d4-v4.md` — contrato congelado e revalidado sobre a baseline pós-031
 - [x] `032-02-implementar-parser-d3-d4-v4.md` — parser v4 e índice D3 físico implementados; runtime efetivo permanece d4-v3
 - [x] `032-03-persistir-fatos-nativos-e-provenance.md` — Room v16, fatos nativos, header D4 v4, provenance e migration aditiva implementados
-- [ ] `032-04-integrar-dominio-adapters-e-reprocessamento.md`
+- [x] `032-04-integrar-dominio-adapters-e-reprocessamento.md` — domínio v4, adapters, reidratação de header e reprocessamento local implementados
 - [ ] `032-05-derivar-distancia-nativa-e-metricas.md`
 - [ ] `032-06-implementar-calibracao-de-distancia-contextual.md`
 - [ ] `032-07-integrar-produto-health-connect-e-spec-031.md`
@@ -127,8 +127,15 @@ física e integração de persistência/derivação permanecem nas subtarefas se
 
 032-03 concluída com `MIGRATION_15_16`, schema exportado v16, campos nativos por
 intervalo, header D4 v4 persistido e mappers compatíveis com legacy. Build, lint e
-`git diff --check` passaram; revisão independente foi aprovada. Header ainda não é
-reidratado no domínio após reload, responsabilidade planejada para 032-04.
+`git diff --check` passaram; revisão independente foi aprovada. Naquela subtarefa,
+header ainda não era reidratado no domínio após reload; responsabilidade planejada
+para 032-04 e concluída abaixo.
+
+032-04 concluída com adapters measured/source explícitos para v1/v2/v3/v4,
+reidratação estrita do header v4 em leituras locais e Health Sync, reprocessamento
+local compatível com fatos nativos e bloqueio fail-closed de reimportação diferente
+em atividades `SYNCED`. Runtime permanece `d4-v3`; distância nativa canônica e
+calibração continuam nas subtarefas 032-05 e 032-06.
 
 ## Resultado da 032-01
 

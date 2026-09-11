@@ -136,6 +136,8 @@ data class WatchWorkoutActivityImportContext(
     val parserValidity: ParserValidity,
     val diagnosticPayloadId: DiagnosticPayloadId?,
     val importedAt: Instant,
+    /** Header v4 reidratado; versões legacy não possuem este fato. */
+    val d4V4Header: WatchWorkoutD4V4Header? = null,
 ) {
     companion object {
         fun from(input: WatchWorkoutParserInput, importedAt: Instant): DomainResult<WatchWorkoutActivityImportContext> =
@@ -152,6 +154,7 @@ data class WatchWorkoutActivityImportContext(
                     parserValidity = input.parserValidity,
                     diagnosticPayloadId = input.diagnosticPayloadId,
                     importedAt = importedAt,
+                    d4V4Header = input.d4V4Block?.header,
                 ))
             }
 
@@ -171,6 +174,7 @@ data class WatchWorkoutImport private constructor(
     val importedAt: Instant,
     /** Fatos estruturais v4 carregados junto da importação; nulo para v1/v2/v3. */
     val d4V4Block: WatchWorkoutD4V4Block?,
+    val d4V4Header: WatchWorkoutD4V4Header? = null,
 ) {
     val activityContext: WatchWorkoutActivityImportContext
         get() = WatchWorkoutActivityImportContext(
@@ -180,6 +184,7 @@ data class WatchWorkoutImport private constructor(
             parserValidity = parserValidity,
             diagnosticPayloadId = diagnosticPayloadId,
             importedAt = importedAt,
+            d4V4Header = d4V4Header ?: d4V4Block?.header,
         )
 
     companion object {
@@ -202,7 +207,8 @@ data class WatchWorkoutImport private constructor(
         ): DomainResult<WatchWorkoutImport> =
             if (context.key.origin == DataOrigin.WATCH_D3_D4 && context.key.crc in 1..0xffff &&
                 context.externalBlockIndex >= 0 &&
-                isSupportedWatchWorkoutD4ParserVersion(context.parserVersion)
+                isSupportedWatchWorkoutD4ParserVersion(context.parserVersion) &&
+                (context.parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION || context.d4V4Header != null)
             ) {
                 DomainResult.Success(fromContext(id, activityId, context))
             } else {
@@ -224,6 +230,7 @@ data class WatchWorkoutImport private constructor(
             diagnosticPayloadId = context.diagnosticPayloadId,
             importedAt = context.importedAt,
             d4V4Block = d4V4Block,
+            d4V4Header = context.d4V4Header ?: d4V4Block?.header,
         )
     }
 }
@@ -280,6 +287,7 @@ data class WorkoutActivity private constructor(
     internal val importedAt: Instant get() = legacyImportContext().importedAt
     internal val parserVersion: ParserVersion get() = legacyImportContext().parserVersion
     val diagnosticPayloadId: DiagnosticPayloadId? get() = watchImportContext?.diagnosticPayloadId
+    val d4V4Header: WatchWorkoutD4V4Header? get() = watchImportContext?.d4V4Header
     val canonicalDistanceMeters: Double?
         get() = derivationSnapshot?.canonicalDistanceMeters
     val canonicalSeries: CanonicalWorkoutSeries?
@@ -762,7 +770,9 @@ data class WorkoutActivity private constructor(
 
         private fun WorkoutActivity.hasValidProvenance(): Boolean = when (activityOrigin) {
             WorkoutActivityOrigin.WATCH_D3_D4 -> appWorkoutSessionId == null && associatedDeviceId != null &&
-                watchImportContext != null && watchImportContext.key.deviceId == associatedDeviceId
+                watchImportContext != null && watchImportContext.key.deviceId == associatedDeviceId &&
+                (watchImportContext.parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION ||
+                    watchImportContext.d4V4Header != null)
             WorkoutActivityOrigin.PHONE_GPS -> appWorkoutSessionId != null && hasValidOptionalWatchContext() &&
                 suggestedType in setOf(WorkoutType.WALKING, WorkoutType.RUNNING)
             WorkoutActivityOrigin.PHONE_TREADMILL -> appWorkoutSessionId != null && hasValidOptionalWatchContext() &&
@@ -783,6 +793,7 @@ data class WorkoutActivity private constructor(
         private fun isValidInput(input: WatchWorkoutParserInput): Boolean =
             input.crc in 1..0xffff && input.externalBlockIndex >= 0 &&
                 input.metrics.duration >= Duration.ZERO && input.metrics.steps >= 0 &&
+                (input.parserVersion.value != WATCH_WORKOUT_D4_V4_PARSER_VERSION || input.d4V4Block != null) &&
                 areValid(input.metrics) && areValidIntervals(input.intervals, input.parserVersion) &&
                 areValidHeartRateSamples(input.heartRateSamples) && areValidTemporalOrder(input.heartRateSamples)
 
@@ -828,6 +839,7 @@ data class WorkoutActivity private constructor(
             val isD4V1 = parserVersion?.value == WATCH_WORKOUT_D4_V1_PARSER_VERSION
             val isD4V2OrV3 = parserVersion?.value == WATCH_WORKOUT_D4_V2_PARSER_VERSION ||
                 parserVersion?.value == WATCH_WORKOUT_D4_V3_PARSER_VERSION
+            val isD4V4 = parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION
             val rawMotionValid = interval.rawMotionValue == null ||
                 interval.rawMotionValue in 0L..MeasuredWorkoutInterval.MAX_RAW_MOTION_VALUE
             val rawDistanceValid = interval.rawDistanceValue == null || interval.rawDistanceValue in 0L..0xFF_FFFFL
@@ -838,13 +850,24 @@ data class WorkoutActivity private constructor(
                     interval.decodedSteps == (interval.rawMotionValue ushr 16) &&
                     interval.steps == interval.decodedSteps
                 )
+            val nativeValuesValid = !isD4V4 || (
+                interval.rawMotionValue == null && interval.rawDistanceValue == null &&
+                    interval.rawCaloriesValue == null && interval.decodedSteps == null &&
+                    interval.nativeSportValue?.let { it in 0L..0xFFFFL } == true &&
+                    interval.nativeSteps?.let { it in 0L..0xFFFFL && it == interval.steps } == true &&
+                    interval.nativeDistanceMeters?.let { it.isFinite() && it in 0.0..0xFFFF.toDouble() } == true &&
+                    interval.nativeCaloriesRaw?.let { it in 0L..0xFFFFL } == true &&
+                    interval.nativePauseStateRaw?.let { it in 0L..0xFFL } == true
+                )
             val versionedRawValid = when {
                 isD4V2OrV3 -> interval.rawMotionValue != null && interval.rawDistanceValue != null &&
                     interval.rawCaloriesValue != null && interval.decodedSteps != null
-                isD4V1 -> interval.rawMotionValue != null && interval.decodedSteps == null
+                isD4V1 -> interval.rawMotionValue != null &&
+                    (interval.decodedSteps == null || interval.decodedSteps == (interval.rawMotionValue ushr 16))
                 else -> true
             }
-            return rawMotionValid && rawDistanceValid && rawCaloriesValid && decodedStepsValid && versionedRawValid
+            return rawMotionValid && rawDistanceValid && rawCaloriesValid && decodedStepsValid &&
+                nativeValuesValid && versionedRawValid
         }
 
         private fun areValidHeartRateSamples(samples: List<WorkoutHeartRateSample>): Boolean {
