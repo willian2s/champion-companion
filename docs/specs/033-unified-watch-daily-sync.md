@@ -59,6 +59,32 @@ D4 permanece a fonte detalhada/canônica da atividade. Não existe mais regra gl
 
 Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 
+### Correção pós-validação física de 033-05
+
+Depois do watch sync unificado, refreshes consecutivos da Home confirmaram
+idempotência física de D1 e D3/D4 e ausência de auto-sync Health Connect.
+
+Também foi observado um cenário em que D1 estava estruturalmente completo para
+todas as posições recebidas, mas FEA1 já estava alguns minutos à frente da soma
+D1:
+
+```text
+FEA1.steps > Σ D1.steps
+```
+
+com o último bucket D1 recente em relação ao instante de coleta FEA1.
+
+Isso é uma cauda temporal legítima: FEA1 representa o agregado diário atual,
+enquanto D1 materializa a distribuição em buckets discretos de aproximadamente
+cinco minutos. Portanto, diferença positiva FEA1-D1 não é automaticamente
+`DIVERGENT`.
+
+A 033-06 deve distinguir cauda recente, incompletude estrutural e divergência real.
+A diferença `FEA1 - ΣD1` nunca pode ser transformada em bucket, intervalo ou
+`StepsRecord` sintético, porque FEA1 não informa distribuição temporal.
+
+Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
+
 ## Objetivo
 
 Transformar o pull-to-refresh da Home no único gesto de produto para buscar dados
@@ -240,6 +266,32 @@ Consequências:
 - D4 = passos/cadência do workout;
 - passos D4 não são somados novamente ao total diário.
 
+A classificação FEA1 × D1 deve separar estrutura de frescor:
+
+```text
+FEA1 == ΣD1
++ D1 estruturalmente completo
+  -> COMPLETE
+
+FEA1 > ΣD1
++ D1 estruturalmente completo para totalPositions recebido
++ último bucket D1 recente em relação ao FEA1
+  -> RECENT_TAIL / LAGGING
+  -> não é divergência estrutural
+
+FEA1 < ΣD1
+  -> DIVERGENT, salvo nova evidência explícita que prove outra semântica
+
+D1 estruturalmente incompleto
+  -> PARTIAL/INCOMPLETE
+```
+
+Diferença sem prova suficiente de frescor/cobertura deve falhar fechada ou ser
+classificada como divergente conforme o consumidor.
+
+Nunca criar residual temporal a partir de `FEA1 - ΣD1`. O próximo D1 real deve
+materializar a cauda.
+
 #### Distância
 
 - D1 = linha nativa diária de distância quando elegível;
@@ -384,6 +436,12 @@ Requisitos adicionais:
 - D1 granular é o candidato natural para a distribuição diária de passos, mas
   qualquer coexistência com `WorkoutSteps` exige prova/contabilidade que impeça
   dupla publicação;
+- cauda recente FEA1 × D1 não autoriza publicar residual sintético; somente
+  buckets D1/D4 temporalmente materializados podem formar records granulares;
+- projeções que exigem fechamento completo devem aguardar a cauda real ou ficar
+  explicitamente bloqueadas/pendentes;
+- chegada posterior de D1 não reescreve IDs/payloads já congelados dos buckets
+  previamente preparados;
 - `DISTANCE` também não pode publicar D1 e D4 sobrepostos sem seletor de cobertura
   comprovado;
 - `HEART_RATE` pode preferir D4 durante workout somente quando houver cobertura D4
@@ -452,7 +510,8 @@ de janela.
 ```text
 STEPS
   total de referência: FEA1
-  distribuição candidata: D1 granular
+  distribuição candidata: D1 granular materializado
+  cauda FEA1-D1: diagnóstico/frescor, nunca record sintético
   D4/WorkoutSteps: somente sem duplicar o mesmo total
 
 DISTANCE
@@ -498,8 +557,9 @@ FEA1 continua validando/mostrando total diário local de passos, mas não cria n
         033-09 Validação física/fechamento
 ```
 
-`033-02` e `033-03` foram executadas antes da correção física deste contrato; a
-`033-04` deve seguir a versão revisada acima.
+`033-02` e `033-03` foram executadas antes da primeira correção física deste
+contrato. `033-04` aplicou a autoridade por métrica; `033-06` deve incorporar a
+correção adicional de cauda recente descoberta após `033-05`.
 
 ## Validação obrigatória
 
@@ -514,5 +574,5 @@ Não criar nem executar testes automatizados sem pedido explícito do usuário,
 conforme `AGENTS.md`.
 
 A validação física final deve exercitar Champion C001 real, migration v17->v18,
-idempotência, composição D1/D4 por métrica, partial success, ausência de
-auto-sync HC e cutover sem duplicação.
+idempotência, composição D1/D4 por métrica, cauda recente FEA1 × D1 sem residual
+sintético, partial success, ausência de auto-sync HC e cutover sem duplicação.
