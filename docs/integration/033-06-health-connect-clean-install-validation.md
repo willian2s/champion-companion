@@ -77,8 +77,10 @@ cutover efetivo
 ### Correção
 
 A data de cutover **solicitada** continua persistida por dispositivo, mas o
-cutover **efetivo de STEPS** fica adiado enquanto
-`GRANULAR_D1_STEPS_REMOTE_PROJECTION_READY = false`.
+cutover **efetivo de STEPS** fica explicitamente adiado enquanto D1 granular não
+tiver substituto remoto comprovadamente seguro. Não existe flag de build que
+possa reinterpretar datas persistidas antigas; a ativação futura exigirá nova
+decisão/migração explícita.
 
 Enquanto isso:
 
@@ -94,8 +96,8 @@ D1 granular
 ```
 
 Quando houver prova suficiente para publicar D1 granular, a política de fallback
-deve ser removida/ativada explicitamente; a data solicitada já permanece
-preservada no banco para auditoria.
+deve ser substituída por uma ativação explícita; a data originalmente solicitada
+permanece preservada no banco apenas como intenção/auditoria.
 
 ## Achado 2 — sync global não iniciava READY_TO_SYNC
 
