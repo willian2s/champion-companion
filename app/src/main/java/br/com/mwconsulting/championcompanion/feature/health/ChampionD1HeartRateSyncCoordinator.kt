@@ -50,7 +50,7 @@ class ChampionD1HeartRateSyncCoordinator(
     private val heartRateRepository: HeartRateRepository,
     @BleDispatcher bleDispatcher: CoroutineDispatcher,
     private val ids: UuidV7Generator = UuidV7Generator(),
-    private val parserVersion: ParserVersion = ParserVersion.create("d1-v1").valueOrNull()!!,
+    private val parserVersion: ParserVersion = ParserVersion.create("d1-v2").valueOrNull()!!,
     private val historyTimeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d1History,
     private val civilNow: () -> Instant = Instant::now,
 ) : D1HeartRateSyncCoordinator {
@@ -299,15 +299,32 @@ class ChampionD1HeartRateSyncCoordinator(
             is D1HeartRateImportResult.Partial,
             -> {
                 if (outcome.measurements.isEmpty()) {
-                    mutableState.value = D1HeartRateImportSurfaceState.Failed(
-                        session.copy(
-                            error = HealthD1ImportError(
-                                category = HealthD1ImportErrorCategory.NO_VALID_RECORDS,
-                                message = "Nenhum registro D1 valido foi encontrado para importar.",
+                    val structuralOnlySession = session.copy(
+                        error = if (
+                            outcome.result is D1HeartRateImportResult.Partial &&
+                                outcome.result.summary?.timedOut == true
+                        ) {
+                            HealthD1ImportError(
+                                category = HealthD1ImportErrorCategory.TIMEOUT_PARTIAL,
+                                message = "Importacao parcial concluida apos timeout com fatos D1 estruturais.",
                                 isRetryable = true,
-                            ),
-                        ),
+                            )
+                        } else {
+                            null
+                        },
                     )
+                    mutableState.value = when (outcome.result) {
+                        is D1HeartRateImportResult.Completed ->
+                            D1HeartRateImportSurfaceState.Completed(structuralOnlySession)
+                        is D1HeartRateImportResult.CompletedWithGaps ->
+                            D1HeartRateImportSurfaceState.CompletedWithGaps(structuralOnlySession)
+                        is D1HeartRateImportResult.Partial ->
+                            D1HeartRateImportSurfaceState.Partial(structuralOnlySession)
+                        is D1HeartRateImportResult.Failed ->
+                            D1HeartRateImportSurfaceState.Failed(structuralOnlySession)
+                        is D1HeartRateImportResult.Cancelled ->
+                            D1HeartRateImportSurfaceState.Cancelled(structuralOnlySession)
+                    }
                     return
                 }
                 mutableState.value = D1HeartRateImportSurfaceState.Persisting(session)
