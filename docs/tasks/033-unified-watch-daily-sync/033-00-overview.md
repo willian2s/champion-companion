@@ -29,7 +29,7 @@ reescrever histórico.
        |             |
        v             v
 033-05 Watch sync   033-06 HC cutover/granular
-        ✓             ✓
+        ✓             ✓*
        +------+------+
               v
 033-07 Produto/UI e remoção de entrypoints BLE
@@ -39,6 +39,10 @@ reescrever histórico.
 033-09 Validação física e fechamento
 ```
 
+`033-06` está implementada, mas recebeu correções pós-validação física em
+instalação limpa. Essas correções ainda exigem novo checkpoint físico antes da
+033-07.
+
 ## Checklist
 
 - [x] `033-01-auditar-e-congelar-d1-v2-e-cutover.md`
@@ -46,7 +50,7 @@ reescrever histórico.
 - [x] `033-03-persistir-fatos-diarios-granulares.md`
 - [x] `033-04-compor-dados-diarios-fea1-d1-d4.md`
 - [x] `033-05-unificar-watch-sync-na-home.md`
-- [x] `033-06-integrar-health-connect-granular-e-cutover.md`
+- [x] `033-06-integrar-health-connect-granular-e-cutover.md` — implementação + correção pós-validação; revalidação pendente
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md`
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
@@ -69,12 +73,15 @@ reescrever histórico.
   contexto do workout e só substitui contribuição diária com prova de cobertura;
 - FC combinada pode preferir D4 durante workout quando houver cobertura D4 válida;
 - sync do relógio não executa Health Connect automaticamente;
-- cutover HC ocorre por dia local inteiro e não pode assumir `D1 + D4` como
-  fontes mutuamente exclusivas;
+- a data de cutover HC pode ser persistida, mas **não pode desligar o caminho
+  remoto legacy de STEPS enquanto D1 granular continuar sem substituto remoto
+  comprovadamente seguro**;
 - step length sai da UI, mas contratos legacy/fallback permanecem;
 - medição manual de FC e importação D1 saem da Saúde como ações de produto;
 - importação D3/D4 sai de Exercícios como ação de produto;
-- semântica Health Connect de calorias permanece bloqueada até evidência.
+- semântica Health Connect de calorias permanece bloqueada até evidência;
+- `Configurações -> Sincronizar agora` inclui atividades Watch `READY_TO_SYNC`,
+  preservando review-before-sync e sem tocar `PENDING_REVIEW`/`PENDING_CALIBRATION`.
 
 ## Correção física pós-033-05: cauda recente FEA1 × D1
 
@@ -102,21 +109,9 @@ FEA1 > ΣD1
 => não é divergência estrutural
 ```
 
-A 033-06 absorve formalmente essa correção. Não será criada task separada.
-
-Também fica proibido fabricar:
-
-```text
-FEA1 - ΣD1
-```
-
-como bucket, intervalo ou `StepsRecord`. FEA1 não informa a distribuição temporal
-da cauda; somente novo D1 real pode materializá-la.
-
-Evidência física sanitizada:
-
-- `docs/integration/033-03-d1-v2-physical-validation.md`;
-- `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
+Também fica proibido fabricar `FEA1 - ΣD1` como bucket, intervalo ou
+`StepsRecord`. FEA1 não informa a distribuição temporal da cauda; somente novo
+D1 real pode materializá-la.
 
 ## Resultado físico antes da 033-04
 
@@ -143,25 +138,50 @@ Refreshes físicos sucessivos confirmaram:
 
 Partial success forçado por falha de componente continua reservado para 033-09.
 
-## Resultado da execução 033-06
+## Resultado e correção pós-validação da 033-06
 
-- Cutover local persistido em Room v19, por dispositivo e data civil, sem efeitos
-  remotos durante migration ou watch sync.
-- `DailySummary`/FEA1 deixou de criar nova operação STEPS em datas pós-cutover;
-  operações pré-cutover e ledgers legacy permanecem preservados.
-- `WatchDailyStepCoverage` distingue `COMPLETE`, `RECENT_TAIL`, `PARTIAL` e
-  `DIVERGENT`, usando frescor e completude estrutural, não somente diferença.
-- Residual FEA1-D1 não é sintetizado. D1 Health Connect permanece deferred e
-  fail-closed até prova de intervalo e de não sobreposição com `WorkoutSteps`.
-- Auto-sync remoto após importação D1 foi removido; Settings e sync explícito de
-  workout permanecem.
+A implementação inicial entregou Room v19, cutover persistido, `RECENT_TAIL`,
+proibição de residual sintético e separação explícita entre watch sync e HC.
+Validação física em instalação limpa revelou três gaps:
+
+1. cutover no próprio dia desligava `DailySummary STEPS` enquanto D1 granular
+   permanecia `deferred`, deixando o dia sem StepsRecord;
+2. `Settings -> Sincronizar agora` não criava a primeira projeção de uma atividade
+   Watch `READY_TO_SYNC`;
+3. backlog antigo podia exigir vários cliques porque cada gesto processava somente
+   um lote de 100 operações.
+
+Correções aplicadas:
+
+- a data de cutover solicitada continua persistida, mas o **cutover efetivo de
+  STEPS fica adiado** enquanto a projeção D1 granular remota não estiver pronta;
+- nesse período, FEA1/DailySummary continua usando o caminho incremental das
+  Specs 016/027, incluindo créditos/ledgers de `WorkoutSteps`;
+- `Sincronizar agora` drena a fila em passes finitos enquanto houver progresso e,
+  em seguida, chama o sync explícito de cada Watch `READY_TO_SYNC`;
+- `PENDING_REVIEW`, `PENDING_CALIBRATION`, `DISCARDED` e `SYNCED` não entram na
+  criação inicial pelo gesto global;
+- distância diária e calorias diárias continuam deliberadamente `deferred` por
+  risco de sobreposição/semântica não comprovada.
+
+A ordenação causal interna da fila não foi invertida por recência/estado. O gesto
+global drena lotes sucessivos, evitando o starvation físico observado sem quebrar
+cadeias incrementais de passos.
+
+## Evidências físicas sanitizadas
+
+- `docs/integration/033-03-d1-v2-physical-validation.md`;
+- `docs/integration/033-05-unified-watch-sync-physical-validation.md`;
+- `docs/integration/033-06-health-connect-clean-install-validation.md`.
 
 ## Observações
 
-- Bloqueio deliberado: projeção D1 granular ainda não pode ser publicada com
-  segurança porque intervalo temporal do bucket e contabilidade D1 ×
-  `WorkoutSteps` não estão comprovados. A 033-09 deve validar esse gate físico;
-  até lá, fatos D1 permanecem locais e nenhuma operação remota insegura é criada.
+- D1 granular Health Connect continua fail-closed até prova de intervalo temporal
+  e contabilidade segura com `WorkoutSteps`;
+- a data de cutover persistida funciona como intenção/auditoria; sua aplicação a
+  STEPS está adiada enquanto não houver substituto remoto seguro;
+- a correção pós-validação da 033-06 ainda precisa de um novo dump físico antes de
+  liberar a 033-07.
 
 ## Guard rails
 
