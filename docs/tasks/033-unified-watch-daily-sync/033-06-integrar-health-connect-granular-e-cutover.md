@@ -126,12 +126,12 @@ D1 granular remoto comprovado no futuro
   -> somente então impedir novos DailySummary STEPS
 ```
 
-A persistência Room v19 não é reescrita nem migrada novamente. O domínio expõe a
-data solicitada e uma data efetiva de fallback enquanto
-`GRANULAR_D1_STEPS_REMOTE_PROJECTION_READY = false`.
+A persistência Room v19 não é reescrita nem migrada novamente. O domínio preserva
+a data solicitada, mas expõe uma data efetiva futura enquanto o cutover estiver
+explicitamente deferred. A futura ativação exige nova decisão/migração; não existe
+flag de build que possa reinterpretar silenciosamente datas persistidas antigas.
 
-Isso evita a lacuna observada em instalação limpa sem inventar representação
-nova.
+Isso evita a lacuna observada em instalação limpa sem inventar representação nova.
 
 ## Correção B — Settings inclui atividades READY_TO_SYNC
 
@@ -245,6 +245,7 @@ D4 raw / 1000.0
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/settings/SettingsViewModel.kt`
 - `docs/integration/033-06-health-connect-clean-install-validation.md`
 - `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`
+- `docs/specs/033-unified-watch-daily-sync.md`
 - `docs/tasks/033-unified-watch-daily-sync/033-00-overview.md`
 - este documento.
 
