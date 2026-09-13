@@ -205,6 +205,11 @@ interface WatchDailyD1Repository {
         untilExclusive: LocalDate,
     ): Flow<List<WatchDailyD1Sample>> = flowOf(emptyList())
 
+    fun observeResolvedAtBetween(
+        deviceId: DeviceId,
+        range: CalendarInstantRange,
+    ): Flow<List<WatchDailyD1Sample>> = flowOf(emptyList())
+
     suspend fun findByNaturalKey(
         key: WatchDailyD1SampleKey,
     ): RepositoryResult<WatchDailyD1Sample?> = RepositoryResult.UnexpectedState

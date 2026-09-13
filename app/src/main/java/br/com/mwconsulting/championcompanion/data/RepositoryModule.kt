@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepo
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Repository
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModelRepository
 import br.com.mwconsulting.championcompanion.feature.home.ChampionDailyStepsSyncCoordinator
 import dagger.Module
 import dagger.Provides
@@ -35,4 +36,5 @@ object RepositoryModule {
     @Provides fun calendarRepository(source: LocalCalendarRepository): CalendarRepository = source
     @Provides fun diagnosticPayloadRepository(source: RoomRepositories): DiagnosticPayloadRepository = source
     @Provides fun watchDailyD1Repository(source: RoomRepositories): WatchDailyD1Repository = source
+    @Provides fun watchDailyReadModelRepository(source: RoomWatchDailyReadModelRepository): WatchDailyReadModelRepository = source
 }

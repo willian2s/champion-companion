@@ -394,6 +394,9 @@ interface WorkoutActivityRepository {
     /** Atividades não descartadas cujo startedAt pertence ao intervalo semiaberto. */
     fun observeActivitiesBetween(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
         flowOf(emptyList())
+    /** Atividades não descartadas que intersectam intervalo semiaberto. */
+    fun observeActivitiesIntersecting(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
+        observeActivitiesBetween(range)
     fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> = flowOf(null)
     suspend fun findById(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummary> = flowOf(WorkoutWorkflowSummary())

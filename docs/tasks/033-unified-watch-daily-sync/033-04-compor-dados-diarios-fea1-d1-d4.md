@@ -1,6 +1,6 @@
 # 033-04 — Compor dados diários FEA1 + D1 + D4
 
-- **Status:** pending
+- **Status:** completed
 - **Depende de:** 033-02 e 033-03
 - **Evidência física de entrada:** `docs/integration/033-03-d1-v2-physical-validation.md`
 
@@ -131,3 +131,88 @@ git diff --check
 ```
 
 Não criar nem executar testes automatizados sem autorização explícita.
+
+## Resultado da implementação
+
+- Adicionado `WatchDailyReadModel` em `core/model`, com métricas diárias,
+  provenance por fonte/métrica, cobertura FEA1 × D1, cobertura combinada de FC,
+  completude, divergência e issues seguros.
+- `WatchDailyReadModelComposer` mantém FEA1 como total diário de passos, usa D1
+  para distribuição e para distância/calorias nativas, e mantém D4 somente no
+  detalhe do workout, sem somá-lo ao diário.
+- FC D1 só é omitida dentro de atividade quando há amostras D4 válidas; D4 com
+  métricas locomotoras ausentes não remove fatos D1.
+- Adicionado `RoomWatchDailyReadModelRepository`, com consultas reativas por dia
+  e período sobre `DailySummaryRepository`, `WatchDailyD1Repository` e
+  `WorkoutActivityRepository`.
+- Foram adicionadas extensões aditivas aos contratos de leitura: consulta D1 por
+  instante, consulta de workouts que intersectam o período e `endedAt` congelado
+  na projeção de calendário. A consulta legacy por `startedAt` permanece intacta.
+- Persistência de fatos, sync do relógio, Health Connect, snapshots e entrypoints
+  de produto não foram alterados.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/CalendarHistory.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchDailyD1.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchDailyReadModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RepositoryModule.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomWatchDailyReadModelRepository.kt`
+- `docs/tasks/033-unified-watch-daily-sync/033-00-overview.md`
+- `docs/tasks/033-unified-watch-daily-sync/033-04-compor-dados-diarios-fea1-d1-d4.md`
+
+## Decisões e desvios
+
+- FEA1 seleciona primeiro resumo válido do dispositivo associado; sem candidato
+  associado, usa fallback determinístico pelo `updatedAt`, `collectedAt` e ID.
+- D1 é consultado por `resolvedAt` no intervalo do `ZoneId` solicitado. A data
+  local e o `zoneId` congelados no fato continuam preservados como provenance.
+- Soma D1 incompleta permanece disponível somente para diagnóstico; distância,
+  calorias e agregado elegível de passos exigem posições contínuas `1..total`.
+- Workouts que cruzam meia-noite entram somente no read model composto, via
+  consulta aditiva por interseção e `endedAt`; duração zero não é elegível.
+- Nenhum ajuste D1 por overlap temporal foi feito. D4 continua no detalhe do
+  workout e não participa dos totais diários.
+
+## Comandos executados
+
+```text
+./gradlew app:compileDebugKotlin
+./gradlew app:lintDebug
+./gradlew lint assembleDebug assembleRelease
+git diff --check
+```
+
+## Validação e evidências
+
+- `./gradlew app:compileDebugKotlin` — sucesso.
+- `./gradlew app:lintDebug` — sucesso.
+- `./gradlew lint assembleDebug assembleRelease` — sucesso.
+- `git diff --check` — sucesso.
+- Não foram criados nem executados testes automatizados.
+
+## Resultados e evidências
+
+- O read model expõe cobertura FEA1 × D1, divergência, completude, provenance e
+  issues de indisponibilidade sem criar fatos históricos.
+- A implementação mantém `FEA1 == Σ D1.steps` observável e não adiciona passos
+  D4 ao total diário.
+- A validação física de D1 v2 que fundamenta o contrato permanece em
+  `docs/integration/033-03-d1-v2-physical-validation.md`; validação física
+  específica da composição pertence à 033-09.
+
+033-05, 033-06, 033-07, 033-08 e 033-09 permanecem pendentes; a validação física
+do Champion C001, migration, idempotência, partial success, cutover e ausência de
+auto-sync Health Connect continuam fora desta subtarefa.
+
+## Riscos residuais
+
+- Testes automatizados não foram criados nem executados, conforme `AGENTS.md`.
+- Validação física específica da composição, incluindo FC cross-midnight, ainda
+  pertence à 033-09.
+- Integração efetiva dos consumidores, watch sync unificado, Health Connect e
+  remoção de entrypoints permanecem nas subtarefas 033-05 a 033-08.

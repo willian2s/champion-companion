@@ -208,6 +208,19 @@ interface WatchDailyD1SampleDao {
 
     @Query(
         "SELECT * FROM watch_daily_d1_samples " +
+            "WHERE deviceId = :deviceId " +
+            "AND resolvedAtEpochMillis >= :fromEpochMillis " +
+            "AND resolvedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY resolvedAtEpochMillis, currentPosition, id",
+    )
+    fun observeResolvedAtBetween(
+        deviceId: String,
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WatchDailyD1SampleEntity>>
+
+    @Query(
+        "SELECT * FROM watch_daily_d1_samples " +
             "WHERE deviceId = :deviceId AND resolvedLocalDate = :resolvedLocalDateIso " +
             "AND currentPosition = :currentPosition LIMIT 1",
     )
@@ -333,6 +346,7 @@ interface WorkoutActivityDao {
     @Query(
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.endedAtEpochMillis, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
             "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
             "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
@@ -356,6 +370,32 @@ interface WorkoutActivityDao {
     @Query(
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.endedAtEpochMillis, " +
+            "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
+            "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
+            "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
+            "derivation.derivationVersion AS canonicalDerivationVersion, " +
+            "derivation.stepLengthSource AS canonicalStepLengthSource, " +
+            "derivation.temporalEligibility AS canonicalTemporalEligibility, " +
+            "derivation.plausibilityIndicators AS canonicalPlausibilityIndicators " +
+            "FROM workout_activities activity " +
+            "LEFT JOIN workout_derivation_snapshots derivation ON " +
+            "derivation.activeActivityId = activity.id AND derivation.isActive = 1 " +
+            "WHERE activity.startedAtEpochMillis < :untilEpochMillis " +
+            "AND activity.endedAtEpochMillis > activity.startedAtEpochMillis " +
+            "AND activity.endedAtEpochMillis > :fromEpochMillis " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "ORDER BY activity.startedAtEpochMillis, activity.id",
+    )
+    fun observeCalendarSummariesIntersecting(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<CalendarWorkoutSummaryRecord>>
+
+    @Query(
+        "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
+            "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.endedAtEpochMillis, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
             "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
             "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
@@ -450,6 +490,7 @@ data class CalendarWorkoutSummaryRecord(
     val confirmedType: String?,
     val startedAtEpochMillis: Long,
     val durationNanos: Long,
+    val endedAtEpochMillis: Long,
     val originalDistanceMeters: Double?,
     val estimatedDistanceMeters: Double?,
     val calibratedDistanceMeters: Double?,

@@ -791,6 +791,19 @@ class RoomRepositories @Inject constructor(
             .map { samples -> samples.mapNotNull { it.toDomain() } }
             .flowOn(ioDispatcher)
 
+    override fun observeResolvedAtBetween(
+        deviceId: DeviceId,
+        range: CalendarInstantRange,
+    ): Flow<List<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>> =
+        database.watchDailyD1SampleDao()
+            .observeResolvedAtBetween(
+                deviceId = deviceId.value.toString(),
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+            )
+            .map { samples -> samples.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
     override suspend fun findByNaturalKey(
         key: WatchDailyD1SampleKey,
     ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample?> =
@@ -970,6 +983,15 @@ class RoomRepositories @Inject constructor(
     override fun observeActivitiesBetween(range: CalendarInstantRange) =
         database.workoutActivityDao()
             .observeCalendarSummariesBetween(
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+            )
+            .map { records -> records.mapNotNull { it.toCalendarSummary() } }
+            .flowOn(ioDispatcher)
+
+    override fun observeActivitiesIntersecting(range: CalendarInstantRange) =
+        database.workoutActivityDao()
+            .observeCalendarSummariesIntersecting(
                 fromEpochMillis = range.fromInclusive.toEpochMilli(),
                 untilEpochMillis = range.untilExclusive.toEpochMilli(),
             )

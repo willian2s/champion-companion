@@ -525,6 +525,7 @@ internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSu
         confirmedType = mappedConfirmedType,
         startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
         duration = Duration.ofNanos(durationNanos),
+        endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
         distanceMeters = mappedDistance,
         caloriesKilocalories = caloriesKilocalories.domainValue(),
         averageBpm = averageBpm.domainValue(),

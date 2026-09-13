@@ -266,9 +266,12 @@ data class CalendarWorkoutSummary(
     val derivationVersion: String? = null,
     val stepLengthSource: StepLengthSource? = null,
     val plausibilityIndicators: Set<WorkoutPlausibilityIndicator> = emptySet(),
+    /** Instante de término congelado na atividade, quando disponível. */
+    val endedAt: Instant? = null,
 ) {
     init {
         require(!duration.isNegative)
+        require(endedAt == null || !endedAt.isBefore(startedAt))
         require(workflowState != ActivityWorkflowState.DISCARDED)
     }
 }
