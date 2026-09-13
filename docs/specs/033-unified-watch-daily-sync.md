@@ -9,86 +9,63 @@
 
 ## Contexto
 
-A Spec 032 foi integrada à `main` e consolidou `d4-v4`, distância nativa do relógio,
-calibração contextual por referência externa e Room v17. Novas atividades D4 v4
-íntegras podem nascer como `WATCH_NATIVE`, mantendo `STEP_LENGTH_FALLBACK` apenas
-como compatibilidade/fallback técnico.
+A Spec 032 consolidou `d4-v4`, distância nativa do relógio, calibração contextual
+por referência externa e Room v17. A Spec 033 unifica as antigas leituras BLE
+separadas de Home/FEA1, Saúde/D1 e Exercícios/D3-D4 em um único watch sync iniciado
+pela Home e promove D1 para fatos diários completos.
 
-A área diária permanece fragmentada em três ações BLE de produto:
-
-```text
-Home pull-to-refresh  -> FEA1
-Saúde                  -> D1
-Exercícios              -> D3/D4
-```
-
-Além disso, o parser D1 efetivo antes desta spec persistia apenas frequência
-cardíaca. A inspeção do protocolo do Champion C001 mostra que cada pacote D1
-carrega também passos, distância, calorias, `sportValue` e outros campos raw.
-
-A Home também continua criando distância/calorias estimadas a partir do resumo
-FEA1 e de métricas pessoais, enquanto a direção pós-032 é priorizar fatos medidos
-do relógio e deixar comprimento de passo apenas como fallback interno.
-
-Por fim, refresh da Home e conclusão de D1 ainda podem disparar processamento do
-Health Connect automaticamente. A direção vigente para a 033 é separar
-explicitamente:
+A direção arquitetural é:
 
 ```text
 sincronizar relógio != sincronizar Health Connect
 ```
 
-### Correção pós-validação física de 033-02/033-03
+Room continua sendo fonte operacional local. Health Connect continua write-only e
+somente recebe efeitos por ação explícita.
 
-A primeira versão do contrato assumiu que D1 seria fonte somente fora dos
-workouts e que todo bucket D1 que intersectasse uma janela D4 poderia ser
-suprimido. Dois dumps físicos sanitizados após implementação de `d1-v2`/Room v18
-invalidaram essa premissa.
+## Evidência física que corrigiu o contrato
 
-Foi observado:
+### D1 também contém fatos de workout
 
-- `Σ D1.steps == FEA1.steps` em duas leituras sucessivas do mesmo dia;
-- uma corrida D4 válida em que os buckets D1 correspondentes fecharam exatamente
-  em passos e distância e praticamente em calorias contra o D4;
-- outro workout D4 com passos/distância/calorias nulos que ainda intersectava
-  bucket D1 não nulo.
+Validação pós-033-02/033-03 mostrou:
 
-Portanto, D1 é a linha granular diária do relógio e pode carregar fatos do treino.
-D4 permanece a fonte detalhada/canônica da atividade. Não existe mais regra global
-`D1 fora / D4 dentro` nem supressão integral por mera interseção.
+- `Σ D1.steps == FEA1.steps` em leituras sucessivas;
+- corrida D4 em que D1 fechou os mesmos passos/distância e praticamente as mesmas
+  calorias do workout;
+- workout D4 locomotoramente nulo que ainda intersectava bucket D1 não nulo.
+
+Portanto não existe regra global `D1 fora / D4 dentro` e overlap temporal não
+autoriza suprimir D1.
 
 Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 
-### Correção pós-validação física de 033-05
+### FEA1 pode ficar à frente do último D1 sem divergência
 
-Depois do watch sync unificado, refreshes consecutivos da Home confirmaram
-idempotência física de D1 e D3/D4 e ausência de auto-sync Health Connect.
+Validação pós-033-05 mostrou D1 estruturalmente completo e FEA1 alguns minutos à
+frente de `ΣD1`. Isso é uma cauda temporal legítima entre a leitura agregada atual
+e os buckets discretos D1.
 
-Também foi observado um cenário em que D1 estava estruturalmente completo para
-todas as posições recebidas, mas FEA1 já estava alguns minutos à frente da soma
-D1:
-
-```text
-FEA1.steps > Σ D1.steps
-```
-
-com o último bucket D1 recente em relação ao instante de coleta FEA1.
-
-Isso é uma cauda temporal legítima: FEA1 representa o agregado diário atual,
-enquanto D1 materializa a distribuição em buckets discretos de aproximadamente
-cinco minutos. Portanto, diferença positiva FEA1-D1 não é automaticamente
-`DIVERGENT`.
-
-A 033-06 deve distinguir cauda recente, incompletude estrutural e divergência real.
-A diferença `FEA1 - ΣD1` nunca pode ser transformada em bucket, intervalo ou
-`StepsRecord` sintético, porque FEA1 não informa distribuição temporal.
+Logo, `FEA1 > ΣD1` não é automaticamente `DIVERGENT`, e `FEA1 - ΣD1` nunca pode
+ser transformado em intervalo/StepsRecord sintético.
 
 Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
 
-## Objetivo
+### Cutover não pode eliminar STEPS antes de existir substituto seguro
 
-Transformar o pull-to-refresh da Home no único gesto de produto para buscar dados
-do Champion C001 e consolidar uma linha diária granular local:
+A primeira implementação da 033-06 foi validada em instalação limpa. O cutover
+solicitado entrou no próprio dia, mas D1 granular remoto permanecia `deferred`.
+Com `DailySummary STEPS` desligado, nenhum StepsRecord era preparado. A mesma
+validação mostrou que `Settings -> Sincronizar agora` não iniciava a primeira
+projeção de uma atividade Watch `READY_TO_SYNC`.
+
+Correção: a intenção/data de cutover continua persistida, mas o **cutover efetivo
+de STEPS permanece adiado** enquanto D1 granular não tiver representação remota
+comprovadamente segura. Nesse período o caminho incremental FEA1 das Specs 016/027
+continua ativo.
+
+Evidência: `docs/integration/033-06-health-connect-clean-install-validation.md`.
+
+## Objetivo
 
 ```text
 Home pull-to-refresh
@@ -105,67 +82,48 @@ WatchSyncCoordinator
           |
      +----+----+
      |         |
- read models  fila Health Connect PENDING
+ read models  fila HC local
                    |
                    v
              sync explícito
 ```
 
-A 033 deve preservar a arquitetura watch-first, Room como fonte operacional,
-review-before-sync de workouts e ausência de GPS/rota em produção.
+Preservar arquitetura watch-first, review-before-sync, ausência de GPS/rota em
+produção e compatibilidade histórica.
 
 ## Decisões obrigatórias
 
-### R1 — Home é o único entrypoint de sincronização do relógio
+### R1 — Home é o único entrypoint de leitura do relógio
 
-O único gesto de produto que inicia leitura BLE de dados do relógio será o
-pull-to-refresh da Home.
+O pull-to-refresh da Home coordena FEA1, D1 e D3/D4. Saúde não inicia D1 nem
+medição manual como fluxo de produto; Exercícios não inicia importação D3/D4.
+Abrir tela, voltar ao foreground ou trocar filtro não inicia histórico BLE.
 
-Esse gesto coordena:
+### R2 — Um coordinator controla gate, sessão e handshake
 
-1. FEA1;
-2. D1;
-3. D3/D4.
+`WatchSyncCoordinator` ou equivalente deve:
 
-Saúde não inicia D1 nem medição manual. Exercícios não inicia importação D3/D4.
-Abrir telas, conectar automaticamente, voltar ao foreground ou trocar filtros não
-inicia leitura de histórico.
+- usar owner foreground compartilhado (`WATCH_SYNC`);
+- reutilizar sessão BLE quando possível;
+- executar handshake uma vez por tentativa quando necessário;
+- preservar FEA1, D1 e D3/D4 como componentes independentes;
+- preservar sucesso já persistido quando componente posterior falhar;
+- expor resultado global `COMPLETED`/`PARTIAL`/`FAILED` e status por componente.
 
-### R2 — Um coordinator de watch sync controla gate, sessão e handshake
+### R3 — FEA1 permanece total diário autoritativo de passos
 
-Introduzir `WatchSyncCoordinator` ou nome equivalente como owner de produto da
-sincronização composta.
+`DailySummary.steps`/FEA1 é a melhor leitura do total diário atual. FEA1 não
+fornece distribuição temporal e não autoriza fabricação de buckets.
 
-Requisitos:
+### R4 — Parser D1 v2 completo
 
-- um owner foreground compartilhado, preferencialmente `WATCH_SYNC`;
-- reutilizar a mesma sessão BLE quando possível;
-- executar handshake A1 uma vez por tentativa quando necessário;
-- componentes FEA1, D1 e D3/D4 continuam módulos/protocolos independentes;
-- falha de um componente não apaga sucessos anteriores;
-- resultado global pode ser `COMPLETED`, `PARTIAL`, `FAILED` ou equivalente;
-- timestamps/status por componente permanecem observáveis.
-
-### R3 — FEA1 permanece agregado diário autoritativo de passos
-
-FEA1 continua sendo a melhor leitura do total diário atual de passos do relógio.
-`DailySummary.steps` permanece o agregado local autoritativo do dia para Home e
-validação.
-
-FEA1 não fornece distribuição temporal. A 033 não deve fabricar buckets a partir
-do total FEA1.
-
-### R4 — Introduzir parser `d1-v2` completo
-
-Para o layout fixo observado do C001, o target D1 v2 é:
+Layout observado:
 
 ```text
-byte 0      0xD1
+byte 0      D1
 1..2        currentPosition u16 LE
 3..4        totalPositions u16 LE
 5           dayOffset/hour packed
-             dayOffset = u8 / 32
-             hour      = u8 % 32
 6..7        caloriesRaw u16 BE
 8..9        distanceRaw u16 BE
 10..11      steps u16 BE
@@ -178,358 +136,213 @@ byte 0      0xD1
 19          minute u8
 ```
 
-Unidades congeladas para o layout observado:
+Conversões confirmadas:
 
 ```text
 caloriesKilocalories = caloriesRaw / 10.0
 distanceMeters       = distanceRaw
 ```
 
-A interpretação de `pressureHighRaw`, `pressureLowRaw`, `wearRaw`, `tempOneRaw`
-e o significado fisiológico de `sportValue` permanecem raw até evidência física
-suficiente.
+`pressureHighRaw`, `pressureLowRaw`, `wearRaw`, `tempOneRaw` e semântica
+fisiológica de `sportValue` permanecem raw.
 
-### R5 — BPM inválido não invalida o pacote D1
+### R5 — BPM inválido não invalida D1
 
-Faixa oficial adotada para D1 v2:
+Faixa D1 v2 adotada: `30..200 BPM`. Fora dela, BPM fica ausente, mas passos,
+distância, calorias, `sportValue`, raws e estrutura multipart permanecem válidos.
+Conclusão do collector depende da estrutura/posição, não da validade do BPM.
 
-```text
-30..200 BPM
-```
+### R6 — Persistir D1 como fatos completos
 
-BPM fora da faixa resulta em ausência de BPM naquele sample, mas não descarta:
+`watch_daily_d1_samples` preserva identidade natural por dispositivo/data/posição,
+data/hora/instante/zoneId, passos, distância, calorias, sportValue, BPM nullable,
+raws e timestamps de importação/atualização. Room v18 é aditivo e não fabrica
+histórico D1 que nunca foi persistido.
 
-- passos;
-- distância;
-- calorias;
-- `sportValue`;
-- raw adicionais;
-- posição/completude do multipart.
-
-A conclusão do collector depende da estrutura/posição recebida, não da validade do
-BPM. Um último pacote com BPM inválido não pode forçar timeout artificial.
-
-### R6 — Persistir D1 como fatos diários, não como frequência cardíaca somente
-
-Criar persistência aditiva em `watch_daily_d1_samples`, com identidade estável
-baseada no dispositivo, data resolvida e posição do D1.
-
-Persistir pelo menos:
-
-- device/import/parser;
-- posição e total;
-- data local, hora, minuto, instante e zoneId congelado;
-- steps;
-- distance raw/meters;
-- calories raw/kcal;
-- sportValue raw;
-- BPM nullable;
-- pressure/wear/temp raw;
-- importedAt/updatedAt.
-
-Room evolui de v17 para v18 de forma aditiva. A migration não cria efeitos Health
-Connect.
-
-`heart_rate_measurements` D1 existentes permanecem históricos. Não fabricar fatos
-D1 antigos que nunca foram persistidos.
-
-### R7 — D1 é a linha diária; D4 é a fonte do workout
-
-A composição não usa mais uma autoridade temporal única.
+### R7 — D1 é linha diária; D4 é fonte do workout
 
 ```text
-FEA1
-  -> total diário autoritativo de passos
-
-D1
-  -> linha granular diária do relógio
-  -> pode incluir fatos ocorridos durante workout
-
-D4
-  -> fonte detalhada/canônica do workout
+FEA1 -> total diário de passos
+D1   -> linha granular diária, inclusive fatos ocorridos em workout
+D4   -> detalhe/canônico do workout
 ```
 
 Consequências:
 
-- não suprimir bucket D1 inteiro apenas porque sua janela/timestamp intersecta D4;
-- não somar D1 + D4 como se fossem fontes independentes;
-- header D4 permanece consistência/diagnóstico;
-- comportamento D4 usa série por intervalo/range/soma.
+- não suprimir bucket D1 por mera interseção;
+- não somar D1 + D4 como fontes independentes;
+- comportamento D4 usa intervalos/ranges/somas, nunca header total como fonte.
 
-### R8 — Autoridade diária é definida por finalidade e métrica
+### R8 — Autoridade é definida por métrica
 
 #### Passos
 
-- `DailySummary.steps`/FEA1 = total diário autoritativo;
-- D1 = distribuição temporal/granular dos passos do dia;
-- `Σ D1.steps` deve ser comparado com FEA1 para cobertura/diagnóstico;
+- FEA1 = total diário;
+- D1 = distribuição granular/diagnóstico;
 - D4 = passos/cadência do workout;
-- passos D4 não são somados novamente ao total diário.
+- D4 não aumenta novamente o total diário.
 
-A classificação FEA1 × D1 deve separar estrutura de frescor:
+Cobertura:
 
 ```text
-FEA1 == ΣD1
-+ D1 estruturalmente completo
+FEA1 == ΣD1 + D1 completo
   -> COMPLETE
 
-FEA1 > ΣD1
-+ D1 estruturalmente completo para totalPositions recebido
-+ último bucket D1 recente em relação ao FEA1
-  -> RECENT_TAIL / LAGGING
-  -> não é divergência estrutural
+FEA1 > ΣD1 + D1 completo + último bucket recente
+  -> RECENT_TAIL
 
 FEA1 < ΣD1
-  -> DIVERGENT, salvo nova evidência explícita que prove outra semântica
+  -> DIVERGENT
 
 D1 estruturalmente incompleto
-  -> PARTIAL/INCOMPLETE
+  -> PARTIAL
 ```
 
-Diferença sem prova suficiente de frescor/cobertura deve falhar fechada ou ser
-classificada como divergente conforme o consumidor.
-
-Nunca criar residual temporal a partir de `FEA1 - ΣD1`. O próximo D1 real deve
-materializar a cauda.
+Nunca criar residual temporal de `FEA1 - ΣD1`.
 
 #### Distância
 
-- D1 = linha nativa diária de distância quando elegível;
-- D4 = distância canônica do workout, incluindo calibração contextual quando
-  aplicável;
-- não calcular total diário como `D1 + D4`;
-- não reconstruir nova distância diária por `steps × stepLength` quando D1 nativo
-  elegível existir;
-- uma substituição/ajuste de contribuição D1 pelo D4 exige prova determinística de
-  cobertura e não duplicação;
-- sem essa prova, o diário preserva D1 e o detalhe do workout preserva D4.
+- D1 = linha diária nativa local quando elegível;
+- D4 = distância canônica do workout;
+- não calcular diário como `D1 + D4`;
+- não voltar a `steps × stepLength` no caminho normal se houver D1 nativo;
+- qualquer substituição D1 por D4 exige prova de cobertura/não duplicação.
 
 #### Calorias
 
-- D1 = fatos diários locais com escala `raw / 10.0`;
-- D4 = fatos do workout com escala `raw / 1000.0`;
-- não somar D1 + D4 no diário;
+- D1 usa `raw / 10.0`;
+- D4 usa `raw / 1000.0`;
+- não somar D1 + D4;
 - semântica Health Connect permanece bloqueada até evidência suficiente.
 
 #### Frequência cardíaca
 
-- D1 fornece pontos automáticos válidos do dia;
+- D1 fornece pontos automáticos válidos;
 - D4 fornece amostras do workout;
-- ponto D1 dentro da janela de atividade só é omitido do read model combinado se
-  houver cobertura D4 válida de frequência cardíaca;
-- ausência de D4 válido não autoriza eliminar D1;
+- D1 só é omitido no read model combinado quando houver cobertura D4 válida;
 - não criar BPM sintético/interpolado.
 
-### R9 — Substituição D1 -> D4 exige prova de cobertura
+### R9 — Substituição D1 -> D4 exige prova
 
-Interseção temporal isolada não é prova suficiente.
-
-Uma substituição/ajuste de uma métrica diária pelo D4 precisa demonstrar que a
-contribuição D1 substituída corresponde ao mesmo fato representado no D4 e que a
-operação não perde conteúdo externo ao workout.
-
-A primeira implementação pode deliberadamente não substituir distância/calorias
-D1 pelo D4 se essa prova não estiver disponível:
-
-```text
-read model diário  = D1 nativo
-read model workout = D4 canônico
-```
-
-Essa diferença de contexto é preferível a perda ou dupla contagem.
-
-Não dividir bucket D1 proporcionalmente sem evidência da semântica exata de sua
-fronteira temporal.
+Interseção temporal não é prova suficiente. Sem prova determinística de que a
+contribuição D1 substituída corresponde ao mesmo fato D4 e não contém conteúdo
+externo, manter D1 no diário e D4 no workout sem somá-los. Não dividir bucket D1
+proporcionalmente por inferência.
 
 ### R10 — Comprimento de passo sai da experiência normal
 
-Remover da UI normal do Perfil:
+Remover da UI normal edição/sugestão/perfis/histórico de calibração por passada.
+Preservar domínio/schema legacy para d4-v1/v2/v3, v4 inelegível, snapshots,
+reprocessamento e fallback técnico. Calibração D4 por referência externa permanece.
 
-- edição manual de comprimento de passo;
-- sugestão/aceite por altura;
-- perfis aprendidos de step length;
-- correção/histórico de calibração por passo.
+### R11 — Saúde vira leitura/análise
 
-Preservar domínio, schema e contratos legacy necessários a:
-
-- `d4-v1/v2/v3`;
-- `d4-v4` inelegível;
-- snapshots históricos;
-- reprocessamento explícito;
-- fallback técnico.
-
-A calibração de distância D4 nativa por referência externa permanece no detalhe
-de exercício.
-
-### R11 — Saúde vira leitura/análise para dados do relógio
-
-Remover entrypoints de produto para:
-
-- medição manual de frequência cardíaca;
-- importação D1;
-- retry/cancel específicos de D1;
-- state machines BLE correspondentes na UI final.
-
-Dados históricos manuais e D1 antigos permanecem visíveis. Não apagar histórico
-somente porque o fluxo de criação saiu da interface.
-
-Peso local continua uma funcionalidade independente e pode permanecer editável.
+Remover entrypoints de produto para medição manual de FC, importação D1 e seus
+retry/cancel/progresso BLE. Histórico existente permanece. Peso local continua
+independente/editável.
 
 ### R12 — Exercícios vira revisão/análise/sync
 
-Remover da UI de Exercícios:
+Remover CTA de buscar treinos e state machine de importação BLE da tela.
+Exercícios continua responsável por lista, review/classificação, calibração,
+referência externa, manutenção e sync explícito de workout revisado.
 
-- `Buscar treinos no relógio`;
-- retry/cancel/progresso de importação D3/D4 como ação própria da tela.
-
-Exercícios continua responsável por:
-
-- lista de workouts importados;
-- review/classificação;
-- calibração de esteira quando aplicável;
-- referência externa de distância D4;
-- reprocessamento explícito de manutenção quando necessário;
-- sync explícito de atividade para Health Connect.
-
-### R13 — Sincronizar relógio não escreve automaticamente no Health Connect
-
-O watch sync deve:
+### R13 — Watch sync não escreve automaticamente no Health Connect
 
 ```text
-ler -> validar -> persistir -> preparar/garantir fila PENDING
+watch sync
+  -> ler
+  -> validar
+  -> persistir
+  -> preparar/garantir estado local
+  -> NÃO chamar syncPending automaticamente
 ```
 
-mas não chamar `syncPending()` automaticamente.
+Efeito remoto ocorre por ação explícita, incluindo `Settings -> Sincronizar agora`
+e sync explícito de workout.
 
-Remover triggers automáticos atuais de Home/D1 que escrevem no provider após
-persistência. Health Connect permanece write-only e local-first.
+### R14 — Cutover de STEPS só é efetivo quando houver substituto remoto seguro
 
-A escrita remota ocorre por ação explícita, incluindo `Settings -> Sincronizar
-agora` e sync explícito de workout revisado.
+Persistir por dispositivo uma intenção/data civil de cutover. Essa data não pode
+eliminar uma representação remota de passos antes de existir substituto granular
+seguro.
 
-### R14 — Cutover diário inteiro para projeção granular no Health Connect
-
-Evitar coexistência no mesmo dia entre total diário FEA1 e nova projeção granular.
-Persistir um cutover por data local inteira.
-
-Regra alvo para instalação com histórico:
+Contrato atual:
 
 ```text
-data < cutover
-  -> política Health Connect histórica permanece intocada
+D1 granular remoto ainda DEFERRED
+  -> data solicitada permanece persistida
+  -> cutover efetivo de STEPS permanece adiado
+  -> DailySummary/FEA1 continua incremental pelas Specs 016/027
+  -> WorkoutSteps continua protegido por créditos/ledgers
+  -> D1 granular permanece local
 
-data >= cutover
-  -> não criar nova projeção STEPS de DailySummary/FEA1
-  -> usar somente representação granular comprovadamente não sobreposta
+D1 granular remoto comprovado no futuro
+  -> exige ativação/migração explícita
+  -> somente então desligar novos DailySummary STEPS
 ```
 
-Preferência inicial para upgrade: próximo dia local após ativação do novo contrato.
-Instalação nova sem legado pode iniciar granular no próprio dia, desde que a task
-de HC confirme que não existe projeção diária legacy já preparada.
+Não existe flag de build que reinterprete silenciosamente datas antigas.
 
-A projeção pós-cutover não pode assumir `D1 fora + D4 dentro`, porque a validação
-física mostrou que D1 já contém fatos do workout.
-
-Requisitos adicionais:
-
-- `STEPS` pós-cutover deve preservar o total FEA1 e os contratos da Spec 027;
-- D1 granular é o candidato natural para a distribuição diária de passos, mas
-  qualquer coexistência com `WorkoutSteps` exige prova/contabilidade que impeça
-  dupla publicação;
-- cauda recente FEA1 × D1 não autoriza publicar residual sintético; somente
-  buckets D1/D4 temporalmente materializados podem formar records granulares;
-- projeções que exigem fechamento completo devem aguardar a cauda real ou ficar
-  explicitamente bloqueadas/pendentes;
-- chegada posterior de D1 não reescreve IDs/payloads já congelados dos buckets
-  previamente preparados;
-- `DISTANCE` também não pode publicar D1 e D4 sobrepostos sem seletor de cobertura
-  comprovado;
-- `HEART_RATE` pode preferir D4 durante workout somente quando houver cobertura D4
-  válida;
-- se a representação segura não puder ser provada, falhar fechada para aquele
-  record em vez de duplicar.
-
-Não realizar backfill granular histórico, não apagar records remotos antigos e não
-reinterpretar operações `SYNCED`.
-
-A Spec 027/ledgers de crédito de passos permanecem necessários para histórico
-pré-cutover e podem continuar sendo necessários como mecanismo de segurança onde
-`WorkoutSteps` coexistir com a nova granularidade. A 033 não os remove por
-suposição.
+Quando o cutover real for implementado, a projeção pós-cutover não poderá assumir
+`D1 fora + D4 dentro`; deverá preservar o total FEA1 e provar não sobreposição com
+`WorkoutSteps`.
 
 ### R15 — Calorias exigem gate semântico próprio
 
-Persistir os fatos confirmados:
+Não escolher `ActiveCaloriesBurned` versus `TotalCaloriesBurned` por inferência.
+Calorias diárias permanecem locais/deferred enquanto a semântica e a cobertura
+D1/D4 não estiverem comprovadas.
 
-```text
-D1 caloriesRaw / 10.0
-D4 caloriesRaw / 1000.0
-```
+### R16 — Idempotência, partial success e sync explícito global
 
-Mas não escolher `ActiveCaloriesBurned` versus `TotalCaloriesBurned` no Health
-Connect por inferência. A projeção só é liberada se houver evidência suficiente
-durante execução.
+D1 aceita reimportação sem duplicar; D3/D4 preserva identidade CRC/import. Falha
+BLE posterior não faz rollback de componente já persistido.
 
-### R16 — Idempotência e partial success são obrigatórios
+`Settings -> Sincronizar agora` é uma ação explícita global e deve:
 
-D1 deve aceitar reimportação sem duplicar samples. D3/D4 continua usando identidade
-por CRC/import existente.
+1. processar a fila local existente;
+2. poder executar múltiplos lotes finitos enquanto houver progresso;
+3. preservar a ordenação causal interna já estabelecida para passos/créditos;
+4. em seguida, iniciar `syncActivity()` para cada Watch `READY_TO_SYNC`;
+5. nunca iniciar primeira projeção para `PENDING_REVIEW`, `PENDING_CALIBRATION`,
+   `DISCARDED` ou `SYNCED`.
 
-Exemplo obrigatório:
-
-```text
-FEA1 OK
-D1   OK
-D4   falha
-
-=> FEA1 e D1 permanecem persistidos
-=> watch sync = PARTIAL
-=> próximo refresh tenta recuperar D4
-```
-
-Nunca usar transação global que faça rollback de componentes já válidos por uma
-falha BLE posterior.
+O loop global é foreground e finito. Não usar “mais recente primeiro” se isso
+puder inverter cadeias incrementais.
 
 ### R17 — Privacidade e produto watch-first permanecem
 
-Não introduzir:
+Não introduzir GPS/rota/mapa, Adidas/Strava, polling BLE background, WorkManager de
+relógio ou logs com payload BLE integral/dados de saúde sensíveis.
 
-- GPS de produção;
-- rota/mapa;
-- Adidas/Strava;
-- background BLE permanente;
-- WorkManager para polling do relógio;
-- logs com payload BLE integral, BPM individual, identificadores pessoais ou
-  dados de saúde sensíveis.
-
-## Health Connect pós-cutover
-
-A projeção precisa ser decidida por métrica e cobertura, não por uma regra global
-de janela.
+## Health Connect no contrato atual
 
 ```text
 STEPS
-  total de referência: FEA1
-  distribuição candidata: D1 granular materializado
-  cauda FEA1-D1: diagnóstico/frescor, nunca record sintético
-  D4/WorkoutSteps: somente sem duplicar o mesmo total
+  total local: FEA1
+  remoto atual: DailySummary/FEA1 incremental + créditos Spec 027
+  D1 granular remoto: deferred até prova de intervalo/não sobreposição
+  FEA1-D1 residual: nunca record sintético
+
+WORKOUT
+  READY_TO_SYNC: pode ser preparado pelo sync explícito global
+  PENDING_REVIEW/PENDING_CALIBRATION: nunca primeira projeção global
+  filhos D4 elegíveis seguem manifesto/frozen payload/guards existentes
 
 DISTANCE
-  diário: D1 nativo
-  workout: D4 canônico
-  coexistência remota: somente com prova de não sobreposição/substituição
+  diário D1: local/deferred
+  workout D4: pode ser publicado quando contrato do workout provar elegibilidade
+  nunca publicar D1 diário + D4 sobrepostos sem prova
 
 HEART_RATE
-  D1 automático
-  D4 durante workout quando houver cobertura válida
+  D1 automático elegível
+  D4 no contexto do workout quando cobertura válida
 
 CALORIES
-  local: D1 diário + D4 no contexto do workout, sem soma
-  remoto: somente quando a semântica for confirmada
+  diário: local/deferred
+  remoto: somente com semântica comprovada
 ```
-
-FEA1 continua validando/mostrando total diário local de passos, mas não cria novo
-`StepsRecord` pós-cutover.
 
 ## Sequência de execução
 
@@ -546,8 +359,8 @@ FEA1 continua validando/mostrando total diário local de passos, mas não cria n
         +-----+-----+
         |           |
         v           v
-033-05 Watch sync  033-06 HC cutover/granular
-        |           |
+033-05 Watch sync  033-06 HC/cutover
+        ✓           ✓* correção pós-validação
         +-----+-----+
               v
         033-07 Produto/UI
@@ -557,9 +370,8 @@ FEA1 continua validando/mostrando total diário local de passos, mas não cria n
         033-09 Validação física/fechamento
 ```
 
-`033-02` e `033-03` foram executadas antes da primeira correção física deste
-contrato. `033-04` aplicou a autoridade por métrica; `033-06` deve incorporar a
-correção adicional de cauda recente descoberta após `033-05`.
+A correção pós-validação da 033-06 deve ser revalidada fisicamente antes de iniciar
+033-07.
 
 ## Validação obrigatória
 
@@ -570,9 +382,9 @@ Mudanças de código/Gradle:
 git diff --check
 ```
 
-Não criar nem executar testes automatizados sem pedido explícito do usuário,
-conforme `AGENTS.md`.
+Não criar nem executar testes automatizados sem pedido explícito do usuário.
 
-A validação física final deve exercitar Champion C001 real, migration v17->v18,
-idempotência, composição D1/D4 por métrica, cauda recente FEA1 × D1 sem residual
-sintético, partial success, ausência de auto-sync HC e cutover sem duplicação.
+A validação física deve exercitar Champion C001 real, migration v17->v18->v19,
+idempotência, composição D1/D4 por métrica, `RECENT_TAIL`, ausência de residual
+sintético, partial success, ausência de auto-sync HC, fallback STEPS enquanto D1
+remoto estiver deferred, sync global de `READY_TO_SYNC` e ausência de duplicação.
