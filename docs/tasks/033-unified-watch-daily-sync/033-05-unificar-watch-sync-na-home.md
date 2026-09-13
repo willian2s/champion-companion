@@ -2,6 +2,7 @@
 
 - **Status:** completed
 - **Depende de:** 033-02 e 033-03
+- **Evidência física:** `docs/integration/033-05-unified-watch-sync-physical-validation.md`
 
 ## Objetivo
 
@@ -82,7 +83,7 @@ git diff --check
 git diff --check
 ```
 
-## Resultados e evidências
+## Resultados e evidências técnicas
 
 - `./gradlew app:compileDebugKotlin`: sucesso após integração do coordinator,
   bindings Hilt e tratamento de partial/cancelamento.
@@ -96,10 +97,33 @@ git diff --check
   terminal da Home, `COMPLETED_WITH_GAPS` como parcial e preservação de amostras
   D1 válidas quando houver conversão parcial.
 
+## Validação física pós-task
+
+Refreshes sucessivos em Champion C001 real confirmaram:
+
+- um único pull da Home executa FEA1 -> D1 -> D3/D4;
+- D1 permaneceu idempotente em tentativa sem mudança (`0` inserts, `0` updates e
+  samples existentes classificados como duplicatas);
+- D3/D4 permaneceu idempotente, sem recriar workouts já válidos;
+- um workout novo foi descoberto e persistido pelo fluxo unificado sem usar os
+  entrypoints de Saúde/Exercícios;
+- a fila Health Connect permaneceu sem tentativa remota automática;
+- FEA1 pode avançar alguns minutos à frente da soma D1 mesmo com D1
+  estruturalmente completo.
+
+O último item gerou a correção de contrato absorvida pela 033-06: cauda recente
+`FEA1 > ΣD1` não é automaticamente divergência e não pode virar residual temporal
+sintético.
+
+Detalhes sanitizados em:
+`docs/integration/033-05-unified-watch-sync-physical-validation.md`.
+
 ## Riscos residuais
 
-- Não houve validação física nesta subtarefa; Champion C001, partial success
-  físico, reuso de sessão e retry permanecem dependentes da validação 033-09.
+- Partial success físico deliberadamente forçado por falha de componente ainda
+  pertence à validação 033-09.
+- Reuso de sessão/handshake foi exercitado no fluxo real, mas falhas intermediárias
+  e recovery continuam gates finais da 033-09.
 - Semântica de campos raw D1 e cobertura física de layouts continuam riscos já
   registrados nas subtarefas anteriores.
 - O fluxo D1 legado ainda possui auto-sync Health Connect em `HealthViewModel`; a
