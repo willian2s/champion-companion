@@ -1,9 +1,10 @@
 # 033-01 — Auditoria D1 v2, watch sync e cutover Health Connect
 
-- **Data:** 2026-09-11
+- **Data original:** 2026-09-11
+- **Revisão física:** 2026-09-13
 - **Branch:** `feat/033-unified-watch-daily-sync`
 - **Base:** `main` após merge da Spec 032
-- **Natureza:** auditoria documental; nenhum runtime alterado nesta task
+- **Natureza original:** auditoria documental; nenhum runtime alterado em 033-01
 
 ## Estado real pós-032
 
@@ -19,9 +20,9 @@ A reauditoria da `main` confirmou:
 - Exercícios ainda possui importação D3/D4 própria;
 - Home e D1 ainda podem chamar Health Connect automaticamente após persistência.
 
-## D1 runtime atual e divergências
+## D1 runtime auditado e divergências
 
-`ChampionD1HistoryProtocol` atual (`d1-v1`) lê somente:
+`ChampionD1HistoryProtocol` anterior (`d1-v1`) lia somente:
 
 ```text
 1..2 packetIndex LE
@@ -31,7 +32,7 @@ A reauditoria da `main` confirmou:
 19   minute
 ```
 
-E aplica:
+E aplicava:
 
 ```text
 hour 0..23
@@ -39,9 +40,9 @@ minute 0..59
 BPM 30..220
 ```
 
-Se BPM for inválido, `parsePayload()` retorna `null`; assim passos/distância/etc.
-não podem ser preservados e um pacote final inválido pode impedir a conclusão
-normal do collector.
+Se BPM fosse inválido, `parsePayload()` retornava `null`; assim
+passos/distância/etc. eram perdidos e um pacote final inválido podia impedir a
+conclusão normal do collector.
 
 ## Contrato D1 v2 congelado
 
@@ -87,58 +88,103 @@ distanceKilometers   = distanceRaw / 1000.0
 distanceMeters       = distanceRaw
 ```
 
-`sportValue` fecha como campo numérico estrutural, mas não recebe unidade
-fisiológica inventada.
+`sportValue` permanece campo numérico estrutural sem unidade fisiológica
+inventada.
 
-## Evidência histórica D1 x D4
+## Hipótese inicial D1 × D4 — superada
 
-Banco físico auditado anteriormente possuía 749 registros D1 de BPM persistidos
-pela implementação antiga. Como só BPM era salvo, essa evidência não prova que o
-pacote D1 inteiro deixava de existir durante Sport Model; ela prova apenas o
-comportamento do componente BPM.
-
-Na janela de um workout D4 observado:
+Antes de persistirmos o D1 completo, o banco histórico continha apenas BPM D1.
+Naquela evidência, havia forte redução de BPM D1 durante workouts e poucos pontos
+sobrepostos. Com informação incompleta, 033-01 adotou provisoriamente:
 
 ```text
-D1 HR dentro da janela: 1 / 13 buckets esperados (~7,7%)
-D1 HR fora da janela:  266 / 274 (~97,1%)
+D1 = fora do workout
+D4 = dentro do workout
+bucket D1 intersectante = suprimir por inteiro
 ```
 
-Houve apenas quatro overlaps de BPM D1 no conjunto examinado, próximos a inícios
-de workout. Isso sustenta uma política conservadora de composição: D4 tem
-autoridade durante sua cobertura e buckets D1 intersectantes são suprimidos por
-inteiro inicialmente.
+Essa hipótese foi deliberadamente conservadora e dependia de validação após
+033-02/033-03.
 
-A 033 não afirma que o firmware nunca envia D1 durante D4; essa pergunta só pode
-ser respondida depois que o app persistir o pacote D1 completo.
+## Revisão física pós-033-03
 
-## Autoridade congelada
+Dois dumps sanitizados do banco Room v18, coletados após implementação do D1 v2,
+mostraram:
+
+```text
+leitura 1: Σ D1.steps = 2713 = FEA1.steps
+leitura 2: Σ D1.steps = 2752 = FEA1.steps
+```
+
+A reimportação preservou os samples existentes e inseriu somente dois buckets
+novos. O crescimento de D1 e FEA1 também foi idêntico.
+
+A mesma evidência continha dois workouts D4 válidos:
+
+1. um workout com `D4 steps/distance/calories = 0`, mas com bucket D1
+   temporalmente intersectante contendo passos, distância e calorias não nulos;
+2. uma corrida em que os buckets D1 correspondentes fecharam exatamente com o D4
+   em `1935` passos e `1349 m`, e praticamente em calorias (`88,2` D1 versus
+   `88,224` D4, consistente com as escalas distintas).
+
+Conclusão física:
+
+- D1 é uma linha granular diária que pode incluir fatos do workout;
+- D4 é a fonte detalhada/canônica do workout;
+- interseção temporal não prova que todo o bucket D1 pertence à atividade;
+- somar D1 + D4 duplica fatos em cenários observados;
+- suprimir bucket D1 inteiro pode perder fatos externos ao workout.
+
+Evidência completa e sanitizada:
+`docs/integration/033-03-d1-v2-physical-validation.md`.
+
+## Autoridade corrigida
 
 ```text
 FEA1
-  -> total diário atual de passos / validação
+  -> total diário autoritativo de passos
 
 D1
-  -> fatos granulares diários fora de workouts
+  -> linha granular diária do relógio
+  -> pode conter fatos durante workouts
 
 D4
-  -> fatos granulares durante workouts
+  -> fonte detalhada/canônica do workout
 ```
 
-Header D4 permanece consistência/diagnóstico. Nenhum total de header substitui a
-série temporal.
+A autoridade diária agora é por finalidade/métrica.
 
-## Identidade D1 alvo
+### Passos
 
-A persistência deve preferir identidade por posição física, não por BPM:
+- FEA1 = total do dia;
+- D1 = distribuição granular do dia;
+- D4 = passos/cadência do workout;
+- D4 não é somado novamente ao agregado diário.
+
+### Distância e calorias
+
+- D1 = fatos nativos diários quando elegíveis;
+- D4 = fatos/canonicalização do workout;
+- não somar os dois;
+- substituir contribuição D1 por D4 somente com prova determinística de cobertura;
+- sem prova, preservar D1 no diário e D4 no workout.
+
+### Frequência cardíaca
+
+D4 pode substituir visualmente pontos D1 dentro da atividade quando houver
+cobertura D4 válida. A mera existência da janela D4 não autoriza descartar D1 se
+a atividade não possuir amostras D4 válidas.
+
+## Identidade D1
+
+A persistência implementada usa identidade por posição física:
 
 ```text
 (deviceId, resolvedLocalDate, currentPosition)
 ```
 
-O schema final deve garantir que reimportação do mesmo dia não duplique samples.
-`resolvedAt` pode participar de índices/consulta, mas não deve ser a única chave
-se posição física já estiver disponível.
+A validação física confirmou reimportação idempotente: samples existentes
+preservaram identidade e novos buckets foram inseridos incrementalmente.
 
 ## Partial success do watch sync
 
@@ -167,19 +213,21 @@ lastD3D4SuccessAt
 Nomes finais podem variar, mas estado parcial não pode ser achatado em um único
 `lastImportedAt` ambíguo.
 
-## Cutover Health Connect
+## Cutover Health Connect corrigido
 
 Problema a evitar:
 
 ```text
 DailySummary/FEA1 total do dia
 +
-D1/D4 granular do mesmo dia
+D1 granular
++
+D4/workout
 =
-dupla contagem
+risco de dupla contagem
 ```
 
-Contrato congelado:
+Contrato preservado:
 
 - cutover é uma data local inteira persistida;
 - datas anteriores preservam a política histórica;
@@ -187,12 +235,16 @@ Contrato congelado:
 - não executar backfill granular histórico;
 - não apagar records antigos;
 - não reabrir `SYNCED` silenciosamente;
-- instalação com legado deve preferir próximo dia local para ativar granular;
-- instalação sem legado pode começar no dia atual se preflight provar ausência de
-  projeção diária legacy preparada.
+- instalação com legado deve preferir próximo dia local para ativar granular.
 
-A Spec 027 continua necessária para histórico pré-cutover. A linha pós-cutover
-deverá evitar compensação porque D1 e D4 serão selecionados sem sobreposição.
+Correção adicional:
+
+- pós-cutover não assumir `D1 fora + D4 dentro`;
+- STEPS deve preservar o total FEA1 e os guards/créditos da Spec 027;
+- D1 granular é candidato à distribuição de passos, mas coexistência com
+  `WorkoutSteps` exige contabilidade que prove ausência de duplicidade;
+- DISTANCE D1 e D4 também são potencialmente sobrepostos;
+- ausência de prova segura deve bloquear/falhar fechada a projeção conflitante.
 
 ## Triggers Health Connect auditados
 
@@ -223,28 +275,29 @@ Perfil ainda contém:
 Esses contratos podem permanecer internamente quando necessários para legado,
 mas deixam de ser affordances de produto na 033.
 
-## Calorias: decisão ainda bloqueada
+## Calorias: decisão Health Connect ainda bloqueada
 
-Escalas raw são conhecidas, mas o tipo Health Connect correto ainda não está
-congelado:
+Escalas raw estão validadas localmente:
 
 ```text
-D1 -> candidato a energia diária/total
-D4 -> candidato a energia de workout/ativa
+D1 -> raw / 10.0
+D4 -> raw / 1000.0
 ```
 
-A 033 não deve escolher `ActiveCaloriesBurned` ou `TotalCaloriesBurned` por
-palpite. Persistência local pode avançar antes dessa decisão.
+O tipo Health Connect correto continua não congelado. A 033 não deve escolher
+`ActiveCaloriesBurned` ou `TotalCaloriesBurned` por palpite.
 
-## Saídas da auditoria
+## Saídas atuais da auditoria
 
-Liberado:
+Concluídos/liberados:
 
 - `033-02` parser/collector D1 v2;
-- `033-03` persistência Room v18.
+- `033-03` persistência Room v18;
+- `033-04` liberada após correção física do contrato.
 
 Bloqueios deliberados:
 
 - projeção HC de calorias aguarda evidência semântica;
-- otimizações de bucket parcial D1/D4 ficam fora até evidência física;
-- remoção física de tabelas/código legacy de step length não faz parte da 033.
+- substituição parcial D1/D4 aguarda prova de cobertura suficiente;
+- remoção física de tabelas/código legacy de step length não faz parte da 033;
+- `dayOffset > 0` permanece para validação posterior e não bloqueia 033-04.
