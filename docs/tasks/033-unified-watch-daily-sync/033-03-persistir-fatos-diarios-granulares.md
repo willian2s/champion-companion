@@ -3,6 +3,7 @@
 - **Status:** completed
 - **Depende de:** 033-01
 - **Pode rodar em paralelo com:** 033-02
+- **Validação física posterior:** `docs/integration/033-03-d1-v2-physical-validation.md`
 
 ## Objetivo
 
@@ -68,7 +69,7 @@ Não criar nem executar testes automatizados sem autorização explícita.
 git diff --check
 ```
 
-## Resultados e evidências
+## Resultados e evidências de implementação
 
 - `./gradlew lint assembleDebug assembleRelease`: sucesso; lint, compilação e empacotamento debug/release concluídos.
 - `git diff --check`: sucesso, sem erro de whitespace.
@@ -76,9 +77,26 @@ git diff --check
 - Metadata terminal D1 registra falha/cancelamento mesmo sem pacotes e preserva `lastSuccessAt`; reimportação idêntica conta como duplicata e alteração de fato conta como atualização.
 - Testes automatizados não foram criados nem executados, conforme autorização ausente.
 
+## Validação física posterior — 2026-09-13
+
+Dois dumps sanitizados de banco real confirmaram:
+
+- posições D1 contínuas e Room v18 funcional;
+- `distanceMeters == distanceRaw` nos samples observados;
+- `caloriesKilocalories == caloriesRaw / 10.0` nos samples observados;
+- BPM inválido não elimina passos, distância, calorias ou raw do mesmo pacote;
+- reimportação preserva IDs dos samples existentes e insere apenas novos buckets;
+- `Σ D1.steps` fechou exatamente com FEA1 em duas leituras sucessivas;
+- workouts D4 existentes permaneceram inalterados após reimportação D1.
+
+A mesma evidência mostrou que D1 já pode conter fatos de workout e, por isso,
+levou à correção do contrato de composição da 033-04. Ver:
+`docs/integration/033-03-d1-v2-physical-validation.md`.
+
 ## Riscos residuais
 
-- Endianness, escalas e semântica dos campos raw continuam dependentes de validação física no Champion C001.
-- Composição D1/D4, read models, cutover Health Connect e remoção dos entrypoints de produto permanecem nas subtarefas seguintes.
-- Suíte histórica ainda contém expectativas de `d1-v1`; não foi alterada nem executada por regra do repositório.
-- Construção manual do coordinator sem repository granular falha de forma explícita; o binding de produção injeta `RoomRepositories`.
+- `dayOffset > 0` ainda depende de validação física posterior;
+- semântica funcional dos campos raw adicionais permanece desconhecida;
+- composição D1/D4, read models, cutover Health Connect e remoção dos entrypoints de produto permanecem nas subtarefas seguintes;
+- suíte histórica ainda contém expectativas de `d1-v1`; não foi alterada nem executada por regra do repositório;
+- construção manual do coordinator sem repository granular falha de forma explícita; o binding de produção injeta `RoomRepositories`.
