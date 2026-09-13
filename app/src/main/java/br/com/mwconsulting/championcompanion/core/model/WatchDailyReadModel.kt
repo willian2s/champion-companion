@@ -1,5 +1,6 @@
 package br.com.mwconsulting.championcompanion.core.model
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -11,6 +12,7 @@ enum class WatchDailyReadCompleteness {
     EMPTY,
     PARTIAL,
     COMPLETE,
+    RECENT_TAIL,
     DIVERGENT,
 }
 
@@ -18,6 +20,7 @@ enum class WatchDailyCoverageStatus {
     UNAVAILABLE,
     PARTIAL,
     COMPLETE,
+    RECENT_TAIL,
     DIVERGENT,
 }
 
@@ -55,6 +58,8 @@ data class WatchDailyStepCoverage(
     val differenceSteps: Long?,
     val status: WatchDailyCoverageStatus,
     val d1AggregateSteps: Long? = null,
+    val fea1CollectedAt: Instant? = null,
+    val latestD1At: Instant? = null,
 ) {
     init {
         require(d1SampleCount >= 0)
@@ -362,6 +367,8 @@ object WatchDailyReadModelComposer {
             d1Aggregate = d1AggregateSteps,
             d1SampleCount = daySamples.size,
             structuralCoverage = d1StructuralCoverage,
+            fea1CollectedAt = fea1Summary?.collectedAt,
+            latestD1At = daySamples.maxOfOrNull { it.resolvedAt },
         )
         val heartRateResult = composeHeartRate(localDate, zoneId, daySamples, dayWorkouts)
         val completeIssues = aggregateIssues + if (dayWorkouts.any { !it.detailsAvailable }) {
@@ -371,8 +378,9 @@ object WatchDailyReadModelComposer {
         }
         val completeness = when {
             stepCoverage.status == WatchDailyCoverageStatus.DIVERGENT -> WatchDailyReadCompleteness.DIVERGENT
+            stepCoverage.status == WatchDailyCoverageStatus.RECENT_TAIL -> WatchDailyReadCompleteness.RECENT_TAIL
             completeIssues.isNotEmpty() -> WatchDailyReadCompleteness.PARTIAL
-            fea1Summary != null && d1AggregateSteps != null -> WatchDailyReadCompleteness.COMPLETE
+            stepCoverage.status == WatchDailyCoverageStatus.COMPLETE -> WatchDailyReadCompleteness.COMPLETE
             fea1Summary != null || d1AggregateSteps != null || d1Steps != null || dayWorkouts.isNotEmpty() ->
                 WatchDailyReadCompleteness.PARTIAL
             else -> WatchDailyReadCompleteness.EMPTY
@@ -425,18 +433,29 @@ object WatchDailyReadModelComposer {
         d1Aggregate: Long?,
         d1SampleCount: Int,
         structuralCoverage: D1StructuralCoverage,
+        fea1CollectedAt: Instant?,
+        latestD1At: Instant?,
     ): WatchDailyStepCoverage {
         val difference = if (fea1Total != null && d1Total != null) {
-            runCatching { Math.subtractExact(d1Total, fea1Total) }.getOrNull()
+            runCatching { Math.subtractExact(fea1Total, d1Total) }.getOrNull()
         } else {
             null
         }
+        val hasRecentTail = difference != null && difference > 0L &&
+            structuralCoverage.complete &&
+            fea1CollectedAt != null && latestD1At != null &&
+            !latestD1At.isAfter(fea1CollectedAt) &&
+            runCatching { Duration.between(latestD1At, fea1CollectedAt) }
+                .getOrNull()
+                ?.let { it >= Duration.ZERO && it <= WATCH_DAILY_RECENT_TAIL_MAX_AGE } == true
         val status = when {
             fea1Total == null && d1Total == null -> WatchDailyCoverageStatus.UNAVAILABLE
             fea1Total == null || d1Total == null -> WatchDailyCoverageStatus.PARTIAL
-            difference != 0L -> WatchDailyCoverageStatus.DIVERGENT
             !structuralCoverage.complete -> WatchDailyCoverageStatus.PARTIAL
-            else -> WatchDailyCoverageStatus.COMPLETE
+            difference == 0L -> WatchDailyCoverageStatus.COMPLETE
+            difference != null && difference < 0L -> WatchDailyCoverageStatus.DIVERGENT
+            hasRecentTail -> WatchDailyCoverageStatus.RECENT_TAIL
+            else -> WatchDailyCoverageStatus.DIVERGENT
         }
         return WatchDailyStepCoverage(
             fea1TotalSteps = fea1Total,
@@ -448,8 +467,12 @@ object WatchDailyReadModelComposer {
             missingD1Positions = structuralCoverage.missingPositions,
             differenceSteps = difference,
             status = status,
+            fea1CollectedAt = fea1CollectedAt,
+            latestD1At = latestD1At,
         )
     }
+
+    private val WATCH_DAILY_RECENT_TAIL_MAX_AGE: Duration = Duration.ofMinutes(10)
 
     private fun d1StructuralCoverage(samples: List<WatchDailyD1Sample>): D1StructuralCoverage {
         if (samples.isEmpty()) return D1StructuralCoverage()

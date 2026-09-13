@@ -1,6 +1,6 @@
 # 033-06 — Integrar Health Connect granular e cutover
 
-- **Status:** pending
+- **Status:** completed
 - **Depende de:** 033-04 e 033-05
 - **Evidência obrigatória:**
   - `docs/integration/033-03-d1-v2-physical-validation.md`
@@ -229,3 +229,85 @@ git diff --check
 ```
 
 Não criar nem executar testes automatizados sem autorização explícita.
+
+## Resultado da implementação
+
+- Cutover Health Connect persistido por dispositivo e data local inteira, com
+  migration aditiva Room v18 → v19. Instalações com backlog diário legacy usam o
+  próximo dia local; instalações sem backlog podem iniciar no dia atual.
+- Operações `DailySummary`/FEA1 não são criadas nem alteradas para datas iguais ou
+  posteriores ao cutover. Datas anteriores preservam política e operações
+  existentes; nenhuma operação `SYNCED` é reaberta.
+- `WatchDailyStepCoverage` agora distingue `COMPLETE`, `RECENT_TAIL`,
+  `PARTIAL` e `DIVERGENT`. A diferença usa `FEA1 - ΣD1`; cauda positiva só é
+  reconhecida com estrutura D1 completa e frescor máximo de dez minutos.
+- Residual `FEA1 - ΣD1` nunca é materializado como bucket, intervalo ou
+  `StepsRecord`. A projeção remota D1 permanece fail-closed/deferred enquanto a
+  fronteira temporal do bucket e a não sobreposição com `WorkoutSteps` não forem
+  comprovadas.
+- Ledgers/credits de `WorkoutSteps`, `STEPS_CADENCE` e projeções históricas foram
+  preservados. Distância/calorias não foram somadas entre D1 e D4; calorias
+  Health Connect continuam deferred.
+- Removida chamada automática de `syncPending()` após importação D1. Settings e
+  sincronização explícita de workout permanecem disponíveis.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionMigrations.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/DatabaseModule.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthRecordMapper.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/SafeHealthRecordMapper.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HealthProjectionContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HeartRateAndSync.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/HealthSyncCutover.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchDailyReadModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthViewModel.kt`
+- `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/19.json`
+- `docs/tasks/033-unified-watch-daily-sync/033-00-overview.md`
+- `docs/tasks/033-unified-watch-daily-sync/033-06-integrar-health-connect-granular-e-cutover.md`
+
+## Decisões e desvios
+
+- A projeção D1 não foi enfileirada: o pacote persistido fornece ponto temporal,
+  mas não comprova início/fim de intervalo remoto nem não sobreposição com
+  `WorkoutSteps`. Enfileirar operação que sempre falharia criaria pendência
+  recorrente; o comportamento escolhido é fail-closed e mantém fatos locais.
+- O contrato de agregado/payload D1 permanece reservado para evolução posterior,
+  com validação de payload congelado e mapper que rejeita publicação insegura.
+- Não houve backfill, delete remoto, leitura do Health Connect, criação de testes
+  ou alteração de snapshots/atividades sincronizadas.
+
+## Comandos executados
+
+```text
+./gradlew app:compileDebugKotlin
+./gradlew lint assembleDebug assembleRelease
+git diff --check
+```
+
+## Resultados e evidências
+
+- `./gradlew app:compileDebugKotlin` — sucesso.
+- `./gradlew lint assembleDebug assembleRelease` — sucesso em lint, debug e
+  release.
+- `git diff --check` — sucesso.
+- Não foram criados nem executados testes automatizados, conforme `AGENTS.md`.
+- Evidências físicas de entrada consideradas: `docs/integration/033-03-d1-v2-physical-validation.md`
+  e `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
+- Validação física específica de cutover, retry, partial success e ausência de
+  duplicação permanece na 033-09.
+
+## Riscos residuais
+
+- D1 granular Health Connect continua deferred até prova de intervalo temporal e
+  contabilidade segura com `WorkoutSteps`; operação conflitante falha fechada.
+- A classificação de cauda usa janela conservadora de dez minutos e ainda exige
+  D1 estruturalmente completo; novos padrões de firmware exigem validação física.
+- Migration, idempotência, composição métrica, cutover e Health Connect ainda
+  precisam de validação física no Champion C001 pela 033-09.

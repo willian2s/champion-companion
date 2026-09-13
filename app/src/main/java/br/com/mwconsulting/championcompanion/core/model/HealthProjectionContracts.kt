@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.core.model
 
 import java.time.Instant
+import java.time.ZoneId
 import kotlinx.serialization.Serializable
 
 /**
@@ -137,7 +138,8 @@ data class HealthSyncFrozenPayload(
         require(
             schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION ||
                 schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION ||
-                schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION,
+                schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION ||
+                schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION,
         )
         require(serializedPayload.isNotBlank())
     }
@@ -147,6 +149,8 @@ const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION: Int = 1
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 2
 /** Schema reservado para payloads de passos e cadência da atividade. */
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION: Int = 3
+/** Schema de fatos D1 cujo intervalo remoto ainda está deliberadamente bloqueado. */
+const val HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION: Int = 4
 
 const val HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED: String = "WATCH_DERIVED"
 const val HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION: String =
@@ -261,6 +265,28 @@ data class HealthSyncFrozenProjectionPayload(
                 } == true
             })
         }
+    }
+}
+
+/**
+ * Fato D1 congelado para fila. D1 fornece instante, mas não fornece fronteira
+ * temporal suficiente para construir um StepsRecord sem inventar intervalo.
+ */
+@Serializable
+data class HealthSyncFrozenDailyD1Payload(
+    val recordType: String,
+    val sampleId: String,
+    val resolvedAt: HealthSyncFrozenInstant,
+    val zoneId: String,
+    val zoneOffsetSeconds: Int,
+    val steps: Long,
+) {
+    init {
+        require(recordType == HealthSyncRecordType.STEPS.name)
+        require(sampleId.isNotBlank())
+        require(runCatching { ZoneId.of(zoneId) }.isSuccess)
+        require(zoneOffsetSeconds in -64_800..64_800)
+        require(steps >= 0L)
     }
 }
 

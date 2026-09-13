@@ -791,6 +791,16 @@ data class HealthSyncProcessableQueue(
 
 interface HealthSyncRepository {
     suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
+    suspend fun ensureDailyStepsCutover(
+        deviceId: DeviceId,
+        activationLocalDate: LocalDate,
+        zoneId: ZoneId,
+        activatedAt: Instant = Instant.now(),
+    ): RepositoryResult<HealthSyncCutover> = RepositoryResult.UnexpectedState
+
+    suspend fun findDailyStepsCutover(
+        deviceId: DeviceId,
+    ): RepositoryResult<HealthSyncCutover?> = RepositoryResult.Success(null)
     /** Persiste um filho congelado sem executar qualquer efeito remoto. */
     suspend fun prepareProjectionChild(
         key: HealthSyncOperationKey,

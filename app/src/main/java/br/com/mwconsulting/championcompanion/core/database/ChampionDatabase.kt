@@ -183,6 +183,25 @@ data class DailySummaryEntity(
     val collectedZoneId: String? = null,
 )
 
+/** Cutover por relógio; uma única data civil imutável por dispositivo. */
+@Entity(
+    tableName = "health_sync_daily_cutovers",
+    foreignKeys = [ForeignKey(
+        entity = DeviceEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["deviceId"],
+        onDelete = ForeignKey.RESTRICT,
+    )],
+    indices = [Index(value = ["deviceId"], unique = true)],
+)
+data class HealthSyncCutoverEntity(
+    @PrimaryKey val id: String,
+    val deviceId: String,
+    val localDateIso: String,
+    val zoneId: String,
+    val activatedAtEpochMillis: Long,
+)
+
 @Entity(
     tableName = "watch_daily_d1_samples",
     foreignKeys = [ForeignKey(
@@ -910,6 +929,7 @@ class ChampionDatabaseConverters {
         StepLengthCalibrationEntity::class,
         DistanceCalibrationEvidenceEntity::class,
         DailySummaryEntity::class,
+        HealthSyncCutoverEntity::class,
         WatchDailyD1SampleEntity::class,
         HeartRateMeasurementEntity::class,
         WorkoutActivityEntity::class,
@@ -931,7 +951,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 18,
+    version = 19,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -950,6 +970,7 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun stepLengthCalibrationDao(): StepLengthCalibrationDao
     abstract fun distanceCalibrationEvidenceDao(): DistanceCalibrationEvidenceDao
     abstract fun dailySummaryDao(): DailySummaryDao
+    abstract fun healthSyncCutoverDao(): HealthSyncCutoverDao
     abstract fun watchDailyD1SampleDao(): WatchDailyD1SampleDao
     abstract fun heartRateDao(): HeartRateDao
     abstract fun workoutActivityDao(): WorkoutActivityDao

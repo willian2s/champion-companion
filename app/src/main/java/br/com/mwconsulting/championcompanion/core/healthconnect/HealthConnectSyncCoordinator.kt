@@ -830,6 +830,8 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
     private suspend fun loadAndMap(operation: HealthSyncOperation): HealthRecordMappingResult = when (val aggregate = operation.key.aggregate) {
         is HealthSyncAggregate.DailySummary -> healthRecordMapper.mapDailySummary(operation)
 
+        is HealthSyncAggregate.WatchDailyD1Sample -> healthRecordMapper.mapFrozenDailyD1Sample(operation)
+
         is HealthSyncAggregate.HeartRateMeasurement -> when (val measurement = heartRateRepository.findById(aggregate.measurementId)) {
             is RepositoryResult.Success -> healthRecordMapper.mapHeartRateMeasurement(operation, measurement.value)
             else -> HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, "Medição de BPM não encontrada para sync.")

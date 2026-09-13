@@ -769,6 +769,30 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
     }
 }
 
+/** Migration aditiva: persiste ativação do cutover sem tocar fila ou efeitos remotos. */
+val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS health_sync_daily_cutovers (
+                id TEXT NOT NULL,
+                deviceId TEXT NOT NULL,
+                localDateIso TEXT NOT NULL,
+                zoneId TEXT NOT NULL,
+                activatedAtEpochMillis INTEGER NOT NULL,
+                PRIMARY KEY(id),
+                FOREIGN KEY(deviceId) REFERENCES devices(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+            """.trimIndent(),
+        )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_health_sync_daily_cutovers_deviceId " +
+                "ON health_sync_daily_cutovers(deviceId)",
+        )
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

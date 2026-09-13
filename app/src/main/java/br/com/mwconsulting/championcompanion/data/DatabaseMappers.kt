@@ -12,6 +12,7 @@ import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutp
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.DerivedWorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncCutoverEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
@@ -75,6 +76,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationCheckpoint
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationState
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncCutover
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
@@ -2013,6 +2015,15 @@ internal fun HealthSyncOperationEntity.toDomainStrict(): DomainResult<HealthSync
 internal fun HealthSyncOperationEntity.toAggregateOrNull(): HealthSyncAggregate? =
     toHealthSyncAggregate(aggregateType, aggregateId)
 
+internal fun HealthSyncCutoverEntity.toDomain(): HealthSyncCutover? = runCatching {
+    HealthSyncCutover(
+        deviceId = DeviceId(uuid(deviceId) ?: return null),
+        localDate = LocalDate.parse(localDateIso),
+        zoneId = ZoneId.of(zoneId),
+        activatedAt = Instant.ofEpochMilli(activatedAtEpochMillis),
+    )
+}.getOrNull()
+
 private fun HealthSyncOperationEntity.toDailyStepsSyncPayload(): DailyStepsSyncPayload? {
     if (!hasAnyDailyStepsPayloadField()) return null
     return runCatching {
@@ -2050,6 +2061,7 @@ private fun toHealthSyncAggregate(
     aggregateId: String,
 ): HealthSyncAggregate? = when (enum<HealthSyncAggregateType>(aggregateType)) {
     HealthSyncAggregateType.DAILY_SUMMARY -> uuid(aggregateId)?.let(::DailySummaryId)?.let(HealthSyncAggregate::DailySummary)
+    HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE -> uuid(aggregateId)?.let(::WatchDailyD1SampleId)?.let(HealthSyncAggregate::WatchDailyD1Sample)
     HealthSyncAggregateType.HEART_RATE_MEASUREMENT -> uuid(aggregateId)?.let(::HeartRateMeasurementId)?.let(HealthSyncAggregate::HeartRateMeasurement)
     HealthSyncAggregateType.WORKOUT_ACTIVITY -> uuid(aggregateId)?.let(::WorkoutActivityId)?.let(HealthSyncAggregate::WorkoutActivity)
     HealthSyncAggregateType.WEIGHT_MEASUREMENT -> uuid(aggregateId)?.let(::WeightMeasurementId)?.let(HealthSyncAggregate::WeightMeasurement)

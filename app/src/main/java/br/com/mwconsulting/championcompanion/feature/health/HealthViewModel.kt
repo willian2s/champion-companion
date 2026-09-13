@@ -92,7 +92,6 @@ class HealthViewModel internal constructor(
     private val healthConnectSync = MutableStateFlow(HealthConnectSyncUiModel())
     private val persistedCompletedSessions = linkedSetOf<String>()
     private val persistingCompletedSessions = linkedSetOf<String>()
-    private val triggeredD1SyncAttempts = linkedSetOf<String>()
 
     internal var ownsScope: Boolean = false
 
@@ -510,10 +509,6 @@ class HealthViewModel internal constructor(
 
     private fun handleD1CoordinatorState(next: D1HeartRateImportSurfaceState) {
         d1ImportState.value = next
-        val session = next.completedSessionOrNull() ?: return
-        val summary = session.result?.summary ?: return
-        if (!summary.hasPersistedData || !triggeredD1SyncAttempts.add(session.importAttemptId)) return
-        scope.launch { triggerHealthConnectSyncIfEnabled() }
     }
 
     private fun persistCompletedSession(session: ManualHeartRateSessionState) {

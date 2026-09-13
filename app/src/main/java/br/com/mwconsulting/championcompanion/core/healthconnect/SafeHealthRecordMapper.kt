@@ -38,6 +38,9 @@ class SafeHealthRecordMapper @Inject constructor(
     override fun mapDailySummary(operation: HealthSyncOperation): HealthRecordMappingResult =
         mapSafely { delegate.mapDailySummary(operation) }
 
+    override fun mapFrozenDailyD1Sample(operation: HealthSyncOperation): HealthRecordMappingResult =
+        mapSafely { delegate.mapFrozenDailyD1Sample(operation) }
+
     override fun mapHeartRateMeasurement(
         operation: HealthSyncOperation,
         measurement: HeartRateMeasurement,

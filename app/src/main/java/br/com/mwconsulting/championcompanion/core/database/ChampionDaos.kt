@@ -192,7 +192,19 @@ interface DailySummaryDao {
 }
 
 @Dao
+interface HealthSyncCutoverDao {
+    @Query("SELECT * FROM health_sync_daily_cutovers WHERE deviceId = :deviceId LIMIT 1")
+    suspend fun findByDeviceId(deviceId: String): HealthSyncCutoverEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(cutover: HealthSyncCutoverEntity)
+}
+
+@Dao
 interface WatchDailyD1SampleDao {
+    @Query("SELECT * FROM watch_daily_d1_samples ORDER BY resolvedLocalDate, resolvedAtEpochMillis, currentPosition, id")
+    fun observeAll(): Flow<List<WatchDailyD1SampleEntity>>
+
     @Query(
         "SELECT * FROM watch_daily_d1_samples " +
             "WHERE deviceId = :deviceId " +

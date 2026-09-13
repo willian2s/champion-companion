@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.DailyStepsCheckpointEntity
 import br.com.mwconsulting.championcompanion.core.database.DailyStepsCreditReservationEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncCutoverEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
@@ -59,6 +60,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncBacklogReconci
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncCutover
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncProcessableQueue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncQueueObservation
@@ -412,6 +414,19 @@ class RoomRepositories @Inject constructor(
         write {
         val deviceId = input.deviceId.value.toString()
         val device = database.deviceDao().findById(deviceId) ?: return@write RepositoryResult.NotFound
+        when (ensureDailyStepsCutoverInternal(
+            deviceId = input.deviceId,
+            activationLocalDate = input.localDate,
+            zoneId = input.zoneId,
+            activatedAt = input.updatedAt,
+        )) {
+            is RepositoryResult.Success -> Unit
+            RepositoryResult.Conflict,
+            RepositoryResult.UnexpectedState,
+            RepositoryResult.NotFound,
+            RepositoryResult.StorageUnavailable,
+            -> return@write RepositoryResult.UnexpectedState
+        }
         val existing = database.dailySummaryDao().findByNaturalKey(
             deviceId = deviceId,
             origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
@@ -2466,6 +2481,62 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation> = write {
         ensureOperationInternal(key)
+    }
+
+    override suspend fun ensureDailyStepsCutover(
+        deviceId: DeviceId,
+        activationLocalDate: LocalDate,
+        zoneId: ZoneId,
+        activatedAt: Instant,
+    ): RepositoryResult<HealthSyncCutover> = write {
+        when (val result = ensureDailyStepsCutoverInternal(deviceId, activationLocalDate, zoneId, activatedAt)) {
+            is RepositoryResult.Success -> result
+            RepositoryResult.Conflict -> RepositoryResult.Conflict
+            RepositoryResult.UnexpectedState -> RepositoryResult.UnexpectedState
+            RepositoryResult.NotFound -> RepositoryResult.NotFound
+            RepositoryResult.StorageUnavailable -> RepositoryResult.StorageUnavailable
+        }
+    }
+
+    override suspend fun findDailyStepsCutover(
+        deviceId: DeviceId,
+    ): RepositoryResult<HealthSyncCutover?> = read {
+        val entity = database.healthSyncCutoverDao().findByDeviceId(deviceId.value.toString())
+        if (entity == null) RepositoryResult.Success(null)
+        else entity.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
+    }
+
+    private suspend fun ensureDailyStepsCutoverInternal(
+        deviceId: DeviceId,
+        activationLocalDate: LocalDate,
+        zoneId: ZoneId,
+        activatedAt: Instant,
+    ): RepositoryResult<HealthSyncCutover> {
+        val deviceIdValue = deviceId.value.toString()
+        if (database.deviceDao().findById(deviceIdValue) == null) {
+            return RepositoryResult.NotFound
+        }
+        val dao = database.healthSyncCutoverDao()
+        val existing = dao.findByDeviceId(deviceIdValue)
+        if (existing != null) {
+            return existing.toDomain()?.let { RepositoryResult.Success(it) }
+                ?: RepositoryResult.UnexpectedState
+        }
+
+        val hasLegacyDailySummary = database.dailySummaryDao().findValidWatchBacklog()
+            .any { it.deviceId == deviceIdValue }
+        val cutoverDate = runCatching {
+            if (hasLegacyDailySummary) activationLocalDate.plusDays(1L) else activationLocalDate
+        }.getOrNull() ?: return RepositoryResult.UnexpectedState
+        val entity = HealthSyncCutoverEntity(
+            id = ids.next().toString(),
+            deviceId = deviceIdValue,
+            localDateIso = cutoverDate.toString(),
+            zoneId = zoneId.id,
+            activatedAtEpochMillis = activatedAt.toEpochMilli(),
+        )
+        dao.insert(entity)
+        return entity.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
     }
 
     override suspend fun prepareProjectionChild(
@@ -4932,6 +5003,19 @@ class RoomRepositories @Inject constructor(
             ?: timeZoneId.validZoneIdOrNull()
             ?: return DailyStepsEnqueueResult()
         val zoneId = ZoneId.of(persistedTimeZoneId)
+        val localDate = runCatching { LocalDate.parse(summary.localDateIso) }.getOrNull()
+            ?: return DailyStepsEnqueueResult()
+        val cutover = when (val cutoverEntity = database.healthSyncCutoverDao().findByDeviceId(summary.deviceId)) {
+            null -> null
+            else -> cutoverEntity.toDomain() ?: return DailyStepsEnqueueResult()
+        }
+        if (cutover != null && localDate >= cutover.localDate) {
+            // D1 granular projection remains deferred until its remote interval is
+            // provably safe. Never create or mutate DailySummary projection after cutover.
+            return DailyStepsEnqueueResult(
+                operation = entities.firstOrNull()?.toDomain(),
+            )
+        }
         val windowEnd = resolveDailyStepsWindowEnd(summary, collectedAtEpochMillis, zoneId)
             ?: return DailyStepsEnqueueResult()
         val dayStart = runCatching {
@@ -5681,6 +5765,7 @@ class RoomRepositories @Inject constructor(
 
     private suspend fun aggregateExists(operation: HealthSyncOperationEntity): Boolean = when (operation.aggregateType) {
         "DAILY_SUMMARY" -> database.dailySummaryDao().findById(operation.aggregateId) != null
+        "WATCH_DAILY_D1_SAMPLE" -> database.watchDailyD1SampleDao().findById(operation.aggregateId) != null
         "HEART_RATE_MEASUREMENT" -> database.heartRateDao().findById(operation.aggregateId) != null
         "WORKOUT_ACTIVITY" -> database.workoutActivityDao().findById(operation.aggregateId) != null
         "WEIGHT_MEASUREMENT" -> database.userProfileDao().findWeightById(operation.aggregateId) != null
@@ -5702,6 +5787,8 @@ class RoomRepositories @Inject constructor(
                     updatedAtEpochMillis = entity.updatedAtEpochMillis,
                 )
             }
+
+            is HealthSyncAggregate.WatchDailyD1Sample -> null
 
             is HealthSyncAggregate.HeartRateMeasurement -> {
                 val entity = database.heartRateDao().findById(aggregate.measurementId.value.toString()) ?: return null
@@ -5975,6 +6062,7 @@ private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
 
 private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = when (aggregateType) {
     HealthSyncAggregateType.DAILY_SUMMARY.name -> recordType == HealthSyncRecordType.STEPS.name
+    HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE.name -> false
     HealthSyncAggregateType.HEART_RATE_MEASUREMENT.name -> recordType == HealthSyncRecordType.HEART_RATE.name
     HealthSyncAggregateType.WORKOUT_ACTIVITY.name -> recordType in setOf(
         HealthSyncRecordType.EXERCISE_SESSION.name,
@@ -6003,6 +6091,8 @@ private fun isSemanticallyResolved(
             candidates.dailySummaries[aggregate.summaryId.value]?.let { summary ->
                 isDailySummaryEligibleForSteps(operation, summary)
             } == true
+
+    is HealthSyncAggregate.WatchDailyD1Sample -> false
 
     is HealthSyncAggregate.HeartRateMeasurement ->
         operation.key.recordType == HealthSyncRecordType.HEART_RATE &&

@@ -189,6 +189,7 @@ enum class HealthSyncRecordType {
 
 enum class HealthSyncAggregateType {
     DAILY_SUMMARY,
+    WATCH_DAILY_D1_SAMPLE,
     HEART_RATE_MEASUREMENT,
     WORKOUT_ACTIVITY,
     WEIGHT_MEASUREMENT,
@@ -204,6 +205,13 @@ sealed interface HealthSyncAggregate {
     ) : HealthSyncAggregate {
         override val id: UUID = summaryId.value
         override val type: HealthSyncAggregateType = HealthSyncAggregateType.DAILY_SUMMARY
+    }
+
+    data class WatchDailyD1Sample(
+        val sampleId: WatchDailyD1SampleId,
+    ) : HealthSyncAggregate {
+        override val id: UUID = sampleId.value
+        override val type: HealthSyncAggregateType = HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE
     }
 
     data class HeartRateMeasurement(
@@ -852,6 +860,7 @@ data class HealthSyncOperation private constructor(
             }
             val supportedRecordType = when (key.aggregate) {
                 is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
+                is HealthSyncAggregate.WatchDailyD1Sample -> key.recordType == HealthSyncRecordType.STEPS
                 is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
                 is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
                     HealthSyncRecordType.STEPS,
@@ -912,11 +921,18 @@ data class HealthSyncOperation private constructor(
             clientRecordVersion: Long?,
             frozenPayload: HealthSyncFrozenPayload?,
             projectionOrigin: HealthProjectionOrigin?,
-        ): Boolean = if (key.projectionChildKey == null) {
-            true
-        } else {
-            clientRecordId != null && clientRecordVersion != null &&
-                frozenPayload != null && projectionOrigin != null
+        ): Boolean = when {
+            key.aggregate is HealthSyncAggregate.WatchDailyD1Sample ->
+                key.projectionChildKey == null &&
+                    clientRecordId != null && clientRecordVersion != null &&
+                    frozenPayload?.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
+
+            key.projectionChildKey == null -> true
+
+            else -> {
+                clientRecordId != null && clientRecordVersion != null &&
+                    frozenPayload != null && projectionOrigin != null
+            }
         }
 
         private fun isValidProjectionState(

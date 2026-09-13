@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADR:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`
 - **Status:** `in_progress`
-- **Progresso:** `5/9`
+- **Progresso:** `6/9`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -29,7 +29,7 @@ reescrever histórico.
        |             |
        v             v
 033-05 Watch sync   033-06 HC cutover/granular
-       ✓             |
+        ✓             ✓
        +------+------+
               v
 033-07 Produto/UI e remoção de entrypoints BLE
@@ -46,7 +46,7 @@ reescrever histórico.
 - [x] `033-03-persistir-fatos-diarios-granulares.md`
 - [x] `033-04-compor-dados-diarios-fea1-d1-d4.md`
 - [x] `033-05-unificar-watch-sync-na-home.md`
-- [ ] `033-06-integrar-health-connect-granular-e-cutover.md`
+- [x] `033-06-integrar-health-connect-granular-e-cutover.md`
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md`
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
@@ -143,16 +143,25 @@ Refreshes físicos sucessivos confirmaram:
 
 Partial success forçado por falha de componente continua reservado para 033-09.
 
-## Próxima execução
+## Resultado da execução 033-06
 
-A 033-06 deve, além do cutover/granular Health Connect:
+- Cutover local persistido em Room v19, por dispositivo e data civil, sem efeitos
+  remotos durante migration ou watch sync.
+- `DailySummary`/FEA1 deixou de criar nova operação STEPS em datas pós-cutover;
+  operações pré-cutover e ledgers legacy permanecem preservados.
+- `WatchDailyStepCoverage` distingue `COMPLETE`, `RECENT_TAIL`, `PARTIAL` e
+  `DIVERGENT`, usando frescor e completude estrutural, não somente diferença.
+- Residual FEA1-D1 não é sintetizado. D1 Health Connect permanece deferred e
+  fail-closed até prova de intervalo e de não sobreposição com `WorkoutSteps`.
+- Auto-sync remoto após importação D1 foi removido; Settings e sync explícito de
+  workout permanecem.
 
-- refinar a classificação `WatchDailyStepCoverage`/equivalente;
-- distinguir `COMPLETE`, cauda recente, incompletude estrutural e divergência;
-- nunca sintetizar residual FEA1-D1;
-- preservar IDs/payloads já congelados quando a cauda for materializada em D1
-  posterior;
-- falhar fechado para projeções que dependam de reconciliação ainda não provada.
+## Observações
+
+- Bloqueio deliberado: projeção D1 granular ainda não pode ser publicada com
+  segurança porque intervalo temporal do bucket e contabilidade D1 ×
+  `WorkoutSteps` não estão comprovados. A 033-09 deve validar esse gate físico;
+  até lá, fatos D1 permanecem locais e nenhuma operação remota insegura é criada.
 
 ## Guard rails
 
