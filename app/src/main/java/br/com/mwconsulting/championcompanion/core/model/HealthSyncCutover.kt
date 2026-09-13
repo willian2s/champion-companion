@@ -5,14 +5,15 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Cutover imutável solicitado para separar operações diárias legacy da projeção
- * granular.
+ * Intenção imutável de cutover diário persistida por dispositivo.
  *
- * A data solicitada continua preservada no banco. Enquanto a projeção granular
- * D1 de passos permanecer fail-closed/deferred, [localDate] expõe uma data
- * efetiva futura para manter o caminho incremental FEA1/Spec 027 ativo. Quando
- * houver uma projeção remota granular comprovadamente segura, esta política deve
- * ser removida junto da ativação explícita do cutover real.
+ * [requestedLocalDate] preserva a data registrada no Room v19. A projeção D1 de
+ * passos ainda não possui intervalo remoto/não sobreposição suficientemente
+ * provados; por isso [localDate] permanece em uma data efetiva futura e o caminho
+ * incremental FEA1/Specs 016 e 027 continua ativo.
+ *
+ * Ativar o cutover real no futuro exige uma decisão/migração explícita. Não há
+ * flag de build que possa reinterpretar silenciosamente datas antigas.
  */
 class HealthSyncCutover(
     val deviceId: DeviceId,
@@ -22,14 +23,10 @@ class HealthSyncCutover(
 ) {
     val requestedLocalDate: LocalDate = localDate
 
-    val localDate: LocalDate = if (GRANULAR_D1_STEPS_REMOTE_PROJECTION_READY) {
-        requestedLocalDate
-    } else {
-        LEGACY_DAILY_STEPS_FALLBACK_CUTOVER_DATE
-    }
+    /** Data efetiva enquanto a projeção granular remota continuar deferred. */
+    val localDate: LocalDate = DEFERRED_EFFECTIVE_CUTOVER_DATE
 
-    val isDeferred: Boolean
-        get() = localDate != requestedLocalDate
+    val isDeferred: Boolean = true
 
     override fun equals(other: Any?): Boolean =
         this === other || other is HealthSyncCutover &&
@@ -47,12 +44,9 @@ class HealthSyncCutover(
     }
 
     override fun toString(): String =
-        "HealthSyncCutover(deviceId=$deviceId, requestedLocalDate=$requestedLocalDate, localDate=$localDate, zoneId=$zoneId, activatedAt=$activatedAt)"
+        "HealthSyncCutover(deviceId=$deviceId, requestedLocalDate=$requestedLocalDate, localDate=$localDate, zoneId=$zoneId, activatedAt=$activatedAt, isDeferred=$isDeferred)"
 
     private companion object {
-        // D1 granular STEPS ainda não possui intervalo remoto/não sobreposição
-        // suficientemente provados. Não desligar o fallback seguro antes disso.
-        const val GRANULAR_D1_STEPS_REMOTE_PROJECTION_READY: Boolean = false
-        val LEGACY_DAILY_STEPS_FALLBACK_CUTOVER_DATE: LocalDate = LocalDate.of(9999, 12, 31)
+        val DEFERRED_EFFECTIVE_CUTOVER_DATE: LocalDate = LocalDate.of(9999, 12, 31)
     }
 }
