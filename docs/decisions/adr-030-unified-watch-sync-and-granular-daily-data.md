@@ -8,14 +8,14 @@
 ## Contexto
 
 Após a Spec 032, workouts D4 v4 possuem fatos nativos, distância temporal e
-calibração contextual robusta. A linha diária, porém, continua fragmentada:
+calibração contextual robusta. A linha diária, porém, continuava fragmentada:
 
-- Home busca FEA1;
-- Saúde inicia D1;
-- Exercícios inicia D3/D4;
+- Home buscava FEA1;
+- Saúde iniciava D1;
+- Exercícios iniciava D3/D4;
 - D1 historicamente persistia somente BPM;
-- Home ainda estima distância/calorias a partir de passos e métricas pessoais;
-- Home/D1 podem tentar Health Connect automaticamente após persistência.
+- Home estimava distância/calorias a partir de passos e métricas pessoais;
+- Home/D1 podiam tentar Health Connect automaticamente após persistência.
 
 A inspeção do protocolo D1 do Champion C001 mostra que o pacote diário contém
 fatos suficientes para passos, distância, calorias e BPM em granularidade de
@@ -35,19 +35,38 @@ conteúdo do bucket.
 
 Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 
+A validação física pós-033-05 trouxe uma segunda correção importante. O watch sync
+unificado foi exercitado com refreshes consecutivos e permaneceu idempotente para
+D1 e D3/D4. Em uma tentativa posterior, o D1 estava estruturalmente completo até
+o último `totalPositions` recebido, mas FEA1 já estava à frente da soma D1 por uma
+pequena cauda temporal entre o último bucket de aproximadamente cinco minutos e o
+instante da leitura agregada FEA1.
+
+Isso confirma que:
+
+```text
+FEA1 > ΣD1
+```
+
+não implica automaticamente divergência. FEA1 é o total diário atual; D1 é a
+materialização temporal discreta e pode atrasar alguns minutos sem qualquer
+lacuna estrutural.
+
+Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
+
 ## Decisão
 
-1. O pull-to-refresh da Home será o único entrypoint de produto para buscar dados
-   do relógio.
-2. Um `WatchSyncCoordinator` controlará gate foreground, sessão, handshake e
+1. O pull-to-refresh da Home é o único entrypoint de produto para buscar dados do
+   relógio.
+2. Um `WatchSyncCoordinator` controla gate foreground, sessão, handshake e
    sequência FEA1 -> D1 -> D3/D4, preservando partial success por componente.
-3. FEA1 permanecerá agregado diário local autoritativo de passos e sinal de
+3. FEA1 permanece agregado diário local autoritativo de passos e sinal de
    validação, sem distribuição temporal inventada.
-4. D1 evolui para parser/persistência de fatos diários completos (`d1-v2`), com
-   BPM nullable e demais métricas preservadas quando BPM for inválido.
+4. D1 usa parser/persistência de fatos diários completos (`d1-v2`), com BPM
+   nullable e demais métricas preservadas quando BPM for inválido.
 5. D1 é a linha granular diária do relógio e pode conter fatos produzidos durante
-   workouts. D4 é a fonte detalhada/canônica do workout. Não existe mais regra
-   global de "D1 fora / D4 dentro" nem supressão integral por mera interseção.
+   workouts. D4 é a fonte detalhada/canônica do workout. Não existe regra global
+   de "D1 fora / D4 dentro" nem supressão integral por mera interseção.
 6. A autoridade é definida por finalidade e métrica:
    - passos diários: FEA1 é o total; D1 fornece distribuição granular; D4 não é
      somado novamente ao agregado diário;
@@ -60,27 +79,40 @@ Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 7. Qualquer substituição/ajuste de contribuição D1 por D4 exige prova local
    determinística de cobertura e não duplicação. Sem prova, preservar D1 no
    diário e D4 no workout, sem somá-los.
-8. Novas distâncias diárias não serão reconstruídas silenciosamente por
-   comprimento de passo quando houver fatos nativos elegíveis.
-9. Comprimento de passo e calibração por passo permanecem internamente para
-   legacy/fallback, mas saem da experiência normal do usuário.
-10. Saúde deixa de iniciar medição manual e D1; Exercícios deixa de iniciar
+8. A cobertura de passos diferencia estado estrutural de frescor:
+   - `FEA1 == ΣD1` com D1 completo pode ser `COMPLETE`;
+   - `FEA1 > ΣD1` com D1 estruturalmente completo e último bucket recente é
+     **cauda recente** (`RECENT_TAIL`/`LAGGING` ou equivalente), não divergência;
+   - `FEA1 < ΣD1`, D1 estruturalmente incompleto ou diferença não explicável por
+     frescor/cobertura é divergência/incompletude e falha fechada conforme o
+     consumidor.
+9. A diferença `FEA1 - ΣD1` nunca vira bucket, intervalo, timestamp ou
+   `StepsRecord` sintético. FEA1 não carrega distribuição temporal; somente um D1
+   real posterior pode materializar a cauda.
+10. Novas distâncias diárias não são reconstruídas silenciosamente por
+    comprimento de passo quando houver fatos nativos elegíveis.
+11. Comprimento de passo e calibração por passo permanecem internamente para
+    legacy/fallback, mas saem da experiência normal do usuário.
+12. Saúde deixa de iniciar medição manual e D1; Exercícios deixa de iniciar
     importação D3/D4. Histórico local permanece preservado.
-11. Sincronizar relógio e sincronizar Health Connect são ações distintas. Watch
+13. Sincronizar relógio e sincronizar Health Connect são ações distintas. Watch
     sync somente persiste/prepara fila local; escrita remota exige ação explícita.
-12. Health Connect adotará cutover por data local inteira: antes do cutover,
+14. Health Connect adota cutover por data local inteira: antes do cutover,
     preservar projeções históricas; depois do cutover, não criar novo total
     `DailySummary` de passos. A projeção granular pós-cutover não pode assumir
     `D1 + D4` como fontes mutuamente exclusivas.
-13. Para Health Connect, cada record compartilhado entre D1/D4 exige uma
+15. Para Health Connect, cada record compartilhado entre D1/D4 exige uma
     estratégia comprovadamente não sobreposta. Passos devem preservar o total
     FEA1 e os contratos da Spec 027; se a implementação não puder provar uma
     representação segura, deve falhar fechada em vez de duplicar records.
-14. Não haverá backfill granular histórico nem reescrita silenciosa de records ou
+16. Cauda recente FEA1 × D1 não autoriza residual remoto: publicar somente fatos
+    temporais D1/D4 realmente materializados. Projeções que exigem fechamento do
+    dia aguardam a cauda real ou ficam bloqueadas/pendentes explicitamente.
+17. Não haverá backfill granular histórico nem reescrita silenciosa de records ou
     atividades já `SYNCED`.
-15. Calorias só serão promovidas ao tipo Health Connect correto depois de decisão
+18. Calorias só serão promovidas ao tipo Health Connect correto depois de decisão
     semântica sustentada por evidência; raw e escala permanecem preservados.
-16. Room continua fonte operacional/visual primária e Health Connect continua
+19. Room continua fonte operacional/visual primária e Health Connect continua
     write-only.
 
 ## Consequências positivas
@@ -92,6 +124,8 @@ Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 - evita perda de dados em buckets que apenas intersectam parcialmente uma
   atividade;
 - separa claramente agregado diário, granularidade diária e detalhe de workout;
+- diferença normal de frescor entre FEA1 e D1 não é tratada como corrupção;
+- nenhum residual sem timestamp é inventado para fechar o total;
 - Health Connect evita dupla contagem entre total diário, D1 granular e workout;
 - step length deixa de ser conceito de produto sem quebrar histórico.
 
@@ -99,8 +133,9 @@ Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 
 - migration Room aditiva e novos contratos de identidade D1;
 - necessidade de cutover persistido para HC;
-- composição D1/D4 passa a exigir autoridade por métrica em vez de regra temporal
-  única;
+- composição D1/D4 exige autoridade por métrica em vez de regra temporal única;
+- classificação de cauda recente precisa usar estrutura e frescor, não apenas a
+  diferença numérica FEA1 × D1;
 - fronteiras de bucket D1 ainda não estão suficientemente provadas para
   substituição proporcional ou parcial;
 - semântica de calorias D1 versus D4 ainda exige validação;
@@ -129,6 +164,18 @@ intersectou bucket D1 com fatos não nulos; remover o bucket perderia dados reai
 
 Rejeitada porque a corrida física mostrou que D1 já continha os mesmos passos e
 distância observados no D4, o que causaria dupla contagem.
+
+### Tratar qualquer `FEA1 != ΣD1` como divergência
+
+Rejeitada após validação física pós-033-05. FEA1 pode avançar alguns minutos à
+frente da série D1 mesmo quando todas as posições recebidas estão completas. Essa
+situação é cauda recente, não falha estrutural.
+
+### Fabricar residual `FEA1 - ΣD1`
+
+Rejeitada porque FEA1 não informa quando os passos residuais ocorreram. Criar
+bucket ou `StepsRecord` sintético inventaria distribuição temporal e poderia
+duplicar o próximo D1 real.
 
 ### Continuar auto-sync Health Connect após refresh do relógio
 
