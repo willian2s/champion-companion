@@ -68,6 +68,32 @@ class ChampionDailyStepsSyncCoordinator @Inject constructor(
         }
     }
 
+    suspend fun refreshWithTransport(
+        request: DailyStepsRefreshRequest,
+        transport: ChampionTransportSession,
+    ): DailyStepsRefreshOutcome {
+        val parserVersion = when (val version = ParserVersion.create(ChampionFea1StepsParser.parserVersion)) {
+            is br.com.mwconsulting.championcompanion.core.model.DomainResult.Success -> version.value
+            is br.com.mwconsulting.championcompanion.core.model.DomainResult.Failure -> return DailyStepsRefreshOutcome.Failure(
+                DailyStepsRefreshFailure.INTERNAL,
+            )
+        }
+        val activeAttempt = request.attempt.copy(sessionId = transport.session.id.value.toString())
+        return when (val result = awaitFreshPacket(transport, activeAttempt, defaultPacketTimeout)) {
+            is ChampionBleResult.Failure -> DailyStepsRefreshOutcome.Failure(result.error.toRefreshFailure())
+            is ChampionBleResult.Success -> DailyStepsRefreshOutcome.Success(
+                DailyStepsRefreshResult(
+                    attempt = result.value.attempt,
+                    deviceId = request.associatedDeviceId,
+                    localDate = result.value.collectedAt.toLocalDateIn(request.zoneId),
+                    steps = result.value.steps.toLong(),
+                    collectedAt = result.value.collectedAt,
+                    parserVersion = parserVersion,
+                ),
+            )
+        }
+    }
+
     suspend fun awaitFreshSteps(
         associatedDevice: ChampionDiscoveredDevice,
         attempt: DailySyncAttempt,

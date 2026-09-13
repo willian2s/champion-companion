@@ -38,6 +38,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +48,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 
 class ChampionD1HeartRateSyncCoordinator(
@@ -59,7 +62,7 @@ class ChampionD1HeartRateSyncCoordinator(
     private val parserVersion: ParserVersion = ParserVersion.create("d1-v2").valueOrNull()!!,
     private val historyTimeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d1History,
     private val civilNow: () -> Instant = Instant::now,
-) : D1HeartRateSyncCoordinator {
+) : D1HeartRateSyncCoordinator, WatchSyncD1Component {
     private val scope = CoroutineScope(SupervisorJob() + bleDispatcher)
     private val mutableState = MutableStateFlow<D1HeartRateImportSurfaceState>(D1HeartRateImportSurfaceState.Idle)
     private val lifecycleMutex = Mutex()
@@ -117,6 +120,89 @@ class ChampionD1HeartRateSyncCoordinator(
             runImport(request, permit, baseSession)
         }
         return null
+    }
+
+    override suspend fun importForWatchSync(
+        request: D1HeartRateSyncRequest,
+        transport: ChampionTransportSession,
+    ): WatchSyncD1Result {
+        val startedAt = civilNow()
+        val subscription = transport.notifications.subscribe(ChampionChannelAlias.F008_NOTIFY)
+        if (subscription is ChampionBleResult.Failure) {
+            val error = subscription.error.toHealthError(HealthD1ImportErrorCategory.F008_UNAVAILABLE)
+            val metadataPersisted = persistDailyTerminalMetadata(
+                deviceId = request.associatedDevice.id,
+                lastAttemptAt = startedAt,
+                timedOut = false,
+                status = D1HeartRateImportStatus.FAILED,
+            )
+            return WatchSyncD1Result(
+                result = D1HeartRateImportResult.Failed(),
+                startedAt = startedAt,
+                finishedAt = civilNow(),
+                error = if (metadataPersisted) error else storageFailureError(),
+            )
+        }
+
+        val context = ChampionD1HistoryProtocol.D1ImportContext(
+            importAttemptId = request.importAttemptId,
+            bleSessionId = transport.session.id,
+            deviceId = request.associatedDevice.id,
+            startedAt = startedAt,
+            baseLocalDate = request.baseLocalDate,
+            zoneId = request.zoneId,
+            parserVersion = parserVersion,
+        )
+        val collector = ChampionD1HistoryProtocol.MultipartCollector(context) {
+            HeartRateMeasurementId(ids.next())
+        }
+        val collection = coroutineScope {
+            val completion = CompletableDeferred<ChampionD1HistoryProtocol.D1CollectionOutcome>()
+            val readingJob = launch {
+                try {
+                    (subscription as ChampionBleResult.Success).value.collect { packet ->
+                        when (val update = collector.onPacket(packet)) {
+                            ChampionD1HistoryProtocol.D1CollectionUpdate.Ignored -> Unit
+                            is ChampionD1HistoryProtocol.D1CollectionUpdate.Progress -> Unit
+                            is ChampionD1HistoryProtocol.D1CollectionUpdate.Finished -> completion.complete(update.outcome)
+                        }
+                    }
+                } catch (_: CancellationException) {
+                    Unit
+                } catch (error: RuntimeException) {
+                    if (!error.isExpectedObserverShutdown()) throw error
+                }
+            }
+
+            try {
+                when (val sendResult = transport.sendCommand(ChampionD1HistoryProtocol.createHistoryCommand(historyTimeout))) {
+                    is ChampionBleResult.Failure -> {
+                        val cancelled = collector.cancel(civilNow())
+                        WatchSyncCollection(
+                            outcome = cancelled.copy(
+                                result = D1HeartRateImportResult.Failed(cancelled.result.summary),
+                            ),
+                            error = sendResult.error.toHealthError(HealthD1ImportErrorCategory.SEND_COMMAND_FAILED),
+                        )
+                    }
+
+                    is ChampionBleResult.Success -> WatchSyncCollection(
+                        outcome = withTimeoutOrNull(historyTimeout) {
+                            completion.await()
+                        } ?: collector.onTimeout(civilNow()),
+                    )
+                }
+            } finally {
+                readingJob.cancelAndJoin()
+            }
+        }
+
+        return persistWatchSyncOutcome(
+            context = context,
+            outcome = collection.outcome,
+            startedAt = startedAt,
+            failureError = collection.error,
+        )
     }
 
     override suspend fun cancelImport(reason: D1HeartRateImportCancellationReason) {
@@ -328,7 +414,7 @@ class ChampionD1HeartRateSyncCoordinator(
         when (outcome.result) {
             is D1HeartRateImportResult.Cancelled -> {
                 mutableState.value = D1HeartRateImportSurfaceState.Persisting(session)
-                val persistence = persistDailyOutcome(active, outcome)
+                val persistence = persistDailyOutcome(active.context, outcome)
                 mutableState.value = D1HeartRateImportSurfaceState.Cancelled(
                     session.copy(error = if (persistence.storageFailed) storageFailureError() else cancellationError()),
                 )
@@ -336,7 +422,7 @@ class ChampionD1HeartRateSyncCoordinator(
 
             is D1HeartRateImportResult.Failed -> {
                 mutableState.value = D1HeartRateImportSurfaceState.Persisting(session)
-                val persistence = persistDailyOutcome(active, outcome)
+                val persistence = persistDailyOutcome(active.context, outcome)
                 val error = if (outcome.result.summary?.timedOut == true) {
                     HealthD1ImportError(
                         category = HealthD1ImportErrorCategory.TIMEOUT_EMPTY,
@@ -360,7 +446,7 @@ class ChampionD1HeartRateSyncCoordinator(
             is D1HeartRateImportResult.Partial,
             -> {
                 mutableState.value = D1HeartRateImportSurfaceState.Persisting(session)
-                val dailyPersistence = persistDailyOutcome(active, outcome)
+                val dailyPersistence = persistDailyOutcome(active.context, outcome)
                 if (dailyPersistence.storageFailed) {
                     mutableState.value = D1HeartRateImportSurfaceState.Failed(
                         session.copy(error = storageFailureError()),
@@ -477,6 +563,130 @@ class ChampionD1HeartRateSyncCoordinator(
         }
     }
 
+    private suspend fun persistWatchSyncOutcome(
+        context: ChampionD1HistoryProtocol.D1ImportContext,
+        outcome: ChampionD1HistoryProtocol.D1CollectionOutcome,
+        startedAt: Instant,
+        failureError: HealthD1ImportError?,
+    ): WatchSyncD1Result {
+        val dailyPersistence = persistDailyOutcome(context, outcome)
+        if (dailyPersistence.storageFailed) {
+            return WatchSyncD1Result(
+                result = D1HeartRateImportResult.Failed(outcome.result.summary),
+                startedAt = startedAt,
+                finishedAt = civilNow(),
+                error = storageFailureError(),
+            )
+        }
+
+        if (outcome.result is D1HeartRateImportResult.Failed) {
+            return WatchSyncD1Result(
+                result = outcome.result,
+                startedAt = startedAt,
+                finishedAt = civilNow(),
+                error = failureError ?: if (outcome.result.summary?.timedOut == true) {
+                    HealthD1ImportError(
+                        category = HealthD1ImportErrorCategory.TIMEOUT_EMPTY,
+                        message = "Tempo limite atingido antes de receber um registro D1 válido.",
+                        isRetryable = true,
+                    )
+                } else {
+                    HealthD1ImportError(
+                        category = HealthD1ImportErrorCategory.NO_VALID_RECORDS,
+                        message = "Nenhum registro D1 válido foi encontrado para importar.",
+                        isRetryable = true,
+                    )
+                },
+            )
+        }
+
+        if (outcome.result is D1HeartRateImportResult.Cancelled || outcome.measurements.isEmpty()) {
+            return WatchSyncD1Result(
+                result = outcome.result,
+                startedAt = startedAt,
+                finishedAt = civilNow(),
+                error = failureError ?: if (
+                    outcome.result is D1HeartRateImportResult.Partial &&
+                        outcome.result.summary?.timedOut == true
+                ) {
+                    timeoutPartialError()
+                } else {
+                    null
+                },
+            )
+        }
+
+        val placeholderMetadata = buildMetadata(
+            outcome = outcome,
+            deviceId = context.deviceId,
+            insertedCount = 0,
+            duplicateCount = 0,
+            conflictCount = 0,
+        )
+        val persisted = when (val result = heartRateRepository.importD1Measurements(
+            SaveD1HeartRateMeasurementsInput(
+                measurements = outcome.measurements,
+                metadata = placeholderMetadata,
+            ),
+        )) {
+            is RepositoryResult.Success -> result.value
+            RepositoryResult.StorageUnavailable,
+            RepositoryResult.Conflict,
+            RepositoryResult.NotFound,
+            RepositoryResult.UnexpectedState,
+            -> {
+                return WatchSyncD1Result(
+                    result = D1HeartRateImportResult.Failed(outcome.result.summary),
+                    startedAt = startedAt,
+                    finishedAt = civilNow(),
+                    error = storageFailureError(),
+                )
+            }
+        }
+        val metadata = buildMetadata(
+            outcome = outcome,
+            deviceId = context.deviceId,
+            insertedCount = persisted.insertedCount,
+            duplicateCount = persisted.duplicateCount,
+            conflictCount = persisted.conflictCount,
+        )
+        when (heartRateRepository.importD1Measurements(
+            SaveD1HeartRateMeasurementsInput(
+                measurements = emptyList(),
+                metadata = metadata,
+            ),
+        )) {
+            is RepositoryResult.Success -> Unit
+            RepositoryResult.StorageUnavailable,
+            RepositoryResult.Conflict,
+            RepositoryResult.NotFound,
+            RepositoryResult.UnexpectedState,
+            -> {
+                return WatchSyncD1Result(
+                    result = D1HeartRateImportResult.Failed(outcome.result.summary),
+                    startedAt = startedAt,
+                    finishedAt = civilNow(),
+                    error = storageFailureError(),
+                )
+            }
+        }
+
+        val finalResult = updateResultSummary(outcome.result, persisted)
+        return WatchSyncD1Result(
+            result = finalResult,
+            startedAt = startedAt,
+            finishedAt = civilNow(),
+            error = failureError ?: if (
+                finalResult is D1HeartRateImportResult.Partial &&
+                    finalResult.summary?.timedOut == true
+            ) {
+                timeoutPartialError()
+            } else {
+                null
+            },
+        )
+    }
+
     private fun storageFailureError() = HealthD1ImportError(
         category = HealthD1ImportErrorCategory.STORAGE_FAILED,
         message = "Nao foi possivel salvar registros D1 importados.",
@@ -496,14 +706,14 @@ class ChampionD1HeartRateSyncCoordinator(
     )
 
     private suspend fun persistDailyOutcome(
-        active: ActiveImport,
+        context: ChampionD1HistoryProtocol.D1ImportContext,
         outcome: ChampionD1HistoryProtocol.D1CollectionOutcome,
     ): DailyPersistence {
         val importedAt = outcome.result.summary?.finishedAt ?: civilNow()
         val dailySamples = outcome.packets.mapNotNull { packet ->
             ChampionD1HistoryProtocol.toDailySample(
                 packet = packet,
-                context = active.context,
+                context = context,
                 sampleId = WatchDailyD1SampleId(ids.next()),
                 importedAt = importedAt,
             )
@@ -528,7 +738,7 @@ class ChampionD1HeartRateSyncCoordinator(
         val metadataPersisted = persistDailyMetadata(
             buildDailyMetadata(
                 outcome = outcome,
-                deviceId = active.context.deviceId,
+                deviceId = context.deviceId,
                 persisted = persistedFacts,
                 invalidCount = outcome.invalidPacketCount + conversionInvalidCount,
                 persistenceSucceeded = factsPersisted && conversionInvalidCount == 0,
@@ -536,7 +746,7 @@ class ChampionD1HeartRateSyncCoordinator(
         )
         return DailyPersistence(
             facts = persistedFacts,
-            storageFailed = !factsPersisted || !metadataPersisted || conversionInvalidCount > 0,
+            storageFailed = !factsPersisted || !metadataPersisted,
         )
     }
 
@@ -593,6 +803,11 @@ class ChampionD1HeartRateSyncCoordinator(
     private data class DailyPersistence(
         val facts: WatchDailyD1PersistenceResult,
         val storageFailed: Boolean,
+    )
+
+    private data class WatchSyncCollection(
+        val outcome: ChampionD1HistoryProtocol.D1CollectionOutcome,
+        val error: HealthD1ImportError? = null,
     )
 
     private fun buildMetadata(
@@ -863,6 +1078,7 @@ class ChampionD1HeartRateSyncCoordinator(
 
     private fun ForegroundBleOperationOwner.toHealthForegroundBleBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização do relógio está em andamento na tela Início."
+        ForegroundBleOperationOwner.WATCH_SYNC -> "Uma sincronização do relógio está em andamento na tela Início."
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio já está em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio está em andamento na tela Exercícios."

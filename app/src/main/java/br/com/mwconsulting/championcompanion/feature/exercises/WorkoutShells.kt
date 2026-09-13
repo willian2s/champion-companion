@@ -965,6 +965,7 @@ private fun WatchWorkoutParticipationCard(
 
 private fun ForegroundBleOperationOwner?.toWorkoutWatchConflictCopy(): String = when (this) {
     ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização diária do relógio está em andamento."
+    ForegroundBleOperationOwner.WATCH_SYNC -> "Uma sincronização diária do relógio está em andamento."
     ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento."
     ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico está em andamento."
     ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treino do relógio está em andamento."

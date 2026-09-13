@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADR:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`
 - **Status:** `in_progress`
-- **Progresso:** `4/9`
+- **Progresso:** `5/9`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -45,7 +45,7 @@ reescrever histórico.
 - [x] `033-02-implementar-parser-collector-d1-v2.md`
 - [x] `033-03-persistir-fatos-diarios-granulares.md`
 - [x] `033-04-compor-dados-diarios-fea1-d1-d4.md`
-- [ ] `033-05-unificar-watch-sync-na-home.md`
+- [x] `033-05-unificar-watch-sync-na-home.md`
 - [ ] `033-06-integrar-health-connect-granular-e-cutover.md`
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md`
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
@@ -111,3 +111,8 @@ sobre o contrato corrigido. `033-05`/`033-06` dependem da composição resultant
 - não usar header total D4 como fonte de comportamento;
 - não somar D1 + D4 ingenuamente nem suprimir D1 apenas por overlap;
 - cada task atualiza este overview.
+
+## Observações
+
+- `033-05` concluída com validação de lint, builds debug/release e diff; validação
+  física de sessão compartilhada, partial success e retry permanece em `033-09`.

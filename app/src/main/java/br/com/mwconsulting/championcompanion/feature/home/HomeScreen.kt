@@ -573,7 +573,7 @@ private fun HomeRefreshStatus(
 ) {
     val message = when {
         refresh.isRefreshing -> refresh.refreshStage.toStatusMessage()
-        refresh.error != null -> "Não foi possível atualizar os dados."
+        refresh.error != null -> refresh.error.message
         else -> null
     } ?: return
 
@@ -650,8 +650,9 @@ private fun HomeWatchSnapshot.toHomeWatchStatus(): HomeWatchStatus = when (conne
 private fun HomeRefreshStage?.toStatusMessage(): String = when (this) {
     HomeRefreshStage.Preparing -> "Preparando sincronização..."
     HomeRefreshStage.Connecting -> "Conectando ao relógio..."
-    HomeRefreshStage.WaitingForSteps -> "Aguardando os dados do relógio..."
-    HomeRefreshStage.Persisting -> "Atualizando resumo..."
+    HomeRefreshStage.FEA1 -> "Atualizando passos do dia..."
+    HomeRefreshStage.D1 -> "Atualizando dados diários..."
+    HomeRefreshStage.D3_D4 -> "Buscando treinos do relógio..."
     null -> "Sincronizando os dados do relógio"
 }
 

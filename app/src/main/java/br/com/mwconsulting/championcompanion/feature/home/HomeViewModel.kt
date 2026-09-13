@@ -7,32 +7,19 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBlePrerequis
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleState
 import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionConnectionManager
 import br.com.mwconsulting.championcompanion.core.bluetooth.android.AndroidBleEnvironment
-import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
-import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshFailure
-import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshOutcome
-import br.com.mwconsulting.championcompanion.core.model.DailyStepsRefreshRequest
-import br.com.mwconsulting.championcompanion.core.model.DailyStepsSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
-import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationAcquireResult
-import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGate
-import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationOwner
-import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationPermit
-import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationRequest
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
-import br.com.mwconsulting.championcompanion.core.model.MergeWatchDailySummaryInput
-import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
-import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -65,13 +52,10 @@ class HomeViewModel @Inject constructor(
     private val dailySummaryRepository: DailySummaryRepository,
     private val deviceRepository: DeviceRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
-    private val personalMetricsRepository: PersonalMetricsRepository,
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
     private val workoutActivityRepository: WorkoutActivityRepository,
     private val healthSyncRepository: HealthSyncRepository,
-    private val dailyStepsSyncCoordinator: DailyStepsSyncCoordinator,
-    private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
-    private val foregroundBleOperationGate: ForegroundBleOperationGate,
+    private val watchSyncCoordinator: WatchSyncCoordinator,
     private val heartRateRepository: HeartRateRepository,
     private val connectionManager: ChampionConnectionManager,
     private val bleEnvironment: AndroidBleEnvironment,
@@ -133,6 +117,19 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            watchSyncCoordinator.state.collect { syncState ->
+                refreshState.update { current ->
+                    current.copy(
+                        activeOperation = syncState.toHomeRefreshOperation(),
+                        error = syncState.error?.toHomeRefreshError(),
+                        resultStatus = syncState.result,
+                        components = syncState.components,
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
             while (isActive) {
                 delay(millisUntilNextMidnight())
                 refreshObservedDate()
@@ -160,8 +157,6 @@ class HomeViewModel @Inject constructor(
         if (!refreshMutex.tryLock()) return
 
         val previousSuccess = refreshState.value.lastSuccessfulRefreshAt
-        var gatePermit: ForegroundBleOperationPermit? = null
-        var shouldTriggerHealthConnectSync = false
         try {
             if (refreshState.value.isRefreshing) return
             refreshObservedDate()
@@ -189,145 +184,34 @@ class HomeViewModel @Inject constructor(
             }
 
             val startedAt = Instant.now()
-            val attempt = br.com.mwconsulting.championcompanion.core.model.DailySyncAttempt(
-                refreshAttemptId = ids.next().toString(),
-                startedAt = startedAt,
-            )
-            when (
-                val gateResult = foregroundBleOperationGate.tryAcquire(
-                    ForegroundBleOperationRequest(
-                        owner = ForegroundBleOperationOwner.DAILY_STEPS_REFRESH,
-                        operationId = attempt.refreshAttemptId,
-                        requestedAt = startedAt,
-                    ),
-                )
-            ) {
-                is ForegroundBleOperationAcquireResult.Acquired -> gatePermit = gateResult.permit
-                is ForegroundBleOperationAcquireResult.Rejected -> {
-                    refreshState.value = HomeRefreshState(
-                        error = HomeRefreshError(
-                            category = HomeRefreshErrorCategory.BLE_OPERATION_IN_PROGRESS,
-                            message = gateResult.activeOperation.owner.toHomeForegroundBleBlockMessage(),
-                            isRetryable = true,
-                        ),
-                        lastSuccessfulRefreshAt = previousSuccess,
-                    )
-                    return
-                }
-            }
-
-            refreshState.value = HomeRefreshState(
-                activeOperation = HomeRefreshOperation(
-                    attempt = attempt.toHomeRefreshAttempt(),
-                    stage = HomeRefreshStage.Preparing,
+            val attemptId = ids.next().toString()
+            val result = watchSyncCoordinator.sync(
+                WatchSyncRequest(
+                    attemptId = attemptId,
+                    associatedDevice = associatedDevice,
+                    baseLocalDate = observedDate.value,
+                    zoneId = ZoneId.systemDefault(),
+                    startedAt = startedAt,
                 ),
-                lastSuccessfulRefreshAt = previousSuccess,
             )
-
-            val currentSession = connectionManager.currentSession()
+            result.fea1?.let { observedDate.value = it.localDate }
             refreshState.update { current ->
                 current.copy(
-                    activeOperation = current.activeOperation?.copy(
-                        stage = if (currentSession?.session?.transportKey == associatedDevice.platformIdentifier) {
-                            HomeRefreshStage.WaitingForSteps
-                        } else {
-                            HomeRefreshStage.Connecting
-                        },
-                    ),
+                    activeOperation = null,
+                    error = result.error?.toHomeRefreshError(),
+                    resultStatus = result.status,
+                    components = result.components,
+                    lastSuccessfulRefreshAt = if (result.status == WatchSyncResultStatus.COMPLETED) {
+                        result.finishedAt
+                    } else {
+                        previousSuccess
+                    },
                 )
-            }
-
-            val metrics = personalMetricsRepository.observeSnapshot().first()
-            val refreshZoneId = ZoneId.systemDefault()
-            val refreshResult = when (val result = dailyStepsSyncCoordinator.refresh(
-                DailyStepsRefreshRequest(
-                    attempt = attempt,
-                    associatedDeviceId = associatedDevice.id,
-                    associatedDevicePlatformIdentifier = associatedDevice.platformIdentifier,
-                    zoneId = refreshZoneId,
-                ),
-            )) {
-                is DailyStepsRefreshOutcome.Success -> result.value
-                is DailyStepsRefreshOutcome.Failure -> {
-                    refreshState.value = HomeRefreshState(
-                        error = result.reason.toHomeRefreshError(),
-                        lastSuccessfulRefreshAt = previousSuccess,
-                    )
-                    return
-                }
-            }
-
-            refreshState.update { current ->
-                current.copy(
-                    activeOperation = current.activeOperation?.copy(
-                        attempt = refreshResult.attempt.toHomeRefreshAttempt(),
-                        stage = HomeRefreshStage.Persisting,
-                    ),
-                )
-            }
-
-            val estimates = DailySummaryPolicy.estimate(refreshResult.steps, metrics)
-            val updatedAt = Instant.now()
-            when (
-                dailySummaryRepository.mergeWatchDailySummary(
-                    MergeWatchDailySummaryInput(
-                        deviceId = refreshResult.deviceId,
-                        localDate = refreshResult.localDate,
-                        incomingSteps = refreshResult.steps,
-                        collectedAt = refreshResult.collectedAt,
-                        updatedAt = updatedAt,
-                        estimatedDistanceMeters = estimates.distanceMeters,
-                        estimatedCaloriesKilocalories = estimates.caloriesKilocalories,
-                        parserVersion = refreshResult.parserVersion,
-                        zoneId = refreshZoneId,
-                    ),
-                )
-            ) {
-                is RepositoryResult.Success -> {
-                    observedDate.value = refreshResult.collectedAt.toLocalDateIn(ZoneId.systemDefault())
-                    refreshState.value = HomeRefreshState(lastSuccessfulRefreshAt = updatedAt)
-                    shouldTriggerHealthConnectSync = true
-                }
-
-                RepositoryResult.StorageUnavailable -> {
-                    refreshState.value = HomeRefreshState(
-                        error = HomeRefreshError(
-                            category = HomeRefreshErrorCategory.STORAGE,
-                            message = "Não foi possível salvar o resumo do dia.",
-                            isRetryable = true,
-                        ),
-                        lastSuccessfulRefreshAt = previousSuccess,
-                    )
-                }
-
-                RepositoryResult.Conflict,
-                RepositoryResult.NotFound,
-                RepositoryResult.UnexpectedState,
-                -> {
-                    refreshState.value = HomeRefreshState(
-                        error = HomeRefreshError(
-                            category = HomeRefreshErrorCategory.INTERNAL,
-                            message = "Não foi possível consolidar o resumo do dia.",
-                            isRetryable = true,
-                        ),
-                        lastSuccessfulRefreshAt = previousSuccess,
-                    )
-                }
             }
         } finally {
-            gatePermit?.let { foregroundBleOperationGate.release(it) }
-            if (shouldTriggerHealthConnectSync) {
-                viewModelScope.launch { triggerHealthConnectSyncIfEnabled() }
-            }
             refreshObservedDate()
-            refreshState.update { current -> current.copy(activeOperation = null) }
             refreshMutex.unlock()
         }
-    }
-
-    private suspend fun triggerHealthConnectSyncIfEnabled() {
-        if (!appPreferencesRepository.observe().first().healthSyncEnabled) return
-        healthConnectSyncCoordinator.syncPending()
     }
 
     private fun deriveSurfaceState(
@@ -469,59 +353,42 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    private fun DailyStepsRefreshFailure.toHomeRefreshError(): HomeRefreshError = when (this) {
-        DailyStepsRefreshFailure.DEVICE_NOT_FOUND -> HomeRefreshError(
-            category = HomeRefreshErrorCategory.CONNECTION_FAILED,
-            message = "Não foi possível localizar o relógio associado.",
-            isRetryable = true,
-        )
-
-        DailyStepsRefreshFailure.CONNECTION_FAILED -> HomeRefreshError(
-            category = HomeRefreshErrorCategory.CONNECTION_FAILED,
-            message = "Não foi possível conectar nem manter a sessão com o relógio.",
-            isRetryable = true,
-        )
-
-        DailyStepsRefreshFailure.TIMEOUT -> HomeRefreshError(
-            category = HomeRefreshErrorCategory.TIMEOUT,
-            message = "O tempo limite foi atingido enquanto aguardávamos os dados do relógio.",
-            isRetryable = true,
-        )
-
-        DailyStepsRefreshFailure.INVALID_PACKET -> HomeRefreshError(
-            category = HomeRefreshErrorCategory.INVALID_PACKET,
-            message = "O relógio respondeu com um pacote inválido para esta sincronização.",
-            isRetryable = true,
-        )
-
-        DailyStepsRefreshFailure.CANCELLED -> HomeRefreshError(
-            category = HomeRefreshErrorCategory.CANCELLED,
-            message = "A sincronização foi cancelada antes de concluir uma leitura válida.",
-            isRetryable = true,
-        )
-
-        DailyStepsRefreshFailure.INTERNAL -> HomeRefreshError(
-            category = HomeRefreshErrorCategory.INTERNAL,
-            message = "Não foi possível concluir a sincronização.",
-            isRetryable = true,
+    private fun WatchSyncState.toHomeRefreshOperation(): HomeRefreshOperation? {
+        val attemptId = attemptId ?: return null
+        if (!isRunning) return null
+        return HomeRefreshOperation(
+            attempt = HomeRefreshAttempt(
+                refreshAttemptId = attemptId,
+                sessionId = sessionId,
+                startedAt = startedAt ?: Instant.now(),
+            ),
+            stage = when (stage) {
+                WatchSyncStage.Preparing -> HomeRefreshStage.Preparing
+                WatchSyncStage.Connecting -> HomeRefreshStage.Connecting
+                WatchSyncStage.FEA1 -> HomeRefreshStage.FEA1
+                WatchSyncStage.D1 -> HomeRefreshStage.D1
+                WatchSyncStage.D3_D4 -> HomeRefreshStage.D3_D4
+                null -> HomeRefreshStage.Preparing
+            },
         )
     }
 
-    private fun ForegroundBleOperationOwner.toHomeForegroundBleBlockMessage(): String = when (this) {
-        ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Outra sincronização do relógio já está em andamento."
-        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio está em andamento na tela Exercícios."
-        ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "A participação opcional do relógio está em andamento na sessão de treino."
-        ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Uma conexão do dispositivo está em andamento na tela Dispositivo."
-    }
-
-    private fun br.com.mwconsulting.championcompanion.core.model.DailySyncAttempt.toHomeRefreshAttempt(): HomeRefreshAttempt =
-        HomeRefreshAttempt(
-            refreshAttemptId = refreshAttemptId,
-            sessionId = sessionId,
-            startedAt = startedAt,
-        )
+    private fun WatchSyncError.toHomeRefreshError(): HomeRefreshError = HomeRefreshError(
+        category = when (category) {
+            WatchSyncErrorCategory.BLE_OPERATION_IN_PROGRESS -> HomeRefreshErrorCategory.BLE_OPERATION_IN_PROGRESS
+            WatchSyncErrorCategory.TIMEOUT -> HomeRefreshErrorCategory.TIMEOUT
+            WatchSyncErrorCategory.INVALID_PACKET -> HomeRefreshErrorCategory.INVALID_PACKET
+            WatchSyncErrorCategory.CANCELLED -> HomeRefreshErrorCategory.CANCELLED
+            WatchSyncErrorCategory.STORAGE -> HomeRefreshErrorCategory.STORAGE
+            WatchSyncErrorCategory.PARTIAL -> HomeRefreshErrorCategory.PARTIAL
+            WatchSyncErrorCategory.CONNECTION_FAILED,
+            WatchSyncErrorCategory.HANDSHAKE_FAILED,
+            -> HomeRefreshErrorCategory.CONNECTION_FAILED
+            WatchSyncErrorCategory.INTERNAL -> HomeRefreshErrorCategory.INTERNAL
+        },
+        message = message,
+        isRetryable = isRetryable,
+    )
 
     private fun refreshObservedDate() {
         observedDate.value = Instant.now().toLocalDateIn(ZoneId.systemDefault())

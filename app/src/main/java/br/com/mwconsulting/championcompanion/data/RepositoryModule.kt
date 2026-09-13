@@ -15,6 +15,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutRouteRepository
 import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Repository
 import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModelRepository
 import br.com.mwconsulting.championcompanion.feature.home.ChampionDailyStepsSyncCoordinator
+import br.com.mwconsulting.championcompanion.feature.home.ChampionWatchSyncCoordinator
+import br.com.mwconsulting.championcompanion.feature.home.WatchSyncCoordinator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,6 +28,7 @@ object RepositoryModule {
     @Provides fun deviceRepository(source: RoomRepositories): DeviceRepository = source
     @Provides fun dailySummaryRepository(source: RoomRepositories): DailySummaryRepository = source
     @Provides fun dailyStepsSyncCoordinator(source: ChampionDailyStepsSyncCoordinator): DailyStepsSyncCoordinator = source
+    @Provides fun watchSyncCoordinator(source: ChampionWatchSyncCoordinator): WatchSyncCoordinator = source
     @Provides fun heartRateRepository(source: RoomRepositories): HeartRateRepository = source
     @Provides fun personalMetricsRepository(source: RoomRepositories): PersonalMetricsRepository = source
     @Provides fun workoutActivityRepository(source: RoomRepositories): WorkoutActivityRepository = source

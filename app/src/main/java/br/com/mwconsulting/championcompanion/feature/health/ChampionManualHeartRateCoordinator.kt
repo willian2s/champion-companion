@@ -583,6 +583,7 @@ class ChampionManualHeartRateCoordinator(
 
     private fun ForegroundBleOperationOwner.toHealthForegroundBleBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização do relógio está em andamento na tela Início."
+        ForegroundBleOperationOwner.WATCH_SYNC -> "Uma sincronização do relógio está em andamento na tela Início."
         ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual já está em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
         ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio está em andamento na tela Exercícios."

@@ -308,6 +308,7 @@ enum class ForegroundBleOperationOwner {
     WATCH_WORKOUT_IMPORT,
     APP_WORKOUT_SESSION,
     DEVICE_CONNECTION,
+    WATCH_SYNC,
 }
 
 data class ForegroundBleOperationRequest(

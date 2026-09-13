@@ -13,12 +13,14 @@ import dagger.Provides
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 
 @Module
 @InstallIn(SingletonComponent::class)
 object ExercisesModule {
     @Provides
+    @Singleton
     fun championWatchWorkoutImportCoordinator(
         @ApplicationContext context: Context,
         connectionManager: ChampionConnectionManager,
@@ -41,4 +43,9 @@ object ExercisesModule {
     fun watchWorkoutImportCoordinator(
         source: ChampionWatchWorkoutImportCoordinator,
     ): WatchWorkoutImportCoordinator = source
+
+    @Provides
+    fun watchSyncWorkoutComponent(
+        source: ChampionWatchWorkoutImportCoordinator,
+    ): WatchSyncWorkoutComponent = source
 }
