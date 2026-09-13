@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADR:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`
 - **Status:** `in_progress`
-- **Progresso:** `2/9`
+- **Progresso:** `3/9`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -42,7 +42,7 @@ cutover seguro da projeção Health Connect diária sem reescrever histórico.
 
 - [x] `033-01-auditar-e-congelar-d1-v2-e-cutover.md`
 - [x] `033-02-implementar-parser-collector-d1-v2.md`
-- [ ] `033-03-persistir-fatos-diarios-granulares.md`
+- [x] `033-03-persistir-fatos-diarios-granulares.md`
 - [ ] `033-04-compor-dados-diarios-fea1-d1-d4.md`
 - [ ] `033-05-unificar-watch-sync-na-home.md`
 - [ ] `033-06-integrar-health-connect-granular-e-cutover.md`

@@ -127,6 +127,12 @@ import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.PersistWatchDailyD1SamplesInput
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1PersistenceResult
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1ImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Repository
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1SampleKey
+import br.com.mwconsulting.championcompanion.core.model.WATCH_DAILY_D1_IMPORT_TYPE
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessFailureReason
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessResult
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceFailureReason
@@ -229,7 +235,7 @@ class RoomRepositories @Inject constructor(
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : DeviceRepository, DailySummaryRepository, HeartRateRepository, WorkoutActivityRepository,
     TreadmillCalibrationRepository, AppWorkoutSessionRepository, HealthSyncRepository, DiagnosticPayloadRepository,
-    PersonalMetricsRepository, WorkoutRouteRepository {
+    PersonalMetricsRepository, WorkoutRouteRepository, WatchDailyD1Repository {
     private val ids = UuidV7Generator()
     private val frozenProjectionJson = Json {
         ignoreUnknownKeys = true
@@ -687,6 +693,120 @@ class RoomRepositories @Inject constructor(
             .observeByDeviceAndImportType(deviceId.value.toString(), WATCH_D1_HISTORY_IMPORT_TYPE)
             .map { it?.toD1ImportMetadata() }
             .flowOn(ioDispatcher)
+
+    override suspend fun persist(
+        input: PersistWatchDailyD1SamplesInput,
+    ): RepositoryResult<WatchDailyD1PersistenceResult> = write {
+        val sampleDao = database.watchDailyD1SampleDao()
+        val deviceIds = input.samples.map { it.deviceId.value.toString() }.toSet()
+        if (deviceIds.any { database.deviceDao().findById(it) == null }) {
+            return@write RepositoryResult.NotFound
+        }
+
+        var insertedCount = 0
+        var updatedCount = 0
+        var duplicateCount = 0
+
+        input.samples.forEach { incoming ->
+            val incomingEntity = incoming.toEntity()
+            val existing = sampleDao.findByNaturalKey(
+                deviceId = incomingEntity.deviceId,
+                resolvedLocalDateIso = incomingEntity.resolvedLocalDate,
+                currentPosition = incomingEntity.currentPosition,
+            )
+            if (existing == null) {
+                sampleDao.insert(incomingEntity)
+                insertedCount += 1
+            } else {
+                val sameFacts = incomingEntity.copy(
+                    id = existing.id,
+                    importAttemptId = existing.importAttemptId,
+                    importedAtEpochMillis = existing.importedAtEpochMillis,
+                    updatedAtEpochMillis = existing.updatedAtEpochMillis,
+                ) == existing
+                if (sameFacts) {
+                    duplicateCount += 1
+                } else {
+                    val candidate = incomingEntity.copy(
+                        id = existing.id,
+                        importedAtEpochMillis = existing.importedAtEpochMillis,
+                    )
+                    if (sampleDao.update(candidate) != 1) {
+                        return@write RepositoryResult.Conflict
+                    }
+                    updatedCount += 1
+                }
+            }
+        }
+
+        RepositoryResult.Success(
+            WatchDailyD1PersistenceResult(
+                insertedCount = insertedCount,
+                updatedCount = updatedCount,
+                duplicateCount = duplicateCount,
+            ),
+        )
+    }
+
+    override suspend fun persistImportMetadata(
+        metadata: WatchDailyD1ImportMetadata,
+    ): RepositoryResult<Unit> = write {
+        val deviceId = metadata.deviceId.value.toString()
+        if (database.deviceDao().findById(deviceId) == null) {
+            return@write RepositoryResult.NotFound
+        }
+        val metadataDao = database.deviceImportMetadataDao()
+        val existing = metadataDao.findByDeviceAndImportType(deviceId, WATCH_DAILY_D1_IMPORT_TYPE)
+        val metadataToPersist = when (metadata.lastResult) {
+            br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus.FAILED,
+            br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus.CANCELLED,
+            -> metadata.copy(
+                lastSuccessAt = existing?.lastSuccessAtEpochMillis?.let(Instant::ofEpochMilli),
+            )
+
+            else -> metadata
+        }
+        metadataDao.upsert(metadataToPersist.toEntity(id = existing?.id ?: ids.next().toString()))
+        RepositoryResult.Success(Unit)
+    }
+
+    override fun observeImportMetadata(
+        deviceId: DeviceId,
+    ): Flow<WatchDailyD1ImportMetadata?> = database.deviceImportMetadataDao()
+        .observeByDeviceAndImportType(deviceId.value.toString(), WATCH_DAILY_D1_IMPORT_TYPE)
+        .map { it?.toWatchDailyD1ImportMetadata() }
+        .flowOn(ioDispatcher)
+
+    override fun observeBetween(
+        deviceId: DeviceId,
+        fromInclusive: LocalDate,
+        untilExclusive: LocalDate,
+    ): Flow<List<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>> =
+        database.watchDailyD1SampleDao()
+            .observeBetween(
+                deviceId = deviceId.value.toString(),
+                fromLocalDateIso = fromInclusive.toString(),
+                untilLocalDateIso = untilExclusive.toString(),
+            )
+            .map { samples -> samples.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
+    override suspend fun findByNaturalKey(
+        key: WatchDailyD1SampleKey,
+    ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample?> =
+        withContext(ioDispatcher) {
+            val entity = database.watchDailyD1SampleDao().findByNaturalKey(
+                deviceId = key.deviceId.value.toString(),
+                resolvedLocalDateIso = key.resolvedLocalDate.toString(),
+                currentPosition = key.currentPosition,
+            )
+            if (entity == null) {
+                RepositoryResult.Success(null)
+            } else {
+                entity.toDomain()?.let { RepositoryResult.Success(it) }
+                    ?: RepositoryResult.UnexpectedState
+            }
+        }
 
     override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = try {
         write {

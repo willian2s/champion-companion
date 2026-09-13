@@ -10,6 +10,9 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurementId
 import br.com.mwconsulting.championcompanion.core.model.HeartRateSource
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1SampleId
+import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -93,6 +96,42 @@ object ChampionD1HistoryProtocol {
             .atTime(LocalTime.of(packet.hour, packet.minute))
             .atZone(context.zoneId)
             .toInstant()
+
+    /** Adapta pacote estrutural D1 para fato diário sem depender de BPM válido. */
+    fun toDailySample(
+        packet: D1Packet,
+        context: D1ImportContext,
+        sampleId: WatchDailyD1SampleId,
+        importedAt: Instant,
+        updatedAt: Instant = importedAt,
+    ): WatchDailyD1Sample? = WatchDailyD1Sample.create(
+        id = sampleId,
+        deviceId = context.deviceId,
+        importAttemptId = context.importAttemptId,
+        parserVersion = context.parserVersion,
+        currentPosition = packet.currentPosition,
+        totalPositions = packet.totalPositions,
+        resolvedLocalDate = context.baseLocalDate.minusDays(packet.dayOffset.toLong()),
+        dayOffset = packet.dayOffset,
+        hour = packet.hour,
+        minute = packet.minute,
+        resolvedAt = resolveMeasuredAt(packet, context),
+        zoneId = context.zoneId,
+        steps = packet.steps.toLong(),
+        distanceRaw = packet.distanceRaw.toLong(),
+        distanceMeters = packet.distanceMeters.toDouble(),
+        caloriesRaw = packet.caloriesRaw.toLong(),
+        caloriesKilocalories = packet.caloriesKilocalories,
+        sportValueRaw = packet.sportValue.toLong(),
+        bpmRaw = packet.bpmRaw,
+        bpm = packet.bpm,
+        pressureHighRaw = packet.pressureHighRaw,
+        pressureLowRaw = packet.pressureLowRaw,
+        wearRaw = packet.wearRaw,
+        tempOneRaw = packet.tempOneRaw,
+        importedAt = importedAt,
+        updatedAt = updatedAt,
+    ).valueOrNull()
 
     fun toMeasurement(
         packet: D1Packet,

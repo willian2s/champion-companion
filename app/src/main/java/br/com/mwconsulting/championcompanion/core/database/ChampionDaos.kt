@@ -192,6 +192,42 @@ interface DailySummaryDao {
 }
 
 @Dao
+interface WatchDailyD1SampleDao {
+    @Query(
+        "SELECT * FROM watch_daily_d1_samples " +
+            "WHERE deviceId = :deviceId " +
+            "AND resolvedLocalDate >= :fromLocalDateIso " +
+            "AND resolvedLocalDate < :untilLocalDateIso " +
+            "ORDER BY resolvedLocalDate, resolvedAtEpochMillis, currentPosition, id",
+    )
+    fun observeBetween(
+        deviceId: String,
+        fromLocalDateIso: String,
+        untilLocalDateIso: String,
+    ): Flow<List<WatchDailyD1SampleEntity>>
+
+    @Query(
+        "SELECT * FROM watch_daily_d1_samples " +
+            "WHERE deviceId = :deviceId AND resolvedLocalDate = :resolvedLocalDateIso " +
+            "AND currentPosition = :currentPosition LIMIT 1",
+    )
+    suspend fun findByNaturalKey(
+        deviceId: String,
+        resolvedLocalDateIso: String,
+        currentPosition: Int,
+    ): WatchDailyD1SampleEntity?
+
+    @Query("SELECT * FROM watch_daily_d1_samples WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): WatchDailyD1SampleEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(sample: WatchDailyD1SampleEntity)
+
+    @Update
+    suspend fun update(sample: WatchDailyD1SampleEntity): Int
+}
+
+@Dao
 interface HeartRateDao {
     @Query("SELECT * FROM heart_rate_measurements ORDER BY id")
     fun observeAll(): Flow<List<HeartRateMeasurementEntity>>
