@@ -23,13 +23,13 @@ reescrever histórico.
    |          |
    +----------+
               v
-033-04 Composição diária FEA1 + D1 + D4
+033-04 Composição diária FEA1 + D1 + D4             ✓
               |
        +------+------+
        |             |
        v             v
 033-05 Watch sync   033-06 HC cutover/granular
-       |             |
+       ✓             |
        +------+------+
               v
 033-07 Produto/UI e remoção de entrypoints BLE
@@ -51,9 +51,9 @@ reescrever histórico.
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
 
-## Decisões congeladas e correção física pós-033-03
+## Decisões congeladas
 
-- Home pull-to-refresh será o único entrypoint de produto para leitura do relógio;
+- Home pull-to-refresh é o único entrypoint de produto para leitura do relógio;
 - FEA1 = total diário autoritativo de passos/validação;
 - D1 = linha granular diária do relógio e pode conter fatos ocorridos durante
   workouts;
@@ -76,9 +76,47 @@ reescrever histórico.
 - importação D3/D4 sai de Exercícios como ação de produto;
 - semântica Health Connect de calorias permanece bloqueada até evidência.
 
+## Correção física pós-033-05: cauda recente FEA1 × D1
+
+Refreshes consecutivos da Home confirmaram que FEA1, D1 e D3/D4 são executados em
+um único fluxo, D1/D4 permanecem idempotentes e o watch sync não escreve
+Health Connect automaticamente.
+
+No dump final foi observado:
+
+```text
+FEA1.steps = 4323
+Σ D1.steps = 4226
+D1         = 183 posições completas, sem lacunas
+último D1  = 15:10
+FEA1       = ~15:12:47
+```
+
+A diferença de `97` passos ocorreu com D1 estruturalmente completo. Portanto:
+
+```text
+FEA1 > ΣD1
++ D1 completo até totalPositions recebido
++ último bucket recente
+=> RECENT_TAIL / LAGGING
+=> não é divergência estrutural
+```
+
+A 033-06 absorve formalmente essa correção. Não será criada task separada.
+
+Também fica proibido fabricar:
+
+```text
+FEA1 - ΣD1
+```
+
+como bucket, intervalo ou `StepsRecord`. FEA1 não informa a distribuição temporal
+da cauda; somente novo D1 real pode materializá-la.
+
 Evidência física sanitizada:
 
-`docs/integration/033-03-d1-v2-physical-validation.md`.
+- `docs/integration/033-03-d1-v2-physical-validation.md`;
+- `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
 
 ## Resultado físico antes da 033-04
 
@@ -92,13 +130,29 @@ Dois dumps sucessivos confirmaram:
 - corrida em que D1 já continha os mesmos passos/distância do D4;
 - outro workout em que overlap temporal não autorizava descartar o bucket D1.
 
-A `033-04` deve implementar a política revisada, não o contrato de supressão
-integral originalmente escrito em 033-01.
+## Resultado físico da 033-05
 
-## Paralelismo
+Refreshes físicos sucessivos confirmaram:
 
-`033-02` e `033-03` foram concluídas. `033-04` está liberada para implementação
-sobre o contrato corrigido. `033-05`/`033-06` dependem da composição resultante.
+- Home atualiza FEA1 + D1 + D3/D4 em um único gesto;
+- D1 não duplica samples em refresh idempotente;
+- D3/D4 não recria workouts válidos já persistidos;
+- um workout novo foi descoberto pelo fluxo unificado sem usar Saúde/Exercícios;
+- fila Health Connect permaneceu sem efeito remoto automático;
+- FEA1 pode avançar à frente do último bucket D1 sem lacuna estrutural.
+
+Partial success forçado por falha de componente continua reservado para 033-09.
+
+## Próxima execução
+
+A 033-06 deve, além do cutover/granular Health Connect:
+
+- refinar a classificação `WatchDailyStepCoverage`/equivalente;
+- distinguir `COMPLETE`, cauda recente, incompletude estrutural e divergência;
+- nunca sintetizar residual FEA1-D1;
+- preservar IDs/payloads já congelados quando a cauda for materializada em D1
+  posterior;
+- falhar fechado para projeções que dependam de reconciliação ainda não provada.
 
 ## Guard rails
 
@@ -110,9 +164,5 @@ sobre o contrato corrigido. `033-05`/`033-06` dependem da composição resultant
 - não fabricar fatos diários antigos que nunca foram persistidos;
 - não usar header total D4 como fonte de comportamento;
 - não somar D1 + D4 ingenuamente nem suprimir D1 apenas por overlap;
+- não fabricar bucket residual a partir de FEA1-D1;
 - cada task atualiza este overview.
-
-## Observações
-
-- `033-05` concluída com validação de lint, builds debug/release e diff; validação
-  física de sessão compartilhada, partial success e retry permanece em `033-09`.
