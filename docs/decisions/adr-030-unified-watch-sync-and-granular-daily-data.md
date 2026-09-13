@@ -35,24 +35,30 @@ conteúdo do bucket.
 
 Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 
-A validação física pós-033-05 trouxe uma segunda correção importante. O watch sync
-unificado foi exercitado com refreshes consecutivos e permaneceu idempotente para
-D1 e D3/D4. Em uma tentativa posterior, o D1 estava estruturalmente completo até
-o último `totalPositions` recebido, mas FEA1 já estava à frente da soma D1 por uma
+A validação física pós-033-05 trouxe uma segunda correção. O watch sync unificado
+foi exercitado com refreshes consecutivos e permaneceu idempotente para D1 e
+D3/D4. Em uma tentativa posterior, o D1 estava estruturalmente completo até o
+último `totalPositions` recebido, mas FEA1 já estava à frente da soma D1 por uma
 pequena cauda temporal entre o último bucket de aproximadamente cinco minutos e o
 instante da leitura agregada FEA1.
 
-Isso confirma que:
-
-```text
-FEA1 > ΣD1
-```
-
-não implica automaticamente divergência. FEA1 é o total diário atual; D1 é a
-materialização temporal discreta e pode atrasar alguns minutos sem qualquer
-lacuna estrutural.
+Isso confirma que `FEA1 > ΣD1` não implica automaticamente divergência. FEA1 é o
+total diário atual; D1 é a materialização temporal discreta e pode atrasar alguns
+minutos sem qualquer lacuna estrutural.
 
 Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
+
+A validação física da primeira implementação da 033-06 em instalação limpa trouxe
+uma terceira correção arquitetural. A data de cutover foi ativada no próprio dia,
+mas D1 granular continuava deliberadamente bloqueado para Health Connect por não
+haver fronteira temporal/não sobreposição suficientemente provadas. Isso desligou
+o `DailySummary/FEA1 -> STEPS` antes de existir substituto remoto seguro e deixou
+o dia sem StepsRecord. A mesma validação mostrou que `Settings -> Sincronizar
+agora` não criava a primeira projeção de uma atividade Watch `READY_TO_SYNC`, e
+que backlog antigo podia exigir vários cliques manuais porque um gesto processava
+somente um lote de 100 operações.
+
+Evidência: `docs/integration/033-06-health-connect-clean-install-validation.md`.
 
 ## Decisão
 
@@ -97,22 +103,33 @@ Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
     importação D3/D4. Histórico local permanece preservado.
 13. Sincronizar relógio e sincronizar Health Connect são ações distintas. Watch
     sync somente persiste/prepara fila local; escrita remota exige ação explícita.
-14. Health Connect adota cutover por data local inteira: antes do cutover,
-    preservar projeções históricas; depois do cutover, não criar novo total
-    `DailySummary` de passos. A projeção granular pós-cutover não pode assumir
-    `D1 + D4` como fontes mutuamente exclusivas.
-15. Para Health Connect, cada record compartilhado entre D1/D4 exige uma
-    estratégia comprovadamente não sobreposta. Passos devem preservar o total
-    FEA1 e os contratos da Spec 027; se a implementação não puder provar uma
-    representação segura, deve falhar fechada em vez de duplicar records.
+14. A intenção/data de cutover Health Connect é persistida por dispositivo e dia
+    local, mas **o cutover efetivo de STEPS só pode desligar DailySummary/FEA1
+    quando existir uma projeção granular remota comprovadamente segura**. Enquanto
+    D1 granular estiver `deferred`, manter o caminho incremental FEA1 das Specs
+    016/027 e seus créditos/ledgers.
+15. Para Health Connect, cada record compartilhado entre D1/D4 exige estratégia
+    comprovadamente não sobreposta. Passos devem preservar o total FEA1 e os
+    contratos da Spec 027; se a implementação não puder provar uma representação
+    D1 segura, deve manter D1 local e não eliminar o fallback remoto conhecido.
 16. Cauda recente FEA1 × D1 não autoriza residual remoto: publicar somente fatos
-    temporais D1/D4 realmente materializados. Projeções que exigem fechamento do
-    dia aguardam a cauda real ou ficam bloqueadas/pendentes explicitamente.
-17. Não haverá backfill granular histórico nem reescrita silenciosa de records ou
+    temporais realmente materializados ou o agregado legacy já comprovado,
+    conforme a política de cutover efetivo.
+17. `Configurações -> Sincronizar agora` é uma ação explícita global. Ela deve
+    processar a fila local e também iniciar a primeira projeção de atividades
+    Watch `READY_TO_SYNC`, reutilizando o mesmo contrato congelado do sync
+    explícito de atividade. `PENDING_REVIEW`, `PENDING_CALIBRATION`, `DISCARDED` e
+    `SYNCED` não entram nessa preparação inicial.
+18. Backlog remoto continua foreground e finito. O gesto global pode processar
+    lotes sucessivos enquanto houver progresso, preservando a ordenação causal
+    existente dentro da fila e interrompendo quando não houver avanço. Não ordenar
+    ingenuamente por recência se isso puder quebrar cadeias incrementais de
+    passos/créditos.
+19. Não haverá backfill granular histórico nem reescrita silenciosa de records ou
     atividades já `SYNCED`.
-18. Calorias só serão promovidas ao tipo Health Connect correto depois de decisão
+20. Calorias só serão promovidas ao tipo Health Connect correto depois de decisão
     semântica sustentada por evidência; raw e escala permanecem preservados.
-19. Room continua fonte operacional/visual primária e Health Connect continua
+21. Room continua fonte operacional/visual primária e Health Connect continua
     write-only.
 
 ## Consequências positivas
@@ -126,19 +143,27 @@ Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
 - separa claramente agregado diário, granularidade diária e detalhe de workout;
 - diferença normal de frescor entre FEA1 e D1 não é tratada como corrupção;
 - nenhum residual sem timestamp é inventado para fechar o total;
+- STEPS não desaparece durante a transição entre representação legacy e D1
+  granular;
+- o sync global inclui workouts já revisados sem quebrar review-before-sync;
+- um backlog antigo pode avançar em um único gesto explícito sem alterar a ordem
+  causal interna das operações;
 - Health Connect evita dupla contagem entre total diário, D1 granular e workout;
 - step length deixa de ser conceito de produto sem quebrar histórico.
 
 ## Custos e riscos
 
 - migration Room aditiva e novos contratos de identidade D1;
-- necessidade de cutover persistido para HC;
+- cutover persistido passa a representar intenção/data solicitada enquanto a
+  aplicação efetiva de STEPS pode permanecer adiada;
 - composição D1/D4 exige autoridade por métrica em vez de regra temporal única;
 - classificação de cauda recente precisa usar estrutura e frescor, não apenas a
   diferença numérica FEA1 × D1;
 - fronteiras de bucket D1 ainda não estão suficientemente provadas para
   substituição proporcional ou parcial;
 - semântica de calorias D1 versus D4 ainda exige validação;
+- o gesto global de HC pode executar múltiplos lotes foreground; por isso deve ser
+  finito e interromper ao detectar ausência de progresso;
 - UI e ViewModels carregam state machines legadas que precisarão ser retiradas
   sem apagar dados históricos;
 - partial success aumenta a necessidade de metadata por componente.
@@ -176,6 +201,24 @@ situação é cauda recente, não falha estrutural.
 Rejeitada porque FEA1 não informa quando os passos residuais ocorreram. Criar
 bucket ou `StepsRecord` sintético inventaria distribuição temporal e poderia
 duplicar o próximo D1 real.
+
+### Desligar DailySummary STEPS antes de D1 granular estar publicável
+
+Rejeitada após validação física da instalação limpa. Um cutover sem substituto
+remoto seguro produz ausência total de STEPS e não melhora a integridade. A data
+pode ser registrada, mas a aplicação efetiva deve aguardar o substituto.
+
+### Sincronizar apenas fila já existente em Settings
+
+Rejeitada porque uma atividade Watch `READY_TO_SYNC` sem primeira projeção local
+ficava invisível ao gesto global. O sync global deve preparar explicitamente
+somente atividades já revisadas/elegíveis.
+
+### Ordenar todo backlog por “mais recente primeiro”
+
+Rejeitada porque operações incrementais e créditos de passos possuem causalidade.
+O gesto global pode drenar lotes sucessivos, mas não deve inverter a ordem sem
+prova de segurança.
 
 ### Continuar auto-sync Health Connect após refresh do relógio
 
