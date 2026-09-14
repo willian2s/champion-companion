@@ -31,9 +31,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +59,7 @@ fun SettingsScreen(
             ViewModelProvider(activity)[SettingsViewModel::class.java]
         }
     },
+    onOpenDevice: () -> Unit = {},
     onNavigateBack: (() -> Unit)? = null,
     backLabel: String = "Voltar",
 ) {
@@ -112,6 +113,7 @@ fun SettingsScreen(
                     onNavigateBack = onNavigateBack,
                     backLabel = backLabel,
                 )
+                WatchSettingsCard(onOpenDevice = onOpenDevice)
                 HealthConnectStatusCard(
                     state = state,
                     isConnected = isConnected,
@@ -147,7 +149,7 @@ private fun SettingsHeader(
 ) {
     ChampionRedesignSurfaceHeader(
         title = "Configurações",
-        supportingText = "Controle disponibilidade, permissões e sincronização write-only.",
+        supportingText = "Controle relógio, permissões e sincronização write-only.",
         navigationContent = onNavigateBack?.let { navigateBack ->
             {
                 ChampionRedesignHeaderNavigationAction(
@@ -162,6 +164,41 @@ private fun SettingsHeader(
             }
         },
     )
+}
+
+@Composable
+private fun WatchSettingsCard(
+    onOpenDevice: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = LocalChampionRedesignTokens.current.elevation.card),
+    ) {
+        Column(
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
+        ) {
+            Text(
+                text = "Relógio",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "Associe, conecte ou gerencie o Champion C001 usado pelas atualizações da Home.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = onOpenDevice,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Gerenciar relógio")
+            }
+        }
+    }
 }
 
 @Composable
