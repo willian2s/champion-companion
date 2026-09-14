@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply-and-verify:
-    if: github.event.head_commit.message == 'chore(033): apply native distance policy update'
     runs-on: ubuntu-latest
     steps:
       - name: Check out branch
@@ -49,7 +48,6 @@ jobs:
               section = section.replace(old, new, 1)
               return text[:start] + section + text[end:]
 
-          # D4 v4 native distance is now valid for FREE_WORKOUT and TREADMILL.
           path = 'app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt'
           text = load(path)
           text = replace_in_section(
@@ -62,7 +60,6 @@ jobs:
           )
           save(path, text)
 
-          # A native FREE_WORKOUT/TREADMILL snapshot is valid and must not be reset at review.
           path = 'app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt'
           text = load(path)
           text = replace_in_section(
@@ -98,7 +95,6 @@ jobs:
               'observed learned distance profiles',
               span=6000,
           )
-          # Keep evidence editing/removal coherent for the new TREADMILL native context.
           marker = 'private fun canMutateReferenceDistanceCalibration'
           start = text.find(marker)
           if start >= 0:
@@ -110,7 +106,6 @@ jobs:
                   text = text[:start] + section + text[end:]
           save(path, text)
 
-          # Learned native factor mapper accepts an isolated TREADMILL profile.
           path = 'app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt'
           text = load(path)
           text = replace_once(
@@ -121,7 +116,6 @@ jobs:
           )
           save(path, text)
 
-          # Treadmill final-distance form now uses the same native reference pipeline.
           path = 'app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt'
           text = load(path)
           text = replace_once(
@@ -132,7 +126,6 @@ jobs:
           )
           save(path, text)
 
-          # Native snapshots are no longer stale merely because the confirmed type is FREE/TREADMILL.
           path = 'app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt'
           text = load(path)
           text = replace_in_section(
@@ -145,7 +138,6 @@ jobs:
           )
           save(path, text)
 
-          # Document the explicit evolution instead of rewriting the historical 032 decision silently.
           spec = Path('docs/specs/032-d4-native-workout-metrics.md')
           spec_text = spec.read_text()
           amendment = '''\n\n## Evolução de política pós-032 — 2026-09-14\n\nA validação física da entrega 033 mostrou um `FREE_WORKOUT` D4 v4 íntegro com\ndistância nativa positiva. A decisão original de R6/R8 que restringia a promoção\nda distância D4 a `RUNNING`/`WALKING` fica supersedida para novas operações pela\nseguinte política:\n\n- `FREE_WORKOUT` preserva e publica a distância nativa D4 quando a série v4 for\n  estruturalmente elegível; não aprende fator contextual nesta evolução;\n- `TREADMILL` também usa a distância nativa D4 como base e permanece em\n  `PENDING_CALIBRATION` até o usuário informar a distância final da esteira;\n- a calibração de `TREADMILL` usa o mesmo modelo proporcional da referência\n  nativa (`distância informada / distância D4`) e aprende um fator contextual\n  próprio de `TREADMILL`, sem compartilhar evidência com `RUNNING` ou `WALKING`;\n- `CYCLING` permanece com sua política própria;\n- a forma temporal medida pelo relógio é preservada: a calibração escala cada\n  intervalo nativo pelo fator, em vez de reconstruir uma distribuição linear.\n\nEsta evolução não reescreve atividades já sincronizadas nem altera os fatos D4\nraw persistidos.\n'''
