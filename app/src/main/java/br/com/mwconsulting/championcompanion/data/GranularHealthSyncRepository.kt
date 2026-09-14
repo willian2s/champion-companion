@@ -36,7 +36,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -54,7 +53,8 @@ import kotlinx.serialization.json.Json
  *
  * RoomRepositories continua dono da fila/ledger histórico. Esta camada prepara
  * somente STEPS D1 comprovados, reserva WorkoutSteps para a linha diária granular
- * pós-cutover e remove operações terminalmente bloqueadas da contagem acionável.
+ * pós-cutover e remove apenas bloqueios terminalmente cobertos da contagem
+ * acionável.
  */
 @Singleton
 class GranularHealthSyncRepository @Inject constructor(
@@ -147,25 +147,29 @@ class GranularHealthSyncRepository @Inject constructor(
     override fun observeSyncSummary(): Flow<HealthSyncSummary> =
         database.healthSyncOperationDao().observeAll()
             .map { entities ->
-                val locallyResolvedBlockedIds = buildSet {
+                val locallyResolvedCoveredIds = buildSet {
                     for (entity in entities) {
                         if (!entity.isWorkoutStepsInsert()) continue
                         val credit = database.workoutStepsCreditDao()
                             .findByWorkoutStepsOperationId(entity.id)
                             ?.toDomain()
                             ?: continue
-                        if (credit.state == WorkoutStepsCreditState.BLOCKED) add(entity.id)
+                        if (credit.state == WorkoutStepsCreditState.BLOCKED &&
+                            credit.blockedReason == WorkoutStepsCreditBlockReason.ALREADY_COVERED
+                        ) {
+                            add(entity.id)
+                        }
                     }
                 }
                 HealthSyncSummary(
                     pendingCount = entities.count {
-                        it.state == SyncOperationState.PENDING.name && it.id !in locallyResolvedBlockedIds
+                        it.state == SyncOperationState.PENDING.name && it.id !in locallyResolvedCoveredIds
                     },
                     syncingCount = entities.count {
-                        it.state == SyncOperationState.SYNCING.name && it.id !in locallyResolvedBlockedIds
+                        it.state == SyncOperationState.SYNCING.name && it.id !in locallyResolvedCoveredIds
                     },
                     failedCount = entities.count {
-                        it.state == SyncOperationState.FAILED.name && it.id !in locallyResolvedBlockedIds
+                        it.state == SyncOperationState.FAILED.name && it.id !in locallyResolvedCoveredIds
                     },
                     syncedCount = entities.count { it.state == SyncOperationState.SYNCED.name },
                     lastSyncedAt = entities.mapNotNull { it.syncedAtEpochMillis }.maxOrNull()?.let(Instant::ofEpochMilli),
@@ -312,51 +316,58 @@ class GranularHealthSyncRepository @Inject constructor(
         operation: HealthSyncOperation,
         context: WorkoutStepsProjectionContext,
     ): RepositoryResult<Unit> = withContext(ioDispatcher) {
-        val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
-            ?: return@withContext RepositoryResult.UnexpectedState
-        val activity = database.workoutActivityDao().findById(aggregate.activityId.value.toString())
-            ?: return@withContext RepositoryResult.NotFound
-        val deviceId = activity.deviceId ?: return@withContext RepositoryResult.UnexpectedState
-        val cutoverEntity = database.healthSyncCutoverDao().findByDeviceId(deviceId)
-            ?: return@withContext RepositoryResult.Success(Unit)
-        val requestedCutover = runCatching { LocalDate.parse(cutoverEntity.localDateIso) }.getOrNull()
-            ?: return@withContext RepositoryResult.UnexpectedState
-        val effectiveCutover = maxOf(requestedCutover, HealthSyncCutover.GRANULAR_STEPS_ACTIVATION_DATE)
-        val zoneId = runCatching { ZoneId.of(cutoverEntity.zoneId) }.getOrNull()
-            ?: return@withContext RepositoryResult.UnexpectedState
-        val localDate = context.window.start.atZone(zoneId).toLocalDate()
-        if (localDate < effectiveCutover) return@withContext RepositoryResult.Success(Unit)
+        try {
+            database.withWriteTransaction {
+                val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
+                    ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                val activity = database.workoutActivityDao().findById(aggregate.activityId.value.toString())
+                    ?: return@withWriteTransaction RepositoryResult.NotFound
+                val deviceId = activity.deviceId ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                val cutoverEntity = database.healthSyncCutoverDao().findByDeviceId(deviceId)
+                    ?: return@withWriteTransaction RepositoryResult.Success(Unit)
+                val requestedCutover = runCatching { LocalDate.parse(cutoverEntity.localDateIso) }.getOrNull()
+                    ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                val effectiveCutover = maxOf(requestedCutover, HealthSyncCutover.GRANULAR_STEPS_ACTIVATION_DATE)
+                val zoneId = runCatching { ZoneId.of(cutoverEntity.zoneId) }.getOrNull()
+                    ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                val localDate = context.window.start.atZone(zoneId).toLocalDate()
+                if (localDate < effectiveCutover) return@withWriteTransaction RepositoryResult.Success(Unit)
 
-        val summary = database.dailySummaryDao().findByNaturalKey(
-            deviceId = deviceId,
-            origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
-            localDateIso = localDate.toString(),
-        )
-        if (summary != null) {
-            val legacyDailySteps = database.healthSyncOperationDao()
-                .findByAggregate(summary.id, HealthSyncAggregateType.DAILY_SUMMARY.name)
-                .any { it.recordType == HealthSyncRecordType.STEPS.name }
-            if (legacyDailySteps) return@withContext RepositoryResult.Success(Unit)
-        }
+                val summary = database.dailySummaryDao().findByNaturalKey(
+                    deviceId = deviceId,
+                    origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
+                    localDateIso = localDate.toString(),
+                )
+                if (summary != null) {
+                    val legacyDailySteps = database.healthSyncOperationDao()
+                        .findByAggregate(summary.id, HealthSyncAggregateType.DAILY_SUMMARY.name)
+                        .any { it.recordType == HealthSyncRecordType.STEPS.name }
+                    if (legacyDailySteps) return@withWriteTransaction RepositoryResult.Success(Unit)
+                }
 
-        val creditEntity = database.workoutStepsCreditDao()
-            .findByWorkoutStepsOperationId(operation.id.value.toString())
-            ?: return@withContext RepositoryResult.UnexpectedState
-        val credit = creditEntity.toDomain() ?: return@withContext RepositoryResult.UnexpectedState
-        if (credit.state == WorkoutStepsCreditState.BLOCKED &&
-            credit.blockedReason == WorkoutStepsCreditBlockReason.ALREADY_COVERED
-        ) {
-            return@withContext RepositoryResult.Success(Unit)
-        }
-        if (credit.state != WorkoutStepsCreditState.PENDING) {
-            return@withContext RepositoryResult.UnexpectedState
-        }
-        val blocked = credit.block(WorkoutStepsCreditBlockReason.ALREADY_COVERED, Instant.now()).valueOrNull()
-            ?: return@withContext RepositoryResult.UnexpectedState
-        return@withContext if (database.workoutStepsCreditDao().update(blocked.toEntity()) == 1) {
-            RepositoryResult.Success(Unit)
-        } else {
-            RepositoryResult.Conflict
+                val creditEntity = database.workoutStepsCreditDao()
+                    .findByWorkoutStepsOperationId(operation.id.value.toString())
+                    ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                val credit = creditEntity.toDomain() ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                if (credit.state == WorkoutStepsCreditState.BLOCKED &&
+                    credit.blockedReason == WorkoutStepsCreditBlockReason.ALREADY_COVERED
+                ) {
+                    return@withWriteTransaction RepositoryResult.Success(Unit)
+                }
+                if (credit.state != WorkoutStepsCreditState.PENDING) {
+                    return@withWriteTransaction RepositoryResult.UnexpectedState
+                }
+                val blocked = credit.block(WorkoutStepsCreditBlockReason.ALREADY_COVERED, Instant.now()).valueOrNull()
+                    ?: return@withWriteTransaction RepositoryResult.UnexpectedState
+                if (database.workoutStepsCreditDao().update(blocked.toEntity()) != 1) {
+                    return@withWriteTransaction RepositoryResult.Conflict
+                }
+                RepositoryResult.Success(Unit)
+            }
+        } catch (_: IllegalArgumentException) {
+            RepositoryResult.UnexpectedState
+        } catch (_: IllegalStateException) {
+            RepositoryResult.UnexpectedState
         }
     }
 
@@ -421,10 +432,6 @@ class GranularHealthSyncRepository @Inject constructor(
 
     private fun stableD1ClientRecordId(sampleId: String): String =
         "${BuildConfig.APPLICATION_ID}:${HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE.name}:$sampleId:${HealthSyncRecordType.STEPS.name}"
-
-    private fun HealthSyncFrozenInstant.toInstantOrNull(): Instant? = runCatching {
-        Instant.ofEpochSecond(epochSecond, nano.toLong())
-    }.getOrNull()
 
     private fun Instant.toFrozenInstant(): HealthSyncFrozenInstant = HealthSyncFrozenInstant(
         epochSecond = epochSecond,
