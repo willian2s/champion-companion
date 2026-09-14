@@ -333,14 +333,20 @@ class SettingsViewModel @Inject constructor(
         add(permissionGroup("Frequência cardíaca", setOf(HealthConnectWritePermission.HEART_RATE), granted))
         add(permissionGroup("Exercícios", setOf(HealthConnectWritePermission.EXERCISE), granted))
         add(permissionGroup("Distância", setOf(HealthConnectWritePermission.DISTANCE), granted))
-        if (speedProjectionEligible) {
+        if (speedProjectionEligible || HealthConnectWritePermission.SPEED in granted) {
             add(permissionGroup("Velocidade", setOf(HealthConnectWritePermission.SPEED), granted))
         }
         add(permissionGroup("Calorias", setOf(HealthConnectWritePermission.TOTAL_CALORIES_BURNED), granted))
-        if (metrics.weightKilograms != null && metrics.latestWeightMeasuredAt != null) {
+        if (
+            (metrics.weightKilograms != null && metrics.latestWeightMeasuredAt != null) ||
+            HealthConnectWritePermission.WEIGHT in granted
+        ) {
             add(permissionGroup("Peso", setOf(HealthConnectWritePermission.WEIGHT), granted))
         }
-        if (metrics.heightCentimeters?.let { it.isFinite() && it > 0.0 } == true) {
+        if (
+            metrics.heightCentimeters?.let { it.isFinite() && it > 0.0 } == true ||
+            HealthConnectWritePermission.HEIGHT in granted
+        ) {
             add(permissionGroup("Altura", setOf(HealthConnectWritePermission.HEIGHT), granted))
         }
     }
