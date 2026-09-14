@@ -1,13 +1,19 @@
 package br.com.mwconsulting.championcompanion.core.healthconnect
 
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.metadata.Device as HealthConnectDevice
+import androidx.health.connect.client.records.metadata.Metadata
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenDailyD1Payload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenInstant
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenProjectionPayload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenStepsCadenceSample
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
@@ -15,10 +21,13 @@ import br.com.mwconsulting.championcompanion.core.model.SafeSyncError
 import br.com.mwconsulting.championcompanion.core.model.UserProfile
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -38,8 +47,68 @@ class SafeHealthRecordMapper @Inject constructor(
     override fun mapDailySummary(operation: HealthSyncOperation): HealthRecordMappingResult =
         mapSafely { delegate.mapDailySummary(operation) }
 
-    override fun mapFrozenDailyD1Sample(operation: HealthSyncOperation): HealthRecordMappingResult =
-        mapSafely { delegate.mapFrozenDailyD1Sample(operation) }
+    override fun mapFrozenDailyD1Sample(operation: HealthSyncOperation): HealthRecordMappingResult = mapSafely {
+        val aggregate = operation.key.aggregate as? HealthSyncAggregate.WatchDailyD1Sample
+            ?: return@mapSafely invalidMappedRecord("Operação D1 sem agregado de amostra.")
+        if (operation.key.recordType != HealthSyncRecordType.STEPS ||
+            operation.action != HealthSyncOperationAction.INSERT
+        ) {
+            return@mapSafely invalidMappedRecord("Operação D1 granular inválida.")
+        }
+        val clientRecordId = operation.clientRecordId
+            ?: return@mapSafely invalidMappedRecord("Operação D1 sem identidade estável.")
+        val clientRecordVersion = operation.clientRecordVersion
+            ?: return@mapSafely invalidMappedRecord("Operação D1 sem versão estável.")
+        val payload = operation.frozenPayload
+            ?.takeIf { it.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION }
+            ?.let { frozen ->
+                runCatching {
+                    frozenProjectionJson.decodeFromString<HealthSyncFrozenDailyD1Payload>(frozen.serializedPayload)
+                }.getOrNull()
+            }
+            ?: return@mapSafely invalidMappedRecord("Operação D1 sem payload congelado válido.")
+        if (payload.recordType != HealthSyncRecordType.STEPS.name ||
+            payload.sampleId != aggregate.sampleId.value.toString() ||
+            payload.zoneId != operation.timeZoneId ||
+            payload.steps !in MIN_STEPS_RECORD_COUNT..MAX_STEPS_RECORD_COUNT
+        ) {
+            return@mapSafely invalidMappedRecord("Payload D1 não corresponde ao fato persistido.")
+        }
+        val start = payload.start.toInstantOrNull()
+            ?: return@mapSafely invalidMappedRecord("Início do bucket D1 inválido.")
+        val end = payload.end.toInstantOrNull()
+            ?: return@mapSafely invalidMappedRecord("Fim do bucket D1 inválido.")
+        if (!start.isBefore(end) || Duration.between(start, end) != D1_STEP_BUCKET_DURATION) {
+            return@mapSafely invalidMappedRecord("Janela D1 não corresponde ao bucket físico de cinco minutos.")
+        }
+        val zoneId = runCatching { ZoneId.of(payload.zoneId) }.getOrNull()
+            ?: return@mapSafely invalidMappedRecord("Fuso do bucket D1 inválido.")
+        val startOffset = payload.startZoneOffsetSeconds.toZoneOffsetOrNull()
+            ?: return@mapSafely invalidMappedRecord("Offset inicial D1 inválido.")
+        val endOffset = payload.endZoneOffsetSeconds.toZoneOffsetOrNull()
+            ?: return@mapSafely invalidMappedRecord("Offset final D1 inválido.")
+        if (zoneId.rules.getOffset(start) != startOffset || zoneId.rules.getOffset(end) != endOffset) {
+            return@mapSafely invalidMappedRecord("Offsets D1 não correspondem ao fuso congelado.")
+        }
+        HealthRecordMappingResult.Success(
+            HealthConnectMappedRecord(
+                recordType = HealthSyncRecordType.STEPS,
+                permission = HealthConnectWritePermission.STEPS,
+                record = StepsRecord(
+                    start,
+                    startOffset,
+                    end,
+                    endOffset,
+                    payload.steps,
+                    Metadata.autoRecorded(
+                        device = watchDevice(),
+                        clientRecordId = clientRecordId,
+                        clientRecordVersion = clientRecordVersion,
+                    ),
+                ),
+            ),
+        )
+    }
 
     override fun mapHeartRateMeasurement(
         operation: HealthSyncOperation,
@@ -209,11 +278,12 @@ class SafeHealthRecordMapper @Inject constructor(
         invalidMappedRecord()
     }
 
-    private fun invalidMappedRecord(): HealthRecordMappingResult.Failure =
-        HealthRecordMappingResult.Failure(
-            error = SafeSyncError.INVALID_LOCAL_DATA,
-            reason = "Dados locais incompatíveis com o contrato do Health Connect.",
-        )
+    private fun invalidMappedRecord(
+        reason: String = "Dados locais incompatíveis com o contrato do Health Connect.",
+    ): HealthRecordMappingResult.Failure = HealthRecordMappingResult.Failure(
+        error = SafeSyncError.INVALID_LOCAL_DATA,
+        reason = reason,
+    )
 
     private fun invalidFrozenPayload(
         reason: String = "Não foi possível preparar a projeção para o Health Connect.",
@@ -240,12 +310,27 @@ class SafeHealthRecordMapper @Inject constructor(
         nano = nano,
     )
 
+    private fun HealthSyncFrozenInstant.toInstantOrNull(): Instant? = runCatching {
+        Instant.ofEpochSecond(epochSecond, nano.toLong())
+    }.getOrNull()
+
+    private fun Int.toZoneOffsetOrNull(): ZoneOffset? = runCatching {
+        ZoneOffset.ofTotalSeconds(this)
+    }.getOrNull()
+
+    private fun watchDevice(): HealthConnectDevice = HealthConnectDevice(
+        HealthConnectDevice.TYPE_WATCH,
+        "Champion",
+        "Champion C001",
+    )
+
     private data class HealthProjectionWindow(
         val start: Instant,
         val end: Instant,
     )
 
     private companion object {
+        val D1_STEP_BUCKET_DURATION: Duration = Duration.ofMinutes(5)
         const val MIN_STEPS_RECORD_COUNT = 1L
         const val MAX_STEPS_RECORD_COUNT = 1_000_000L
         const val MIN_STEPS_CADENCE_RATE = 0.0
