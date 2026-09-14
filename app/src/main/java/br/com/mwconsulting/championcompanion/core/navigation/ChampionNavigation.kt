@@ -70,6 +70,7 @@ import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileScreen
 import br.com.mwconsulting.championcompanion.feature.profile.ProfileViewModel
+import br.com.mwconsulting.championcompanion.feature.settings.SettingsIntent
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsScreen
 import br.com.mwconsulting.championcompanion.feature.settings.SettingsViewModel
 import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
@@ -459,6 +460,8 @@ private fun ChampionNavDisplay(
     backLabel: String,
     onOpenDebugPoc: (() -> Unit)?,
 ) {
+    val settingsState by settingsViewModel.state.collectAsState()
+
     // Navigate to ActiveWorkout when a workout session is started
     LaunchedEffect(Unit) {
         exercisesViewModel.workoutStarted.collect { sessionId ->
@@ -487,6 +490,12 @@ private fun ChampionNavDisplay(
                 onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
                 onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
                 onOpenExercises = { onNavigateTo(AppDestination.Exercises) },
+                onSyncHealthConnect = { settingsViewModel.onIntent(SettingsIntent.SyncNow) },
+                isHealthConnectSyncRunning = settingsState.isSyncNowRunning,
+                healthConnectSyncStatusMessage = settingsState.syncStatusMessage,
+                onDismissHealthConnectSyncStatus = {
+                    settingsViewModel.onIntent(SettingsIntent.DismissStatus)
+                },
             )
             AppDestination.Health -> HealthScreen(
                 onOpenHeartRate = { onNavigateTo(AppDestination.HealthHeartRate) },
@@ -594,6 +603,7 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Settings -> SettingsScreen(
                 viewModel = settingsViewModel,
+                onOpenDevice = { onNavigateTo(AppDestination.Device) },
                 onNavigateBack = onBackRequested,
                 backLabel = backLabel,
             )
