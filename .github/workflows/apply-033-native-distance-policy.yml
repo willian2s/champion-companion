@@ -2,8 +2,7 @@ name: Apply 033 native distance policy
 
 on:
   push:
-    branches:
-      - feat/033-unified-watch-daily-sync
+    branches: [feat/033-unified-watch-daily-sync]
 
 permissions:
   contents: write
@@ -12,164 +11,125 @@ jobs:
   apply-and-verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: feat/033-unified-watch-daily-sync
           fetch-depth: 0
 
-      - name: Apply focused policy changes
+      - name: Apply native distance policy
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          def load(path):
-              return Path(path).read_text()
+          def patch(path, anchor, old, new, span=20000):
+              p = Path(path)
+              s = p.read_text()
+              i = s.find(anchor)
+              if i < 0:
+                  raise SystemExit(f'{path}: anchor not found: {anchor}')
+              j = min(len(s), i + span)
+              part = s[i:j]
+              n = part.count(old)
+              if n != 1:
+                  raise SystemExit(f'{path}: {anchor}: expected 1 target, got {n}')
+              p.write_text(s[:i] + part.replace(old, new, 1) + s[j:])
 
-          def save(path, text):
-              Path(path).write_text(text)
-
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected exactly 1 match, got {count}")
-              return text.replace(old, new, 1)
-
-          def replace_in_section(text, anchor, old, new, label, span=12000):
-              start = text.find(anchor)
-              if start < 0:
-                  raise SystemExit(f"{label}: anchor not found: {anchor}")
-              end = min(len(text), start + span)
-              section = text[start:end]
-              count = section.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected exactly 1 match in section, got {count}")
-              section = section.replace(old, new, 1)
-              return text[:start] + section + text[end:]
-
-          path = 'app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt'
-          text = load(path)
-          text = replace_in_section(
-              text,
+          patch(
+              'app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt',
               'object WatchWorkoutNativeDistancePolicy',
-              '''                WorkoutType.UNKNOWN,\n                WorkoutType.RUNNING,\n                WorkoutType.WALKING,\n''',
-              '''                WorkoutType.UNKNOWN,\n                WorkoutType.RUNNING,\n                WorkoutType.WALKING,\n                WorkoutType.FREE_WORKOUT,\n                WorkoutType.TREADMILL,\n''',
-              'native distance eligible types',
-              span=5000,
+              'WorkoutType.UNKNOWN,\n                WorkoutType.RUNNING,\n                WorkoutType.WALKING,',
+              'WorkoutType.UNKNOWN,\n                WorkoutType.RUNNING,\n                WorkoutType.WALKING,\n                WorkoutType.FREE_WORKOUT,\n                WorkoutType.TREADMILL,',
+              5000,
           )
-          save(path, text)
 
-          path = 'app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt'
-          text = load(path)
-          text = replace_in_section(
-              text,
+          room = 'app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt'
+          patch(
+              room,
               'override suspend fun submitReview',
               'reviewed.confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)',
               'reviewed.confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.FREE_WORKOUT, WorkoutType.TREADMILL)',
-              'review native policy reset',
           )
-          text = replace_in_section(
-              text,
-              'private suspend fun resolveLearnedDistanceCalibrationFactorInternal',
-              'workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)',
-              'workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)',
-              'learned native factor types',
-              span=3000,
+          patch(
+              room,
+              'override fun observeLearnedDistanceCalibrationProfiles',
+              '''combine(\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.RUNNING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.RUNNING) },\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.WALKING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.WALKING) },\n                ) { running, walking -> listOfNotNull(running, walking) }''',
+              '''combine(\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.RUNNING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.RUNNING) },\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.WALKING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.WALKING) },\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.TREADMILL.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.TREADMILL) },\n                ) { running, walking, treadmill -> listOfNotNull(running, walking, treadmill) }''',
+              7000,
           )
-          text = replace_in_section(
-              text,
+          patch(
+              room,
               'override suspend fun applyReferenceDistanceCalibration',
               'type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)',
               'type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)',
-              'reference calibration types',
-              span=14000,
           )
-          old_profiles = '''                combine(\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.RUNNING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.RUNNING) },\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.WALKING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.WALKING) },\n                ) { running, walking -> listOfNotNull(running, walking) }\n                    .collect { emit(it) }\n'''
-          new_profiles = '''                combine(\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.RUNNING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.RUNNING) },\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.WALKING.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.WALKING) },\n                    database.distanceCalibrationEvidenceDao()\n                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.TREADMILL.name)\n                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.TREADMILL) },\n                ) { running, walking, treadmill -> listOfNotNull(running, walking, treadmill) }\n                    .collect { emit(it) }\n'''
-          text = replace_in_section(
-              text,
-              'override fun observeLearnedDistanceCalibrationProfiles',
-              old_profiles,
-              new_profiles,
-              'observed learned distance profiles',
-              span=6000,
+          patch(
+              room,
+              'private suspend fun resolveLearnedDistanceCalibrationFactorInternal',
+              'workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)',
+              'workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)',
+              4000,
           )
-          marker = 'private fun canMutateReferenceDistanceCalibration'
-          start = text.find(marker)
-          if start >= 0:
-              end = min(len(text), start + 5000)
-              section = text[start:end]
+          # Allow edit/remove of native treadmill evidence when this helper has the same type gate.
+          p = Path(room)
+          s = p.read_text()
+          i = s.find('private fun canMutateReferenceDistanceCalibration')
+          if i >= 0:
+              j = min(len(s), i + 6000)
+              part = s[i:j]
               old = 'setOf(WorkoutType.RUNNING, WorkoutType.WALKING)'
-              if old in section:
-                  section = section.replace(old, 'setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)', 1)
-                  text = text[:start] + section + text[end:]
-          save(path, text)
+              if old in part:
+                  p.write_text(s[:i] + part.replace(old, 'setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)', 1) + s[j:])
 
-          path = 'app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt'
-          text = load(path)
-          text = replace_in_section(
-              text,
+          patch(
+              'app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt',
               'internal fun List<DistanceCalibrationEvidenceEntity>.toLearnedDistanceCalibrationProfile',
               'if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null',
               'if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) return null',
-              'distance calibration mapper types',
-              span=5000,
+              5000,
           )
-          save(path, text)
 
-          path = 'app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt'
-          text = load(path)
-          text = replace_once(
-              text,
+          patch(
+              'app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt',
+              'private fun submitCalibration',
               'activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)',
               'activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)',
-              'calibration routing types',
+              8000,
           )
-          save(path, text)
 
-          path = 'app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt'
-          text = load(path)
-          text = replace_in_section(
-              text,
+          patch(
+              'app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutActivity.kt',
               'val requiresWatchWorkoutReprocessing',
-              '''                WorkoutType.UNKNOWN,\n                WorkoutType.RUNNING,\n                WorkoutType.WALKING,\n                WorkoutType.CYCLING,\n''',
-              '''                WorkoutType.UNKNOWN,\n                WorkoutType.RUNNING,\n                WorkoutType.WALKING,\n                WorkoutType.FREE_WORKOUT,\n                WorkoutType.TREADMILL,\n                WorkoutType.CYCLING,\n''',
-              'native snapshot reprocessing types',
-              span=6000,
+              '''confirmedType !in setOf(\n                    WorkoutType.UNKNOWN,\n                    WorkoutType.RUNNING,\n                    WorkoutType.WALKING,\n                    WorkoutType.CYCLING,\n                )''',
+              '''confirmedType !in setOf(\n                    WorkoutType.UNKNOWN,\n                    WorkoutType.RUNNING,\n                    WorkoutType.WALKING,\n                    WorkoutType.FREE_WORKOUT,\n                    WorkoutType.TREADMILL,\n                    WorkoutType.CYCLING,\n                )''',
+              7000,
           )
-          save(path, text)
 
           spec = Path('docs/specs/032-d4-native-workout-metrics.md')
-          spec_text = spec.read_text()
-          amendment = '''\n\n## Evolução de política pós-032 — 2026-09-14\n\nA validação física da entrega 033 mostrou um `FREE_WORKOUT` D4 v4 íntegro com\ndistância nativa positiva. A decisão original de R6/R8 que restringia a promoção\nda distância D4 a `RUNNING`/`WALKING` fica supersedida para novas operações pela\nseguinte política:\n\n- `FREE_WORKOUT` preserva e publica a distância nativa D4 quando a série v4 for\n  estruturalmente elegível; não aprende fator contextual nesta evolução;\n- `TREADMILL` também usa a distância nativa D4 como base e permanece em\n  `PENDING_CALIBRATION` até o usuário informar a distância final da esteira;\n- a calibração de `TREADMILL` usa o mesmo modelo proporcional da referência\n  nativa (`distância informada / distância D4`) e aprende um fator contextual\n  próprio de `TREADMILL`, sem compartilhar evidência com `RUNNING` ou `WALKING`;\n- `CYCLING` permanece com sua política própria;\n- a forma temporal medida pelo relógio é preservada: a calibração escala cada\n  intervalo nativo pelo fator, em vez de reconstruir uma distribuição linear.\n\nEsta evolução não reescreve atividades já sincronizadas nem altera os fatos D4\nraw persistidos.\n'''
-          if '## Evolução de política pós-032 — 2026-09-14' not in spec_text:
-              spec.write_text(spec_text.rstrip() + amendment + '\n')
+          s = spec.read_text()
+          if '## Evolução de política pós-032 — 2026-09-14' not in s:
+              spec.write_text(s.rstrip() + '''\n\n## Evolução de política pós-032 — 2026-09-14\n\nA validação física da entrega 033 mostrou um `FREE_WORKOUT` D4 v4 íntegro com distância nativa positiva. Para novas operações, a restrição original de R6/R8 é supersedida: `FREE_WORKOUT` preserva `WATCH_NATIVE`; `TREADMILL` também usa a distância D4 nativa e continua exigindo a distância final da esteira para calibração. A calibração de esteira usa `referência / distância D4`, escala proporcionalmente cada intervalo nativo e aprende um fator contextual próprio de `TREADMILL`, sem compartilhar evidência com `RUNNING` ou `WALKING`. `CYCLING` permanece inalterado. Atividades já sincronizadas e fatos raw não são reescritos.\n''')
 
           overview = Path('docs/tasks/033-unified-watch-daily-sync/033-00-overview.md')
-          overview_text = overview.read_text()
-          note = '''\n\n### Evolução física: distância D4 em treino livre e esteira — 2026-09-14\n\nA validação física de 033-10 encontrou um `FREE_WORKOUT` `d4-v4` válido com\n`173` passos, `140 m` de distância nativa e `9,169 kcal`. A revisão falhava\nporque o fluxo removia `WATCH_NATIVE` ao confirmar `FREE_WORKOUT`. A política foi\nevoluída: `FREE_WORKOUT` e `TREADMILL` passam a aceitar distância D4 nativa;\n`TREADMILL` usa a distância final informada pelo usuário para gerar fator nativo\ncontextual próprio. O overlap D1/D4 continua métrico: distância D4 positiva\nsuprime somente `D1 DISTANCE` sobreposta.\n'''
-          if '### Evolução física: distância D4 em treino livre e esteira — 2026-09-14' not in overview_text:
-              overview.write_text(overview_text.rstrip() + note + '\n')
+          s = overview.read_text()
+          if '### Evolução física: distância D4 em treino livre e esteira — 2026-09-14' not in s:
+              overview.write_text(s.rstrip() + '''\n\n### Evolução física: distância D4 em treino livre e esteira — 2026-09-14\n\nA validação física de 033-10 encontrou `FREE_WORKOUT` `d4-v4` válido com 173 passos, 140 m de distância nativa e 9,169 kcal. A revisão falhava porque removia `WATCH_NATIVE` ao confirmar o tipo. A política foi evoluída: `FREE_WORKOUT` e `TREADMILL` aceitam distância D4 nativa; `TREADMILL` usa a distância final informada pelo usuário para fator contextual próprio. O overlap continua por métrica: D4 `DISTANCE > 0` suprime somente `D1 DISTANCE` sobreposta.\n''')
           PY
 
       - name: Validate diff
         run: git diff --check
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Validate Android build
         run: ./gradlew lint assembleDebug assembleRelease
 
       - name: Commit validated changes
-        shell: bash
         run: |
           rm .github/workflows/apply-033-native-distance-policy.yml
           git config user.name 'github-actions[bot]'
