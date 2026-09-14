@@ -44,8 +44,8 @@ follow-up promovido por evidência física:
 
 `033-06` foi revalidada fisicamente em 2026-09-14 com STEPS granular D1 real,
 workout simultâneo e zero pendências acionáveis após sync. A `033-07` segue em
-execução. A `033-10` possui implementação de código concluída, mas continua
-`in_progress` até passar build/diff e validação física no próximo treino.
+execução. A `033-10` possui implementação de código e validação técnica concluídas;
+permanece `in_progress` somente até a validação física no próximo treino.
 
 ## Checklist
 
@@ -58,7 +58,7 @@ execução. A `033-10` possui implementação de código concluída, mas continu
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — em andamento
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
-- [ ] `033-10-publicar-distancia-calorias-d1-granulares.md` — código concluído; validação pendente
+- [ ] `033-10-publicar-distancia-calorias-d1-granulares.md` — código/build concluídos; validação física pendente
 
 ## Decisões congeladas
 
@@ -184,8 +184,9 @@ locomotoramente zero intersecta D1 válido: zero D4 não apaga o fato D1.
 A implementação usa schema congelado v5 para essas duas famílias, identidade por
 `sampleId + recordType`, nenhuma migration Room e nenhuma nova escrita automática.
 
-Validação física permanece pendente conforme
-`033-10-publicar-distancia-calorias-d1-granulares.md`.
+Gate técnico concluído em 2026-09-14: `./gradlew lint assembleDebug assembleRelease`
+terminou com `BUILD SUCCESSFUL` e `git diff --check` não reportou erros. A validação
+física permanece pendente conforme `033-10-publicar-distancia-calorias-d1-granulares.md`.
 
 ## Correção física pós-033-05: cauda recente FEA1 × D1
 
