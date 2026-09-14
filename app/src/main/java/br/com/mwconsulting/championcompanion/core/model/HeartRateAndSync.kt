@@ -181,6 +181,7 @@ enum class HealthSyncRecordType {
     HEART_RATE,
     EXERCISE_SESSION,
     DISTANCE,
+    ACTIVE_CALORIES_BURNED,
     TOTAL_CALORIES_BURNED,
     WEIGHT,
     HEIGHT,
@@ -860,7 +861,11 @@ data class HealthSyncOperation private constructor(
             }
             val supportedRecordType = when (key.aggregate) {
                 is HealthSyncAggregate.DailySummary -> key.recordType == HealthSyncRecordType.STEPS
-                is HealthSyncAggregate.WatchDailyD1Sample -> key.recordType == HealthSyncRecordType.STEPS
+                is HealthSyncAggregate.WatchDailyD1Sample -> key.recordType in setOf(
+                    HealthSyncRecordType.STEPS,
+                    HealthSyncRecordType.DISTANCE,
+                    HealthSyncRecordType.ACTIVE_CALORIES_BURNED,
+                )
                 is HealthSyncAggregate.HeartRateMeasurement -> key.recordType == HealthSyncRecordType.HEART_RATE
                 is HealthSyncAggregate.WorkoutActivity -> key.recordType in setOf(
                     HealthSyncRecordType.STEPS,
@@ -925,7 +930,14 @@ data class HealthSyncOperation private constructor(
             key.aggregate is HealthSyncAggregate.WatchDailyD1Sample ->
                 key.projectionChildKey == null &&
                     clientRecordId != null && clientRecordVersion != null &&
-                    frozenPayload?.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
+                    when (key.recordType) {
+                        HealthSyncRecordType.STEPS ->
+                            frozenPayload?.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
+                        HealthSyncRecordType.DISTANCE,
+                        HealthSyncRecordType.ACTIVE_CALORIES_BURNED,
+                        -> frozenPayload?.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_METRIC_PAYLOAD_SCHEMA_VERSION
+                        else -> false
+                    }
 
             key.projectionChildKey == null -> true
 
