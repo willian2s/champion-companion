@@ -35,7 +35,7 @@ object RepositoryModule {
     @Provides fun treadmillCalibrationRepository(source: RoomRepositories): TreadmillCalibrationRepository = source
     @Provides fun appWorkoutSessionRepository(source: RoomRepositories): AppWorkoutSessionRepository = source
     @Provides fun workoutRouteRepository(source: RoomRepositories): WorkoutRouteRepository = source
-    @Provides fun healthSyncRepository(source: RoomRepositories): HealthSyncRepository = source
+    @Provides fun healthSyncRepository(source: GranularHealthSyncRepository): HealthSyncRepository = source
     @Provides fun calendarRepository(source: LocalCalendarRepository): CalendarRepository = source
     @Provides fun diagnosticPayloadRepository(source: RoomRepositories): DiagnosticPayloadRepository = source
     @Provides fun watchDailyD1Repository(source: RoomRepositories): WatchDailyD1Repository = source
