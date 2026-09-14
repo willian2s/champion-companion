@@ -667,7 +667,7 @@ internal fun DistanceCalibrationEvidenceEntity.toDomain(): DistanceCalibrationEv
 internal fun List<DistanceCalibrationEvidenceEntity>.toLearnedDistanceCalibrationProfile(
     workoutType: WorkoutType,
 ): LearnedDistanceCalibrationProfile? {
-    if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null
+    if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) return null
     val validEvidence = mapNotNull { it.toDomain() }
         .filter { it.isActive && it.workoutType == workoutType }
     if (validEvidence.isEmpty()) return null

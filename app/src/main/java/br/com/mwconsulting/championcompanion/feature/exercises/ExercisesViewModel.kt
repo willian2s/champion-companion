@@ -1835,7 +1835,7 @@ class ExercisesViewModel internal constructor(
         calibrationFormState.value = form.copy(isSaving = true, validationError = null)
         scope.launch {
             when (
-                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) {
                     personalMetricsRepository.applyReferenceDistanceCalibration(
                         ApplyReferenceDistanceCalibrationInput(
                             activityId = activity.id,

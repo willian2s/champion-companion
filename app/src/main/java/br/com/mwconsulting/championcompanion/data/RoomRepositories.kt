@@ -1151,7 +1151,7 @@ class RoomRepositories @Inject constructor(
                 WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
             )
             val needsNativePolicyReset = hasNativeSnapshot &&
-                reviewed.confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)
+                reviewed.confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.FREE_WORKOUT, WorkoutType.TREADMILL)
             database.workoutActivityDao().update(reviewed.toEntity())
             val needsV4ReviewDerivation = reviewed.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
                 reviewed.watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
@@ -1604,7 +1604,10 @@ class RoomRepositories @Inject constructor(
                     database.distanceCalibrationEvidenceDao()
                         .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.WALKING.name)
                         .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.WALKING) },
-                ) { running, walking -> listOfNotNull(running, walking) }
+                    database.distanceCalibrationEvidenceDao()
+                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.TREADMILL.name)
+                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.TREADMILL) },
+                ) { running, walking, treadmill -> listOfNotNull(running, walking, treadmill) }
                     .collect { emit(it) }
             }
         }.flowOn(ioDispatcher)
@@ -1618,7 +1621,7 @@ class RoomRepositories @Inject constructor(
             val type = activity.confirmedType?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
                 ?: return@writeTransaction RepositoryResult.UnexpectedState
             if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
-                type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) ||
+                type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL) ||
                 activity.workflowState !in setOf(
                     ActivityWorkflowState.PENDING_CALIBRATION.name,
                     ActivityWorkflowState.READY_TO_SYNC.name,
@@ -1922,7 +1925,7 @@ class RoomRepositories @Inject constructor(
         workoutType: WorkoutType,
         profile: UserProfile?,
     ): Double? {
-        if (profile == null || workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null
+        if (profile == null || workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) return null
         return database.distanceCalibrationEvidenceDao()
             .observeActiveByProfileAndWorkoutType(profile.id.value.toString(), workoutType.name)
             .first()

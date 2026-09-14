@@ -955,6 +955,8 @@ object WatchWorkoutNativeDistancePolicy {
                 WorkoutType.UNKNOWN,
                 WorkoutType.RUNNING,
                 WorkoutType.WALKING,
+                WorkoutType.FREE_WORKOUT,
+                WorkoutType.TREADMILL,
             ) ||
             parserValidity != ParserValidity.VALID ||
             header == null ||

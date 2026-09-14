@@ -277,3 +277,7 @@ Ainda pendente na 033-07:
 - não ratear bucket de fronteira;
 - não fabricar bucket residual a partir de FEA1-D1;
 - cada task atualiza este overview.
+
+### Evolução física: distância D4 em treino livre e esteira — 2026-09-14
+
+A validação física de 033-10 encontrou `FREE_WORKOUT` `d4-v4` válido com 173 passos, 140 m de distância nativa e 9,169 kcal. A revisão falhava porque removia `WATCH_NATIVE` ao confirmar o tipo. A política foi evoluída: `FREE_WORKOUT` e `TREADMILL` aceitam distância D4 nativa; `TREADMILL` usa a distância final informada pelo usuário para fator contextual próprio. O overlap continua por métrica: D4 `DISTANCE > 0` suprime somente `D1 DISTANCE` sobreposta.

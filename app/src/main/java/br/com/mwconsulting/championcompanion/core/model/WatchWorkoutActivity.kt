@@ -329,6 +329,8 @@ data class WorkoutActivity private constructor(
                     WorkoutType.UNKNOWN,
                     WorkoutType.RUNNING,
                     WorkoutType.WALKING,
+                    WorkoutType.FREE_WORKOUT,
+                    WorkoutType.TREADMILL,
                     WorkoutType.CYCLING,
                 ) &&
                     watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&

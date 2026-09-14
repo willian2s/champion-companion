@@ -474,3 +474,7 @@ divergências futuras, cobertura de samples acima de 255 passos e retenção de
 payload diagnóstico. A referência externa manual também permanece sujeita a
 erro e serve somente como referência de calibração. A Spec 032 está encerrada
 sem alterar essas fronteiras.
+
+## Evolução de política pós-032 — 2026-09-14
+
+A validação física da entrega 033 mostrou um `FREE_WORKOUT` D4 v4 íntegro com distância nativa positiva. Para novas operações, a restrição original de R6/R8 é supersedida: `FREE_WORKOUT` preserva `WATCH_NATIVE`; `TREADMILL` também usa a distância D4 nativa e continua exigindo a distância final da esteira para calibração. A calibração de esteira usa `referência / distância D4`, escala proporcionalmente cada intervalo nativo e aprende um fator contextual próprio de `TREADMILL`, sem compartilhar evidência com `RUNNING` ou `WALKING`. `CYCLING` permanece inalterado. Atividades já sincronizadas e fatos raw não são reescritos.
