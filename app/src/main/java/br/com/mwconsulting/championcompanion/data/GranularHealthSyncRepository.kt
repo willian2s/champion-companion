@@ -311,6 +311,7 @@ class GranularHealthSyncRepository @Inject constructor(
         operation: HealthSyncOperation,
         context: WorkoutStepsProjectionContext,
     ): RepositoryResult<Unit> = withContext(ioDispatcher) {
+        val d1Snapshot = database.watchDailyD1SampleDao().observeAll().first()
         try {
             database.withWriteTransaction {
                 val aggregate = operation.key.aggregate as? HealthSyncAggregate.WorkoutActivity
@@ -338,6 +339,20 @@ class GranularHealthSyncRepository @Inject constructor(
                         .findByAggregate(summary.id, HealthSyncAggregateType.DAILY_SUMMARY.name)
                         .any { it.recordType == HealthSyncRecordType.STEPS.name }
                     if (legacyDailySteps) return@withWriteTransaction RepositoryResult.Success(Unit)
+                }
+
+                if (!hasPreparedGranularCoverage(
+                        samplesSnapshot = d1Snapshot,
+                        deviceId = deviceId,
+                        localDate = localDate,
+                        requiredThrough = context.window.end,
+                        summarySteps = summary?.steps,
+                    )
+                ) {
+                    // Não publicar WorkoutSteps, mas também não afirmar cobertura
+                    // que ainda não foi materializada. O filho permanece PENDING
+                    // para nova tentativa após próximo D1 real.
+                    return@withWriteTransaction RepositoryResult.UnexpectedState
                 }
 
                 val creditEntity = database.workoutStepsCreditDao()
@@ -372,6 +387,34 @@ class GranularHealthSyncRepository @Inject constructor(
             RepositoryResult.UnexpectedState
         } catch (_: IllegalStateException) {
             RepositoryResult.UnexpectedState
+        }
+    }
+
+    private suspend fun hasPreparedGranularCoverage(
+        samplesSnapshot: List<WatchDailyD1SampleEntity>,
+        deviceId: String,
+        localDate: LocalDate,
+        requiredThrough: Instant,
+        summarySteps: Long?,
+    ): Boolean {
+        val daySamples = samplesSnapshot.filter {
+            it.deviceId == deviceId && it.resolvedLocalDate == localDate.toString()
+        }
+        if (!daySamples.isStructurallyCompleteD1Day()) return false
+        val eligible = daySamples.filter { it.bucketBelongsToResolvedDate() }
+        val total = eligible.sumStepsOrNull() ?: return false
+        if (summarySteps == null || total > summarySteps) return false
+        val latestBucketEnd = eligible.maxOfOrNull { it.resolvedAtEpochMillis }
+            ?.let(Instant::ofEpochMilli) ?: return false
+        if (latestBucketEnd.isBefore(requiredThrough)) return false
+        val positive = eligible.filter { it.steps > 0L }
+        if (positive.isEmpty()) return false
+        return positive.all { sample ->
+            database.healthSyncOperationDao().findByNaturalKey(
+                aggregateId = sample.id,
+                aggregateType = HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE.name,
+                recordType = HealthSyncRecordType.STEPS.name,
+            ) != null
         }
     }
 
