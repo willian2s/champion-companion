@@ -4,7 +4,7 @@
 - **Status:** `in_progress`
 - **Tipo:** correção arquitetural de sincronização, protocolo D1, dados diários e projeção Health Connect
 - **Branch:** `feat/033-unified-watch-daily-sync`
-- **ADR:** [ADR-030](../decisions/adr-030-unified-watch-sync-and-granular-daily-data.md)
+- **ADRs:** [ADR-030](../decisions/adr-030-unified-watch-sync-and-granular-daily-data.md), [ADR-031](../decisions/adr-031-d1-granular-steps-health-connect.md), [ADR-032](../decisions/adr-032-sync-entrypoints-and-watch-management.md), [ADR-033](../decisions/adr-033-d1-granular-distance-active-calories.md)
 - **Base de integração:** `main` após conclusão da Spec 032
 
 ## Contexto
@@ -35,7 +35,7 @@ Validação pós-033-02/033-03 mostrou:
 - workout D4 locomotoramente nulo que ainda intersectava bucket D1 não nulo.
 
 Portanto não existe regra global `D1 fora / D4 dentro` e overlap temporal não
-autoriza suprimir D1.
+autoriza suprimir D1 indiscriminadamente.
 
 Evidência: `docs/integration/033-03-d1-v2-physical-validation.md`.
 
@@ -46,24 +46,28 @@ frente de `ΣD1`. Isso é uma cauda temporal legítima entre a leitura agregada 
 e os buckets discretos D1.
 
 Logo, `FEA1 > ΣD1` não é automaticamente `DIVERGENT`, e `FEA1 - ΣD1` nunca pode
-ser transformado em intervalo/StepsRecord sintético.
+ser transformado em intervalo ou record sintético.
 
 Evidência: `docs/integration/033-05-unified-watch-sync-physical-validation.md`.
 
-### Cutover não pode eliminar STEPS antes de existir substituto seguro
+### A janela D1 foi promovida fisicamente
 
-A primeira implementação da 033-06 foi validada em instalação limpa. O cutover
-solicitado entrou no próprio dia, mas D1 granular remoto permanecia `deferred`.
-Com `DailySummary STEPS` desligado, nenhum StepsRecord era preparado. A mesma
-validação mostrou que `Settings -> Sincronizar agora` não iniciava a primeira
-projeção de uma atividade Watch `READY_TO_SYNC`.
+Os dumps de 2026-09-13 e a revalidação de 2026-09-14 fecharam a direção temporal
+observada do D1:
 
-Correção: a intenção/data de cutover continua persistida, mas o **cutover efetivo
-de STEPS permanece adiado** enquanto D1 granular não tiver representação remota
-comprovadamente segura. Nesse período o caminho incremental FEA1 das Specs 016/027
-continua ativo.
+```text
+sample D1 em t
+=> bucket [t - 5 minutos, t)
+```
 
-Evidência: `docs/integration/033-06-health-connect-clean-install-validation.md`.
+A revalidação real de STEPS confirmou records D1 de 300 s, cutover granular em
+2026-09-14, ausência de DailySummary/STEPS no novo dia e `WorkoutSteps`
+`BLOCKED/ALREADY_COVERED` sem pendência acionável.
+
+Os mesmos dumps mostraram buckets parados com `0 passos / 0 m / 0 kcal` e calorias
+D1 acompanhando a energia de workout. A ADR-033 promove essa energia D1 para
+`ActiveCaloriesBurnedRecord`, sem alterar a família D4 já existente de
+`TOTAL_CALORIES_BURNED`.
 
 ## Objetivo
 
@@ -169,7 +173,7 @@ D4   -> detalhe/canônico do workout
 
 Consequências:
 
-- não suprimir bucket D1 por mera interseção;
+- não suprimir bucket D1 por mera interseção global;
 - não somar D1 + D4 como fontes independentes;
 - comportamento D4 usa intervalos/ranges/somas, nunca header total como fonte.
 
@@ -177,12 +181,13 @@ Consequências:
 
 #### Passos
 
-- FEA1 = total diário;
-- D1 = distribuição granular/diagnóstico;
+- FEA1 = total diário/controle;
+- D1 = distribuição granular remota a partir do cutover efetivo;
 - D4 = passos/cadência do workout;
-- D4 não aumenta novamente o total diário.
+- D4 não aumenta novamente o total diário;
+- `WorkoutSteps` fica localmente `BLOCKED/ALREADY_COVERED` quando a linha D1 granular cobre o workout.
 
-Cobertura:
+Cobertura local:
 
 ```text
 FEA1 == ΣD1 + D1 completo
@@ -202,18 +207,25 @@ Nunca criar residual temporal de `FEA1 - ΣD1`.
 
 #### Distância
 
-- D1 = linha diária nativa local quando elegível;
-- D4 = distância canônica do workout;
-- não calcular diário como `D1 + D4`;
-- não voltar a `steps × stepLength` no caminho normal se houver D1 nativo;
-- qualquer substituição D1 por D4 exige prova de cobertura/não duplicação.
+- D1 positivo pode gerar `DistanceRecord` no bucket `[t-5min,t)`;
+- D4 continua dono da distância canônica do workout;
+- se o bucket D1 tocar um D4 com distância positiva, a projeção D1 `DISTANCE`
+  daquele bucket fica fail-closed;
+- D4 com distância zero/ausente não suprime D1 válido;
+- bucket parcialmente sobreposto não é dividido nem rateado;
+- nunca calcular total como `D1 + D4`.
 
 #### Calorias
 
-- D1 usa `raw / 10.0`;
-- D4 usa `raw / 1000.0`;
-- não somar D1 + D4;
-- semântica Health Connect permanece bloqueada até evidência suficiente.
+- D1 usa `raw / 10.0` e, com base na evidência física, representa energia ativa
+  para a projeção Health Connect;
+- D1 positivo pode gerar `ActiveCaloriesBurnedRecord` no bucket `[t-5min,t)`;
+- se o bucket D1 tocar um D4 com calorias positivas, a projeção D1 de calorias
+  daquele bucket fica fail-closed;
+- D4 com calorias zero/ausentes não suprime D1 válido;
+- D4 preserva nesta entrega o contrato histórico `TOTAL_CALORIES_BURNED`;
+- migrar D4 para energia ativa exige decisão/reconciliação futura explícita;
+- bucket parcialmente sobreposto não é dividido nem rateado.
 
 #### Frequência cardíaca
 
@@ -222,12 +234,21 @@ Nunca criar residual temporal de `FEA1 - ΣD1`.
 - D1 só é omitido no read model combinado quando houver cobertura D4 válida;
 - não criar BPM sintético/interpolado.
 
-### R9 — Substituição D1 -> D4 exige prova
+### R9 — Substituição D1 -> D4 exige prova por métrica
 
-Interseção temporal não é prova suficiente. Sem prova determinística de que a
-contribuição D1 substituída corresponde ao mesmo fato D4 e não contém conteúdo
-externo, manter D1 no diário e D4 no workout sem somá-los. Não dividir bucket D1
-proporcionalmente por inferência.
+Interseção temporal isolada não suprime o bucket inteiro. A decisão usa ownership
+por métrica:
+
+```text
+D4 metric > 0 + overlap
+  -> D4 possui aquela métrica no intervalo
+  -> D1 da mesma métrica fica fail-closed
+
+D4 metric == 0/ausente
+  -> D1 positivo continua elegível
+```
+
+Não dividir bucket D1 proporcionalmente por inferência.
 
 ### R10 — Comprimento de passo sai da experiência normal
 
@@ -258,48 +279,49 @@ watch sync
   -> NÃO chamar syncPending automaticamente
 ```
 
-Efeito remoto ocorre por ação explícita, incluindo `Settings -> Sincronizar agora`
-e sync explícito de workout.
+Efeito remoto ocorre por ação explícita, incluindo botão Sync da Home,
+`Settings -> Sincronizar agora` e sync explícito de workout.
 
-### R14 — Cutover de STEPS só é efetivo quando houver substituto remoto seguro
+### R14 — Cutover de STEPS granular é efetivo e exclusivo por data
 
-Persistir por dispositivo uma intenção/data civil de cutover. Essa data não pode
-eliminar uma representação remota de passos antes de existir substituto granular
-seguro.
+A ADR-031 e a revalidação física promoveram o substituto remoto seguro.
 
-Contrato atual:
+Contrato vigente:
 
 ```text
-D1 granular remoto ainda DEFERRED
-  -> data solicitada permanece persistida
-  -> cutover efetivo de STEPS permanece adiado
-  -> DailySummary/FEA1 continua incremental pelas Specs 016/027
-  -> WorkoutSteps continua protegido por créditos/ledgers
-  -> D1 granular permanece local
+data < cutover efetivo
+  -> DailySummary/FEA1 STEPS incremental legacy
 
-D1 granular remoto comprovado no futuro
-  -> exige ativação/migração explícita
-  -> somente então desligar novos DailySummary STEPS
+data >= cutover efetivo
+  + já existe DailySummary/STEPS na data
+  -> preservar família legacy daquela data
+  -> não misturar D1 STEPS granular
+
+data >= cutover efetivo
+  + não existe DailySummary/STEPS na data
+  -> D1 STEPS granular
+  -> WorkoutSteps resolvido localmente como ALREADY_COVERED
 ```
 
-Não existe flag de build que reinterprete silenciosamente datas antigas.
+O piso observado do cutover granular é **2026-09-14**. Não existe flag de build
+que reinterprete silenciosamente datas antigas.
 
-Quando o cutover real for implementado, a projeção pós-cutover não poderá assumir
-`D1 fora + D4 dentro`; deverá preservar o total FEA1 e provar não sobreposição com
-`WorkoutSteps`.
+### R15 — Calorias D1 são ativas; D4 não é migrado implicitamente
 
-### R15 — Calorias exigem gate semântico próprio
+A combinação de buckets estacionários em zero e acompanhamento do gasto observado
+em movimento é evidência suficiente para o uso de `ActiveCaloriesBurnedRecord` no
+D1. A permissão necessária é `WRITE_ACTIVE_CALORIES_BURNED`.
 
-Não escolher `ActiveCaloriesBurned` versus `TotalCaloriesBurned` por inferência.
-Calorias diárias permanecem locais/deferred enquanto a semântica e a cobertura
-D1/D4 não estiverem comprovadas.
+Isso **não** redefine records D4 históricos. Enquanto não existir política de
+migração/reconciliação própria, D4 continua usando `TOTAL_CALORIES_BURNED`.
 
 ### R16 — Idempotência, partial success e sync explícito global
 
 D1 aceita reimportação sem duplicar; D3/D4 preserva identidade CRC/import. Falha
 BLE posterior não faz rollback de componente já persistido.
 
-`Settings -> Sincronizar agora` é uma ação explícita global e deve:
+`Settings -> Sincronizar agora` e o botão Sync da Home são a mesma ação explícita
+global e devem:
 
 1. processar a fila local existente;
 2. poder executar múltiplos lotes finitos enquanto houver progresso;
@@ -316,62 +338,83 @@ puder inverter cadeias incrementais.
 Não introduzir GPS/rota/mapa, Adidas/Strava, polling BLE background, WorkManager de
 relógio ou logs com payload BLE integral/dados de saúde sensíveis.
 
+### R18 — Payloads D1 granulares são congelados por família
+
+- schema v4 permanece para STEPS D1;
+- schema v5 representa `DISTANCE` ou `ACTIVE_CALORIES_BURNED` D1;
+- identidade remota D1 inclui `sampleId + recordType`;
+- retry reutiliza valor, janela, offsets, identidade e versão congelados;
+- valores zero não geram record;
+- nenhuma migration Room é necessária para a extensão de métricas.
+
+Se um D1 `DISTANCE`/`ACTIVE_CALORIES_BURNED` já estiver `SYNCED` e um D4 tardio
+sobreposto da mesma métrica for preparado, a primeira projeção D4 correspondente
+falha fechado para não criar duplicidade remota.
+
 ## Health Connect no contrato atual
 
 ```text
 STEPS
-  total local: FEA1
-  remoto atual: DailySummary/FEA1 incremental + créditos Spec 027
-  D1 granular remoto: deferred até prova de intervalo/não sobreposição
+  total/controle local: FEA1
+  pós-cutover: D1 granular [t-5min,t)
+  legacy anterior/existente na data: DailySummary incremental
+  WorkoutSteps: ALREADY_COVERED quando D1 granular cobre o workout
   FEA1-D1 residual: nunca record sintético
 
-WORKOUT
-  READY_TO_SYNC: pode ser preparado pelo sync explícito global
-  PENDING_REVIEW/PENDING_CALIBRATION: nunca primeira projeção global
-  filhos D4 elegíveis seguem manifesto/frozen payload/guards existentes
-
 DISTANCE
-  diário D1: local/deferred
-  workout D4: pode ser publicado quando contrato do workout provar elegibilidade
-  nunca publicar D1 diário + D4 sobrepostos sem prova
+  D1 positivo fora de ownership D4: DistanceRecord granular
+  D4 positivo: distância canônica do workout
+  bucket D1 que toca D4 positivo: fail-closed para DISTANCE
+  D4 zero: não suprime D1
+
+CALORIES
+  D1 positivo fora de ownership D4: ActiveCaloriesBurnedRecord granular
+  D4 existente: TOTAL_CALORIES_BURNED
+  bucket D1 que toca D4 com calorias positivas: fail-closed para D1 calories
+  D4 zero: não suprime D1
 
 HEART_RATE
   D1 automático elegível
   D4 no contexto do workout quando cobertura válida
 
-CALORIES
-  diário: local/deferred
-  remoto: somente com semântica comprovada
+WORKOUT
+  READY_TO_SYNC: pode ser preparado pelo sync explícito global
+  PENDING_REVIEW/PENDING_CALIBRATION: nunca primeira projeção global
+  filhos D4 elegíveis seguem manifesto/frozen payload/guards existentes
 ```
 
 ## Sequência de execução
 
 ```text
-033-01 Auditoria/contratos
+033-01 Auditoria/contratos                         ✓
    |\
-   | +--> 033-02 Parser/collector D1 v2
-   | +--> 033-03 Persistência Room v18
+   | +--> 033-02 Parser/collector D1 v2            ✓
+   | +--> 033-03 Persistência Room v18             ✓
    |          |
    +----------+
               v
-        033-04 Composição diária
+        033-04 Composição diária                   ✓
               |
         +-----+-----+
         |           |
         v           v
-033-05 Watch sync  033-06 HC/cutover
-        ✓           ✓* correção pós-validação
+033-05 Watch sync  033-06 HC/cutover               ✓
+        ✓             ✓
         +-----+-----+
               v
-        033-07 Produto/UI
+        033-07 Produto/UI                           ~
               |
         033-08 Read models/compatibilidade
               |
         033-09 Validação física/fechamento
+
+follow-up após evidência granular:
+033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ~
 ```
 
-A correção pós-validação da 033-06 deve ser revalidada fisicamente antes de iniciar
-033-07.
+A implementação da 033-10 exige validação física antes de ser considerada
+concluída. O alinhamento do helper legado `RoomRepositories.hasSupportedHealthSyncPair()`
+para agregados D1 pertence à 033-08 e não altera o writer granular.
 
 ## Validação obrigatória
 
@@ -384,7 +427,9 @@ git diff --check
 
 Não criar nem executar testes automatizados sem pedido explícito do usuário.
 
-A validação física deve exercitar Champion C001 real, migration v17->v18->v19,
-idempotência, composição D1/D4 por métrica, `RECENT_TAIL`, ausência de residual
-sintético, partial success, ausência de auto-sync HC, fallback STEPS enquanto D1
-remoto estiver deferred, sync global de `READY_TO_SYNC` e ausência de duplicação.
+A validação física deve exercitar Champion C001 real, idempotência, composição
+D1/D4 por métrica, `RECENT_TAIL`, ausência de residual sintético, ausência de
+auto-sync HC, STEPS granular, `WorkoutSteps` coberto, `DISTANCE` D1 granular,
+`ACTIVE_CALORIES_BURNED` D1 granular, buckets de fronteira fail-closed e D4 zero
+sem suprimir D1 válido. O dump pré-sync deve provar a preparação local antes do
+efeito remoto; o dump pós-sync deve provar estados/ausência de duplicação local.
