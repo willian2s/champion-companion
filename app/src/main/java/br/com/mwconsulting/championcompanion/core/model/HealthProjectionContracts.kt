@@ -149,7 +149,10 @@ const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION: Int = 1
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 2
 /** Schema reservado para payloads de passos e cadência da atividade. */
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION: Int = 3
-/** Schema de fatos D1 cujo intervalo remoto ainda está deliberadamente bloqueado. */
+/**
+ * Bucket D1 de passos. A evidência física 033-06 promoveu o schema reservado v4
+ * para uma janela fixa de cinco minutos terminando no timestamp persistido.
+ */
 const val HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION: Int = 4
 
 const val HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED: String = "WATCH_DERIVED"
@@ -269,24 +272,32 @@ data class HealthSyncFrozenProjectionPayload(
 }
 
 /**
- * Fato D1 congelado para fila. D1 fornece instante, mas não fornece fronteira
- * temporal suficiente para construir um StepsRecord sem inventar intervalo.
+ * Bucket D1 congelado para retry. O timestamp D1 observado é a borda final do
+ * bucket; [start] é exatamente cinco minutos antes de [end]. Nenhum residual
+ * FEA1-D1 participa deste payload.
  */
 @Serializable
 data class HealthSyncFrozenDailyD1Payload(
     val recordType: String,
     val sampleId: String,
-    val resolvedAt: HealthSyncFrozenInstant,
+    val start: HealthSyncFrozenInstant,
+    val end: HealthSyncFrozenInstant,
     val zoneId: String,
-    val zoneOffsetSeconds: Int,
+    val startZoneOffsetSeconds: Int,
+    val endZoneOffsetSeconds: Int,
     val steps: Long,
 ) {
     init {
         require(recordType == HealthSyncRecordType.STEPS.name)
         require(sampleId.isNotBlank())
         require(runCatching { ZoneId.of(zoneId) }.isSuccess)
-        require(zoneOffsetSeconds in -64_800..64_800)
-        require(steps >= 0L)
+        require(startZoneOffsetSeconds in -64_800..64_800)
+        require(endZoneOffsetSeconds in -64_800..64_800)
+        require(steps > 0L)
+        val startInstant = start.toInstantOrNull()
+        val endInstant = end.toInstantOrNull()
+        require(startInstant != null && endInstant != null && startInstant.isBefore(endInstant))
+        require(java.time.Duration.between(startInstant, endInstant) == java.time.Duration.ofMinutes(5))
     }
 }
 
