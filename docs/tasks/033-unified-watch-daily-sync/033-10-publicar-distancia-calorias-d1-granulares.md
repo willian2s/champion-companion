@@ -2,7 +2,7 @@
 
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADR:** `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
-- **Status:** `in_progress` — implementação concluída; build e validação física pendentes
+- **Status:** `in_progress` — implementação e validação técnica concluídas; validação física pendente
 - **Dependências:** 033-03, 033-04, 033-05, 033-06; ADR-031
 
 ## Objetivo
@@ -92,7 +92,11 @@ Executar localmente, sem criar/executar testes automatizados:
 git diff --check
 ```
 
-Critério: comandos concluídos sem erro.
+Validação local concluída em 2026-09-14:
+
+- `lint`, `assembleDebug` e `assembleRelease`: **BUILD SUCCESSFUL**;
+- `git diff --check`: sem saída/erros;
+- warnings observados permaneceram não bloqueantes e fora do escopo desta task.
 
 ## Validação física — próximo treino
 
@@ -156,7 +160,7 @@ Esperado:
 
 A task pode mudar para `completed` quando:
 
-- [ ] `lint`, `assembleDebug`, `assembleRelease` e `git diff --check` passarem;
+- [x] `lint`, `assembleDebug`, `assembleRelease` e `git diff --check` passarem;
 - [ ] dump pré-sync confirmar preparação e supressão por métrica;
 - [ ] dump pós-sync confirmar `DISTANCE` e `ACTIVE_CALORIES_BURNED` D1 sincronizados;
 - [ ] não houver duplicação D1/D4 observável na ordem normal;
