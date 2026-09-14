@@ -108,11 +108,13 @@ jobs:
 
           path = 'app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt'
           text = load(path)
-          text = replace_once(
+          text = replace_in_section(
               text,
+              'internal fun List<DistanceCalibrationEvidenceEntity>.toLearnedDistanceCalibrationProfile',
               'if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null',
               'if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) return null',
               'distance calibration mapper types',
+              span=5000,
           )
           save(path, text)
 
