@@ -71,11 +71,6 @@ sealed interface HealthProjectionChildKey {
         val HeartRate = HeartRateSeries
         val Calories = TotalCaloriesBurned
 
-        /**
-         * Reconstitui somente chaves produzidas pelo contrato atual. Valores
-         * desconhecidos falham fechados para não atribuir operação a filho
-         * diferente.
-         */
         fun fromStableValue(value: String): HealthProjectionChildKey? = when {
             value == ExerciseSession.stableValue -> ExerciseSession
             value == ManualDistance.stableValue -> ManualDistance
@@ -90,7 +85,6 @@ sealed interface HealthProjectionChildKey {
                 ?.takeIf { it >= 0 }
                 ?.let { DistanceInterval.create(it).valueOrNull() }
                 ?.takeIf { it.stableValue == value }
-
             else -> null
         }
     }
@@ -99,12 +93,8 @@ sealed interface HealthProjectionChildKey {
 val HealthProjectionChildKey.isSpeedSeries: Boolean
     get() = this is HealthProjectionChildKey.SpeedSeries
 
-enum class HealthSyncOperationAction {
-    INSERT,
-    DELETE,
-}
+enum class HealthSyncOperationAction { INSERT, DELETE }
 
-/** Estado local da identidade do agregado legado de distância. */
 enum class HealthLegacyDistanceProjectionStatus {
     ABSENT,
     KNOWN_PENDING_DELETE,
@@ -112,24 +102,14 @@ enum class HealthLegacyDistanceProjectionStatus {
     UNKNOWN_ID,
 }
 
-/** Estado do filho dentro do conjunto esperado pela reconciliação local. */
-enum class HealthProjectionReconciliationState {
-    EXPECTED,
-    SENT,
-    OBSOLETE,
-}
+enum class HealthProjectionReconciliationState { EXPECTED, SENT, OBSOLETE }
 
-/** Checkpoint local escrito antes e depois de cada efeito remoto futuro. */
 enum class HealthProjectionReconciliationCheckpoint {
     NOT_STARTED,
     BEFORE_REMOTE_EFFECT,
     AFTER_REMOTE_EFFECT,
 }
 
-/**
- * Payload serializado e congelado para retry. O conteúdo pode conter dados do
- * record, mas nunca participa de identidade, logs ou diagnóstico.
- */
 data class HealthSyncFrozenPayload(
     val schemaVersion: Int,
     val serializedPayload: String,
@@ -147,12 +127,8 @@ data class HealthSyncFrozenPayload(
 
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION: Int = 1
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 2
-/** Schema reservado para payloads de passos e cadência da atividade. */
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION: Int = 3
-/**
- * Bucket D1 de passos. A evidência física 033-06 promoveu o schema reservado v4
- * para uma janela fixa de cinco minutos terminando no timestamp persistido.
- */
+/** Bucket D1 de passos, janela fixa de cinco minutos terminando no timestamp persistido. */
 const val HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION: Int = 4
 
 const val HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED: String = "WATCH_DERIVED"
@@ -164,15 +140,12 @@ private val HEALTH_SYNC_ALLOWED_METRIC_PROVENANCES = setOf(
     HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION,
 )
 
-/** Instante lossless usado pelo payload remoto congelado. */
 @Serializable
 data class HealthSyncFrozenInstant(
     val epochSecond: Long,
     val nano: Int,
 ) {
-    init {
-        require(nano in 0..999_999_999)
-    }
+    init { require(nano in 0..999_999_999) }
 }
 
 @Serializable
@@ -180,9 +153,7 @@ data class HealthSyncFrozenSpeedSample(
     val sampledAt: HealthSyncFrozenInstant,
     val speedMetersPerSecond: Double,
 ) {
-    init {
-        require(speedMetersPerSecond.isFinite() && speedMetersPerSecond >= 0.0)
-    }
+    init { require(speedMetersPerSecond.isFinite() && speedMetersPerSecond >= 0.0) }
 }
 
 @Serializable
@@ -190,26 +161,17 @@ data class HealthSyncFrozenHeartRateSample(
     val sampledAt: HealthSyncFrozenInstant,
     val bpm: Int,
 ) {
-    init {
-        require(bpm in 30..220)
-    }
+    init { require(bpm in 30..220) }
 }
 
-/** Amostra de cadência congelada para retry de StepsCadenceRecord. */
 @Serializable
 data class HealthSyncFrozenStepsCadenceSample(
     val sampledAt: HealthSyncFrozenInstant,
     val stepsPerMinute: Double,
 ) {
-    init {
-        require(stepsPerMinute.isFinite() && stepsPerMinute >= 0.0)
-    }
+    init { require(stepsPerMinute.isFinite() && stepsPerMinute >= 0.0) }
 }
 
-/**
- * Conteúdo imutável de um filho de treino. Identidade fica na operação; este
- * payload contém somente dados necessários para recriar record em retry.
- */
 @Serializable
 data class HealthSyncFrozenProjectionPayload(
     val recordType: String,
@@ -225,11 +187,8 @@ data class HealthSyncFrozenProjectionPayload(
     val caloriesKilocalories: Double? = null,
     val speedSamples: List<HealthSyncFrozenSpeedSample> = emptyList(),
     val heartRateSamples: List<HealthSyncFrozenHeartRateSample> = emptyList(),
-    /** Ausente em payloads legados e em filhos sem métrica de distância/velocidade. */
     val metricProvenance: String? = null,
-    /** Preenchido somente pelo filho [HealthProjectionChildKey.WorkoutSteps]. */
     val steps: Long? = null,
-    /** Preenchido somente pelo filho [HealthProjectionChildKey.StepsCadenceSeries]. */
     val stepsCadenceSamples: List<HealthSyncFrozenStepsCadenceSample> = emptyList(),
 ) {
     init {
@@ -245,11 +204,9 @@ data class HealthSyncFrozenProjectionPayload(
                 HealthProjectionChildKey.WorkoutSteps.stableValue ->
                     recordType == HealthSyncRecordType.STEPS.name &&
                         steps != null && steps > 0L && stepsCadenceSamples.isEmpty()
-
                 HealthProjectionChildKey.StepsCadenceSeries.stableValue ->
                     recordType == HealthSyncRecordType.STEPS_CADENCE.name &&
                         steps == null && stepsCadenceSamples.isNotEmpty()
-
                 else -> steps == null && stepsCadenceSamples.isEmpty()
             },
         )
@@ -272,9 +229,8 @@ data class HealthSyncFrozenProjectionPayload(
 }
 
 /**
- * Bucket D1 congelado para retry. O timestamp D1 observado é a borda final do
- * bucket; [start] é exatamente cinco minutos antes de [end]. Nenhum residual
- * FEA1-D1 participa deste payload.
+ * Bucket D1 congelado para retry. [resolvedAt] e [zoneOffsetSeconds] são aliases
+ * compatíveis da borda final e permanecem para consumidores internos anteriores.
  */
 @Serializable
 data class HealthSyncFrozenDailyD1Payload(
@@ -286,6 +242,8 @@ data class HealthSyncFrozenDailyD1Payload(
     val startZoneOffsetSeconds: Int,
     val endZoneOffsetSeconds: Int,
     val steps: Long,
+    val resolvedAt: HealthSyncFrozenInstant = end,
+    val zoneOffsetSeconds: Int = endZoneOffsetSeconds,
 ) {
     init {
         require(recordType == HealthSyncRecordType.STEPS.name)
@@ -293,7 +251,10 @@ data class HealthSyncFrozenDailyD1Payload(
         require(runCatching { ZoneId.of(zoneId) }.isSuccess)
         require(startZoneOffsetSeconds in -64_800..64_800)
         require(endZoneOffsetSeconds in -64_800..64_800)
+        require(zoneOffsetSeconds in -64_800..64_800)
         require(steps > 0L)
+        require(resolvedAt == end)
+        require(zoneOffsetSeconds == endZoneOffsetSeconds)
         val startInstant = start.toInstantOrNull()
         val endInstant = end.toInstantOrNull()
         require(startInstant != null && endInstant != null && startInstant.isBefore(endInstant))
@@ -305,7 +266,6 @@ private fun HealthSyncFrozenInstant.toInstantOrNull(): Instant? = runCatching {
     Instant.ofEpochSecond(epochSecond, nano.toLong())
 }.getOrNull()
 
-/** Vínculo imutável com snapshot de derivação ou projeção que originou filho. */
 data class HealthProjectionOrigin(
     val originId: String,
     val originVersion: String,
@@ -316,7 +276,6 @@ data class HealthProjectionOrigin(
     }
 }
 
-/** Manifesto local: cada entrada representa exatamente uma operação filha. */
 data class HealthProjectionManifest(
     val aggregate: HealthSyncAggregate,
     val children: List<HealthProjectionChildKey>,
