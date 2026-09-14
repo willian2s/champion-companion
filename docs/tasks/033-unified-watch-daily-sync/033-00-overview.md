@@ -1,9 +1,9 @@
 # 033 — Overview: sincronização unificada e dados diários granulares
 
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
-- **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`
+- **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`, `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
 - **Status:** `in_progress`
-- **Progresso:** `6/9`
+- **Progresso:** `6/10`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -37,12 +37,15 @@ reescrever histórico.
 033-08 Read models, legacy e compatibilidade
               |
 033-09 Validação física e fechamento
+
+follow-up promovido por evidência física:
+033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ~
 ```
 
 `033-06` foi revalidada fisicamente em 2026-09-14 com STEPS granular D1 real,
-workout simultâneo e zero pendências acionáveis após sync. A `033-07` está em
-execução: ownership de Home/Health Connect/Configurações já foi migrado, enquanto
-limpeza dos affordances legados de Exercícios e Perfil ainda permanece pendente.
+workout simultâneo e zero pendências acionáveis após sync. A `033-07` segue em
+execução. A `033-10` possui implementação de código concluída, mas continua
+`in_progress` até passar build/diff e validação física no próximo treino.
 
 ## Checklist
 
@@ -55,6 +58,7 @@ limpeza dos affordances legados de Exercícios e Perfil ainda permanece pendente
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — em andamento
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
+- [ ] `033-10-publicar-distancia-calorias-d1-granulares.md` — código concluído; validação pendente
 
 ## Decisões congeladas
 
@@ -67,12 +71,17 @@ limpeza dos affordances legados de Exercícios e Perfil ainda permanece pendente
 - D4 = fonte detalhada/canônica do workout;
 - D1 v2 preserva passos, distância, calorias, sportValue e raw adicionais mesmo com BPM inválido;
 - BPM D1 v2 válido em 30..200;
-- a regra antiga "bucket D1 intersecta D4 => suprimir bucket inteiro" foi rejeitada após validação física;
+- a regra global "bucket D1 intersecta D4 => suprimir bucket inteiro" foi rejeitada após validação física;
 - passos diários usam FEA1 como total/controle e D1 como distribuição; D4 não é somado novamente ao agregado diário;
-- para HC pós-cutover, cada D1 em `t` representa o bucket `[t-5min, t)` e gera STEPS somente quando `steps > 0`;
-- o cutover granular efetivo tem piso em `2026-09-14`; uma data com operação DailySummary/STEPS existente preserva a família legacy e não recebe D1 granular;
+- para HC pós-cutover, cada D1 em `t` representa o bucket `[t-5min, t)`;
+- o cutover granular de STEPS tem piso em `2026-09-14`; uma data com operação DailySummary/STEPS existente preserva a família legacy e não recebe D1 STEPS granular;
 - pós-cutover granular, `WorkoutSteps` fica localmente `BLOCKED/ALREADY_COVERED` e não conta como pendência acionável; `STEPS_CADENCE` continua elegível;
-- distância/calorias diárias usam D1 nativo localmente, mas sua projeção HC permanece deferred; distância/calorias do workout continuam no contrato da atividade;
+- D1 `DISTANCE` positivo pode ser publicado granularmente fora de overlap com D4 de distância positiva;
+- D1 calorias positivas são projetadas como `ACTIVE_CALORIES_BURNED`, com permissão própria;
+- D4 continua usando `TOTAL_CALORIES_BURNED` nesta entrega para preservar compatibilidade histórica;
+- overlap D1/D4 é decidido por métrica: D4 positivo suprime somente a mesma métrica D1; D4 zero/ausente não suprime D1 válido;
+- bucket de fronteira que toca D4 positivo não é rateado: a métrica D1 inteira daquele bucket fica fail-closed;
+- se D1 `DISTANCE`/`ACTIVE_CALORIES_BURNED` já estiver `SYNCED`, D4 tardio sobreposto da mesma métrica falha fechado em sua primeira projeção;
 - FC combinada pode preferir D4 durante workout quando houver cobertura D4 válida;
 - sync do relógio não executa Health Connect automaticamente;
 - step length sai da UI, mas contratos legacy/fallback permanecem;
@@ -104,7 +113,7 @@ soma   1935
 Todos os gaps consecutivos D1 do dia são de cinco minutos. A soma de `08:55` a
 `09:20` iguala exatamente o D4 e encaixa o início do workout dentro do bucket que
 termina `08:55`. A evidência de `RECENT_TAIL` também mostra FEA1 avançando depois
-da borda do último bucket D1. O contrato adotado é, portanto:
+da borda do último bucket D1. O contrato adotado é:
 
 ```text
 sample D1 em t
@@ -149,6 +158,34 @@ Assim, o cutover real observado é:
 13/09 -> DailySummary/FEA1 incremental legacy
 14/09 -> D1 STEPS granular
 ```
+
+## Promoção de distância e calorias D1 — 033-10
+
+A mesma evidência física permite reutilizar a janela D1 para distância e calorias.
+A implementação atual adiciona:
+
+```text
+D1 DISTANCE > 0
+  + sem D4 positivo sobreposto
+    -> DistanceRecord
+
+D1 calories > 0
+  + sem D4 de calorias positivo sobreposto
+    -> ActiveCaloriesBurnedRecord
+```
+
+Buckets estacionários observados ficaram em `0 kcal`, sustentando energia ativa e
+não total para D1. O contrato D4 histórico não é migrado: workouts continuam em
+`TOTAL_CALORIES_BURNED` até decisão específica.
+
+A supressão é por métrica. Isso preserva o caso físico já conhecido em que um D4
+locomotoramente zero intersecta D1 válido: zero D4 não apaga o fato D1.
+
+A implementação usa schema congelado v5 para essas duas famílias, identidade por
+`sampleId + recordType`, nenhuma migration Room e nenhuma nova escrita automática.
+
+Validação física permanece pendente conforme
+`033-10-publicar-distancia-calorias-d1-granulares.md`.
 
 ## Correção física pós-033-05: cauda recente FEA1 × D1
 
@@ -208,15 +245,14 @@ Ainda pendente na 033-07:
 - revisar contratos/state machines legados sem apagar dados;
 - executar build/lint/diff e capturar screenshots das mudanças visuais.
 
-## Pendências intencionais após STEPS granular
+## Pendências intencionais
 
-- **DISTANCE diária D1:** permanece local/fail-closed porque D1 inclui distância de workouts e coexistência com D4 pode duplicar;
-- **CALORIES diária D1:** permanece local/fail-closed por sobreposição D1/D4 e semântica `Active` vs `Total` ainda não fechada;
+- **Validação física 033-10:** confirmar `DISTANCE` e `ACTIVE_CALORIES_BURNED` D1 pré/pós-sync e idempotência;
+- **D4 calories:** avaliar em trabalho separado eventual migração de `TOTAL_CALORIES_BURNED` para energia ativa; não alterar histórico silenciosamente;
+- **fronteiras D1/D4:** minutos externos dentro de bucket parcialmente sobreposto ficam deliberadamente fail-closed para a métrica afetada;
+- **033-08:** alinhar `RoomRepositories.hasSupportedHealthSyncPair()` e read models legados para reconhecer agregados D1 granulares sem falso estado de integridade;
 - observar fisicamente o bucket em torno da meia-noite e revalidar firmware futuro;
 - partial success forçado continua reservado para 033-09.
-
-Distância e calorias **dentro de workouts** continuam elegíveis pelo contrato já
-validado da atividade.
 
 ## Evidências físicas sanitizadas
 
@@ -224,7 +260,8 @@ validado da atividade.
 - `docs/integration/033-05-unified-watch-sync-physical-validation.md`;
 - `docs/integration/033-06-health-connect-clean-install-validation.md`;
 - ADR-031 registra a promoção da semântica de bucket para STEPS granular;
-- ADR-032 registra ownership de sync remoto e gerenciamento do relógio.
+- ADR-032 registra ownership de sync remoto e gerenciamento do relógio;
+- ADR-033 registra distância/calorias D1 e ownership por métrica.
 
 ## Guard rails
 
@@ -235,6 +272,7 @@ validado da atividade.
 - não criar efeitos Health Connect em migration/watch sync;
 - não fabricar fatos diários antigos que nunca foram persistidos;
 - não usar header total D4 como fonte de comportamento;
-- não somar D1 + D4 ingenuamente nem suprimir D1 apenas por overlap;
+- não somar D1 + D4 ingenuamente nem suprimir D1 por overlap global;
+- não ratear bucket de fronteira;
 - não fabricar bucket residual a partir de FEA1-D1;
 - cada task atualiza este overview.
