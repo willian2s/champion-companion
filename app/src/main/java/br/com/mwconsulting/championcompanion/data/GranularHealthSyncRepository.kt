@@ -126,13 +126,7 @@ class GranularHealthSyncRepository @Inject constructor(
         val operations = (base.operations + granular)
             .distinctBy { it.id }
             .sortedWith(
-                compareBy<HealthSyncOperation> { operation ->
-                    when (operation.state) {
-                        SyncOperationState.PENDING -> 0
-                        SyncOperationState.FAILED -> 1
-                        else -> 2
-                    }
-                }.thenBy { it.updatedAt ?: it.createdAt ?: Instant.EPOCH }
+                compareBy<HealthSyncOperation> { it.updatedAt ?: it.createdAt ?: Instant.EPOCH }
                     .thenBy { it.id.value.toString() },
             )
             .take(limit)
