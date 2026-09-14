@@ -30,7 +30,7 @@ data class DistanceCalibrationEvidence private constructor(
             updatedAt: Instant,
             isActive: Boolean = true,
         ): DomainResult<DistanceCalibrationEvidence> = when {
-            workoutType !in CALIBRATABLE_WORKOUT_TYPES ->
+            workoutType !in NATIVE_DISTANCE_CALIBRATABLE_WORKOUT_TYPES ->
                 DomainResult.Failure(DomainValidationError.INVALID_STATE)
             !referenceDistanceMeters.isFinite() || referenceDistanceMeters <= 0.0 ||
                 !watchDistanceMeters.isFinite() || watchDistanceMeters <= 0.0 ->
@@ -59,6 +59,13 @@ data class DistanceCalibrationEvidence private constructor(
 
 @JvmInline
 value class DistanceCalibrationEvidenceId(val value: java.util.UUID)
+
+/** Tipos que aprendem fator próprio sobre a distância nativa D4. */
+internal val NATIVE_DISTANCE_CALIBRATABLE_WORKOUT_TYPES: Set<WorkoutType> = setOf(
+    WorkoutType.RUNNING,
+    WorkoutType.WALKING,
+    WorkoutType.TREADMILL,
+)
 
 /** Agregado futuro; somente evidências nativas ativas participam do cálculo. */
 data class LearnedDistanceCalibrationProfile(
