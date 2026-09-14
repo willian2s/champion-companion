@@ -3,8 +3,9 @@ package br.com.mwconsulting.championcompanion.feature.home
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,17 +17,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -36,10 +38,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -79,6 +82,10 @@ fun HomeScreen(
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit,
+    onSyncHealthConnect: () -> Unit = {},
+    isHealthConnectSyncRunning: Boolean = false,
+    healthConnectSyncStatusMessage: String? = null,
+    onDismissHealthConnectSyncStatus: () -> Unit = {},
     homeViewModel: HomeViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -94,11 +101,22 @@ fun HomeScreen(
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by homeViewModel.state.collectAsState()
+    val healthConnectSnackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(homeViewModel, deviceManagementViewModel) {
         homeViewModel.onIntent(HomeIntent.Load)
         deviceManagementViewModel.onIntent(DeviceManagementIntent.Load)
         deviceManagementViewModel.onIntent(DeviceManagementIntent.RefreshPrerequisites)
+    }
+
+    LaunchedEffect(healthConnectSyncStatusMessage) {
+        val message = healthConnectSyncStatusMessage?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        healthConnectSnackbarHostState.currentSnackbarData?.dismiss()
+        healthConnectSnackbarHostState.showSnackbar(
+            message = message,
+            duration = SnackbarDuration.Short,
+        )
+        onDismissHealthConnectSyncStatus()
     }
 
     DisposableEffect(lifecycleOwner, homeViewModel, deviceManagementViewModel) {
@@ -158,7 +176,8 @@ fun HomeScreen(
                         HomeTopBar(
                             title = "Hoje",
                             status = state.watch.toHomeWatchStatus(),
-                            onOpenDevice = onOpenDevice,
+                            onSyncHealthConnect = onSyncHealthConnect,
+                            isHealthConnectSyncRunning = isHealthConnectSyncRunning,
                             onOpenProfile = onOpenProfile,
                         )
 
@@ -168,6 +187,17 @@ fun HomeScreen(
                                     .fillMaxWidth()
                                     .semantics {
                                         contentDescription = "Sincronizando dados do relógio"
+                                        liveRegion = LiveRegionMode.Polite
+                                    },
+                            )
+                        }
+
+                        if (isHealthConnectSyncRunning) {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        contentDescription = "Sincronizando com Health Connect"
                                         liveRegion = LiveRegionMode.Polite
                                     },
                             )
@@ -188,6 +218,13 @@ fun HomeScreen(
                             onRetry = { homeViewModel.onIntent(HomeIntent.Retry) },
                         )
                     }
+
+                    SnackbarHost(
+                        hostState = healthConnectSnackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(16.dp),
+                    )
                 }
             }
         }
@@ -604,7 +641,8 @@ private fun HomeMetadataFooter(
 private fun HomeTopBar(
     title: String,
     status: HomeWatchStatus,
-    onOpenDevice: () -> Unit,
+    onSyncHealthConnect: () -> Unit,
+    isHealthConnectSyncRunning: Boolean,
     onOpenProfile: () -> Unit,
 ) {
     ChampionRedesignSurfaceHeader(
@@ -612,10 +650,16 @@ private fun HomeTopBar(
         supportingText = "Relógio: ${status.label}",
         actionsContent = {
             ChampionRedesignHeaderAction(
-                contentDescription = "Abrir Dispositivo. Status do relógio: ${status.label}",
-                onClick = onOpenDevice,
+                contentDescription = if (isHealthConnectSyncRunning) {
+                    "Sincronização com Health Connect em andamento"
+                } else {
+                    "Sincronizar com Health Connect"
+                },
+                onClick = {
+                    if (!isHealthConnectSyncRunning) onSyncHealthConnect()
+                },
             ) {
-                Icon(imageVector = Icons.Filled.Watch, contentDescription = null)
+                Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
             }
             ChampionRedesignHeaderAction(
                 contentDescription = "Abrir Perfil",
