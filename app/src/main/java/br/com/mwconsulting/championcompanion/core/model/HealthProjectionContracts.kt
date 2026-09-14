@@ -119,7 +119,8 @@ data class HealthSyncFrozenPayload(
             schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION ||
                 schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION ||
                 schemaVersion == HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION ||
-                schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION,
+                schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION ||
+                schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_METRIC_PAYLOAD_SCHEMA_VERSION,
         )
         require(serializedPayload.isNotBlank())
     }
@@ -130,6 +131,8 @@ const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION: Int = 2
 const val HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION: Int = 3
 /** Bucket D1 de passos, janela fixa de cinco minutos terminando no timestamp persistido. */
 const val HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION: Int = 4
+/** Bucket D1 de distância ou calorias ativas, com a mesma janela temporal comprovada. */
+const val HEALTH_SYNC_FROZEN_DAILY_D1_METRIC_PAYLOAD_SCHEMA_VERSION: Int = 5
 
 const val HEALTH_SYNC_METRIC_PROVENANCE_WATCH_DERIVED: String = "WATCH_DERIVED"
 const val HEALTH_SYNC_METRIC_PROVENANCE_EXTERNAL_REFERENCE_CALIBRATION: String =
@@ -255,6 +258,46 @@ data class HealthSyncFrozenDailyD1Payload(
         require(steps > 0L)
         require(resolvedAt == end)
         require(zoneOffsetSeconds == endZoneOffsetSeconds)
+        val startInstant = start.toInstantOrNull()
+        val endInstant = end.toInstantOrNull()
+        require(startInstant != null && endInstant != null && startInstant.isBefore(endInstant))
+        require(java.time.Duration.between(startInstant, endInstant) == java.time.Duration.ofMinutes(5))
+    }
+}
+
+/** Bucket D1 congelado por métrica; nunca rateia borda de workout. */
+@Serializable
+data class HealthSyncFrozenDailyD1MetricPayload(
+    val recordType: String,
+    val sampleId: String,
+    val start: HealthSyncFrozenInstant,
+    val end: HealthSyncFrozenInstant,
+    val zoneId: String,
+    val startZoneOffsetSeconds: Int,
+    val endZoneOffsetSeconds: Int,
+    val distanceMeters: Double? = null,
+    val activeCaloriesKilocalories: Double? = null,
+) {
+    init {
+        require(recordType in setOf(
+            HealthSyncRecordType.DISTANCE.name,
+            HealthSyncRecordType.ACTIVE_CALORIES_BURNED.name,
+        ))
+        require(sampleId.isNotBlank())
+        require(runCatching { ZoneId.of(zoneId) }.isSuccess)
+        require(startZoneOffsetSeconds in -64_800..64_800)
+        require(endZoneOffsetSeconds in -64_800..64_800)
+        require(
+            when (recordType) {
+                HealthSyncRecordType.DISTANCE.name ->
+                    distanceMeters?.let { it.isFinite() && it > 0.0 } == true &&
+                        activeCaloriesKilocalories == null
+                HealthSyncRecordType.ACTIVE_CALORIES_BURNED.name ->
+                    activeCaloriesKilocalories?.let { it.isFinite() && it > 0.0 } == true &&
+                        distanceMeters == null
+                else -> false
+            },
+        )
         val startInstant = start.toInstantOrNull()
         val endInstant = end.toInstantOrNull()
         require(startInstant != null && endInstant != null && startInstant.isBefore(endInstant))
