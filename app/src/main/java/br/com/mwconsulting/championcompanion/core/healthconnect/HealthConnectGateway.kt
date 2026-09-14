@@ -3,6 +3,7 @@ package br.com.mwconsulting.championcompanion.core.healthconnect
 import android.content.Context
 import android.os.RemoteException
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
@@ -27,6 +28,7 @@ enum class HealthConnectWritePermission(
     EXERCISE("android.permission.health.WRITE_EXERCISE"),
     DISTANCE("android.permission.health.WRITE_DISTANCE"),
     SPEED("android.permission.health.WRITE_SPEED"),
+    ACTIVE_CALORIES_BURNED("android.permission.health.WRITE_ACTIVE_CALORIES_BURNED"),
     TOTAL_CALORIES_BURNED("android.permission.health.WRITE_TOTAL_CALORIES_BURNED"),
     WEIGHT("android.permission.health.WRITE_WEIGHT"),
     HEIGHT("android.permission.health.WRITE_HEIGHT"),
@@ -206,6 +208,7 @@ private fun HealthSyncRecordType.toHealthConnectRecordClass() = when (this) {
     HealthSyncRecordType.HEART_RATE -> HeartRateRecord::class
     HealthSyncRecordType.EXERCISE_SESSION -> ExerciseSessionRecord::class
     HealthSyncRecordType.DISTANCE -> DistanceRecord::class
+    HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> ActiveCaloriesBurnedRecord::class
     HealthSyncRecordType.TOTAL_CALORIES_BURNED -> TotalCaloriesBurnedRecord::class
     HealthSyncRecordType.WEIGHT -> WeightRecord::class
     HealthSyncRecordType.HEIGHT -> HeightRecord::class
