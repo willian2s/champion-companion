@@ -20,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,7 +56,6 @@ fun HealthScreen(
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit = {},
-    onOpenDevice: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     healthViewModel: HealthViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
@@ -154,12 +152,6 @@ fun HealthScreen(
                     title = "Saúde",
                     supportingText = "Relógio: ${if (state.hasAssociatedDevice) "Conectado" else "Pendente"}",
                     actionsContent = {
-                        ChampionRedesignHeaderAction(
-                            contentDescription = "Abrir Dispositivo",
-                            onClick = onOpenDevice,
-                        ) {
-                            Icon(imageVector = Icons.Filled.Watch, contentDescription = null)
-                        }
                         ChampionRedesignHeaderAction(
                             contentDescription = "Abrir Perfil",
                             onClick = onOpenProfile,
