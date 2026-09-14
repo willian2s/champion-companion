@@ -1,7 +1,7 @@
 # 033 — Overview: sincronização unificada e dados diários granulares
 
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
-- **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`
+- **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`
 - **Status:** `in_progress`
 - **Progresso:** `6/9`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
@@ -29,19 +29,20 @@ reescrever histórico.
        |             |
        v             v
 033-05 Watch sync   033-06 HC cutover/granular
-        ✓             ✓*
+        ✓             ✓
        +------+------+
               v
-033-07 Produto/UI e remoção de entrypoints BLE
+033-07 Produto/UI e remoção de entrypoints BLE      ~
               |
 033-08 Read models, legacy e compatibilidade
               |
 033-09 Validação física e fechamento
 ```
 
-`033-06` está implementada e recebeu correções guiadas por dumps físicos. A nova
-projeção D1 granular de STEPS ainda exige checkpoint físico pós-ativação antes da
-033-07.
+`033-06` foi revalidada fisicamente em 2026-09-14 com STEPS granular D1 real,
+workout simultâneo e zero pendências acionáveis após sync. A `033-07` está em
+execução: ownership de Home/Health Connect/Configurações já foi migrado, enquanto
+limpeza dos affordances legados de Exercícios e Perfil ainda permanece pendente.
 
 ## Checklist
 
@@ -50,14 +51,17 @@ projeção D1 granular de STEPS ainda exige checkpoint físico pós-ativação a
 - [x] `033-03-persistir-fatos-diarios-granulares.md`
 - [x] `033-04-compor-dados-diarios-fea1-d1-d4.md`
 - [x] `033-05-unificar-watch-sync-na-home.md`
-- [x] `033-06-integrar-health-connect-granular-e-cutover.md` — implementação + correções; revalidação granular pendente
-- [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md`
+- [x] `033-06-integrar-health-connect-granular-e-cutover.md` — revalidação física granular concluída
+- [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — em andamento
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
 
 ## Decisões congeladas
 
 - Home pull-to-refresh é o único entrypoint de produto para leitura do relógio;
+- o cabeçalho da Home expõe ação explícita `Sincronizar com Health Connect`, reutilizando o mesmo sync global de Configurações;
+- gerenciamento normal do Champion C001 fica em `Configurações -> Gerenciar relógio`; CTA contextual de associação pode permanecer na Home quando nenhum dispositivo estiver configurado;
+- Saúde não expõe atalho visual de gerenciamento do relógio;
 - FEA1 = total diário autoritativo de passos/validação;
 - D1 = linha granular diária do relógio e pode conter fatos ocorridos durante workouts;
 - D4 = fonte detalhada/canônica do workout;
@@ -74,7 +78,7 @@ projeção D1 granular de STEPS ainda exige checkpoint físico pós-ativação a
 - step length sai da UI, mas contratos legacy/fallback permanecem;
 - medição manual de FC e importação D1 saem da Saúde como ações de produto;
 - importação D3/D4 sai de Exercícios como ação de produto;
-- `Configurações -> Sincronizar agora` inclui atividades Watch `READY_TO_SYNC`, preservando review-before-sync e sem tocar `PENDING_REVIEW`/`PENDING_CALIBRATION`.
+- `Configurações -> Sincronizar agora` e o botão Sync da Home compartilham o mesmo fluxo global, incluindo atividades Watch `READY_TO_SYNC`, preservando review-before-sync e sem tocar `PENDING_REVIEW`/`PENDING_CALIBRATION`.
 
 ## Evidência física da direção temporal D1
 
@@ -108,6 +112,43 @@ sample D1 em t
 ```
 
 Não existe residual sintético para `FEA1 - ΣD1`.
+
+## Revalidação física granular de 2026-09-14
+
+Pré-sync físico:
+
+```text
+FEA1.steps = 7004
+Σ D1.steps = 6997
+D1         = 37/37 posições completas
+cauda      = +7 passos recentes
+```
+
+O workout RUNNING de `07:02:32 -> 07:36:55` trouxe `5133` passos D4. Os buckets
+D1 com fim entre `07:05` e `07:35` somaram `5135`, nova confirmação independente
+da direção temporal do bucket.
+
+Pós-sync:
+
+```text
+WATCH_DAILY_D1_SAMPLE / STEPS = 19 SYNCED
+Σ StepsRecord D1              = 6997
+DailySummary/STEPS 14/09      = 0
+FAILED                        = 0
+pendências acionáveis UI      = 0
+```
+
+Todos os payloads D1 verificados possuem duração de `300s`. O RUNNING ficou
+`SYNCED`; `EXERCISE_SESSION`, DISTANCE, HEART_RATE, SPEED, STEPS_CADENCE e
+TOTAL_CALORIES_BURNED foram aceitos. `WorkoutSteps=5133` permaneceu não publicado
+com crédito `BLOCKED/ALREADY_COVERED`, sem aparecer como pendência na UI.
+
+Assim, o cutover real observado é:
+
+```text
+13/09 -> DailySummary/FEA1 incremental legacy
+14/09 -> D1 STEPS granular
+```
 
 ## Correção física pós-033-05: cauda recente FEA1 × D1
 
@@ -146,10 +187,26 @@ Validações físicas encontraram e fecharam:
 5. **D1 granular:** a evidência física promoveu buckets de cinco minutos para
    StepsRecord, com cutover efetivo em 2026-09-14.
 
-No último checkpoint pré-granular, o caminho legacy sincronizou `6145` passos e o
-`WorkoutSteps=1935` foi corretamente bloqueado por `ALREADY_COVERED`; a atividade
-RUNNING chegou a `SYNCED`, enquanto duas atividades `PENDING_REVIEW` permaneceram
-sem primeira projeção remota.
+A revalidação de 2026-09-14 confirmou o comportamento ponta a ponta em instalação
+com histórico real, incluindo zero pendências acionáveis após o sync.
+
+## Execução atual da 033-07
+
+Já implementado:
+
+- ação de relógio no cabeçalho da Home substituída por botão Sync do Health Connect;
+- ação usa exatamente `SettingsIntent.SyncNow`, sem segundo pipeline;
+- Home mostra progresso foreground e feedback terminal por snackbar;
+- `Configurações -> Gerenciar relógio` abre o `DeviceScreen` existente;
+- Saúde não mostra mais atalho visual de relógio;
+- ADR-032 congela o ownership de navegação/sync.
+
+Ainda pendente na 033-07:
+
+- remover `Importar treinos` e progresso/retry próprios de Exercícios;
+- remover comprimento de passo, sugestão por altura e históricos/perfis de calibração por passada do Perfil;
+- revisar contratos/state machines legados sem apagar dados;
+- executar build/lint/diff e capturar screenshots das mudanças visuais.
 
 ## Pendências intencionais após STEPS granular
 
@@ -166,7 +223,8 @@ validado da atividade.
 - `docs/integration/033-03-d1-v2-physical-validation.md`;
 - `docs/integration/033-05-unified-watch-sync-physical-validation.md`;
 - `docs/integration/033-06-health-connect-clean-install-validation.md`;
-- ADR-031 registra a promoção da semântica de bucket para STEPS granular.
+- ADR-031 registra a promoção da semântica de bucket para STEPS granular;
+- ADR-032 registra ownership de sync remoto e gerenciamento do relógio.
 
 ## Guard rails
 
