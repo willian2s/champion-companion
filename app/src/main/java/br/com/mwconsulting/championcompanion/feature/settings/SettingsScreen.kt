@@ -49,6 +49,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignS
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectWritePermission
 
 @Composable
 fun SettingsScreen(
@@ -64,7 +65,15 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
     val lifecycleOwner = LocalLifecycleOwner.current
-    val missingPermissions = viewModel.requestedPermissions()
+    val weightPermission = HealthConnectWritePermission.WEIGHT
+    val weightGranted = state.permissionGroups
+        .firstOrNull { weightPermission in it.permissions }
+        ?.isGranted == true
+    val missingPermissions = buildSet {
+        addAll(viewModel.requestedPermissions())
+        if (!weightGranted) add(weightPermission.rawValue)
+    }
+    val allManagedPermissions = viewModel.allRequestedPermissions() + weightPermission.rawValue
     val isConnected = state.availability == SettingsAvailability.AVAILABLE && missingPermissions.isEmpty()
     val permissionLauncher = rememberLauncherForActivityResult(
         PermissionController.createRequestPermissionResultContract(),
@@ -118,7 +127,7 @@ fun SettingsScreen(
                     },
                     onSyncNow = { viewModel.onIntent(SettingsIntent.SyncNow) },
                     onManageAccess = {
-                        viewModel.allRequestedPermissions().takeIf { it.isNotEmpty() }?.let {
+                        allManagedPermissions.takeIf { it.isNotEmpty() }?.let {
                             permissionLauncher.launch(it)
                         }
                     },
