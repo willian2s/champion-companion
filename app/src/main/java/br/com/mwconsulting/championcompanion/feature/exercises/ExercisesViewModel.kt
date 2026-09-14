@@ -2087,7 +2087,8 @@ class ExercisesViewModel internal constructor(
         HealthConnectWritePermission.EXERCISE -> "exercícios"
         HealthConnectWritePermission.DISTANCE -> "distância"
         HealthConnectWritePermission.SPEED -> "velocidade"
-        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias"
+        HealthConnectWritePermission.ACTIVE_CALORIES_BURNED -> "calorias ativas"
+        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias totais"
         HealthConnectWritePermission.WEIGHT -> "peso"
         HealthConnectWritePermission.HEIGHT -> "altura"
     }
@@ -2098,8 +2099,9 @@ class ExercisesViewModel internal constructor(
         HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
         HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
         HealthSyncRecordType.DISTANCE -> "Distância"
+        HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> "Calorias ativas"
         HealthSyncRecordType.SPEED -> "Velocidade"
-        HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias"
+        HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias totais"
         HealthSyncRecordType.WEIGHT -> "Peso"
         HealthSyncRecordType.HEIGHT -> "Altura"
     }
