@@ -336,7 +336,16 @@ class SettingsViewModel @Inject constructor(
         if (speedProjectionEligible || HealthConnectWritePermission.SPEED in granted) {
             add(permissionGroup("Velocidade", setOf(HealthConnectWritePermission.SPEED), granted))
         }
-        add(permissionGroup("Calorias", setOf(HealthConnectWritePermission.TOTAL_CALORIES_BURNED), granted))
+        add(
+            permissionGroup(
+                "Calorias",
+                setOf(
+                    HealthConnectWritePermission.ACTIVE_CALORIES_BURNED,
+                    HealthConnectWritePermission.TOTAL_CALORIES_BURNED,
+                ),
+                granted,
+            ),
+        )
         if (
             (metrics.weightKilograms != null && metrics.latestWeightMeasuredAt != null) ||
             HealthConnectWritePermission.WEIGHT in granted
@@ -367,7 +376,8 @@ class SettingsViewModel @Inject constructor(
         HealthConnectWritePermission.EXERCISE -> "exercícios"
         HealthConnectWritePermission.DISTANCE -> "distância"
         HealthConnectWritePermission.SPEED -> "velocidade"
-        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias"
+        HealthConnectWritePermission.ACTIVE_CALORIES_BURNED -> "calorias ativas"
+        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias totais"
         HealthConnectWritePermission.WEIGHT -> "peso"
         HealthConnectWritePermission.HEIGHT -> "altura"
     }
@@ -378,8 +388,9 @@ class SettingsViewModel @Inject constructor(
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.DISTANCE -> "Distância"
+        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> "Calorias ativas"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.SPEED -> "Velocidade"
-        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias"
+        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias totais"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.WEIGHT -> "Peso"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.HEIGHT -> "Altura"
     }
