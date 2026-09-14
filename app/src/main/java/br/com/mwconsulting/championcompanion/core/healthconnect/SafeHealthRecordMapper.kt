@@ -1,12 +1,18 @@
 package br.com.mwconsulting.championcompanion.core.healthconnect
 
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.metadata.Device as HealthConnectDevice
 import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.units.Energy
+import androidx.health.connect.client.units.Length
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_DAILY_D1_METRIC_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenDailyD1MetricPayload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenDailyD1Payload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenInstant
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
@@ -50,15 +56,38 @@ class SafeHealthRecordMapper @Inject constructor(
     override fun mapFrozenDailyD1Sample(operation: HealthSyncOperation): HealthRecordMappingResult = mapSafely {
         val aggregate = operation.key.aggregate as? HealthSyncAggregate.WatchDailyD1Sample
             ?: return@mapSafely invalidMappedRecord("Operação D1 sem agregado de amostra.")
-        if (operation.key.recordType != HealthSyncRecordType.STEPS ||
-            operation.action != HealthSyncOperationAction.INSERT
-        ) {
+        if (operation.action != HealthSyncOperationAction.INSERT) {
             return@mapSafely invalidMappedRecord("Operação D1 granular inválida.")
         }
         val clientRecordId = operation.clientRecordId
             ?: return@mapSafely invalidMappedRecord("Operação D1 sem identidade estável.")
         val clientRecordVersion = operation.clientRecordVersion
             ?: return@mapSafely invalidMappedRecord("Operação D1 sem versão estável.")
+        when (operation.key.recordType) {
+            HealthSyncRecordType.STEPS -> mapFrozenD1Steps(
+                operation = operation,
+                aggregate = aggregate,
+                clientRecordId = clientRecordId,
+                clientRecordVersion = clientRecordVersion,
+            )
+            HealthSyncRecordType.DISTANCE,
+            HealthSyncRecordType.ACTIVE_CALORIES_BURNED,
+            -> mapFrozenD1Metric(
+                operation = operation,
+                aggregate = aggregate,
+                clientRecordId = clientRecordId,
+                clientRecordVersion = clientRecordVersion,
+            )
+            else -> invalidMappedRecord("Tipo D1 granular não suportado.")
+        }
+    }
+
+    private fun mapFrozenD1Steps(
+        operation: HealthSyncOperation,
+        aggregate: HealthSyncAggregate.WatchDailyD1Sample,
+        clientRecordId: String,
+        clientRecordVersion: Long,
+    ): HealthRecordMappingResult {
         val payload = operation.frozenPayload
             ?.takeIf { it.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION }
             ?.let { frozen ->
@@ -66,39 +95,25 @@ class SafeHealthRecordMapper @Inject constructor(
                     frozenProjectionJson.decodeFromString<HealthSyncFrozenDailyD1Payload>(frozen.serializedPayload)
                 }.getOrNull()
             }
-            ?: return@mapSafely invalidMappedRecord("Operação D1 sem payload congelado válido.")
+            ?: return invalidMappedRecord("Operação D1 sem payload congelado válido.")
         if (payload.recordType != HealthSyncRecordType.STEPS.name ||
             payload.sampleId != aggregate.sampleId.value.toString() ||
             payload.zoneId != operation.timeZoneId ||
             payload.steps !in MIN_STEPS_RECORD_COUNT..MAX_STEPS_RECORD_COUNT
         ) {
-            return@mapSafely invalidMappedRecord("Payload D1 não corresponde ao fato persistido.")
+            return invalidMappedRecord("Payload D1 não corresponde ao fato persistido.")
         }
-        val start = payload.start.toInstantOrNull()
-            ?: return@mapSafely invalidMappedRecord("Início do bucket D1 inválido.")
-        val end = payload.end.toInstantOrNull()
-            ?: return@mapSafely invalidMappedRecord("Fim do bucket D1 inválido.")
-        if (!start.isBefore(end) || Duration.between(start, end) != D1_STEP_BUCKET_DURATION) {
-            return@mapSafely invalidMappedRecord("Janela D1 não corresponde ao bucket físico de cinco minutos.")
-        }
-        val zoneId = runCatching { ZoneId.of(payload.zoneId) }.getOrNull()
-            ?: return@mapSafely invalidMappedRecord("Fuso do bucket D1 inválido.")
-        val startOffset = payload.startZoneOffsetSeconds.toZoneOffsetOrNull()
-            ?: return@mapSafely invalidMappedRecord("Offset inicial D1 inválido.")
-        val endOffset = payload.endZoneOffsetSeconds.toZoneOffsetOrNull()
-            ?: return@mapSafely invalidMappedRecord("Offset final D1 inválido.")
-        if (zoneId.rules.getOffset(start) != startOffset || zoneId.rules.getOffset(end) != endOffset) {
-            return@mapSafely invalidMappedRecord("Offsets D1 não correspondem ao fuso congelado.")
-        }
-        HealthRecordMappingResult.Success(
+        val window = payload.validatedWindowOrNull()
+            ?: return invalidMappedRecord("Janela D1 não corresponde ao bucket físico de cinco minutos.")
+        return HealthRecordMappingResult.Success(
             HealthConnectMappedRecord(
                 recordType = HealthSyncRecordType.STEPS,
                 permission = HealthConnectWritePermission.STEPS,
                 record = StepsRecord(
-                    start,
-                    startOffset,
-                    end,
-                    endOffset,
+                    window.start,
+                    window.startOffset,
+                    window.end,
+                    window.endOffset,
                     payload.steps,
                     Metadata.autoRecorded(
                         device = watchDevice(),
@@ -108,6 +123,82 @@ class SafeHealthRecordMapper @Inject constructor(
                 ),
             ),
         )
+    }
+
+    private fun mapFrozenD1Metric(
+        operation: HealthSyncOperation,
+        aggregate: HealthSyncAggregate.WatchDailyD1Sample,
+        clientRecordId: String,
+        clientRecordVersion: Long,
+    ): HealthRecordMappingResult {
+        val payload = operation.frozenPayload
+            ?.takeIf { it.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_METRIC_PAYLOAD_SCHEMA_VERSION }
+            ?.let { frozen ->
+                runCatching {
+                    frozenProjectionJson.decodeFromString<HealthSyncFrozenDailyD1MetricPayload>(frozen.serializedPayload)
+                }.getOrNull()
+            }
+            ?: return invalidMappedRecord("Operação D1 de métrica sem payload congelado válido.")
+        if (payload.recordType != operation.key.recordType.name ||
+            payload.sampleId != aggregate.sampleId.value.toString() ||
+            payload.zoneId != operation.timeZoneId
+        ) {
+            return invalidMappedRecord("Payload D1 de métrica não corresponde ao fato persistido.")
+        }
+        val window = payload.validatedWindowOrNull()
+            ?: return invalidMappedRecord("Janela da métrica D1 não corresponde ao bucket físico de cinco minutos.")
+        val metadata = Metadata.autoRecorded(
+            device = watchDevice(),
+            clientRecordId = clientRecordId,
+            clientRecordVersion = clientRecordVersion,
+        )
+        return when (operation.key.recordType) {
+            HealthSyncRecordType.DISTANCE -> {
+                val distance = payload.distanceMeters
+                if (distance == null || !distance.isFinite() || distance <= 0.0 || distance > MAX_D1_DISTANCE_METERS) {
+                    invalidMappedRecord("Distância D1 fora do intervalo aceito pelo Health Connect.")
+                } else {
+                    HealthRecordMappingResult.Success(
+                        HealthConnectMappedRecord(
+                            recordType = HealthSyncRecordType.DISTANCE,
+                            permission = HealthConnectWritePermission.DISTANCE,
+                            record = DistanceRecord(
+                                window.start,
+                                window.startOffset,
+                                window.end,
+                                window.endOffset,
+                                Length.meters(distance),
+                                metadata,
+                            ),
+                        ),
+                    )
+                }
+            }
+            HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> {
+                val calories = payload.activeCaloriesKilocalories
+                if (calories == null || !calories.isFinite() || calories <= 0.0 ||
+                    calories > MAX_D1_ACTIVE_CALORIES_KILOCALORIES
+                ) {
+                    invalidMappedRecord("Calorias ativas D1 fora do intervalo aceito pelo Health Connect.")
+                } else {
+                    HealthRecordMappingResult.Success(
+                        HealthConnectMappedRecord(
+                            recordType = HealthSyncRecordType.ACTIVE_CALORIES_BURNED,
+                            permission = HealthConnectWritePermission.ACTIVE_CALORIES_BURNED,
+                            record = ActiveCaloriesBurnedRecord(
+                                window.start,
+                                window.startOffset,
+                                window.end,
+                                window.endOffset,
+                                Energy.kilocalories(calories),
+                                metadata,
+                            ),
+                        ),
+                    )
+                }
+            }
+            else -> invalidMappedRecord("Tipo D1 de métrica não suportado.")
+        }
     }
 
     override fun mapHeartRateMeasurement(
@@ -268,6 +359,29 @@ class SafeHealthRecordMapper @Inject constructor(
         invalidFrozenPayload()
     }
 
+    private fun HealthSyncFrozenDailyD1Payload.validatedWindowOrNull(): FrozenD1Window? =
+        validateD1Window(start, end, zoneId, startZoneOffsetSeconds, endZoneOffsetSeconds)
+
+    private fun HealthSyncFrozenDailyD1MetricPayload.validatedWindowOrNull(): FrozenD1Window? =
+        validateD1Window(start, end, zoneId, startZoneOffsetSeconds, endZoneOffsetSeconds)
+
+    private fun validateD1Window(
+        frozenStart: HealthSyncFrozenInstant,
+        frozenEnd: HealthSyncFrozenInstant,
+        zoneIdRaw: String,
+        startZoneOffsetSeconds: Int,
+        endZoneOffsetSeconds: Int,
+    ): FrozenD1Window? {
+        val start = frozenStart.toInstantOrNull() ?: return null
+        val end = frozenEnd.toInstantOrNull() ?: return null
+        if (!start.isBefore(end) || Duration.between(start, end) != D1_BUCKET_DURATION) return null
+        val zoneId = runCatching { ZoneId.of(zoneIdRaw) }.getOrNull() ?: return null
+        val startOffset = startZoneOffsetSeconds.toZoneOffsetOrNull() ?: return null
+        val endOffset = endZoneOffsetSeconds.toZoneOffsetOrNull() ?: return null
+        if (zoneId.rules.getOffset(start) != startOffset || zoneId.rules.getOffset(end) != endOffset) return null
+        return FrozenD1Window(start, end, startOffset, endOffset)
+    }
+
     private inline fun mapSafely(
         block: () -> HealthRecordMappingResult,
     ): HealthRecordMappingResult = try {
@@ -329,10 +443,19 @@ class SafeHealthRecordMapper @Inject constructor(
         val end: Instant,
     )
 
+    private data class FrozenD1Window(
+        val start: Instant,
+        val end: Instant,
+        val startOffset: ZoneOffset,
+        val endOffset: ZoneOffset,
+    )
+
     private companion object {
-        val D1_STEP_BUCKET_DURATION: Duration = Duration.ofMinutes(5)
+        val D1_BUCKET_DURATION: Duration = Duration.ofMinutes(5)
         const val MIN_STEPS_RECORD_COUNT = 1L
         const val MAX_STEPS_RECORD_COUNT = 1_000_000L
+        const val MAX_D1_DISTANCE_METERS = 1_000_000.0
+        const val MAX_D1_ACTIVE_CALORIES_KILOCALORIES = 1_000_000.0
         const val MIN_STEPS_CADENCE_RATE = 0.0
         const val MAX_STEPS_CADENCE_RATE = 10_000.0
     }
