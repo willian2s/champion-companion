@@ -204,11 +204,11 @@ class GranularHealthSyncRepository @Inject constructor(
     }
 
     private suspend fun prepareGranularD1Steps(): RepositoryResult<Int> = withContext(ioDispatcher) {
+        val samplesSnapshot = database.watchDailyD1SampleDao().observeAll().first()
         try {
             database.withWriteTransaction {
-                val samples = database.watchDailyD1SampleDao().observeAll().first()
                 var created = 0
-                for ((naturalDay, daySamples) in samples.groupBy { it.deviceId to it.resolvedLocalDate }) {
+                for ((naturalDay, daySamples) in samplesSnapshot.groupBy { it.deviceId to it.resolvedLocalDate }) {
                     val (deviceId, localDateIso) = naturalDay
                     val localDate = runCatching { LocalDate.parse(localDateIso) }.getOrNull()
                         ?: return@withWriteTransaction RepositoryResult.UnexpectedState
@@ -225,7 +225,8 @@ class GranularHealthSyncRepository @Inject constructor(
                         localDateIso = localDateIso,
                     ) ?: continue
                     if (summary.validity != DataValidity.VALID.name) continue
-                    val d1Steps = daySamples.sumStepsOrNull()
+                    val eligibleDaySamples = daySamples.filter { it.bucketBelongsToResolvedDate() }
+                    val d1Steps = eligibleDaySamples.sumStepsOrNull()
                         ?: return@withWriteTransaction RepositoryResult.UnexpectedState
                     if (d1Steps > summary.steps) continue
 
@@ -246,7 +247,7 @@ class GranularHealthSyncRepository @Inject constructor(
                         continue
                     }
 
-                    for (sample in daySamples.sortedBy { it.resolvedAtEpochMillis }) {
+                    for (sample in eligibleDaySamples.sortedBy { it.resolvedAtEpochMillis }) {
                         if (sample.steps <= 0L) continue
                         val payload = sample.toFrozenD1StepsPayload()
                             ?: return@withWriteTransaction RepositoryResult.UnexpectedState
@@ -351,10 +352,19 @@ class GranularHealthSyncRepository @Inject constructor(
                 if (credit.state != WorkoutStepsCreditState.PENDING) {
                     return@withWriteTransaction RepositoryResult.UnexpectedState
                 }
-                val blocked = credit.block(WorkoutStepsCreditBlockReason.ALREADY_COVERED, Instant.now()).valueOrNull()
+                val at = Instant.now()
+                val blocked = credit.block(WorkoutStepsCreditBlockReason.ALREADY_COVERED, at).valueOrNull()
                     ?: return@withWriteTransaction RepositoryResult.UnexpectedState
                 if (database.workoutStepsCreditDao().update(blocked.toEntity()) != 1) {
-                    return@withWriteTransaction RepositoryResult.Conflict
+                    throw IllegalStateException("WorkoutSteps credit update failed")
+                }
+                val operationEntity = database.healthSyncOperationDao().findById(operation.id.value.toString())
+                    ?: throw IllegalStateException("WorkoutSteps operation disappeared")
+                val touched = operationEntity.copy(
+                    updatedAtEpochMillis = maxOf(operationEntity.updatedAtEpochMillis ?: Long.MIN_VALUE, at.toEpochMilli()),
+                )
+                if (database.healthSyncOperationDao().update(touched) != 1) {
+                    throw IllegalStateException("WorkoutSteps operation touch failed")
                 }
                 RepositoryResult.Success(Unit)
             }
@@ -386,7 +396,18 @@ class GranularHealthSyncRepository @Inject constructor(
         return total
     }
 
+    private fun WatchDailyD1SampleEntity.bucketBelongsToResolvedDate(): Boolean {
+        val resolvedDate = runCatching { LocalDate.parse(resolvedLocalDate) }.getOrNull() ?: return false
+        val end = runCatching { Instant.ofEpochMilli(resolvedAtEpochMillis) }.getOrNull() ?: return false
+        val start = runCatching { end.minus(D1_BUCKET_DURATION) }.getOrNull() ?: return false
+        val endInclusive = runCatching { end.minusNanos(1L) }.getOrNull() ?: return false
+        val zone = runCatching { ZoneId.of(zoneId) }.getOrNull() ?: return false
+        return start.atZone(zone).toLocalDate() == resolvedDate &&
+            endInclusive.atZone(zone).toLocalDate() == resolvedDate
+    }
+
     private fun WatchDailyD1SampleEntity.toFrozenD1StepsPayload(): HealthSyncFrozenDailyD1Payload? {
+        if (!bucketBelongsToResolvedDate()) return null
         val end = runCatching { Instant.ofEpochMilli(resolvedAtEpochMillis) }.getOrNull() ?: return null
         val start = runCatching { end.minus(D1_BUCKET_DURATION) }.getOrNull() ?: return null
         val zone = runCatching { ZoneId.of(zoneId) }.getOrNull() ?: return null
