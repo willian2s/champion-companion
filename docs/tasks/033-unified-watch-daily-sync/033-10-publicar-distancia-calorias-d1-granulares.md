@@ -72,6 +72,20 @@ explícita.
 - [x] nenhuma migration Room;
 - [x] nenhuma alteração na política de WorkoutSteps/StepsCadence.
 
+### Correção de distância nativa D4 v4 — 2026-09-14
+
+- `FREE_WORKOUT` preserva `WATCH_NATIVE` quando header e série são íntegros;
+- `TREADMILL` usa distância nativa, permanece `PENDING_CALIBRATION` e só fica
+  pronto após distância externa válida;
+- calibração de `TREADMILL` usa fator `referência / distância D4` por intervalo e
+  perfil contextual próprio;
+- calibração por comprimento de passo permanece restrita a `RUNNING` e
+  `WALKING`;
+- snapshots nativos são reidratados após confirmação de `FREE_WORKOUT` ou
+  `TREADMILL`, sem reescrever fatos raw ou atividades `SYNCED`;
+- workflow temporário de automação foi removido; não existe escrita automática
+  adicional.
+
 ## Compatibilidade deliberadamente deixada para 033-08
 
 `RoomRepositories.hasSupportedHealthSyncPair()` ainda é um helper legado que
@@ -97,6 +111,80 @@ Validação local concluída em 2026-09-14:
 - `lint`, `assembleDebug` e `assembleRelease`: **BUILD SUCCESSFUL**;
 - `git diff --check`: sem saída/erros;
 - warnings observados permaneceram não bloqueantes e fora do escopo desta task.
+
+Validação local após a correção de política nativa, em 2026-09-14:
+
+- `./gradlew lint assembleDebug assembleRelease`: **BUILD SUCCESSFUL**;
+- `git diff --check`: sem saída/erros.
+
+Validação final após os guards de workflow e bloqueio de fallback por step length
+em D4 v4 inelegível de `FREE_WORKOUT`/`TREADMILL`, em 2026-09-14:
+
+- `./gradlew lint assembleDebug assembleRelease`: **BUILD SUCCESSFUL**;
+- `git diff --check`: sem saída/erros;
+- warnings Kotlin de overrides deprecated permaneceram não bloqueantes.
+
+Validação física da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1
+positivo sem overlap D4 foi concluída em 2026-09-14. Aceite global D1 permanece
+parcialmente pendente somente por falta de caso D4 zero/ausente.
+
+## Registro da evolução de política — 2026-09-14
+
+- **Status:** `in_progress`; política física concluída, aceite global D1 parcial.
+- **Arquivos alterados:** `WatchWorkoutDerivedMetrics.kt`, `WatchWorkoutActivity.kt`,
+  `DistanceCalibrationEvidence.kt`, `DatabaseMappers.kt`, `RoomRepositories.kt`,
+  `ExercisesScreen.kt`, `ExercisesViewModel.kt`, ADR-029, Spec 032, este arquivo e
+  `033-00-overview.md`, além de
+  `docs/integration/033-10-native-distance-policy-physical-validation.md`. O workflow temporário
+  `.github/workflows/apply-033-native-distance-policy.yml` foi removido.
+- **Decisões:** `FREE_WORKOUT` preserva `WATCH_NATIVE`; `TREADMILL` usa série D4
+  nativa, exige referência externa e aplica fator proporcional por intervalo;
+  perfis nativos de `RUNNING`, `WALKING` e `TREADMILL` permanecem separados;
+  calibração por comprimento de passo continua somente em `RUNNING`/`WALKING`;
+  D4 v4 inelegível não cai silenciosamente em step length para `FREE_WORKOUT` ou
+  `TREADMILL`.
+- **Desvios:** nenhum requisito funcional alterado. TREADMILL não resolve fator
+  aprendido de `RUNNING`/`WALKING`; pode consultar somente o fator aprendido de
+  TREADMILL, mas a revisão sempre permanece `PENDING_CALIBRATION` até a distância
+  final da atividade ser informada. A aplicação explícita da referência gera
+  `WATCH_NATIVE_CONTEXT_CALIBRATED` e libera `READY_TO_SYNC`. O fator contextual
+  próprio continua persistido e observado para o contexto TREADMILL.
+- A revisão FREE_WORKOUT força nova derivação quando snapshot ativo não é nativo;
+  D4 v4 inelegível falha fechado, sem preservar fallback por step length.
+- **Comandos executados:** `git diff --check`; `./gradlew lint assembleDebug
+  assembleRelease`.
+- **Resultados e evidências:** `git diff --check` sem saída; Gradle terminou com
+  `BUILD SUCCESSFUL`; revisão estática confirmou os guards nativos, o pipeline
+  explícito TREADMILL, o isolamento dos conjuntos de calibração e a preservação
+  do caminho CYCLING. Não houve novo teste automatizado nesta passagem.
+- **Correção durante validação:** uma execução intermediária falhou por nulidade
+  em `RoomRepositories.kt:1458` ao bloquear o caminho legacy de calibração; o
+  import record passou a ser validado antes da chamada nativa e a execução final
+  passou integralmente.
+- **Riscos residuais:** falta caso D4 zero/ausente elegível para D1 e evidência
+  adicional desse cenário. Fluxos FREE_WORKOUT/TREADMILL,
+  idempotência e overlap por métrica estão cobertos em
+  `docs/integration/033-10-native-distance-policy-physical-validation.md`.
+
+### Validação física concluída da nova política — 2026-09-14
+
+Validação física informada para esta passagem confirmou revisão de um treino
+`FREE_WORKOUT` com:
+
+```text
+parser: d4-v4 válido
+steps: 173
+native distance: 140 m
+calories: aproximadamente 9.169 kcal
+```
+
+Após confirmar o tipo, a distância nativa foi preservada como `WATCH_NATIVE`,
+com distância canônica positiva e sem encaminhamento para `PENDING_CALIBRATION`.
+Essa evidência fecha o cenário FREE_WORKOUT. O dump TREADMILL, os detalhes de
+calibração, publicação, overlap e idempotência estão registrados em
+`docs/integration/033-10-native-distance-policy-physical-validation.md`.
+Aceite global da 033-10 mantém pendente somente caso D4 zero/ausente elegível
+para D1.
 
 ## Validação física — próximo treino
 
@@ -161,13 +249,13 @@ Esperado:
 A task pode mudar para `completed` quando:
 
 - [x] `lint`, `assembleDebug`, `assembleRelease` e `git diff --check` passarem;
-- [ ] dump pré-sync confirmar preparação e supressão por métrica;
-- [ ] dump pós-sync confirmar `DISTANCE` e `ACTIVE_CALORIES_BURNED` D1 sincronizados;
-- [ ] não houver duplicação D1/D4 observável na ordem normal;
+- [x] dump pré-sync confirmar preparação e supressão por métrica;
+- [x] dump pós-sync confirmar `DISTANCE` e `ACTIVE_CALORIES_BURNED` D1 sincronizados;
+- [x] não houver duplicação D1/D4 observável na ordem normal;
 - [ ] D4 zero não suprimir D1 válido;
-- [ ] STEPS/WorkoutSteps permanecerem sem regressão;
-- [ ] segunda sincronização for idempotente;
-- [ ] evidência sanitizada for registrada em `docs/integration/`.
+- [x] STEPS/WorkoutSteps permanecerem sem regressão;
+- [x] segunda sincronização for idempotente;
+- [x] evidência sanitizada for registrada em `docs/integration/`.
 
 ## Fora do escopo
 

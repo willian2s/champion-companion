@@ -44,8 +44,10 @@ follow-up promovido por evidência física:
 
 `033-06` foi revalidada fisicamente em 2026-09-14 com STEPS granular D1 real,
 workout simultâneo e zero pendências acionáveis após sync. A `033-07` segue em
-execução. A `033-10` possui implementação de código e validação técnica concluídas;
-permanece `in_progress` somente até a validação física no próximo treino.
+execução. A `033-10` possui implementação, validação técnica e validação física
+da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1 positivo sem overlap D4
+concluídas; permanece `in_progress` somente pelo caso D4 zero/ausente ainda não
+observado.
 
 ## Checklist
 
@@ -58,7 +60,7 @@ permanece `in_progress` somente até a validação física no próximo treino.
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — em andamento
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
-- [ ] `033-10-publicar-distancia-calorias-d1-granulares.md` — código/build concluídos; validação física pendente
+- [ ] `033-10-publicar-distancia-calorias-d1-granulares.md` — política física concluída; aceite D1 residual pendente
 
 ## Decisões congeladas
 
@@ -185,8 +187,9 @@ A implementação usa schema congelado v5 para essas duas famílias, identidade 
 `sampleId + recordType`, nenhuma migration Room e nenhuma nova escrita automática.
 
 Gate técnico concluído em 2026-09-14: `./gradlew lint assembleDebug assembleRelease`
-terminou com `BUILD SUCCESSFUL` e `git diff --check` não reportou erros. A validação
-física permanece pendente conforme `033-10-publicar-distancia-calorias-d1-granulares.md`.
+terminou com `BUILD SUCCESSFUL` e `git diff --check` não reportou erros, inclusive
+após a correção de política nativa. A validação física permanece pendente conforme
+`033-10-publicar-distancia-calorias-d1-granulares.md`.
 
 ## Correção física pós-033-05: cauda recente FEA1 × D1
 
@@ -280,4 +283,11 @@ Ainda pendente na 033-07:
 
 ### Evolução física: distância D4 em treino livre e esteira — 2026-09-14
 
-A validação física de 033-10 encontrou `FREE_WORKOUT` `d4-v4` válido com 173 passos, 140 m de distância nativa e 9,169 kcal. A revisão falhava porque removia `WATCH_NATIVE` ao confirmar o tipo. A política foi evoluída: `FREE_WORKOUT` e `TREADMILL` aceitam distância D4 nativa; `TREADMILL` usa a distância final informada pelo usuário para fator contextual próprio. O overlap continua por métrica: D4 `DISTANCE > 0` suprime somente `D1 DISTANCE` sobreposta.
+A validação física de 033-10 encontrou e confirmou a revisão de `FREE_WORKOUT` `d4-v4` válido com 173 passos, 140 m de distância nativa e aproximadamente 9.169 kcal. Após confirmar o tipo, `WATCH_NATIVE` foi preservado, a distância canônica permaneceu positiva e o fluxo não foi para `PENDING_CALIBRATION`. A revisão falhava porque removia `WATCH_NATIVE` ao confirmar o tipo. A política foi evoluída: `FREE_WORKOUT` e `TREADMILL` aceitam distância D4 nativa; `TREADMILL` permanece `PENDING_CALIBRATION` até receber distância final externa e usa essa referência para fator contextual próprio. Step length continua restrito a `RUNNING`/`WALKING`. O overlap continua por métrica: D4 `DISTANCE > 0` suprime somente `D1 DISTANCE` sobreposta.
+
+Os dumps físicos 06..10 confirmaram também `TREADMILL` `01a0a46a-68f8-70a9-8f86-54f38001137d`: 196 m nativos, referência 250 m, fator exclusivo `1.2755102040816326`, série temporal calibrada somando aproximadamente 250 m, `READY_TO_SYNC`, quatro records de distância sincronizados, `FAILED=0` e segundo sync idêntico nas 31 tabelas. Evidência detalhada fica em `docs/integration/033-10-native-distance-policy-physical-validation.md`.
+
+## Observações
+
+- Política física `FREE_WORKOUT`/`TREADMILL`: concluída.
+- Aceite global 033-10 ainda aguarda caso D4 zero/ausente que mantenha D1 elegível.
