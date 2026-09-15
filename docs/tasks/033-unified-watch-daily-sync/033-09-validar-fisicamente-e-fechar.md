@@ -40,7 +40,7 @@ Validar no Champion C001 e em banco real a linha completa da 033 antes do merge.
 19. Cauda recente não reescreve IDs/payloads já congelados quando novos buckets D1
     chegam; retries preservam identidade.
 20. Partial success preserva componentes já persistidos.
-21. Migration real v17 -> v18 preserva dados da 032.
+21. Migration real v17 -> v19 preserva dados da 032.
 22. Cenário `dayOffset > 0` é exercitado ou permanece risco residual explícito se
     não houver dado físico disponível.
 

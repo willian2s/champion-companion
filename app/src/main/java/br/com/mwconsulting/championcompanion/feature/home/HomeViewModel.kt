@@ -12,16 +12,19 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
 import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
-import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
+import br.com.mwconsulting.championcompanion.core.model.MetricProvenance
 import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModel
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModelRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutWorkflowSummary
@@ -49,7 +52,7 @@ import kotlinx.coroutines.sync.Mutex
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel @Inject constructor(
-    private val dailySummaryRepository: DailySummaryRepository,
+    private val watchDailyReadModelRepository: WatchDailyReadModelRepository,
     private val deviceRepository: DeviceRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
     private val appWorkoutSessionRepository: AppWorkoutSessionRepository,
@@ -66,21 +69,24 @@ class HomeViewModel @Inject constructor(
     private val environment = MutableStateFlow(bleEnvironment.snapshot())
     private val refreshState = MutableStateFlow(HomeRefreshState())
     private val mutableState = MutableStateFlow(HomeUiState())
+    private val zoneId = ZoneId.systemDefault()
 
     override val state: StateFlow<HomeUiState> = mutableState.asStateFlow()
 
     init {
-        val summaryFlow = observedDate.flatMapLatest { dailySummaryRepository.observeSummaryForDate(it) }
+        val dailyReadModelFlow = observedDate.flatMapLatest { date ->
+            watchDailyReadModelRepository.observeDay(localDate = date, zoneId = zoneId)
+        }
         val contentFlow = combine(
             observedDate,
-            summaryFlow,
+            dailyReadModelFlow,
             heartRateRepository.observeLatestValidMeasurement(),
             deviceRepository.observeAssociatedDevice(),
             appPreferencesRepository.observeDailyStepsGoal(),
-        ) { date, summary, latestHeartRate, device, goal ->
+        ) { date, readModel, latestHeartRate, device, goal ->
             HomeObservedContent(
                 observedDate = date,
-                summary = summary,
+                readModel = readModel,
                 latestHeartRate = latestHeartRate,
                 device = device,
                 dailyGoal = goal,
@@ -103,9 +109,9 @@ class HomeViewModel @Inject constructor(
             ) { status, pending, bleState, refresh ->
                 val (content, workflowSummary, healthSyncSummary) = status
                 HomeUiState(
-                    surfaceState = deriveSurfaceState(content.summary, content.device, bleState, refresh),
+                    surfaceState = deriveSurfaceState(content.readModel.fea1Summary, content.device, bleState, refresh),
                     observedDate = content.observedDate,
-                    summary = content.summary?.toHomeDailySummaryModel(content.device, content.dailyGoal),
+                    summary = content.readModel.toHomeDailySummaryModel(content.device, content.dailyGoal),
                     latestHeartRate = content.latestHeartRate?.toHomeLatestHeartRateModel(),
                     watch = content.device.toHomeWatchSnapshot(bleState),
                     healthConnectSync = healthSyncSummary.toHomeHealthConnectSyncModel(),
@@ -269,19 +275,32 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    private fun DailySummary.toHomeDailySummaryModel(device: Device?, dailyGoal: Int): HomeDailySummaryModel {
-        val goalProgress = DailySummaryPolicy.progress(steps, dailyGoal)
+    private fun WatchDailyReadModel.toHomeDailySummaryModel(
+        device: Device?,
+        dailyGoal: Int,
+    ): HomeDailySummaryModel? {
+        val summary = fea1Summary ?: return null
+        val goalProgress = DailySummaryPolicy.progress(summary.steps, dailyGoal)
+        val dailyDistance = distanceMeters.value.presentValueOrNull()
+        val dailyCalories = caloriesKilocalories.value.presentValueOrNull()
         return HomeDailySummaryModel(
-            steps = steps,
+            steps = summary.steps,
             dailyGoal = goalProgress.goal,
             progress = goalProgress.progress,
-            estimatedDistanceMeters = estimatedDistanceMeters,
-            estimatedCaloriesKilocalories = estimatedCaloriesKilocalories,
-            sourceLabel = when (key.origin) {
+            estimatedDistanceMeters = summary.estimatedDistanceMeters,
+            estimatedCaloriesKilocalories = summary.estimatedCaloriesKilocalories,
+            sourceLabel = when (summary.key.origin) {
                 DataOrigin.WATCH_DAILY_SUMMARY -> device?.name ?: "Relógio"
                 else -> "Resumo local"
             },
-            updatedAt = updatedAt,
+            updatedAt = summary.updatedAt,
+            dailyDistanceMeters = dailyDistance,
+            dailyCaloriesKilocalories = dailyCalories,
+            dailyDistanceIsMeasured = distanceMeters.provenance?.kind == MetricProvenance.WATCH_REPORTED &&
+                distanceMeters.provenance.source == DataOrigin.WATCH_D1_HISTORY,
+            dailyCaloriesAreMeasured = caloriesKilocalories.provenance?.kind == MetricProvenance.WATCH_REPORTED &&
+                caloriesKilocalories.provenance.source == DataOrigin.WATCH_D1_HISTORY,
+            completeness = completeness,
         )
     }
 
@@ -415,9 +434,12 @@ class HomeViewModel @Inject constructor(
 
     private data class HomeObservedContent(
         val observedDate: LocalDate,
-        val summary: DailySummary?,
+        val readModel: WatchDailyReadModel,
         val latestHeartRate: HeartRateMeasurement?,
         val device: Device?,
         val dailyGoal: Int,
     )
 }
+
+private fun <T> DomainValue<T>.presentValueOrNull(): T? =
+    (this as? DomainValue.Present)?.value

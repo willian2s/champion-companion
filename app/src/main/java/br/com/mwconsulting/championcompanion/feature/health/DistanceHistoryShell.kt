@@ -206,6 +206,8 @@ internal data class DistanceHistoryDisplayEntry(
     val estimatedDistanceMeters: Double?,
     val origins: Set<DataOrigin>,
     val updatedAt: Instant?,
+    val isMeasured: Boolean = false,
+    val isMixed: Boolean = false,
     val bucketKind: DistanceHistoryBucketKind,
 ) {
     init {
@@ -276,6 +278,7 @@ private fun CalendarDistanceHistoryEntry.toDistanceHistoryDisplayEntry(
     estimatedDistanceMeters = estimatedDistanceMeters,
     origins = origin?.let(::setOf).orEmpty(),
     updatedAt = updatedAt,
+    isMeasured = isMeasured,
     bucketKind = bucketKind,
 )
 
@@ -289,12 +292,15 @@ private fun List<CalendarDistanceHistoryEntry>.toDistanceHistoryDisplayEntry(
     val total = values.sumFiniteOrNull()
     val valueEntries = filter { it.estimatedDistanceMeters != null }
     val metadataEntries = valueEntries.ifEmpty { this }
+    val measuredEntryCount = valueEntries.count { it.isMeasured }
     return DistanceHistoryDisplayEntry(
         fromInclusive = from,
         untilExclusive = until,
         estimatedDistanceMeters = total,
         origins = metadataEntries.mapNotNull { it.origin }.toSet(),
         updatedAt = metadataEntries.mapNotNull { it.updatedAt }.maxOrNull(),
+        isMeasured = valueEntries.isNotEmpty() && measuredEntryCount == valueEntries.size,
+        isMixed = measuredEntryCount > 0 && measuredEntryCount < valueEntries.size,
         bucketKind = bucketKind,
     )
 }
@@ -362,7 +368,13 @@ private fun DistanceHistoryList(
         }
         visibleEntries.forEach { entry ->
             val date = formatDistanceDisplayRange(entry, locale)
-            val value = entry.estimatedDistanceMeters?.let { "${formatDistance(it)} • estimada" }
+            val value = entry.estimatedDistanceMeters?.let {
+                "${formatDistance(it)} • ${when {
+                    entry.isMixed -> "combinada"
+                    entry.isMeasured -> "medida"
+                    else -> "estimada"
+                }}"
+            }
                 ?: "Sem estimativa"
             val origin = entry.origins.joinToString(", ") { it.toDistanceOriginLabel() }.ifBlank { "indisponível" }
             val updatedAt = entry.updatedAt?.let(::formatDateTime) ?: "indisponível"
@@ -526,7 +538,11 @@ private fun DistanceHistoryUiError.toUserMessage(): String = when (category) {
 
 private fun DataOrigin.toDistanceOriginLabel(): String = when (this) {
     DataOrigin.WATCH_DAILY_SUMMARY -> "relógio"
-    else -> "resumo diário local"
+    DataOrigin.WATCH_D1_HISTORY -> "histórico D1"
+    DataOrigin.WATCH_D3_D4 -> "relógio D3/D4"
+    DataOrigin.MANUAL_ENTRY -> "entrada manual"
+    DataOrigin.APP_WORKOUT_SESSION -> "aplicativo"
+    DataOrigin.DERIVED -> "derivada localmente"
 }
 
 private fun formatDistance(meters: Double): String =

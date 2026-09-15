@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`, `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
 - **Status:** `in_progress`
-- **Progresso:** `8/10`
+- **Progresso:** `9/10`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -19,7 +19,7 @@ reescrever histórico.
 033-01 Auditoria e contratos                         ✓
    |\
    | +--> 033-02 Parser/collector D1 v2             ✓
-   | +--> 033-03 Persistência D1 / Room v18         ✓
+   | +--> 033-03 Persistência D1 / Room v19         ✓
    |          |
    +----------+
               v
@@ -59,7 +59,7 @@ exigência de reprodução física artificial.
 - [x] `033-05-unificar-watch-sync-na-home.md`
 - [x] `033-06-integrar-health-connect-granular-e-cutover.md` — revalidação física granular concluída
 - [x] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — concluída; entrypoints BLE e calibração por passo removidos da UI, contratos internos preservados
-- [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
+- [x] `033-08-integrar-read-models-legacy-e-compatibilidade.md` — read models integrados; compatibilidade D1 granular alinhada
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
 - [x] `033-10-publicar-distancia-calorias-d1-granulares.md` — concluída; D4 zero/ausente reclassificado como guard técnico
 
@@ -252,7 +252,7 @@ Entregue:
 - **Validação física 033-10:** concluída; D4 zero/ausente permanece guard técnico;
 - **D4 calories:** avaliar em trabalho separado eventual migração de `TOTAL_CALORIES_BURNED` para energia ativa; não alterar histórico silenciosamente;
 - **fronteiras D1/D4:** minutos externos dentro de bucket parcialmente sobreposto ficam deliberadamente fail-closed para a métrica afetada;
-- **033-08:** alinhar `RoomRepositories.hasSupportedHealthSyncPair()` e read models legados para reconhecer agregados D1 granulares sem falso estado de integridade;
+- **033-08:** concluída; `RoomRepositories.hasSupportedHealthSyncPair()` e read models legados reconhecem agregados D1 granulares sem falso estado de integridade;
 - observar fisicamente o bucket em torno da meia-noite e revalidar firmware futuro;
 - partial success forçado continua reservado para 033-09.
 
@@ -293,3 +293,6 @@ Os dumps físicos 06..10 confirmaram também `TREADMILL` `01a0a46a-68f8-70a9-8f8
   artificial não bloqueia aceite.
 - 033-07 validada visualmente no `SM-S901E`; screenshots temporárias ficam em
   `/tmp/033-07-*.png` para eventual anexação ao PR.
+- 033-08 concluída com validação técnica (`lint`, `assembleDebug`,
+  `assembleRelease` e `git diff --check`). Validação física específica da
+  composição e fechamento permanecem na 033-09.

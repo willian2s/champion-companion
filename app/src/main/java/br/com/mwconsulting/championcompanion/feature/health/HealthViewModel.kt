@@ -3,11 +3,12 @@ package br.com.mwconsulting.championcompanion.feature.health
 import androidx.lifecycle.ViewModel
 import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectSyncCoordinator
 import br.com.mwconsulting.championcompanion.core.model.AppPreferencesRepository
-import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DomainResult
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncSummary
@@ -26,6 +27,11 @@ import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasu
 import br.com.mwconsulting.championcompanion.core.model.SaveManualWeightMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.UuidV7Generator
+import br.com.mwconsulting.championcompanion.core.model.MetricProvenance
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModel
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModelComposer
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModelRepository
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
 import br.com.mwconsulting.championcompanion.core.model.valueOrNull
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -43,6 +49,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.CancellationException
@@ -56,7 +63,7 @@ private const val MANUAL_HEART_RATE_PARSER_VERSION = "manual-heart-rate-v1"
 class HealthViewModel internal constructor(
     private val heartRateRepository: HeartRateRepository,
     private val deviceRepository: DeviceRepository,
-    private val dailySummaryRepository: DailySummaryRepository,
+    private val watchDailyReadModelRepository: WatchDailyReadModelRepository,
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
     private val healthSyncRepository: HealthSyncRepository,
@@ -87,7 +94,7 @@ class HealthViewModel internal constructor(
     private val weightMessage = MutableStateFlow<HealthWeightMessage?>(null)
     private val selectedWeightHistoryPeriod = MutableStateFlow(WeightHistoryPeriod.THREE_MONTHS)
     private val observedDate = MutableStateFlow(LocalDate.now())
-    private val todaySummary = MutableStateFlow<DailySummary?>(null)
+    private val todaySummary = MutableStateFlow<WatchDailyReadModel?>(null)
     private val dailyStepsGoal = MutableStateFlow(br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL)
     private val healthConnectSync = MutableStateFlow(HealthConnectSyncUiModel())
     private val persistedCompletedSessions = linkedSetOf<String>()
@@ -163,7 +170,7 @@ class HealthViewModel internal constructor(
         }
         scope.launch {
             observedDate.flatMapLatest { date ->
-                dailySummaryRepository.observeSummaryForDate(date)
+                watchDailyReadModelRepository.observeDay(date, java.time.ZoneId.systemDefault())
             }.collect { summary ->
                 todaySummary.value = summary
             }
@@ -275,11 +282,40 @@ class HealthViewModel internal constructor(
         }
     }
 
+    /** Mantém construção interna legacy usada por consumidores/testes antigos. */
+    internal constructor(
+        heartRateRepository: HeartRateRepository,
+        deviceRepository: DeviceRepository,
+        dailySummaryRepository: DailySummaryRepository,
+        personalMetricsRepository: PersonalMetricsRepository,
+        appPreferencesRepository: AppPreferencesRepository,
+        healthSyncRepository: HealthSyncRepository,
+        healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
+        manualHeartRateCoordinator: ManualHeartRateCoordinator,
+        d1HeartRateSyncCoordinator: D1HeartRateSyncCoordinator,
+        scope: CoroutineScope,
+        ids: UuidV7Generator,
+        parserVersion: ParserVersion,
+    ) : this(
+        heartRateRepository = heartRateRepository,
+        deviceRepository = deviceRepository,
+        watchDailyReadModelRepository = LegacyWatchDailyReadModelRepository(dailySummaryRepository),
+        personalMetricsRepository = personalMetricsRepository,
+        appPreferencesRepository = appPreferencesRepository,
+        healthSyncRepository = healthSyncRepository,
+        healthConnectSyncCoordinator = healthConnectSyncCoordinator,
+        manualHeartRateCoordinator = manualHeartRateCoordinator,
+        d1HeartRateSyncCoordinator = d1HeartRateSyncCoordinator,
+        scope = scope,
+        ids = ids,
+        parserVersion = parserVersion,
+    )
+
     @Inject
     constructor(
         heartRateRepository: HeartRateRepository,
         deviceRepository: DeviceRepository,
-        dailySummaryRepository: DailySummaryRepository,
+        watchDailyReadModelRepository: WatchDailyReadModelRepository,
         personalMetricsRepository: PersonalMetricsRepository,
         appPreferencesRepository: AppPreferencesRepository,
         healthSyncRepository: HealthSyncRepository,
@@ -289,7 +325,7 @@ class HealthViewModel internal constructor(
     ) : this(
         heartRateRepository = heartRateRepository,
         deviceRepository = deviceRepository,
-        dailySummaryRepository = dailySummaryRepository,
+        watchDailyReadModelRepository = watchDailyReadModelRepository,
         personalMetricsRepository = personalMetricsRepository,
         appPreferencesRepository = appPreferencesRepository,
         healthSyncRepository = healthSyncRepository,
@@ -668,17 +704,28 @@ class HealthViewModel internal constructor(
         )
     }
 
-    private fun DailySummary.toHealthDailySummarySnapshot(device: Device?): HealthDailySummarySnapshot =
-        HealthDailySummarySnapshot(
-            steps = steps,
-            estimatedDistanceMeters = estimatedDistanceMeters,
-            updatedAt = updatedAt,
-            source = key.origin,
-            sourceLabel = when (key.origin) {
-                br.com.mwconsulting.championcompanion.core.model.DataOrigin.WATCH_DAILY_SUMMARY -> device?.name ?: "Relógio"
+    private fun WatchDailyReadModel.toHealthDailySummarySnapshot(device: Device?): HealthDailySummarySnapshot? {
+        val summary = fea1Summary ?: return null
+        val dailyDistance = distanceMeters.value.presentValueOrNull()
+        val dailyCalories = caloriesKilocalories.value.presentValueOrNull()
+        return HealthDailySummarySnapshot(
+            steps = summary.steps,
+            estimatedDistanceMeters = summary.estimatedDistanceMeters,
+            updatedAt = summary.updatedAt,
+            source = summary.key.origin,
+            sourceLabel = when (summary.key.origin) {
+                DataOrigin.WATCH_DAILY_SUMMARY -> device?.name ?: "Relógio"
                 else -> "Resumo local"
             },
+            distanceMeters = dailyDistance,
+            caloriesKilocalories = dailyCalories,
+            distanceIsMeasured = distanceMeters.provenance?.kind == MetricProvenance.WATCH_REPORTED &&
+                distanceMeters.provenance.source == DataOrigin.WATCH_D1_HISTORY,
+            caloriesAreMeasured = caloriesKilocalories.provenance?.kind == MetricProvenance.WATCH_REPORTED &&
+                caloriesKilocalories.provenance.source == DataOrigin.WATCH_D1_HISTORY,
+            completeness = completeness,
         )
+    }
 
     private data class CoreHealthState(
         val surfaceState: HealthSurfaceState,
@@ -724,6 +771,25 @@ class HealthViewModel internal constructor(
         lastSyncedAt = lastSyncedAt,
     )
 }
+
+private class LegacyWatchDailyReadModelRepository(
+    private val dailySummaryRepository: DailySummaryRepository,
+) : WatchDailyReadModelRepository {
+    override fun observeDay(localDate: LocalDate, zoneId: java.time.ZoneId): Flow<WatchDailyReadModel> =
+        dailySummaryRepository.observeSummaryForDate(localDate).map { summary ->
+            WatchDailyReadModelComposer.compose(
+                localDate = localDate,
+                zoneId = zoneId,
+                associatedDeviceId = summary?.key?.deviceId,
+                summaries = listOfNotNull(summary),
+                d1Samples = emptyList(),
+                workouts = emptyList(),
+            )
+        }
+}
+
+private fun <T> DomainValue<T>.presentValueOrNull(): T? =
+    (this as? DomainValue.Present)?.value
 
 private fun D1HeartRateImportSurfaceState.completedSessionOrNull(): D1HeartRateImportSessionState? = when (this) {
     is D1HeartRateImportSurfaceState.Completed -> session

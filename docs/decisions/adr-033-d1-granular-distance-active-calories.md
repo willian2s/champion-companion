@@ -153,10 +153,10 @@ nunca vira distância, energia ou passos sintéticos.
 ### 10. Integridade/read models legados
 
 `GranularHealthSyncRepository` é o owner do novo writer e da fila granular.
-`RoomRepositories.hasSupportedHealthSyncPair()` ainda classifica genericamente
-`WATCH_DAILY_D1_SAMPLE` como legado não suportado em uma leitura de integridade.
-O alinhamento desse helper e dos consumidores de read model pertence à `033-08`;
-não deve reabrir nem alterar os efeitos remotos definidos aqui.
+`RoomRepositories.hasSupportedHealthSyncPair()` reconhece
+`WATCH_DAILY_D1_SAMPLE` para `STEPS`, `DISTANCE` e `ACTIVE_CALORIES_BURNED` em
+leituras de integridade. A `033-08` também integrou consumidores ao read model,
+sem reabrir nem alterar os efeitos remotos definidos aqui.
 
 ## Consequências
 

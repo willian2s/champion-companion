@@ -348,14 +348,14 @@ object WatchDailyReadModelComposer {
         } ?: absentMetric()
         val distance = when {
             d1StructuralCoverage.complete && d1Distance != null -> measuredMetric(d1Distance, DataOrigin.WATCH_D1_HISTORY)
-            daySamples.isEmpty() -> fea1Summary?.estimatedDistanceMeters?.let {
+            daySamples.isEmpty() && WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE !in issues -> fea1Summary?.estimatedDistanceMeters?.let {
                 estimatedMetric(it, DataOrigin.WATCH_DAILY_SUMMARY)
             } ?: absentMetric()
             else -> absentMetric()
         }
         val calories = when {
             d1StructuralCoverage.complete && d1Calories != null -> measuredMetric(d1Calories, DataOrigin.WATCH_D1_HISTORY)
-            daySamples.isEmpty() -> fea1Summary?.estimatedCaloriesKilocalories?.let {
+            daySamples.isEmpty() && WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE !in issues -> fea1Summary?.estimatedCaloriesKilocalories?.let {
                 estimatedMetric(it, DataOrigin.WATCH_DAILY_SUMMARY)
             } ?: absentMetric()
             else -> absentMetric()

@@ -160,7 +160,7 @@ Conclusão do collector depende da estrutura/posição, não da validade do BPM.
 
 `watch_daily_d1_samples` preserva identidade natural por dispositivo/data/posição,
 data/hora/instante/zoneId, passos, distância, calorias, sportValue, BPM nullable,
-raws e timestamps de importação/atualização. Room v18 é aditivo e não fabrica
+raws e timestamps de importação/atualização. Room v19 é aditivo e não fabrica
 histórico D1 que nunca foi persistido.
 
 ### R7 — D1 é linha diária; D4 é fonte do workout
@@ -389,7 +389,7 @@ WORKOUT
 033-01 Auditoria/contratos                         ✓
    |\
    | +--> 033-02 Parser/collector D1 v2            ✓
-   | +--> 033-03 Persistência Room v18             ✓
+   | +--> 033-03 Persistência D1 / Room v19        ✓
    |          |
    +----------+
               v
@@ -404,7 +404,7 @@ WORKOUT
               v
 033-07 Produto/UI                           ✓
               |
-        033-08 Read models/compatibilidade
+         033-08 Read models/compatibilidade              ✓
               |
         033-09 Validação física/fechamento
 
@@ -412,9 +412,10 @@ follow-up após evidência granular:
 033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ✓
 ```
 
-A implementação e validação física da 033-10 foram concluídas. O alinhamento do
-helper legado `RoomRepositories.hasSupportedHealthSyncPair()` para agregados D1
-pertence à 033-08 e não altera o writer granular.
+A implementação e validação física da 033-10 foram concluídas. A 033-08 alinhou
+read models e `RoomRepositories.hasSupportedHealthSyncPair()` para agregados D1,
+sem alterar writer granular, payloads congelados ou workflow histórico. A validação
+física final da composição e o fechamento da spec permanecem na 033-09.
 
 ## Validação obrigatória
 

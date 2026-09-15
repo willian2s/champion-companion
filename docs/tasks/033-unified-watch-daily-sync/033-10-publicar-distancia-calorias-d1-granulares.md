@@ -86,16 +86,17 @@ explícita.
 - workflow temporário de automação foi removido; não existe escrita automática
   adicional.
 
-## Compatibilidade deliberadamente deixada para 033-08
+## Compatibilidade concluída em 033-08
 
-`RoomRepositories.hasSupportedHealthSyncPair()` ainda é um helper legado que
-classifica genericamente `WATCH_DAILY_D1_SAMPLE` como não suportado na leitura de
-integridade. O writer/queue efetivo é `GranularHealthSyncRepository`; portanto a
-publicação desta task não depende desse helper.
+`RoomRepositories.hasSupportedHealthSyncPair()` permanece helper legado, mas agora
+reconhece `WATCH_DAILY_D1_SAMPLE` para `STEPS`, `DISTANCE` e
+`ACTIVE_CALORIES_BURNED` na leitura de integridade. O writer/queue efetivo continua
+sendo `GranularHealthSyncRepository`; nenhuma superfície de escrita remota foi
+alterada.
 
-A `033-08` deve alinhar esse supported-pair e os read models que eventualmente
-incluam agregados D1, evitando falso `hasInvalidOperation` sem ampliar a superfície
-de escrita remota.
+Os read models legados também reconhecem fatos D1 existentes sem substituir
+DailySummary histórico, evitando falso `hasInvalidOperation` sem ampliar a
+superfície de escrita remota.
 
 ## Validação técnica obrigatória
 
@@ -282,5 +283,6 @@ A task foi marcada `completed` após:
 - dividir proporcionalmente buckets de fronteira;
 - readback do Health Connect;
 - corrigir dados históricos remotos já publicados;
-- reescrever `RoomRepositories`/read models legados antes da 033-08;
+- alterar writer granular ou reescrever históricos além da compatibilidade entregue
+  pela 033-08;
 - criar ou executar testes automatizados.

@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.feature.home
 
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
 import java.time.Instant
 import java.time.LocalDate
 
@@ -124,6 +125,12 @@ data class HomeDailySummaryModel(
     val estimatedCaloriesKilocalories: Double?,
     val sourceLabel: String,
     val updatedAt: Instant,
+    /** Valor composto: D1 medido quando elegível, legacy estimado como fallback. */
+    val dailyDistanceMeters: Double? = null,
+    val dailyCaloriesKilocalories: Double? = null,
+    val dailyDistanceIsMeasured: Boolean = false,
+    val dailyCaloriesAreMeasured: Boolean = false,
+    val completeness: WatchDailyReadCompleteness? = null,
 )
 
 data class HomeLatestHeartRateModel(

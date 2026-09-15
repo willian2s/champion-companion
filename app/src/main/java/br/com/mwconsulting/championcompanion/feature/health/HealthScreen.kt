@@ -101,24 +101,27 @@ fun HealthScreen(
         else -> "Sem dados"
     }
     val todaySummary = state.todaySummary
+    val dailyDistance = todaySummary?.distanceMeters
     val distanceValue = when {
         todaySummary == null -> "Sem dados"
-        todaySummary.estimatedDistanceMeters == null -> "Indisponível"
-        else -> "${decimalFormat().format(todaySummary.estimatedDistanceMeters / 1000.0)} km"
+        dailyDistance == null -> "Indisponível"
+        else -> "${decimalFormat().format(dailyDistance / 1000.0)} km"
     }
     val distanceSupportingText = when {
         todaySummary == null -> "Nenhum resumo hoje"
-        todaySummary.estimatedDistanceMeters == null -> "Sem estimativa hoje"
+        dailyDistance == null -> "Sem distância medida ou estimada hoje"
+        todaySummary.distanceIsMeasured -> "Medida granular do relógio"
         else -> formatMoment(todaySummary.updatedAt)
     }
     val distanceExtraText = when {
         todaySummary == null -> "Origem: não disponível"
-        todaySummary.estimatedDistanceMeters == null -> "Origem: ${todaySummary.sourceLabel}"
+        dailyDistance == null -> "Origem: ${todaySummary.sourceLabel}"
+        todaySummary.distanceIsMeasured -> "Origem: ${todaySummary.sourceLabel} • Medida do relógio"
         else -> "Origem: ${todaySummary.sourceLabel} • Estimativa local"
     }
     val distanceStateLabel = when {
         todaySummary == null -> "Sem dados"
-        todaySummary.estimatedDistanceMeters == null -> "Indisponível"
+        dailyDistance == null -> "Indisponível"
         else -> "Disponível"
     }
     val today = LocalDate.now(ZoneId.systemDefault())

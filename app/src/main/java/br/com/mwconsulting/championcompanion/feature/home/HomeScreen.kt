@@ -64,6 +64,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementIntent
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementViewModel
 import java.text.NumberFormat
@@ -241,26 +242,18 @@ private fun HomeSurface(
     onOpenExercises: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val hasSummary = state.summary != null
-    val summary = state.summary ?: HomeDailySummaryModel(
-        steps = 0,
-        dailyGoal = 0,
-        progress = 0f,
-        estimatedDistanceMeters = 0.0,
-        estimatedCaloriesKilocalories = null,
-        sourceLabel = "",
-        updatedAt = Instant.EPOCH,
-    )
-    HomeSummaryContent(
-        summary = summary,
-        latestHeartRate = state.latestHeartRate.takeIf { hasSummary },
-        watch = state.watch,
-        onOpenHeartRate = onOpenHeartRate,
-        onOpenSteps = onOpenSteps,
-        onOpenDistance = onOpenDistance,
-        onOpenExercises = onOpenExercises,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    state.summary?.let { summary ->
+        HomeSummaryContent(
+            summary = summary,
+            latestHeartRate = state.latestHeartRate,
+            watch = state.watch,
+            onOpenHeartRate = onOpenHeartRate,
+            onOpenSteps = onOpenSteps,
+            onOpenDistance = onOpenDistance,
+            onOpenExercises = onOpenExercises,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 
     HomePendingContent(
         workoutPendingBanner = state.workoutPendingBanner,
@@ -354,7 +347,7 @@ private fun HomeSummaryContent(
 ) {
     val tokens = LocalChampionRedesignTokens.current
     val palette = homeCardPalette()
-    val distance = summary.estimatedDistanceMeters ?: 0.0
+    val distance = summary.dailyDistanceMeters
     val lineHeight = 56.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
     val cardHeight = lineHeight * 3 + tokens.spacing.compact * 2
 
@@ -394,6 +387,9 @@ private fun HomeSummaryContent(
 
         HomeMetadataFooter(
             lastImportedAt = watch.lastImportedAt,
+            completeness = summary.completeness,
+            distanceIsMeasured = summary.dailyDistanceIsMeasured,
+            caloriesAreMeasured = summary.dailyCaloriesAreMeasured,
         )
     }
 }
@@ -508,7 +504,7 @@ private fun HomeMetricsColumn(
         if (latestHeartRate == null) {
             HomeCompactSummaryLine(
                 title = "Freq. cardíaca",
-                value = "0 BPM",
+                value = "Sem dados",
                 onClick = onOpenHeartRate,
                 containerColor = heartRateColors.container,
                 contentColor = heartRateColors.content,
@@ -628,6 +624,9 @@ private fun HomeRefreshStatus(
 @Composable
 private fun HomeMetadataFooter(
     lastImportedAt: Instant?,
+    completeness: WatchDailyReadCompleteness?,
+    distanceIsMeasured: Boolean,
+    caloriesAreMeasured: Boolean,
 ) {
     Text(
         text = "Última sincronização: ${lastImportedAt?.let(::formatDateTime) ?: "Sem sincronização"}",
@@ -635,6 +634,20 @@ private fun HomeMetadataFooter(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
     )
+    completeness?.let { status ->
+        val metricSource = when {
+            distanceIsMeasured && caloriesAreMeasured -> "Distância e calorias medidas pelo relógio"
+            distanceIsMeasured -> "Distância medida pelo relógio"
+            caloriesAreMeasured -> "Calorias medidas pelo relógio"
+            else -> null
+        }
+        Text(
+            text = "Completude: ${status.toHomeLabel()}${metricSource?.let { " • $it" } ?: ""}",
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable
@@ -712,6 +725,14 @@ private fun formatPercent(progress: Float): String {
 private fun formatDistance(distanceMeters: Double): String {
     val kilometers = distanceMeters / 1000.0
     return "${decimalFormat().format(kilometers)} km"
+}
+
+private fun WatchDailyReadCompleteness.toHomeLabel(): String = when (this) {
+    WatchDailyReadCompleteness.EMPTY -> "sem dados"
+    WatchDailyReadCompleteness.PARTIAL -> "parcial"
+    WatchDailyReadCompleteness.COMPLETE -> "completa"
+    WatchDailyReadCompleteness.RECENT_TAIL -> "cauda recente"
+    WatchDailyReadCompleteness.DIVERGENT -> "divergente"
 }
 
 private fun formatDateTime(instant: Instant): String =

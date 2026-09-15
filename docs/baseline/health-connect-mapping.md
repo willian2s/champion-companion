@@ -32,6 +32,15 @@ No estado atual do Champion Companion apos a integracao nativa real:
 
 Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
 
+### Atualização factual após 033-08
+
+Na execução da Spec 033, FEA1 permanece total diário autoritativo de passos, D1
+passa a fornecer fatos granulares locais e D4 permanece fonte do detalhe de
+workout. Read models compostos alimentam Home, Saúde e Calendário sem somar D1 e
+D4 nem reinterpretar históricos legacy. D1 `DISTANCE` e
+`ACTIVE_CALORIES_BURNED` usam operações granulares próprias; D4 mantém
+`TOTAL_CALORIES_BURNED` por compatibilidade histórica.
+
 Na Fase 014, atividades `WATCH_D3_D4` usam somente distância canônica derivada
 de passos válidos e comprimento individual do passo (`stepLengthMeters`). O valor
 original do relógio é diagnóstico e não pode ser fallback. A entrega adicionou

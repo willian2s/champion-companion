@@ -3310,7 +3310,7 @@ class RoomRepositories @Inject constructor(
     }
 
     private fun observeHealthSyncSemanticCandidateIndex(): Flow<HealthSyncSemanticCandidateIndex> {
-        val nonWorkoutCandidates = combine(
+        val baseNonWorkoutCandidates = combine(
             database.dailySummaryDao().observeAll(),
             database.heartRateDao().observeAll(),
             database.userProfileDao().observeAllWeights(),
@@ -3320,12 +3320,22 @@ class RoomRepositories @Inject constructor(
                 dailySummaries = dailySummaries.mapNotNull { entity ->
                     mapAggregateSafely { entity.toDomain() }
                 }.associateBy { it.id.value },
+                watchDailyD1Samples = emptyMap(),
                 heartRateMeasurements = heartRates.mapNotNull { entity ->
                     mapAggregateSafely { entity.toDomain() }
                 }.associateBy { it.id.value },
                 weightMeasurements = weights.mapNotNull { it.toDomain() }
                     .associateBy { it.id.value },
                 userProfiles = profiles.mapNotNull { it.toDomain() }
+                    .associateBy { it.id.value },
+            )
+        }
+        val nonWorkoutCandidates = combine(
+            baseNonWorkoutCandidates,
+            database.watchDailyD1SampleDao().observeAll(),
+        ) { candidates, d1Samples ->
+            candidates.copy(
+                watchDailyD1Samples = d1Samples.mapNotNull { it.toDomain() }
                     .associateBy { it.id.value },
             )
         }
@@ -3370,6 +3380,7 @@ class RoomRepositories @Inject constructor(
         return combine(nonWorkoutCandidates, workoutCandidates) { nonWorkout, workouts ->
             HealthSyncSemanticCandidateIndex(
                 dailySummaries = nonWorkout.dailySummaries,
+                watchDailyD1Samples = nonWorkout.watchDailyD1Samples,
                 heartRateMeasurements = nonWorkout.heartRateMeasurements,
                 workoutActivities = workouts,
                 weightMeasurements = nonWorkout.weightMeasurements,
@@ -6003,6 +6014,7 @@ private data class MappedHealthSyncOperation(
 
 private data class NonWorkoutHealthSyncCandidates(
     val dailySummaries: Map<UUID, DailySummary>,
+    val watchDailyD1Samples: Map<UUID, br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>,
     val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
     val weightMeasurements: Map<UUID, WeightMeasurement>,
     val userProfiles: Map<UUID, UserProfile>,
@@ -6017,6 +6029,7 @@ private data class HealthSyncWorkoutCandidateFacts(
 
 private data class HealthSyncSemanticCandidateIndex(
     val dailySummaries: Map<UUID, DailySummary>,
+    val watchDailyD1Samples: Map<UUID, br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>,
     val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
     val workoutActivities: Map<UUID, WorkoutActivity>,
     val weightMeasurements: Map<UUID, WeightMeasurement>,
@@ -6065,7 +6078,11 @@ private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
 
 private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = when (aggregateType) {
     HealthSyncAggregateType.DAILY_SUMMARY.name -> recordType == HealthSyncRecordType.STEPS.name
-    HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE.name -> false
+    HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE.name -> recordType in setOf(
+        HealthSyncRecordType.STEPS.name,
+        HealthSyncRecordType.DISTANCE.name,
+        HealthSyncRecordType.ACTIVE_CALORIES_BURNED.name,
+    )
     HealthSyncAggregateType.HEART_RATE_MEASUREMENT.name -> recordType == HealthSyncRecordType.HEART_RATE.name
     HealthSyncAggregateType.WORKOUT_ACTIVITY.name -> recordType in setOf(
         HealthSyncRecordType.EXERCISE_SESSION.name,
@@ -6095,7 +6112,12 @@ private fun isSemanticallyResolved(
                 isDailySummaryEligibleForSteps(operation, summary)
             } == true
 
-    is HealthSyncAggregate.WatchDailyD1Sample -> false
+    is HealthSyncAggregate.WatchDailyD1Sample ->
+        operation.key.recordType in setOf(
+            HealthSyncRecordType.STEPS,
+            HealthSyncRecordType.DISTANCE,
+            HealthSyncRecordType.ACTIVE_CALORIES_BURNED,
+        ) && candidates.watchDailyD1Samples[aggregate.sampleId.value] != null
 
     is HealthSyncAggregate.HeartRateMeasurement ->
         operation.key.recordType == HealthSyncRecordType.HEART_RATE &&
