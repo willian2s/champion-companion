@@ -24,6 +24,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepositor
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -140,47 +141,150 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             isSyncNowRunning.value = true
             syncStatusMessage.value = null
-            val message = when (val outcome = healthConnectSyncCoordinator.syncPending()) {
-                is HealthConnectSyncOutcome.Completed -> if (outcome.report.writeAcceptedWithoutReadbackCount > 0) {
-                    "Escrita local aceita para ${outcome.report.writeAcceptedWithoutReadbackCount} operação(ões). O provider não foi lido; isso não confirma records visíveis no Health Connect."
-                } else {
-                    "Sincronização concluída na fila local. Nenhum record remoto foi lido para confirmação."
-                }
-                is HealthConnectSyncOutcome.NothingToSync -> "Nenhum dado pendente na fila local. A integração write-only não confirma records por leitura."
-                is HealthConnectSyncOutcome.CompletedWithFailures -> {
-                    val failures = outcome.failures
-                        .groupBy { it.recordType }
-                        .entries
-                        .joinToString("; ") { (recordType, records) ->
-                            "${recordType.toFriendlyLabel()}: ${records.first().failureKind.toFriendlyLabel()}"
-                        }
-                    buildString {
-                        append("Sincronização parcial local. Falhas: ")
-                        append(failures.ifBlank { "não classificadas" })
-                        append(". A atividade com filho falho permanece recuperável.")
-                        if (outcome.report.writeAcceptedWithoutReadbackCount > 0) {
-                            append(" Escritas aceitas não foram confirmadas por leitura do provider.")
-                        }
-                    }
-                }
-                is HealthConnectSyncOutcome.PermissionRequired -> "Permissão pendente para: ${outcome.missingPermissions.joinToString { it.toFriendlyLabel() }}. Autorize no provider e tente novamente."
-                is HealthConnectSyncOutcome.PlausibilityAcceptanceRequired ->
-                    "Há treino do relógio aguardando aceite explícito de plausibilidade antes da preparação Health Connect."
-                is HealthConnectSyncOutcome.PlausibilityBlocked ->
-                    "Projeção Health Connect bloqueada por indicadores ${outcome.indicators.joinToString()}."
-                is HealthConnectSyncOutcome.ProviderUnavailable -> if (outcome.updateRequired) {
-                    "Atualize o Health Connect para continuar a sincronização."
-                } else {
-                    "Health Connect indisponível neste dispositivo."
-                }
-
-                is HealthConnectSyncOutcome.Disabled -> "Ative a integração para sincronizar agora."
-                is HealthConnectSyncOutcome.Failed -> outcome.reason
+            try {
+                syncStatusMessage.value = runExplicitSyncNow()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                syncStatusMessage.value = "Não foi possível concluir a sincronização explícita."
+            } finally {
+                isSyncNowRunning.value = false
+                refreshHealthConnectState()
             }
-            syncStatusMessage.value = message
-            isSyncNowRunning.value = false
-            refreshHealthConnectState()
         }
+    }
+
+    private suspend fun runExplicitSyncNow(): String {
+        var acceptedWrites = 0
+        var syncedOperations = 0
+        var failedOperations = 0
+        var queuePasses = 0
+        var lastQueueOutcome: HealthConnectSyncOutcome? = null
+
+        while (queuePasses < MAX_SYNC_NOW_QUEUE_PASSES) {
+            val before = healthSyncRepository.observeSyncSummary().first()
+            val outcome = healthConnectSyncCoordinator.syncPending()
+            lastQueueOutcome = outcome
+            queuePasses += 1
+            acceptedWrites += outcome.report.writeAcceptedWithoutReadbackCount
+            syncedOperations += outcome.report.syncedCount
+            failedOperations += outcome.report.failedCount
+
+            when (outcome) {
+                is HealthConnectSyncOutcome.PermissionRequired -> return outcome.toImmediateMessage()
+                is HealthConnectSyncOutcome.ProviderUnavailable -> return outcome.toImmediateMessage()
+                is HealthConnectSyncOutcome.Disabled -> return outcome.toImmediateMessage()
+                is HealthConnectSyncOutcome.Failed -> return outcome.toImmediateMessage()
+                is HealthConnectSyncOutcome.PlausibilityAcceptanceRequired,
+                is HealthConnectSyncOutcome.PlausibilityBlocked,
+                -> break
+
+                is HealthConnectSyncOutcome.Completed,
+                is HealthConnectSyncOutcome.CompletedWithFailures,
+                is HealthConnectSyncOutcome.NothingToSync,
+                -> Unit
+            }
+
+            val after = healthSyncRepository.observeSyncSummary().first()
+            val hasRemainingQueue = after.pendingCount > 0 || after.failedCount > 0 || after.syncingCount > 0
+            val madeProgress = after.syncedCount > before.syncedCount ||
+                after.pendingCount < before.pendingCount ||
+                after.failedCount < before.failedCount ||
+                outcome.report.writeAcceptedWithoutReadbackCount > 0
+            val hardFailureWithoutProgress = outcome.report.failedCount > 0 &&
+                outcome.report.syncedCount == 0 &&
+                outcome.report.writeAcceptedWithoutReadbackCount == 0
+            if (!hasRemainingQueue || !madeProgress || hardFailureWithoutProgress) break
+        }
+
+        val readyActivities = workoutActivityRepository
+            .observeActivities(WorkoutActivityFilter.READY_TO_SYNC)
+            .first()
+            .filter { it.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 }
+            .sortedBy { it.metrics.startedAt }
+
+        var readyProcessed = 0
+        var readyCompleted = 0
+        var readyBlocked = 0
+        for (activity in readyActivities) {
+            val outcome = healthConnectSyncCoordinator.syncActivity(activity.id)
+            readyProcessed += 1
+            acceptedWrites += outcome.report.writeAcceptedWithoutReadbackCount
+            syncedOperations += outcome.report.syncedCount
+            failedOperations += outcome.report.failedCount
+            when (outcome) {
+                is HealthConnectSyncOutcome.Completed,
+                is HealthConnectSyncOutcome.NothingToSync,
+                -> readyCompleted += 1
+
+                is HealthConnectSyncOutcome.CompletedWithFailures,
+                is HealthConnectSyncOutcome.PermissionRequired,
+                is HealthConnectSyncOutcome.PlausibilityAcceptanceRequired,
+                is HealthConnectSyncOutcome.PlausibilityBlocked,
+                is HealthConnectSyncOutcome.ProviderUnavailable,
+                is HealthConnectSyncOutcome.Disabled,
+                is HealthConnectSyncOutcome.Failed,
+                -> readyBlocked += 1
+            }
+        }
+
+        val remaining = healthSyncRepository.observeSyncSummary().first()
+        return buildString {
+            if (acceptedWrites > 0) {
+                append("Escrita local aceita para $acceptedWrites operação(ões)")
+                if (queuePasses > 1) append(" em $queuePasses passes de fila")
+                append(". ")
+            } else if (syncedOperations > 0) {
+                append("Sincronização local concluiu $syncedOperations operação(ões). ")
+            } else {
+                append(lastQueueOutcome?.toImmediateMessage() ?: "Nenhuma operação de fila exigiu escrita remota. ")
+                if (!endsWith(" ")) append(' ')
+            }
+
+            if (readyProcessed > 0) {
+                append("Workouts READY_TO_SYNC: $readyCompleted concluído(s)")
+                if (readyBlocked > 0) append(", $readyBlocked bloqueado(s)/com falha")
+                append(". ")
+            }
+            if (failedOperations > 0 || remaining.failedCount > 0) {
+                append("Há ${remaining.failedCount} operação(ões) com falha recuperável. ")
+            }
+            if (remaining.pendingCount > 0 || remaining.syncingCount > 0) {
+                append("Ainda restam ${remaining.pendingCount + remaining.syncingCount} operação(ões) locais para nova tentativa. ")
+            }
+            append("O provider não foi lido; escritas aceitas não confirmam records visíveis por readback.")
+        }
+    }
+
+    private fun HealthConnectSyncOutcome.toImmediateMessage(): String = when (this) {
+        is HealthConnectSyncOutcome.Completed -> if (report.writeAcceptedWithoutReadbackCount > 0) {
+            "Escrita local aceita para ${report.writeAcceptedWithoutReadbackCount} operação(ões)."
+        } else {
+            "Sincronização concluída na fila local."
+        }
+        is HealthConnectSyncOutcome.NothingToSync -> "Nenhum dado pendente na fila local."
+        is HealthConnectSyncOutcome.CompletedWithFailures -> {
+            val failures = failures
+                .groupBy { it.recordType }
+                .entries
+                .joinToString("; ") { (recordType, records) ->
+                    "${recordType.toFriendlyLabel()}: ${records.first().failureKind.toFriendlyLabel()}"
+                }
+            "Sincronização parcial local. Falhas: ${failures.ifBlank { "não classificadas" }}."
+        }
+        is HealthConnectSyncOutcome.PermissionRequired ->
+            "Permissão pendente para: ${missingPermissions.joinToString { it.toFriendlyLabel() }}. Autorize no provider e tente novamente."
+        is HealthConnectSyncOutcome.PlausibilityAcceptanceRequired ->
+            "Há treino do relógio aguardando aceite explícito de plausibilidade antes da preparação Health Connect."
+        is HealthConnectSyncOutcome.PlausibilityBlocked ->
+            "Projeção Health Connect bloqueada por indicadores ${indicators.joinToString()}."
+        is HealthConnectSyncOutcome.ProviderUnavailable -> if (updateRequired) {
+            "Atualize o Health Connect para continuar a sincronização."
+        } else {
+            "Health Connect indisponível neste dispositivo."
+        }
+        is HealthConnectSyncOutcome.Disabled -> "Ative a integração para sincronizar agora."
+        is HealthConnectSyncOutcome.Failed -> reason
     }
 
     private fun permissionsUpdated(grantedPermissions: Set<String>) {
@@ -229,14 +333,29 @@ class SettingsViewModel @Inject constructor(
         add(permissionGroup("Frequência cardíaca", setOf(HealthConnectWritePermission.HEART_RATE), granted))
         add(permissionGroup("Exercícios", setOf(HealthConnectWritePermission.EXERCISE), granted))
         add(permissionGroup("Distância", setOf(HealthConnectWritePermission.DISTANCE), granted))
-        if (speedProjectionEligible) {
+        if (speedProjectionEligible || HealthConnectWritePermission.SPEED in granted) {
             add(permissionGroup("Velocidade", setOf(HealthConnectWritePermission.SPEED), granted))
         }
-        add(permissionGroup("Calorias", setOf(HealthConnectWritePermission.TOTAL_CALORIES_BURNED), granted))
-        if (metrics.weightKilograms != null && metrics.latestWeightMeasuredAt != null) {
+        add(
+            permissionGroup(
+                "Calorias",
+                setOf(
+                    HealthConnectWritePermission.ACTIVE_CALORIES_BURNED,
+                    HealthConnectWritePermission.TOTAL_CALORIES_BURNED,
+                ),
+                granted,
+            ),
+        )
+        if (
+            (metrics.weightKilograms != null && metrics.latestWeightMeasuredAt != null) ||
+            HealthConnectWritePermission.WEIGHT in granted
+        ) {
             add(permissionGroup("Peso", setOf(HealthConnectWritePermission.WEIGHT), granted))
         }
-        if (metrics.heightCentimeters?.let { it.isFinite() && it > 0.0 } == true) {
+        if (
+            metrics.heightCentimeters?.let { it.isFinite() && it > 0.0 } == true ||
+            HealthConnectWritePermission.HEIGHT in granted
+        ) {
             add(permissionGroup("Altura", setOf(HealthConnectWritePermission.HEIGHT), granted))
         }
     }
@@ -257,7 +376,8 @@ class SettingsViewModel @Inject constructor(
         HealthConnectWritePermission.EXERCISE -> "exercícios"
         HealthConnectWritePermission.DISTANCE -> "distância"
         HealthConnectWritePermission.SPEED -> "velocidade"
-        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias"
+        HealthConnectWritePermission.ACTIVE_CALORIES_BURNED -> "calorias ativas"
+        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias totais"
         HealthConnectWritePermission.WEIGHT -> "peso"
         HealthConnectWritePermission.HEIGHT -> "altura"
     }
@@ -268,8 +388,9 @@ class SettingsViewModel @Inject constructor(
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.DISTANCE -> "Distância"
+        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> "Calorias ativas"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.SPEED -> "Velocidade"
-        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias"
+        br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias totais"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.WEIGHT -> "Peso"
         br.com.mwconsulting.championcompanion.core.model.HealthSyncRecordType.HEIGHT -> "Altura"
     }
@@ -289,4 +410,8 @@ class SettingsViewModel @Inject constructor(
         val summary: HealthSyncSummary,
         val speedProjectionEligible: Boolean,
     )
+
+    private companion object {
+        const val MAX_SYNC_NOW_QUEUE_PASSES: Int = 20
+    }
 }

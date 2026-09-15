@@ -100,6 +100,7 @@ enum class CalendarDataSource {
     HEART_RATE,
     WORKOUT_ACTIVITY,
     WEIGHT_MEASUREMENT,
+    WATCH_DAILY_READ_MODEL,
     HEALTH_SYNC_QUEUE,
     PREFERENCES,
 }
@@ -266,9 +267,12 @@ data class CalendarWorkoutSummary(
     val derivationVersion: String? = null,
     val stepLengthSource: StepLengthSource? = null,
     val plausibilityIndicators: Set<WorkoutPlausibilityIndicator> = emptySet(),
+    /** Instante de término congelado na atividade, quando disponível. */
+    val endedAt: Instant? = null,
 ) {
     init {
         require(!duration.isNegative)
+        require(endedAt == null || !endedAt.isBefore(startedAt))
         require(workflowState != ActivityWorkflowState.DISCARDED)
     }
 }
@@ -301,6 +305,8 @@ data class CalendarDaySummary(
     val weightMeasurements: List<CalendarWeightMeasurementSummary> = emptyList(),
     val syncSummary: CalendarSyncSummary = CalendarSyncSummary(),
     val issues: Set<CalendarDataIssue> = emptySet(),
+    /** Composição diária opcional; campos legacy acima permanecem preservados. */
+    val watchDailyReadModel: WatchDailyReadModel? = null,
 ) {
     init {
         require(stepsGoal > 0)
@@ -398,12 +404,13 @@ data class CalendarDistanceHistoryEntry(
     val estimatedDistanceMeters: Double? = null,
     val origin: DataOrigin? = null,
     val updatedAt: Instant? = null,
+    /** `true` quando valor vem de D1 granular; legacy continua estimativa. */
+    val isMeasured: Boolean = false,
 ) {
     init {
-        val hasSummary = summaryId != null
-        require(hasSummary == (origin != null))
-        require(hasSummary == (updatedAt != null))
-        require(estimatedDistanceMeters == null || hasSummary)
+        require(summaryId == null || (origin != null && updatedAt != null))
+        require(estimatedDistanceMeters == null || (origin != null && updatedAt != null))
+        require(!isMeasured || origin == DataOrigin.WATCH_D1_HISTORY)
         require(
             estimatedDistanceMeters == null ||
                 (estimatedDistanceMeters.isFinite() && estimatedDistanceMeters >= 0.0),

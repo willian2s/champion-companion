@@ -1,6 +1,7 @@
 package br.com.mwconsulting.championcompanion.feature.home
 
 import br.com.mwconsulting.championcompanion.core.common.UiStateStore
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
 import java.time.Instant
 import java.time.LocalDate
 
@@ -43,6 +44,8 @@ data class HomeRefreshState(
     val activeOperation: HomeRefreshOperation? = null,
     val error: HomeRefreshError? = null,
     val lastSuccessfulRefreshAt: Instant? = null,
+    val resultStatus: WatchSyncResultStatus? = null,
+    val components: WatchSyncComponents = WatchSyncComponents(),
 ) {
     val isRefreshing: Boolean get() = activeOperation != null
     val refreshStage: HomeRefreshStage? get() = activeOperation?.stage
@@ -56,8 +59,9 @@ data class HomeRefreshOperation(
 enum class HomeRefreshStage {
     Preparing,
     Connecting,
-    WaitingForSteps,
-    Persisting,
+    FEA1,
+    D1,
+    D3_D4,
 }
 
 data class HomeRefreshAttempt(
@@ -82,6 +86,7 @@ enum class HomeRefreshErrorCategory {
     INVALID_PACKET,
     CANCELLED,
     STORAGE,
+    PARTIAL,
     INTERNAL,
 }
 
@@ -120,6 +125,12 @@ data class HomeDailySummaryModel(
     val estimatedCaloriesKilocalories: Double?,
     val sourceLabel: String,
     val updatedAt: Instant,
+    /** Valor composto: D1 medido quando elegível, legacy estimado como fallback. */
+    val dailyDistanceMeters: Double? = null,
+    val dailyCaloriesKilocalories: Double? = null,
+    val dailyDistanceIsMeasured: Boolean = false,
+    val dailyCaloriesAreMeasured: Boolean = false,
+    val completeness: WatchDailyReadCompleteness? = null,
 )
 
 data class HomeLatestHeartRateModel(

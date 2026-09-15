@@ -21,6 +21,7 @@ import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_WORKOUT_STEPS_SCHEMA_VERSION
+import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_PROJECTION_PAYLOAD_LEGACY_SCHEMA_VERSION
@@ -30,6 +31,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenPayload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenInstant
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenDailyD1Payload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenProjectionPayload
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenSpeedSample
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncFrozenStepsCadenceSample
@@ -90,6 +92,9 @@ sealed interface HealthSyncFrozenPayloadResult {
 interface HealthRecordMapper {
     fun mapDailySummary(operation: HealthSyncOperation): HealthRecordMappingResult
 
+    /** D1 mantém operação local, mas falha fechado até fronteira de bucket ser comprovada. */
+    fun mapFrozenDailyD1Sample(operation: HealthSyncOperation): HealthRecordMappingResult
+
     fun mapHeartRateMeasurement(operation: HealthSyncOperation, measurement: HeartRateMeasurement): HealthRecordMappingResult
 
     fun mapWeightMeasurement(operation: HealthSyncOperation, measurement: WeightMeasurement): HealthRecordMappingResult
@@ -147,6 +152,37 @@ class DefaultHealthRecordMapper @Inject constructor() : HealthRecordMapper {
                 record = record,
             ),
         )
+    }
+
+    override fun mapFrozenDailyD1Sample(
+        operation: HealthSyncOperation,
+    ): HealthRecordMappingResult {
+        val aggregate = operation.key.aggregate as? HealthSyncAggregate.WatchDailyD1Sample
+            ?: return invalid("Operação D1 sem agregado de amostra.")
+        if (operation.key.recordType != HealthSyncRecordType.STEPS ||
+            operation.action != HealthSyncOperationAction.INSERT
+        ) {
+            return invalid("Operação D1 granular inválida.")
+        }
+        val payload = operation.frozenPayload
+            ?.takeIf { it.schemaVersion == HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION }
+            ?.let { frozen ->
+                runCatching {
+                    frozenProjectionJson.decodeFromString<HealthSyncFrozenDailyD1Payload>(frozen.serializedPayload)
+                }.getOrNull()
+            }
+            ?: return invalid("Operação D1 sem payload congelado válido.")
+        if (payload.recordType != HealthSyncRecordType.STEPS.name ||
+            payload.sampleId != aggregate.sampleId.value.toString() ||
+            payload.zoneId != operation.timeZoneId ||
+            payload.resolvedAt.toInstantOrNull() == null
+        ) {
+            return invalid("Payload D1 não corresponde ao fato persistido.")
+        }
+
+        // D1 expõe ponto/bucket e não expõe início/fim. Não fabricar intervalo
+        // remoto de um segundo nem converter FEA1-D1 em StepsRecord.
+        return invalid("Projeção D1 granular bloqueada: fronteira temporal do bucket não comprovada.")
     }
 
     override fun mapHeartRateMeasurement(

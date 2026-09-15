@@ -20,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,7 +56,6 @@ fun HealthScreen(
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit = {},
-    onOpenDevice: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     healthViewModel: HealthViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
@@ -103,24 +101,27 @@ fun HealthScreen(
         else -> "Sem dados"
     }
     val todaySummary = state.todaySummary
+    val dailyDistance = todaySummary?.distanceMeters
     val distanceValue = when {
         todaySummary == null -> "Sem dados"
-        todaySummary.estimatedDistanceMeters == null -> "Indisponível"
-        else -> "${decimalFormat().format(todaySummary.estimatedDistanceMeters / 1000.0)} km"
+        dailyDistance == null -> "Indisponível"
+        else -> "${decimalFormat().format(dailyDistance / 1000.0)} km"
     }
     val distanceSupportingText = when {
         todaySummary == null -> "Nenhum resumo hoje"
-        todaySummary.estimatedDistanceMeters == null -> "Sem estimativa hoje"
+        dailyDistance == null -> "Sem distância medida ou estimada hoje"
+        todaySummary.distanceIsMeasured -> "Medida granular do relógio"
         else -> formatMoment(todaySummary.updatedAt)
     }
     val distanceExtraText = when {
         todaySummary == null -> "Origem: não disponível"
-        todaySummary.estimatedDistanceMeters == null -> "Origem: ${todaySummary.sourceLabel}"
+        dailyDistance == null -> "Origem: ${todaySummary.sourceLabel}"
+        todaySummary.distanceIsMeasured -> "Origem: ${todaySummary.sourceLabel} • Medida do relógio"
         else -> "Origem: ${todaySummary.sourceLabel} • Estimativa local"
     }
     val distanceStateLabel = when {
         todaySummary == null -> "Sem dados"
-        todaySummary.estimatedDistanceMeters == null -> "Indisponível"
+        dailyDistance == null -> "Indisponível"
         else -> "Disponível"
     }
     val today = LocalDate.now(ZoneId.systemDefault())
@@ -154,12 +155,6 @@ fun HealthScreen(
                     title = "Saúde",
                     supportingText = "Relógio: ${if (state.hasAssociatedDevice) "Conectado" else "Pendente"}",
                     actionsContent = {
-                        ChampionRedesignHeaderAction(
-                            contentDescription = "Abrir Dispositivo",
-                            onClick = onOpenDevice,
-                        ) {
-                            Icon(imageVector = Icons.Filled.Watch, contentDescription = null)
-                        }
                         ChampionRedesignHeaderAction(
                             contentDescription = "Abrir Perfil",
                             onClick = onOpenProfile,

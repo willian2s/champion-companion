@@ -28,8 +28,10 @@ import br.com.mwconsulting.championcompanion.core.model.DailySummary
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.DailySummaryRepository
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
+import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DeviceId
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
+import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncAggregate
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncQueueObservation
@@ -39,6 +41,9 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.SyncOperationState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadIssue
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModel
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadModelRepository
 import br.com.mwconsulting.championcompanion.core.model.toLocalDateIn
 import java.time.Instant
 import java.time.LocalDate
@@ -63,11 +68,16 @@ class LocalCalendarRepository @Inject constructor(
     private val personalMetricsRepository: PersonalMetricsRepository,
     private val healthSyncRepository: HealthSyncRepository,
     private val appPreferencesRepository: AppPreferencesRepository,
+    private val watchDailyReadModelRepository: WatchDailyReadModelRepository,
 ) : CalendarRepository {
 
     override fun observeMonth(query: CalendarMonthQuery): Flow<CalendarMonthSnapshot> =
-        observeWindow(query.dateRange, query.zoneId).map { window ->
+        combine(
+            observeWindow(query.dateRange, query.zoneId),
+            watchDailyReadModelRepository.observePeriod(query.dateRange, query.zoneId),
+        ) { window, readModels ->
             val summariesByDate = window.selectedSummaries.associateBy { it.key.localDate }
+            val readModelsByDate = readModels.associateBy { it.localDate }
             val heartRatesByDate = window.heartRates.groupBy { it.measuredAt!!.toLocalDateIn(query.zoneId) }
             val workoutsByDate = window.workouts.groupBy { it.startedAt.toLocalDateIn(query.zoneId) }
             val weightsByDate = window.weights.groupBy { it.measuredAt.toLocalDateIn(query.zoneId) }
@@ -77,6 +87,7 @@ class LocalCalendarRepository @Inject constructor(
 
             val daysWithData = buildSet {
                 addAll(summariesByDate.keys)
+                addAll(readModels.filter { it.hasDailyData() }.map { it.localDate })
                 addAll(heartRatesByDate.keys)
                 addAll(workoutsByDate.keys)
                 addAll(weightsByDate.keys)
@@ -88,15 +99,20 @@ class LocalCalendarRepository @Inject constructor(
                     val sync = operationsByDate[localDate].toCalendarSyncSummary()
                     CalendarDayPresence(
                         localDate = localDate,
-                        hasSteps = summariesByDate.containsKey(localDate),
-                        hasHeartRate = heartRatesByDate[localDate].orEmpty().isNotEmpty(),
-                        workoutCount = workoutsByDate[localDate].orEmpty().size,
+                        hasSteps = summariesByDate.containsKey(localDate) ||
+                            readModelsByDate[localDate]?.hasStepsData() == true,
+                        hasHeartRate = heartRatesByDate[localDate].orEmpty().isNotEmpty() ||
+                            readModelsByDate[localDate]?.heartRate?.isNotEmpty() == true,
+                        workoutCount = maxOf(
+                            workoutsByDate[localDate].orEmpty().size,
+                            readModelsByDate[localDate]?.workouts?.size ?: 0,
+                        ),
                         hasWeight = weightsByDate[localDate].orEmpty().isNotEmpty(),
                         hasSyncPending = sync.pendingCount > 0 || sync.syncingCount > 0,
                         hasSyncFailure = sync.failedCount > 0,
                     )
                 },
-                issues = window.issues,
+                issues = window.issues + readModels.flatMapTo(mutableSetOf()) { it.issues.toCalendarIssues() },
             )
         }
 
@@ -104,11 +120,12 @@ class LocalCalendarRepository @Inject constructor(
         val query = CalendarDayQuery(localDate, zoneId)
         return combine(
             observeWindow(query.dateRange, zoneId),
+            watchDailyReadModelRepository.observeDay(localDate, zoneId),
             appPreferencesRepository.observeDailyStepsGoal().asSource(
                 source = CalendarDataSource.PREFERENCES,
                 fallback = DEFAULT_DAILY_STEPS_GOAL,
             ),
-        ) { window, goalSource ->
+        ) { window, readModel, goalSource ->
             val dailySummary = window.selectedSummaries.singleOrNull()?.toCalendarDailySummary(
                 associatedDeviceId = window.associatedDeviceId,
             )
@@ -142,7 +159,8 @@ class LocalCalendarRepository @Inject constructor(
                 workouts = workouts,
                 weightMeasurements = weights,
                 syncSummary = window.operations.toCalendarSyncSummary(),
-                issues = window.issues + preferenceIssues,
+                issues = window.issues + preferenceIssues + readModel.issues.toCalendarIssues(),
+                watchDailyReadModel = readModel,
             )
         }
     }
@@ -150,12 +168,14 @@ class LocalCalendarRepository @Inject constructor(
     override fun observeStepsHistory(query: CalendarHistoryQuery): Flow<CalendarStepsHistorySnapshot> =
         combine(
             observeSelectedSummaries(query.dateRange),
+            watchDailyReadModelRepository.observePeriod(query.dateRange, query.zoneId),
             appPreferencesRepository.observeDailyStepsGoal().asSource(
                 source = CalendarDataSource.PREFERENCES,
                 fallback = DEFAULT_DAILY_STEPS_GOAL,
             ),
-        ) { selection, goalSource ->
+        ) { selection, readModels, goalSource ->
             val summariesByDate = selection.summaries.associateBy { it.key.localDate }
+            val readModelsByDate = readModels.associateBy { it.localDate }
             val goal = DailySummaryPolicy.sanitizeDailyStepsGoal(goalSource.value)
             val preferenceIssues = if (goalSource.value > 0) {
                 goalSource.issues
@@ -164,12 +184,13 @@ class LocalCalendarRepository @Inject constructor(
             }
             val entries = query.dateRange.dates.map { localDate ->
                 val summary = summariesByDate[localDate]
+                val readModel = readModelsByDate[localDate]
                 CalendarStepsHistoryEntry(
                     localDate = localDate,
-                    summaryId = summary?.id,
-                    steps = summary?.steps,
-                    origin = summary?.key?.origin,
-                    updatedAt = summary?.updatedAt,
+                    summaryId = readModel?.fea1Summary?.id ?: summary?.id,
+                    steps = readModel?.fea1Summary?.steps ?: summary?.steps,
+                    origin = readModel?.fea1Summary?.key?.origin ?: summary?.key?.origin,
+                    updatedAt = readModel?.fea1Summary?.updatedAt ?: summary?.updatedAt,
                 )
             }
 
@@ -178,30 +199,49 @@ class LocalCalendarRepository @Inject constructor(
                     query = query,
                     stepsGoal = goal,
                     entries = entries,
-                    issues = selection.issues + preferenceIssues,
+                    issues = selection.issues + preferenceIssues + readModels.flatMapTo(mutableSetOf()) { it.issues.toCalendarIssues() },
                 )
             } catch (_: IllegalArgumentException) {
                 CalendarStepsHistorySnapshot(
                     query = query,
                     stepsGoal = goal,
                     entries = query.dateRange.dates.map(::CalendarStepsHistoryEntry),
-                    issues = selection.issues + preferenceIssues +
+                    issues = selection.issues + preferenceIssues + readModels.flatMapTo(mutableSetOf()) { it.issues.toCalendarIssues() } +
                         invalidDataIssue(CalendarDataSource.DAILY_SUMMARY),
                 )
             }
         }
 
     override fun observeDistanceHistory(query: CalendarHistoryQuery): Flow<CalendarDistanceHistorySnapshot> =
-        observeSelectedSummaries(query.dateRange).map { selection ->
+        combine(
+            observeSelectedSummaries(query.dateRange),
+            watchDailyReadModelRepository.observePeriod(query.dateRange, query.zoneId),
+        ) { selection, readModels ->
             val summariesByDate = selection.summaries.associateBy { it.key.localDate }
+            val readModelsByDate = readModels.associateBy { it.localDate }
             val entries = query.dateRange.dates.map { localDate ->
                 val summary = summariesByDate[localDate]
+                val readModel = readModelsByDate[localDate]
+                val composedDistance = readModel?.distanceMeters?.value?.presentValueOrNull()
+                val composedOrigin = readModel?.distanceMeters?.provenance?.source
+                val legacyDistance = if (readModel?.d1Samples.isNullOrEmpty() &&
+                    WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE !in readModel?.issues.orEmpty()
+                ) {
+                    readModel?.fea1Summary?.estimatedDistanceMeters ?: summary?.estimatedDistanceMeters
+                } else {
+                    null
+                }
                 CalendarDistanceHistoryEntry(
                     localDate = localDate,
-                    summaryId = summary?.id,
-                    estimatedDistanceMeters = summary?.estimatedDistanceMeters,
-                    origin = summary?.key?.origin,
-                    updatedAt = summary?.updatedAt,
+                    summaryId = readModel?.fea1Summary?.id ?: summary?.id,
+                    estimatedDistanceMeters = composedDistance ?: legacyDistance,
+                    origin = composedOrigin ?: readModel?.fea1Summary?.key?.origin ?: summary?.key?.origin,
+                    updatedAt = if (composedOrigin == DataOrigin.WATCH_D1_HISTORY) {
+                        readModel?.d1Samples?.maxOfOrNull { it.updatedAt }
+                    } else {
+                        readModel?.fea1Summary?.updatedAt ?: summary?.updatedAt
+                    },
+                    isMeasured = readModel?.distanceMeters?.provenance?.source == DataOrigin.WATCH_D1_HISTORY,
                 )
             }
 
@@ -209,13 +249,14 @@ class LocalCalendarRepository @Inject constructor(
                 CalendarDistanceHistorySnapshot(
                     query = query,
                     entries = entries,
-                    issues = selection.issues,
+                    issues = selection.issues + readModels.flatMapTo(mutableSetOf()) { it.issues.toCalendarIssues() },
                 )
             } catch (_: IllegalArgumentException) {
                 CalendarDistanceHistorySnapshot(
                     query = query,
                     entries = query.dateRange.dates.map(::CalendarDistanceHistoryEntry),
-                    issues = selection.issues + invalidDataIssue(CalendarDataSource.DAILY_SUMMARY),
+                    issues = selection.issues + readModels.flatMapTo(mutableSetOf()) { it.issues.toCalendarIssues() } +
+                        invalidDataIssue(CalendarDataSource.DAILY_SUMMARY),
                 )
             }
         }
@@ -530,3 +571,40 @@ private fun invalidDataIssue(source: CalendarDataSource): CalendarDataIssue =
         source = source,
         reason = CalendarDataIssueReason.INVALID_LOCAL_DATA,
     )
+
+private fun WatchDailyReadModel.hasDailyData(): Boolean =
+    fea1Summary != null || d1Samples.isNotEmpty() || heartRate.isNotEmpty() || workouts.isNotEmpty()
+
+private fun WatchDailyReadModel.hasStepsData(): Boolean =
+    fea1Summary != null || d1Samples.isNotEmpty()
+
+private fun Set<WatchDailyReadIssue>.toCalendarIssues(): Set<CalendarDataIssue> = mapTo(mutableSetOf()) { issue ->
+    CalendarDataIssue(
+        source = when (issue) {
+            WatchDailyReadIssue.ASSOCIATED_DEVICE_SOURCE_UNAVAILABLE -> CalendarDataSource.ASSOCIATED_DEVICE
+            WatchDailyReadIssue.DAILY_SUMMARY_SOURCE_UNAVAILABLE -> CalendarDataSource.DAILY_SUMMARY
+            WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE,
+            WatchDailyReadIssue.D1_STRUCTURAL_COVERAGE_INCOMPLETE,
+            WatchDailyReadIssue.D1_AGGREGATE_UNAVAILABLE,
+            -> CalendarDataSource.WATCH_DAILY_READ_MODEL
+            WatchDailyReadIssue.WORKOUT_SOURCE_UNAVAILABLE,
+            WatchDailyReadIssue.WORKOUT_DETAILS_UNAVAILABLE,
+            -> CalendarDataSource.WORKOUT_ACTIVITY
+        },
+        reason = when (issue) {
+            WatchDailyReadIssue.ASSOCIATED_DEVICE_SOURCE_UNAVAILABLE,
+            WatchDailyReadIssue.DAILY_SUMMARY_SOURCE_UNAVAILABLE,
+            WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE,
+            WatchDailyReadIssue.WORKOUT_SOURCE_UNAVAILABLE,
+            -> CalendarDataIssueReason.SOURCE_UNAVAILABLE
+
+            WatchDailyReadIssue.D1_STRUCTURAL_COVERAGE_INCOMPLETE,
+            WatchDailyReadIssue.WORKOUT_DETAILS_UNAVAILABLE,
+            WatchDailyReadIssue.D1_AGGREGATE_UNAVAILABLE,
+            -> CalendarDataIssueReason.INVALID_LOCAL_DATA
+        },
+    )
+}
+
+private fun <T> DomainValue<T>.presentValueOrNull(): T? =
+    (this as? DomainValue.Present)?.value

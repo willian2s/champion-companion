@@ -3,8 +3,9 @@ package br.com.mwconsulting.championcompanion.feature.home
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,17 +17,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -36,10 +38,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +64,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.DarkColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.ErrorState
 import br.com.mwconsulting.championcompanion.core.designsystem.LightColorScheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementIntent
 import br.com.mwconsulting.championcompanion.feature.device.DeviceManagementViewModel
 import java.text.NumberFormat
@@ -79,6 +83,10 @@ fun HomeScreen(
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit,
+    onSyncHealthConnect: () -> Unit = {},
+    isHealthConnectSyncRunning: Boolean = false,
+    healthConnectSyncStatusMessage: String? = null,
+    onDismissHealthConnectSyncStatus: () -> Unit = {},
     homeViewModel: HomeViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -94,11 +102,22 @@ fun HomeScreen(
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by homeViewModel.state.collectAsState()
+    val healthConnectSnackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(homeViewModel, deviceManagementViewModel) {
         homeViewModel.onIntent(HomeIntent.Load)
         deviceManagementViewModel.onIntent(DeviceManagementIntent.Load)
         deviceManagementViewModel.onIntent(DeviceManagementIntent.RefreshPrerequisites)
+    }
+
+    LaunchedEffect(healthConnectSyncStatusMessage) {
+        val message = healthConnectSyncStatusMessage?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        healthConnectSnackbarHostState.currentSnackbarData?.dismiss()
+        healthConnectSnackbarHostState.showSnackbar(
+            message = message,
+            duration = SnackbarDuration.Short,
+        )
+        onDismissHealthConnectSyncStatus()
     }
 
     DisposableEffect(lifecycleOwner, homeViewModel, deviceManagementViewModel) {
@@ -158,7 +177,8 @@ fun HomeScreen(
                         HomeTopBar(
                             title = "Hoje",
                             status = state.watch.toHomeWatchStatus(),
-                            onOpenDevice = onOpenDevice,
+                            onSyncHealthConnect = onSyncHealthConnect,
+                            isHealthConnectSyncRunning = isHealthConnectSyncRunning,
                             onOpenProfile = onOpenProfile,
                         )
 
@@ -168,6 +188,17 @@ fun HomeScreen(
                                     .fillMaxWidth()
                                     .semantics {
                                         contentDescription = "Sincronizando dados do relógio"
+                                        liveRegion = LiveRegionMode.Polite
+                                    },
+                            )
+                        }
+
+                        if (isHealthConnectSyncRunning) {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        contentDescription = "Sincronizando com Health Connect"
                                         liveRegion = LiveRegionMode.Polite
                                     },
                             )
@@ -188,6 +219,13 @@ fun HomeScreen(
                             onRetry = { homeViewModel.onIntent(HomeIntent.Retry) },
                         )
                     }
+
+                    SnackbarHost(
+                        hostState = healthConnectSnackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(16.dp),
+                    )
                 }
             }
         }
@@ -204,26 +242,18 @@ private fun HomeSurface(
     onOpenExercises: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val hasSummary = state.summary != null
-    val summary = state.summary ?: HomeDailySummaryModel(
-        steps = 0,
-        dailyGoal = 0,
-        progress = 0f,
-        estimatedDistanceMeters = 0.0,
-        estimatedCaloriesKilocalories = null,
-        sourceLabel = "",
-        updatedAt = Instant.EPOCH,
-    )
-    HomeSummaryContent(
-        summary = summary,
-        latestHeartRate = state.latestHeartRate.takeIf { hasSummary },
-        watch = state.watch,
-        onOpenHeartRate = onOpenHeartRate,
-        onOpenSteps = onOpenSteps,
-        onOpenDistance = onOpenDistance,
-        onOpenExercises = onOpenExercises,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    state.summary?.let { summary ->
+        HomeSummaryContent(
+            summary = summary,
+            latestHeartRate = state.latestHeartRate,
+            watch = state.watch,
+            onOpenHeartRate = onOpenHeartRate,
+            onOpenSteps = onOpenSteps,
+            onOpenDistance = onOpenDistance,
+            onOpenExercises = onOpenExercises,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 
     HomePendingContent(
         workoutPendingBanner = state.workoutPendingBanner,
@@ -317,7 +347,7 @@ private fun HomeSummaryContent(
 ) {
     val tokens = LocalChampionRedesignTokens.current
     val palette = homeCardPalette()
-    val distance = summary.estimatedDistanceMeters ?: 0.0
+    val distance = summary.dailyDistanceMeters
     val lineHeight = 56.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
     val cardHeight = lineHeight * 3 + tokens.spacing.compact * 2
 
@@ -357,6 +387,9 @@ private fun HomeSummaryContent(
 
         HomeMetadataFooter(
             lastImportedAt = watch.lastImportedAt,
+            completeness = summary.completeness,
+            distanceIsMeasured = summary.dailyDistanceIsMeasured,
+            caloriesAreMeasured = summary.dailyCaloriesAreMeasured,
         )
     }
 }
@@ -471,7 +504,7 @@ private fun HomeMetricsColumn(
         if (latestHeartRate == null) {
             HomeCompactSummaryLine(
                 title = "Freq. cardíaca",
-                value = "0 BPM",
+                value = "Sem dados",
                 onClick = onOpenHeartRate,
                 containerColor = heartRateColors.container,
                 contentColor = heartRateColors.content,
@@ -573,7 +606,7 @@ private fun HomeRefreshStatus(
 ) {
     val message = when {
         refresh.isRefreshing -> refresh.refreshStage.toStatusMessage()
-        refresh.error != null -> "Não foi possível atualizar os dados."
+        refresh.error != null -> refresh.error.message
         else -> null
     } ?: return
 
@@ -591,6 +624,9 @@ private fun HomeRefreshStatus(
 @Composable
 private fun HomeMetadataFooter(
     lastImportedAt: Instant?,
+    completeness: WatchDailyReadCompleteness?,
+    distanceIsMeasured: Boolean,
+    caloriesAreMeasured: Boolean,
 ) {
     Text(
         text = "Última sincronização: ${lastImportedAt?.let(::formatDateTime) ?: "Sem sincronização"}",
@@ -598,13 +634,28 @@ private fun HomeMetadataFooter(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
     )
+    completeness?.let { status ->
+        val metricSource = when {
+            distanceIsMeasured && caloriesAreMeasured -> "Distância e calorias medidas pelo relógio"
+            distanceIsMeasured -> "Distância medida pelo relógio"
+            caloriesAreMeasured -> "Calorias medidas pelo relógio"
+            else -> null
+        }
+        Text(
+            text = "Completude: ${status.toHomeLabel()}${metricSource?.let { " • $it" } ?: ""}",
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable
 private fun HomeTopBar(
     title: String,
     status: HomeWatchStatus,
-    onOpenDevice: () -> Unit,
+    onSyncHealthConnect: () -> Unit,
+    isHealthConnectSyncRunning: Boolean,
     onOpenProfile: () -> Unit,
 ) {
     ChampionRedesignSurfaceHeader(
@@ -612,10 +663,16 @@ private fun HomeTopBar(
         supportingText = "Relógio: ${status.label}",
         actionsContent = {
             ChampionRedesignHeaderAction(
-                contentDescription = "Abrir Dispositivo. Status do relógio: ${status.label}",
-                onClick = onOpenDevice,
+                contentDescription = if (isHealthConnectSyncRunning) {
+                    "Sincronização com Health Connect em andamento"
+                } else {
+                    "Sincronizar com Health Connect"
+                },
+                onClick = {
+                    if (!isHealthConnectSyncRunning) onSyncHealthConnect()
+                },
             ) {
-                Icon(imageVector = Icons.Filled.Watch, contentDescription = null)
+                Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
             }
             ChampionRedesignHeaderAction(
                 contentDescription = "Abrir Perfil",
@@ -650,8 +707,9 @@ private fun HomeWatchSnapshot.toHomeWatchStatus(): HomeWatchStatus = when (conne
 private fun HomeRefreshStage?.toStatusMessage(): String = when (this) {
     HomeRefreshStage.Preparing -> "Preparando sincronização..."
     HomeRefreshStage.Connecting -> "Conectando ao relógio..."
-    HomeRefreshStage.WaitingForSteps -> "Aguardando os dados do relógio..."
-    HomeRefreshStage.Persisting -> "Atualizando resumo..."
+    HomeRefreshStage.FEA1 -> "Atualizando passos do dia..."
+    HomeRefreshStage.D1 -> "Atualizando dados diários..."
+    HomeRefreshStage.D3_D4 -> "Buscando treinos do relógio..."
     null -> "Sincronizando os dados do relógio"
 }
 
@@ -667,6 +725,14 @@ private fun formatPercent(progress: Float): String {
 private fun formatDistance(distanceMeters: Double): String {
     val kilometers = distanceMeters / 1000.0
     return "${decimalFormat().format(kilometers)} km"
+}
+
+private fun WatchDailyReadCompleteness.toHomeLabel(): String = when (this) {
+    WatchDailyReadCompleteness.EMPTY -> "sem dados"
+    WatchDailyReadCompleteness.PARTIAL -> "parcial"
+    WatchDailyReadCompleteness.COMPLETE -> "completa"
+    WatchDailyReadCompleteness.RECENT_TAIL -> "cauda recente"
+    WatchDailyReadCompleteness.DIVERGENT -> "divergente"
 }
 
 private fun formatDateTime(instant: Instant): String =

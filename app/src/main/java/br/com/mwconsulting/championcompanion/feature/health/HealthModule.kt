@@ -6,6 +6,7 @@ import br.com.mwconsulting.championcompanion.core.model.ForegroundBleOperationGa
 import br.com.mwconsulting.championcompanion.core.model.HeartRateRepository
 import br.com.mwconsulting.championcompanion.core.model.InMemoryForegroundBleOperationGate
 import br.com.mwconsulting.championcompanion.core.model.MonotonicClock
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Repository
 import br.com.mwconsulting.championcompanion.feature.device.DeviceConnectionBootstrap
 import dagger.Module
 import dagger.Provides
@@ -41,17 +42,30 @@ object HealthModule {
     )
 
     @Provides
-    fun provideD1HeartRateSyncCoordinator(
+    @Singleton
+    fun provideChampionD1HeartRateSyncCoordinator(
         connectionManager: ChampionConnectionManager,
         connectionBootstrap: DeviceConnectionBootstrap,
         foregroundBleOperationGate: ForegroundBleOperationGate,
         heartRateRepository: HeartRateRepository,
+        dailyD1Repository: WatchDailyD1Repository,
         @BleDispatcher bleDispatcher: CoroutineDispatcher,
-    ): D1HeartRateSyncCoordinator = ChampionD1HeartRateSyncCoordinator(
+    ): ChampionD1HeartRateSyncCoordinator = ChampionD1HeartRateSyncCoordinator(
         connectionManager = connectionManager,
         connectionBootstrap = connectionBootstrap,
         foregroundBleOperationGate = foregroundBleOperationGate,
         heartRateRepository = heartRateRepository,
+        dailyD1Repository = dailyD1Repository,
         bleDispatcher = bleDispatcher,
     )
+
+    @Provides
+    fun provideD1HeartRateSyncCoordinator(
+        source: ChampionD1HeartRateSyncCoordinator,
+    ): D1HeartRateSyncCoordinator = source
+
+    @Provides
+    fun provideWatchSyncD1Component(
+        source: ChampionD1HeartRateSyncCoordinator,
+    ): WatchSyncD1Component = source
 }

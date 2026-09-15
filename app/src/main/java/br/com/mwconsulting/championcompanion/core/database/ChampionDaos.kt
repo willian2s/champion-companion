@@ -192,6 +192,67 @@ interface DailySummaryDao {
 }
 
 @Dao
+interface HealthSyncCutoverDao {
+    @Query("SELECT * FROM health_sync_daily_cutovers WHERE deviceId = :deviceId LIMIT 1")
+    suspend fun findByDeviceId(deviceId: String): HealthSyncCutoverEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(cutover: HealthSyncCutoverEntity)
+}
+
+@Dao
+interface WatchDailyD1SampleDao {
+    @Query("SELECT * FROM watch_daily_d1_samples ORDER BY resolvedLocalDate, resolvedAtEpochMillis, currentPosition, id")
+    fun observeAll(): Flow<List<WatchDailyD1SampleEntity>>
+
+    @Query(
+        "SELECT * FROM watch_daily_d1_samples " +
+            "WHERE deviceId = :deviceId " +
+            "AND resolvedLocalDate >= :fromLocalDateIso " +
+            "AND resolvedLocalDate < :untilLocalDateIso " +
+            "ORDER BY resolvedLocalDate, resolvedAtEpochMillis, currentPosition, id",
+    )
+    fun observeBetween(
+        deviceId: String,
+        fromLocalDateIso: String,
+        untilLocalDateIso: String,
+    ): Flow<List<WatchDailyD1SampleEntity>>
+
+    @Query(
+        "SELECT * FROM watch_daily_d1_samples " +
+            "WHERE deviceId = :deviceId " +
+            "AND resolvedAtEpochMillis >= :fromEpochMillis " +
+            "AND resolvedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY resolvedAtEpochMillis, currentPosition, id",
+    )
+    fun observeResolvedAtBetween(
+        deviceId: String,
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WatchDailyD1SampleEntity>>
+
+    @Query(
+        "SELECT * FROM watch_daily_d1_samples " +
+            "WHERE deviceId = :deviceId AND resolvedLocalDate = :resolvedLocalDateIso " +
+            "AND currentPosition = :currentPosition LIMIT 1",
+    )
+    suspend fun findByNaturalKey(
+        deviceId: String,
+        resolvedLocalDateIso: String,
+        currentPosition: Int,
+    ): WatchDailyD1SampleEntity?
+
+    @Query("SELECT * FROM watch_daily_d1_samples WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): WatchDailyD1SampleEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(sample: WatchDailyD1SampleEntity)
+
+    @Update
+    suspend fun update(sample: WatchDailyD1SampleEntity): Int
+}
+
+@Dao
 interface HeartRateDao {
     @Query("SELECT * FROM heart_rate_measurements ORDER BY id")
     fun observeAll(): Flow<List<HeartRateMeasurementEntity>>
@@ -297,6 +358,7 @@ interface WorkoutActivityDao {
     @Query(
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.endedAtEpochMillis, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
             "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
             "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
@@ -320,6 +382,32 @@ interface WorkoutActivityDao {
     @Query(
         "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
             "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.endedAtEpochMillis, " +
+            "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
+            "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
+            "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
+            "derivation.derivationVersion AS canonicalDerivationVersion, " +
+            "derivation.stepLengthSource AS canonicalStepLengthSource, " +
+            "derivation.temporalEligibility AS canonicalTemporalEligibility, " +
+            "derivation.plausibilityIndicators AS canonicalPlausibilityIndicators " +
+            "FROM workout_activities activity " +
+            "LEFT JOIN workout_derivation_snapshots derivation ON " +
+            "derivation.activeActivityId = activity.id AND derivation.isActive = 1 " +
+            "WHERE activity.startedAtEpochMillis < :untilEpochMillis " +
+            "AND activity.endedAtEpochMillis > activity.startedAtEpochMillis " +
+            "AND activity.endedAtEpochMillis > :fromEpochMillis " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "ORDER BY activity.startedAtEpochMillis, activity.id",
+    )
+    fun observeCalendarSummariesIntersecting(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<CalendarWorkoutSummaryRecord>>
+
+    @Query(
+        "SELECT activity.id AS activityId, activity.origin, activity.title, activity.suggestedType, " +
+            "activity.confirmedType, activity.startedAtEpochMillis, activity.durationNanos, " +
+            "activity.endedAtEpochMillis, " +
             "activity.originalDistanceMeters, activity.estimatedDistanceMeters, activity.calibratedDistanceMeters, " +
             "activity.manualDistanceMeters, activity.caloriesKilocalories, activity.averageBpm, activity.workflowState, " +
             "derivation.canonicalDistanceMeters AS canonicalDistanceMeters, " +
@@ -414,6 +502,7 @@ data class CalendarWorkoutSummaryRecord(
     val confirmedType: String?,
     val startedAtEpochMillis: Long,
     val durationNanos: Long,
+    val endedAtEpochMillis: Long,
     val originalDistanceMeters: Double?,
     val estimatedDistanceMeters: Double?,
     val calibratedDistanceMeters: Double?,
@@ -938,7 +1027,8 @@ interface HealthSyncOperationDao {
     /**
      * Exclui fila legada de treino do relógio antes de aplicar LIMIT. O gate
      * precisa permanecer nesta camada para não deixar operações bloqueadas
-     * ocultarem operações elegíveis posteriores; phone continua elegível.
+     * ocultarem operações elegíveis posteriores; phone continua elegível. A
+     * sequência causal de passos vem antes da recência, que é só desempate.
      */
     @Query(
              "SELECT operation.* FROM health_sync_operations operation " +
@@ -949,8 +1039,10 @@ interface HealthSyncOperationDao {
                 "WHERE activity.id = operation.aggregateId " +
                 "AND activity.origin = 'WATCH_D3_D4'" +
                 "))) " +
-            "ORDER BY COALESCE(operation.updatedAtEpochMillis, operation.createdAtEpochMillis, operation.lastAttemptAtEpochMillis, 0), operation.id " +
-            "LIMIT :limit",
+             "ORDER BY operation.operationSequence, " +
+                 "COALESCE(operation.updatedAtEpochMillis, operation.createdAtEpochMillis, operation.lastAttemptAtEpochMillis, 0), " +
+                 "operation.id " +
+             "LIMIT :limit",
     )
     suspend fun findProcessable(limit: Int): List<HealthSyncOperationEntity>
 

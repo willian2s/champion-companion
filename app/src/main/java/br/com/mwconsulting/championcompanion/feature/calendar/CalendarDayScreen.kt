@@ -59,6 +59,8 @@ import br.com.mwconsulting.championcompanion.core.model.CalendarWorkoutSummary
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadIssue
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WeightUnit
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -246,6 +248,14 @@ private fun CalendarDayContent(
 
 @Composable
 private fun DayOverviewCard(day: CalendarDaySummary) {
+    val dailySteps = day.watchDailyReadModel?.steps?.value?.presentValueOrNull()
+        ?: day.dailySummary?.steps
+    val dailyDistance = day.watchDailyReadModel?.distanceMeters?.value?.presentValueOrNull()
+        ?: day.dailySummary?.estimatedDistanceMeters.takeIf {
+            day.watchDailyReadModel?.d1Samples.isNullOrEmpty() &&
+                WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE !in day.watchDailyReadModel?.issues.orEmpty()
+        }
+    val distanceIsMeasured = day.watchDailyReadModel?.distanceMeters?.provenance?.source == DataOrigin.WATCH_D1_HISTORY
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ChampionShapeLarge,
@@ -265,16 +275,16 @@ private fun DayOverviewCard(day: CalendarDaySummary) {
             DayOverviewRow(
                 DayOverviewMetric(
                     title = "Passos",
-                    value = day.dailySummary?.let { "${it.steps} passos" } ?: "Sem dados",
+                    value = dailySteps?.let { "$it passos" } ?: "Sem dados",
                     supportingText = "Meta ${day.stepsGoal}",
                     accentColor = healthTertiaryAccent(),
                 ),
                 DayOverviewMetric(
                     title = "Distância",
-                    value = day.dailySummary?.estimatedDistanceMeters?.let {
+                    value = dailyDistance?.let {
                         "${NumberFormat.getNumberInstance(Locale.forLanguageTag("pt-BR")).format(it / 1_000.0)} km"
                     } ?: "Indisponível",
-                    supportingText = "Estimativa local",
+                    supportingText = if (distanceIsMeasured) "Medida granular do relógio" else "Estimativa local",
                     accentColor = healthPrimaryAccent(),
                 ),
             )
@@ -301,9 +311,20 @@ private fun DayOverviewCard(day: CalendarDaySummary) {
                 ),
                 DayOverviewMetric(
                     title = "Estado",
-                    value = if (day.issues.isEmpty()) "Completo" else "Parcial",
-                    supportingText = if (day.issues.isEmpty()) "Fontes locais disponíveis" else "Revise problemas abaixo",
-                    accentColor = if (day.issues.isEmpty()) healthPrimaryAccent() else MaterialTheme.colorScheme.error,
+                    value = day.watchDailyReadModel?.completeness?.toCalendarLabel()
+                        ?: if (day.issues.isEmpty()) "Completo" else "Parcial",
+                    supportingText = when {
+                        day.issues.isNotEmpty() -> "Revise problemas abaixo"
+                        day.watchDailyReadModel?.completeness in setOf(
+                            br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness.PARTIAL,
+                            br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness.DIVERGENT,
+                        ) -> "Revise a cobertura diária"
+                        else -> "Fontes locais disponíveis"
+                    },
+                    accentColor = if (day.issues.isNotEmpty() || day.watchDailyReadModel?.completeness in setOf(
+                            br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness.PARTIAL,
+                            br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness.DIVERGENT,
+                        )) MaterialTheme.colorScheme.error else healthPrimaryAccent(),
                 ),
             )
         }
@@ -363,7 +384,8 @@ private fun DaySectionTitle(title: String) {
 private fun StepsDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
     DayCard(title = "Passos", accentColor = healthTertiaryAccent()) {
         val daily = day.dailySummary
-        if (daily == null) {
+        val steps = day.watchDailyReadModel?.steps?.value?.presentValueOrNull() ?: daily?.steps
+        if (steps == null) {
             Text(
                 if (day.hasIssue(CalendarDataSource.DAILY_SUMMARY)) {
                     "Passos indisponíveis: resumo diário local não pôde ser consultado."
@@ -373,9 +395,11 @@ private fun StepsDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            Text("${daily.steps} passos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            Text("$steps passos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text("Meta atual: ${day.stepsGoal} passos")
-            Text("Origem: ${daily.origin.toCalendarLabel()} • Atualizado em ${daily.updatedAt.formatCalendarTime(day.zoneId)}")
+            val origin = day.watchDailyReadModel?.steps?.provenance?.source ?: daily?.origin
+            val updatedAt = day.watchDailyReadModel?.fea1Summary?.updatedAt ?: daily?.updatedAt
+            Text("Origem: ${origin?.toCalendarLabel() ?: "indisponível"} • Atualizado em ${updatedAt?.formatCalendarTime(day.zoneId) ?: "indisponível"}")
         }
         OutlinedButton(
             onClick = onOpen,
@@ -389,7 +413,12 @@ private fun StepsDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
 @Composable
 private fun DistanceDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
     DayCard(title = "Distância", accentColor = healthPrimaryAccent()) {
-        val distance = day.dailySummary?.estimatedDistanceMeters
+        val distance = day.watchDailyReadModel?.distanceMeters?.value?.presentValueOrNull()
+            ?: day.dailySummary?.estimatedDistanceMeters.takeIf {
+                day.watchDailyReadModel?.d1Samples.isNullOrEmpty() &&
+                    WatchDailyReadIssue.D1_SOURCE_UNAVAILABLE !in day.watchDailyReadModel?.issues.orEmpty()
+            }
+        val measured = day.watchDailyReadModel?.distanceMeters?.provenance?.source == DataOrigin.WATCH_D1_HISTORY
         if (distance == null) {
             Text(
                 if (day.hasIssue(CalendarDataSource.DAILY_SUMMARY)) {
@@ -406,7 +435,11 @@ private fun DistanceDayCard(day: CalendarDaySummary, onOpen: () -> Unit) {
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        Text("Valor derivado exclusivamente do resumo diário; não soma atividades.")
+        Text(if (measured) {
+            "Valor medido por D1; atividades D4 permanecem separadas."
+        } else {
+            "Valor estimado do resumo diário; atividades D4 permanecem separadas."
+        })
         OutlinedButton(
             onClick = onOpen,
             modifier = Modifier.heightIn(min = 48.dp),
@@ -748,9 +781,9 @@ private fun CalendarWorkoutSummary.canonicalStatusMessage(): String = if (isCycl
     when (canonicalReadStatus) {
         WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Distância segue contrato legado da atividade phone."
         WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
-            "Sem comprimento do passo. Configure Perfil e reprocese a atividade por ação explícita."
+            "Sem comprimento do passo confirmado. Reprocesse a atividade por ação explícita quando houver referência válida."
         WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
-            "Derivação canônica não materializada. Configure comprimento do passo e reprocese por ação explícita."
+            "Derivação canônica não materializada. Reprocesse por ação explícita quando houver referência válida."
         WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
             "Série canônica inelegível. Distância original, calibrada e agregada não são usadas como substitutas."
         WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ->
@@ -797,12 +830,21 @@ private fun CalendarSyncState.toCalendarLabel(): String = when (this) {
     CalendarSyncState.PARTIAL -> "Parcial"
 }
 
+private fun WatchDailyReadCompleteness.toCalendarLabel(): String = when (this) {
+    WatchDailyReadCompleteness.EMPTY -> "Sem dados"
+    WatchDailyReadCompleteness.PARTIAL -> "Parcial"
+    WatchDailyReadCompleteness.COMPLETE -> "Completo"
+    WatchDailyReadCompleteness.RECENT_TAIL -> "Cauda recente"
+    WatchDailyReadCompleteness.DIVERGENT -> "Divergente"
+}
+
 private fun CalendarDataSource.toCalendarLabel(): String = when (this) {
     CalendarDataSource.ASSOCIATED_DEVICE -> "dispositivo associado"
     CalendarDataSource.DAILY_SUMMARY -> "resumo diário"
     CalendarDataSource.HEART_RATE -> "frequência cardíaca"
     CalendarDataSource.WORKOUT_ACTIVITY -> "atividades"
     CalendarDataSource.WEIGHT_MEASUREMENT -> "peso"
+    CalendarDataSource.WATCH_DAILY_READ_MODEL -> "read model diário"
     CalendarDataSource.HEALTH_SYNC_QUEUE -> "fila local"
     CalendarDataSource.PREFERENCES -> "preferências"
 }
@@ -860,6 +902,9 @@ private fun DomainValue<Double>.toDistanceLabel(): String = when (this) {
     is DomainValue.Present -> "${NumberFormat.getNumberInstance(Locale.forLanguageTag("pt-BR")).format(value / 1_000.0)} km"
     is DomainValue.Absent -> "indisponível"
 }
+
+private fun <T> DomainValue<T>.presentValueOrNull(): T? =
+    (this as? DomainValue.Present)?.value
 
 private fun CalendarWeightMeasurementSummary.toWeightLabel(): String =
     "${NumberFormat.getNumberInstance(Locale.forLanguageTag("pt-BR")).format(value)} ${if (unit == WeightUnit.KILOGRAMS) "kg" else "lb"}"

@@ -73,7 +73,7 @@ class ChampionWatchWorkoutImportCoordinator(
     private val d4Timeout: Duration = br.com.mwconsulting.championcompanion.core.bluetooth.ChampionBleTimeouts().d4WorkoutBlock,
     private val civilNow: () -> Instant = Instant::now,
     private val isDebugBuild: Boolean,
-) : WatchWorkoutImportCoordinator {
+) : WatchWorkoutImportCoordinator, WatchSyncWorkoutComponent {
     private val scope = CoroutineScope(SupervisorJob() + bleDispatcher)
     private val mutableState = MutableStateFlow<WatchWorkoutImportSurfaceState>(WatchWorkoutImportSurfaceState.Idle)
     private val lifecycleMutex = Mutex()
@@ -132,6 +132,30 @@ class ChampionWatchWorkoutImportCoordinator(
         return null
     }
 
+    override suspend fun importForWatchSync(
+        request: WatchWorkoutImportRequest,
+        transport: ChampionTransportSession,
+    ): WatchSyncWorkoutResult {
+        val startedAt = civilNow()
+        val result = runImport(
+            request = request,
+            permit = null,
+            baseSession = WatchWorkoutImportSessionState(importAttemptId = request.importAttemptId),
+            providedTransport = transport,
+            publishUi = false,
+        )
+        return result ?: WatchSyncWorkoutResult(
+            result = WatchWorkoutImportResult.Failed(),
+            startedAt = startedAt,
+            finishedAt = civilNow(),
+            error = WatchWorkoutImportError(
+                category = WatchWorkoutImportErrorCategory.CANCELLED,
+                message = "Importação de treinos cancelada antes da conclusão.",
+                isRetryable = true,
+            ),
+        )
+    }
+
     override suspend fun cancelImport(reason: WatchWorkoutImportCancellationReason) {
         val active = activeImport ?: return
         requestTermination(active, Termination.Cancelled(reason))
@@ -145,28 +169,38 @@ class ChampionWatchWorkoutImportCoordinator(
 
     private suspend fun runImport(
         request: WatchWorkoutImportRequest,
-        permit: ForegroundBleOperationPermit,
+        permit: ForegroundBleOperationPermit?,
         baseSession: WatchWorkoutImportSessionState,
-    ) {
+        providedTransport: ChampionTransportSession? = null,
+        publishUi: Boolean = true,
+    ): WatchSyncWorkoutResult? {
         var active: ActiveImport? = null
+        val startedAt = civilNow()
         try {
-            val startedAt = civilNow()
-            mutableState.value = WatchWorkoutImportSurfaceState.Connecting(baseSession.copy(startedAt = startedAt))
-            val transport = when (val result = resolveTransport(request)) {
+            publishState(publishUi, WatchWorkoutImportSurfaceState.Connecting(baseSession.copy(startedAt = startedAt)))
+            val transport = when (val result = providedTransport?.let(ChampionBleResult<ChampionTransportSession>::Success)
+                ?: resolveTransport(request)
+            ) {
                 is ChampionBleResult.Success -> result.value
                 is ChampionBleResult.Failure -> {
-                    mutableState.value = WatchWorkoutImportSurfaceState.Failed(
+                    val failedResult = WatchWorkoutImportResult.Failed()
+                    publishState(publishUi, WatchWorkoutImportSurfaceState.Failed(
                         baseSession.copy(
                             startedAt = startedAt,
                             error = result.error.toImportError(WatchWorkoutImportErrorCategory.CONNECTION_FAILED),
                         ),
-                    )
+                    ))
                     persistMetadata(
                         deviceId = request.associatedDevice.id,
-                        result = WatchWorkoutImportResult.Failed(),
+                        result = failedResult,
                         summary = null,
                     )
-                    return
+                    return WatchSyncWorkoutResult(
+                        result = failedResult,
+                        startedAt = startedAt,
+                        finishedAt = civilNow(),
+                        error = result.error.toImportError(WatchWorkoutImportErrorCategory.CONNECTION_FAILED),
+                    )
                 }
             }
 
@@ -176,28 +210,42 @@ class ChampionWatchWorkoutImportCoordinator(
                 startedAt = startedAt,
             )
 
-            val handshakeResult = connectionBootstrap.executeHandshake(transport, ZonedDateTime.now())
-            if (handshakeResult is ChampionBleResult.Failure) {
-                val error = handshakeResult.error.toImportError(WatchWorkoutImportErrorCategory.HANDSHAKE_FAILED)
-                mutableState.value = WatchWorkoutImportSurfaceState.Failed(activeSession.copy(error = error))
-                persistMetadata(
-                    deviceId = request.associatedDevice.id,
-                    result = WatchWorkoutImportResult.Failed(),
-                    summary = null,
-                )
-                return
+            if (providedTransport == null) {
+                val handshakeResult = connectionBootstrap.executeHandshake(transport, ZonedDateTime.now())
+                if (handshakeResult is ChampionBleResult.Failure) {
+                    val error = handshakeResult.error.toImportError(WatchWorkoutImportErrorCategory.HANDSHAKE_FAILED)
+                    val failedResult = WatchWorkoutImportResult.Failed()
+                    publishState(publishUi, WatchWorkoutImportSurfaceState.Failed(activeSession.copy(error = error)))
+                    persistMetadata(
+                        deviceId = request.associatedDevice.id,
+                        result = failedResult,
+                        summary = null,
+                    )
+                    return WatchSyncWorkoutResult(
+                        result = failedResult,
+                        startedAt = startedAt,
+                        finishedAt = civilNow(),
+                        error = error,
+                    )
+                }
             }
 
             val notificationSubscription = transport.notifications.subscribe(ChampionChannelAlias.F008_NOTIFY)
             if (notificationSubscription is ChampionBleResult.Failure) {
                 val error = notificationSubscription.error.toImportError(WatchWorkoutImportErrorCategory.F008_UNAVAILABLE)
-                mutableState.value = WatchWorkoutImportSurfaceState.Failed(activeSession.copy(error = error))
+                val failedResult = WatchWorkoutImportResult.Failed()
+                publishState(publishUi, WatchWorkoutImportSurfaceState.Failed(activeSession.copy(error = error)))
                 persistMetadata(
                     deviceId = request.associatedDevice.id,
-                    result = WatchWorkoutImportResult.Failed(),
+                    result = failedResult,
                     summary = null,
                 )
-                return
+                return WatchSyncWorkoutResult(
+                    result = failedResult,
+                    startedAt = startedAt,
+                    finishedAt = civilNow(),
+                    error = error,
+                )
             }
 
             active = ActiveImport(
@@ -213,8 +261,8 @@ class ChampionWatchWorkoutImportCoordinator(
             }
 
             val packets = (notificationSubscription as ChampionBleResult.Success).value
-            mutableState.value = WatchWorkoutImportSurfaceState.ReadingIndex(activeSession)
-            val d3Outcome = awaitD3Outcome(active, packets)
+            publishState(publishUi, WatchWorkoutImportSurfaceState.ReadingIndex(activeSession))
+            val d3Outcome = awaitD3Outcome(active, packets, publishUi)
             active.summary.discoveredBlockCount = d3Outcome.entries.size
             active.summary.timedOut = d3Outcome.timedOut
 
@@ -247,9 +295,22 @@ class ChampionWatchWorkoutImportCoordinator(
                         ),
                     )
                 }
-                mutableState.value = terminalState
+                publishState(publishUi, terminalState)
                 persistMetadata(request.associatedDevice.id, result, summary)
-                return
+                return WatchSyncWorkoutResult(
+                    result = result,
+                    startedAt = startedAt,
+                    finishedAt = summary.finishedAt,
+                    error = if (d3Outcome.timedOut) {
+                        WatchWorkoutImportError(
+                            category = WatchWorkoutImportErrorCategory.D3_TIMEOUT,
+                            message = "Tempo limite atingido antes de receber índice D3 válido.",
+                            isRetryable = true,
+                        )
+                    } else {
+                        null
+                    },
+                )
             }
 
             for (entry in d3Outcome.entries) {
@@ -271,25 +332,25 @@ class ChampionWatchWorkoutImportCoordinator(
                 if (lookup?.canSkipOnResume == true) {
                     active.summary.skippedValidCount += 1
                     active.summary.processedBlockCount += 1
-                    mutableState.value = WatchWorkoutImportSurfaceState.ReadingBlocks(
+                    publishState(publishUi, WatchWorkoutImportSurfaceState.ReadingBlocks(
                         activeSession.copy(progress = progressOf(active, currentBlockNumber = entry.blockIndex + 1)),
-                    )
+                    ))
                     continue
                 }
 
-                mutableState.value = WatchWorkoutImportSurfaceState.ReadingBlocks(
+                publishState(publishUi, WatchWorkoutImportSurfaceState.ReadingBlocks(
                     activeSession.copy(progress = progressOf(active, currentBlockNumber = entry.blockIndex + 1)),
-                )
-                val d4Outcome = awaitD4Outcome(active, packets, entry)
+                ))
+                val d4Outcome = awaitD4Outcome(active, packets, entry, publishUi)
                 active.summary.missingPacketCount += d4Outcome.missingPacketIndices.size
                 if (d4Outcome.timedOut) {
                     active.summary.timedOut = true
                     active.summary.timedOutBlockCount += 1
                 }
 
-                mutableState.value = WatchWorkoutImportSurfaceState.Parsing(
+                publishState(publishUi, WatchWorkoutImportSurfaceState.Parsing(
                     activeSession.copy(progress = progressOf(active, currentBlockNumber = entry.blockIndex + 1)),
-                )
+                ))
                 val parsed = ChampionD4WorkoutParser.parse(
                     ChampionD4WorkoutParser.Request(
                         deviceId = request.associatedDevice.id,
@@ -308,11 +369,11 @@ class ChampionWatchWorkoutImportCoordinator(
 
                     is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Partial -> {
                         active.summary.partialCount += 1
-                        persistParsedBlock(active, activeSession, parsed.input.copy(diagnosticPayloadId = diagnosticPayloadId))
+                        persistParsedBlock(active, activeSession, parsed.input.copy(diagnosticPayloadId = diagnosticPayloadId), publishUi)
                     }
 
                     is br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserResult.Valid -> {
-                        persistParsedBlock(active, activeSession, parsed.input.copy(diagnosticPayloadId = diagnosticPayloadId))
+                        persistParsedBlock(active, activeSession, parsed.input.copy(diagnosticPayloadId = diagnosticPayloadId), publishUi)
                     }
                 }
                 active.summary.processedBlockCount += 1
@@ -330,7 +391,7 @@ class ChampionWatchWorkoutImportCoordinator(
                 WatchWorkoutImportResult.Completed(summary)
             }
             val metadata = metadataOf(request.associatedDevice.id, result, summary)
-            mutableState.value = when (result) {
+            publishState(publishUi, when (result) {
                 is WatchWorkoutImportResult.Completed -> WatchWorkoutImportSurfaceState.Completed(
                     activeSession.copy(progress = progressOf(active), result = result, metadata = metadata),
                 )
@@ -342,16 +403,21 @@ class ChampionWatchWorkoutImportCoordinator(
                 else -> WatchWorkoutImportSurfaceState.Failed(
                     activeSession.copy(progress = progressOf(active), result = result, metadata = metadata),
                 )
-            }
+            })
             persistMetadata(request.associatedDevice.id, result, summary)
+            return WatchSyncWorkoutResult(
+                result = result,
+                startedAt = startedAt,
+                finishedAt = summary.finishedAt,
+            )
         } catch (_: CancellationException) {
-            val current = active ?: return
+            val current = active ?: return null
             when (val termination = current.termination) {
                 is Termination.Cancelled -> {
                     val summary = buildSummary(current)
                     val result = WatchWorkoutImportResult.Cancelled(summary)
                     val metadata = metadataOf(request.associatedDevice.id, result, summary)
-                    mutableState.value = WatchWorkoutImportSurfaceState.Cancelled(
+                    publishState(publishUi, WatchWorkoutImportSurfaceState.Cancelled(
                         WatchWorkoutImportSessionState(
                             importAttemptId = request.importAttemptId,
                             bleSessionId = current.bleSessionId,
@@ -365,15 +431,25 @@ class ChampionWatchWorkoutImportCoordinator(
                                 isRetryable = true,
                             ),
                         ),
-                    )
+                    ))
                     persistMetadata(request.associatedDevice.id, result, summary)
+                    return WatchSyncWorkoutResult(
+                        result = result,
+                        startedAt = startedAt,
+                        finishedAt = summary.finishedAt,
+                        error = WatchWorkoutImportError(
+                            category = WatchWorkoutImportErrorCategory.CANCELLED,
+                            message = "Importação de treinos cancelada antes da conclusão.",
+                            isRetryable = true,
+                        ),
+                    )
                 }
 
                 is Termination.Failed -> {
                     val summary = buildSummary(current)
                     val result = WatchWorkoutImportResult.Failed(summary)
                     val metadata = metadataOf(request.associatedDevice.id, result, summary)
-                    mutableState.value = WatchWorkoutImportSurfaceState.Failed(
+                    publishState(publishUi, WatchWorkoutImportSurfaceState.Failed(
                         WatchWorkoutImportSessionState(
                             importAttemptId = request.importAttemptId,
                             bleSessionId = current.bleSessionId,
@@ -383,8 +459,14 @@ class ChampionWatchWorkoutImportCoordinator(
                             metadata = metadata,
                             error = termination.error,
                         ),
-                    )
+                    ))
                     persistMetadata(request.associatedDevice.id, result, summary)
+                    return WatchSyncWorkoutResult(
+                        result = result,
+                        startedAt = startedAt,
+                        finishedAt = summary.finishedAt,
+                        error = termination.error,
+                    )
                 }
 
                 null -> throw CancellationException("watch_workout_import_cancelled_without_termination")
@@ -394,21 +476,28 @@ class ChampionWatchWorkoutImportCoordinator(
             val summary = current?.let(::buildSummary)
             val result = WatchWorkoutImportResult.Failed(summary)
             val metadata = summary?.let { metadataOf(request.associatedDevice.id, result, it) }
-            mutableState.value = WatchWorkoutImportSurfaceState.Failed(
+            val failedResult = WatchWorkoutImportResult.Failed(summary)
+            publishState(publishUi, WatchWorkoutImportSurfaceState.Failed(
                 WatchWorkoutImportSessionState(
                     importAttemptId = request.importAttemptId,
                     bleSessionId = current?.bleSessionId,
                     startedAt = current?.startedAt,
                     progress = current?.let(::progressOf) ?: WatchWorkoutImportProgress(),
-                    result = result,
+                    result = failedResult,
                     metadata = metadata,
                     error = failure.error,
                 ),
+            ))
+            persistMetadata(request.associatedDevice.id, failedResult, summary)
+            return WatchSyncWorkoutResult(
+                result = failedResult,
+                startedAt = startedAt,
+                finishedAt = summary?.finishedAt ?: civilNow(),
+                error = failure.error,
             )
-            persistMetadata(request.associatedDevice.id, result, summary)
         } finally {
             active?.phaseJob?.cancel()
-            foregroundBleOperationGate.release(permit)
+            permit?.let { foregroundBleOperationGate.release(it) }
             lifecycleMutex.withLock {
                 if (activeImport?.importAttemptId == request.importAttemptId) {
                     activeImport = null
@@ -421,10 +510,11 @@ class ChampionWatchWorkoutImportCoordinator(
         active: ActiveImport,
         session: WatchWorkoutImportSessionState,
         input: br.com.mwconsulting.championcompanion.core.model.WatchWorkoutParserInput,
+        publishUi: Boolean = true,
     ) {
-        mutableState.value = WatchWorkoutImportSurfaceState.Persisting(
+        publishState(publishUi, WatchWorkoutImportSurfaceState.Persisting(
             session.copy(progress = progressOf(active, currentBlockNumber = input.externalBlockIndex + 1)),
-        )
+        ))
         val importedAt = civilNow()
         val activity = WorkoutActivity.createFromImport(
             id = WorkoutActivityId(ids.next()),
@@ -503,6 +593,7 @@ class ChampionWatchWorkoutImportCoordinator(
     private suspend fun awaitD3Outcome(
         active: ActiveImport,
         packets: Flow<br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket>,
+        publishUi: Boolean = true,
     ): ChampionD3WorkoutIndexProtocol.D3IndexCollectionOutcome {
         val phaseStartedAt = civilNow()
         val collector = ChampionD3WorkoutIndexProtocol.IndexCollector(
@@ -520,14 +611,14 @@ class ChampionWatchWorkoutImportCoordinator(
                     when (val update = collector.onPacket(packet)) {
                         ChampionD3WorkoutIndexProtocol.D3IndexCollectionUpdate.Ignored -> Unit
                         is ChampionD3WorkoutIndexProtocol.D3IndexCollectionUpdate.Progress -> {
-                            mutableState.value = WatchWorkoutImportSurfaceState.ReadingIndex(
+                            publishState(publishUi, WatchWorkoutImportSurfaceState.ReadingIndex(
                                 WatchWorkoutImportSessionState(
                                     importAttemptId = active.importAttemptId,
                                     bleSessionId = active.bleSessionId,
                                     startedAt = active.startedAt,
                                     progress = progressOf(active),
                                 ),
-                            )
+                            ))
                         }
 
                         is ChampionD3WorkoutIndexProtocol.D3IndexCollectionUpdate.Finished -> {
@@ -561,6 +652,7 @@ class ChampionWatchWorkoutImportCoordinator(
         active: ActiveImport,
         packets: Flow<br.com.mwconsulting.championcompanion.core.bluetooth.ChampionPacket>,
         entry: ChampionD3WorkoutIndexProtocol.D3WorkoutBlockEntry,
+        publishUi: Boolean = true,
     ): ChampionD4WorkoutBlockProtocol.D4BlockCollectionOutcome {
         val phaseStartedAt = civilNow()
         val collector = ChampionD4WorkoutBlockProtocol.BlockCollector(
@@ -579,7 +671,7 @@ class ChampionWatchWorkoutImportCoordinator(
                     when (val update = collector.onPacket(packet)) {
                         ChampionD4WorkoutBlockProtocol.D4BlockCollectionUpdate.Ignored -> Unit
                         is ChampionD4WorkoutBlockProtocol.D4BlockCollectionUpdate.Progress -> {
-                            mutableState.value = WatchWorkoutImportSurfaceState.ReadingBlocks(
+                            publishState(publishUi, WatchWorkoutImportSurfaceState.ReadingBlocks(
                                 WatchWorkoutImportSessionState(
                                     importAttemptId = active.importAttemptId,
                                     bleSessionId = active.bleSessionId,
@@ -591,7 +683,7 @@ class ChampionWatchWorkoutImportCoordinator(
                                         totalPacketsInBlock = update.progress.totalPackets.takeIf { it > 0 },
                                     ),
                                 ),
-                            )
+                            ))
                         }
 
                         is ChampionD4WorkoutBlockProtocol.D4BlockCollectionUpdate.Finished -> {
@@ -809,7 +901,7 @@ class ChampionWatchWorkoutImportCoordinator(
     ): WatchWorkoutImportError = when (this) {
         ChampionBleError.BluetoothDisabled -> WatchWorkoutImportError(
             category = WatchWorkoutImportErrorCategory.BLUETOOTH_DISABLED,
-            message = "Ative o Bluetooth para buscar treinos do relogio.",
+            message = "Ative o Bluetooth para sincronizar o relógio.",
             isRetryable = true,
         )
 
@@ -819,7 +911,7 @@ class ChampionWatchWorkoutImportCoordinator(
         ChampionBleError.LocationPermissionRequired,
         -> WatchWorkoutImportError(
             category = WatchWorkoutImportErrorCategory.PERMISSIONS_REQUIRED,
-            message = "Permissoes de Bluetooth sao necessarias para buscar treinos do relogio.",
+            message = "Permissões de Bluetooth são necessárias para sincronizar o relógio.",
             isRetryable = true,
         )
 
@@ -851,7 +943,7 @@ class ChampionWatchWorkoutImportCoordinator(
         ChampionBleError.CleanupInProgress,
         -> WatchWorkoutImportError(
             category = WatchWorkoutImportErrorCategory.CANCELLED,
-            message = "Importacao cancelada antes da conclusao.",
+            message = "Sincronização do relógio cancelada antes da conclusão.",
             isRetryable = true,
         )
 
@@ -880,17 +972,25 @@ class ChampionWatchWorkoutImportCoordinator(
     private fun Throwable.isExpectedObserverShutdown(): Boolean =
         message?.startsWith("notification_hub_closed:") == true
 
+    private fun publishState(
+        publishUi: Boolean,
+        state: WatchWorkoutImportSurfaceState,
+    ) {
+        if (publishUi) mutableState.value = state
+    }
+
     private fun ForegroundBleOperationOwner.toExercisesForegroundBleBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização do relógio está em andamento na tela Início."
-        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio já está em andamento na tela Exercícios."
+        ForegroundBleOperationOwner.WATCH_SYNC -> "Uma sincronização do relógio está em andamento na tela Início."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Outra operação do relógio está em andamento."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Outra sincronização do relógio está em andamento."
+        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Outra sincronização do relógio está em andamento."
         ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "A participação opcional do relógio está em andamento na sessão de treino."
         ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Uma conexão do dispositivo está em andamento na tela Dispositivo."
     }
 
     private data class ActiveImport(
-        val permit: ForegroundBleOperationPermit,
+        val permit: ForegroundBleOperationPermit?,
         val importAttemptId: String,
         val bleSessionId: String,
         val deviceId: br.com.mwconsulting.championcompanion.core.model.DeviceId,

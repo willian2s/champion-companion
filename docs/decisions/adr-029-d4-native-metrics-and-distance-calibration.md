@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Data:** 2026-09-08
-- **Relacionado:** Specs 021, 023, 027 e 032
+- **Relacionado:** Specs 021, 023, 027, 032 e 033
 
 ## Contexto
 
@@ -86,6 +86,17 @@ cobertura de samples acima de 255 passos, retenção de payload diagnóstico e
 variações de firmware não observadas. A referência externa manual permanece
 sujeita a erro e serve somente como referência de calibração. Essas limitações
 não invalidam decisão para layout fixo validado.
+
+## Evolução de política — 2026-09-14
+
+Validação física da entrega 033 confirmou distância nativa D4 v4 íntegra em
+`FREE_WORKOUT`. A política passa a aceitar `FREE_WORKOUT` e `TREADMILL` como
+tipos de distância nativa, sem reutilizar comprimento de passo. `TREADMILL`
+permanece `PENDING_CALIBRATION` até distância externa ser informada; o fator
+`referência / distância D4` é aplicado proporcionalmente aos intervalos e
+aprendido em perfil separado de `RUNNING` e `WALKING`. `FREE_WORKOUT` não gera
+evidência de calibração nativa. `CYCLING`, `TOTAL_CALORIES_BURNED`, fatos raw,
+atividades `SYNCED` e snapshots históricos permanecem inalterados.
 
 ## Alternativas rejeitadas
 

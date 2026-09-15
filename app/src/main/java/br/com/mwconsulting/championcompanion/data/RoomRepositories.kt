@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
 import br.com.mwconsulting.championcompanion.core.database.DailyStepsCheckpointEntity
 import br.com.mwconsulting.championcompanion.core.database.DailyStepsCreditReservationEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncCutoverEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteDao
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
@@ -59,6 +60,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthSyncBacklogReconci
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncCutover
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncProcessableQueue
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncRepository
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncQueueObservation
@@ -127,6 +129,12 @@ import br.com.mwconsulting.championcompanion.core.model.UuidV7
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImport
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportLookup
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.PersistWatchDailyD1SamplesInput
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1PersistenceResult
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1ImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Repository
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1SampleKey
+import br.com.mwconsulting.championcompanion.core.model.WATCH_DAILY_D1_IMPORT_TYPE
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessFailureReason
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessResult
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceFailureReason
@@ -229,7 +237,7 @@ class RoomRepositories @Inject constructor(
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : DeviceRepository, DailySummaryRepository, HeartRateRepository, WorkoutActivityRepository,
     TreadmillCalibrationRepository, AppWorkoutSessionRepository, HealthSyncRepository, DiagnosticPayloadRepository,
-    PersonalMetricsRepository, WorkoutRouteRepository {
+    PersonalMetricsRepository, WorkoutRouteRepository, WatchDailyD1Repository {
     private val ids = UuidV7Generator()
     private val frozenProjectionJson = Json {
         ignoreUnknownKeys = true
@@ -406,6 +414,19 @@ class RoomRepositories @Inject constructor(
         write {
         val deviceId = input.deviceId.value.toString()
         val device = database.deviceDao().findById(deviceId) ?: return@write RepositoryResult.NotFound
+        when (ensureDailyStepsCutoverInternal(
+            deviceId = input.deviceId,
+            activationLocalDate = input.localDate,
+            zoneId = input.zoneId,
+            activatedAt = input.updatedAt,
+        )) {
+            is RepositoryResult.Success -> Unit
+            RepositoryResult.Conflict,
+            RepositoryResult.UnexpectedState,
+            RepositoryResult.NotFound,
+            RepositoryResult.StorageUnavailable,
+            -> return@write RepositoryResult.UnexpectedState
+        }
         val existing = database.dailySummaryDao().findByNaturalKey(
             deviceId = deviceId,
             origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
@@ -688,6 +709,133 @@ class RoomRepositories @Inject constructor(
             .map { it?.toD1ImportMetadata() }
             .flowOn(ioDispatcher)
 
+    override suspend fun persist(
+        input: PersistWatchDailyD1SamplesInput,
+    ): RepositoryResult<WatchDailyD1PersistenceResult> = write {
+        val sampleDao = database.watchDailyD1SampleDao()
+        val deviceIds = input.samples.map { it.deviceId.value.toString() }.toSet()
+        if (deviceIds.any { database.deviceDao().findById(it) == null }) {
+            return@write RepositoryResult.NotFound
+        }
+
+        var insertedCount = 0
+        var updatedCount = 0
+        var duplicateCount = 0
+
+        input.samples.forEach { incoming ->
+            val incomingEntity = incoming.toEntity()
+            val existing = sampleDao.findByNaturalKey(
+                deviceId = incomingEntity.deviceId,
+                resolvedLocalDateIso = incomingEntity.resolvedLocalDate,
+                currentPosition = incomingEntity.currentPosition,
+            )
+            if (existing == null) {
+                sampleDao.insert(incomingEntity)
+                insertedCount += 1
+            } else {
+                val sameFacts = incomingEntity.copy(
+                    id = existing.id,
+                    importAttemptId = existing.importAttemptId,
+                    importedAtEpochMillis = existing.importedAtEpochMillis,
+                    updatedAtEpochMillis = existing.updatedAtEpochMillis,
+                ) == existing
+                if (sameFacts) {
+                    duplicateCount += 1
+                } else {
+                    val candidate = incomingEntity.copy(
+                        id = existing.id,
+                        importedAtEpochMillis = existing.importedAtEpochMillis,
+                    )
+                    if (sampleDao.update(candidate) != 1) {
+                        return@write RepositoryResult.Conflict
+                    }
+                    updatedCount += 1
+                }
+            }
+        }
+
+        RepositoryResult.Success(
+            WatchDailyD1PersistenceResult(
+                insertedCount = insertedCount,
+                updatedCount = updatedCount,
+                duplicateCount = duplicateCount,
+            ),
+        )
+    }
+
+    override suspend fun persistImportMetadata(
+        metadata: WatchDailyD1ImportMetadata,
+    ): RepositoryResult<Unit> = write {
+        val deviceId = metadata.deviceId.value.toString()
+        if (database.deviceDao().findById(deviceId) == null) {
+            return@write RepositoryResult.NotFound
+        }
+        val metadataDao = database.deviceImportMetadataDao()
+        val existing = metadataDao.findByDeviceAndImportType(deviceId, WATCH_DAILY_D1_IMPORT_TYPE)
+        val metadataToPersist = when (metadata.lastResult) {
+            br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus.FAILED,
+            br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportStatus.CANCELLED,
+            -> metadata.copy(
+                lastSuccessAt = existing?.lastSuccessAtEpochMillis?.let(Instant::ofEpochMilli),
+            )
+
+            else -> metadata
+        }
+        metadataDao.upsert(metadataToPersist.toEntity(id = existing?.id ?: ids.next().toString()))
+        RepositoryResult.Success(Unit)
+    }
+
+    override fun observeImportMetadata(
+        deviceId: DeviceId,
+    ): Flow<WatchDailyD1ImportMetadata?> = database.deviceImportMetadataDao()
+        .observeByDeviceAndImportType(deviceId.value.toString(), WATCH_DAILY_D1_IMPORT_TYPE)
+        .map { it?.toWatchDailyD1ImportMetadata() }
+        .flowOn(ioDispatcher)
+
+    override fun observeBetween(
+        deviceId: DeviceId,
+        fromInclusive: LocalDate,
+        untilExclusive: LocalDate,
+    ): Flow<List<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>> =
+        database.watchDailyD1SampleDao()
+            .observeBetween(
+                deviceId = deviceId.value.toString(),
+                fromLocalDateIso = fromInclusive.toString(),
+                untilLocalDateIso = untilExclusive.toString(),
+            )
+            .map { samples -> samples.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
+    override fun observeResolvedAtBetween(
+        deviceId: DeviceId,
+        range: CalendarInstantRange,
+    ): Flow<List<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>> =
+        database.watchDailyD1SampleDao()
+            .observeResolvedAtBetween(
+                deviceId = deviceId.value.toString(),
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+            )
+            .map { samples -> samples.mapNotNull { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
+    override suspend fun findByNaturalKey(
+        key: WatchDailyD1SampleKey,
+    ): RepositoryResult<br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample?> =
+        withContext(ioDispatcher) {
+            val entity = database.watchDailyD1SampleDao().findByNaturalKey(
+                deviceId = key.deviceId.value.toString(),
+                resolvedLocalDateIso = key.resolvedLocalDate.toString(),
+                currentPosition = key.currentPosition,
+            )
+            if (entity == null) {
+                RepositoryResult.Success(null)
+            } else {
+                entity.toDomain()?.let { RepositoryResult.Success(it) }
+                    ?: RepositoryResult.UnexpectedState
+            }
+        }
+
     override suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit> = try {
         write {
             val activityEntity = activity.toEntity()
@@ -856,6 +1004,15 @@ class RoomRepositories @Inject constructor(
             .map { records -> records.mapNotNull { it.toCalendarSummary() } }
             .flowOn(ioDispatcher)
 
+    override fun observeActivitiesIntersecting(range: CalendarInstantRange) =
+        database.workoutActivityDao()
+            .observeCalendarSummariesIntersecting(
+                fromEpochMillis = range.fromInclusive.toEpochMilli(),
+                untilEpochMillis = range.untilExclusive.toEpochMilli(),
+            )
+            .map { records -> records.mapNotNull { it.toCalendarSummary() } }
+            .flowOn(ioDispatcher)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> =
         combine(
@@ -994,7 +1151,7 @@ class RoomRepositories @Inject constructor(
                 WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
             )
             val needsNativePolicyReset = hasNativeSnapshot &&
-                reviewed.confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)
+                reviewed.confirmedType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.FREE_WORKOUT, WorkoutType.TREADMILL)
             database.workoutActivityDao().update(reviewed.toEntity())
             val needsV4ReviewDerivation = reviewed.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
                 reviewed.watchImportContext?.parserVersion?.value == WATCH_WORKOUT_D4_V4_PARSER_VERSION &&
@@ -1447,7 +1604,10 @@ class RoomRepositories @Inject constructor(
                     database.distanceCalibrationEvidenceDao()
                         .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.WALKING.name)
                         .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.WALKING) },
-                ) { running, walking -> listOfNotNull(running, walking) }
+                    database.distanceCalibrationEvidenceDao()
+                        .observeActiveByProfileAndWorkoutType(profile.id, WorkoutType.TREADMILL.name)
+                        .map { it.toLearnedDistanceCalibrationProfile(WorkoutType.TREADMILL) },
+                ) { running, walking, treadmill -> listOfNotNull(running, walking, treadmill) }
                     .collect { emit(it) }
             }
         }.flowOn(ioDispatcher)
@@ -1461,7 +1621,7 @@ class RoomRepositories @Inject constructor(
             val type = activity.confirmedType?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
                 ?: return@writeTransaction RepositoryResult.UnexpectedState
             if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
-                type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) ||
+                type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL) ||
                 activity.workflowState !in setOf(
                     ActivityWorkflowState.PENDING_CALIBRATION.name,
                     ActivityWorkflowState.READY_TO_SYNC.name,
@@ -1765,7 +1925,7 @@ class RoomRepositories @Inject constructor(
         workoutType: WorkoutType,
         profile: UserProfile?,
     ): Double? {
-        if (profile == null || workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null
+        if (profile == null || workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) return null
         return database.distanceCalibrationEvidenceDao()
             .observeActiveByProfileAndWorkoutType(profile.id.value.toString(), workoutType.name)
             .first()
@@ -2324,6 +2484,62 @@ class RoomRepositories @Inject constructor(
 
     override suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation> = write {
         ensureOperationInternal(key)
+    }
+
+    override suspend fun ensureDailyStepsCutover(
+        deviceId: DeviceId,
+        activationLocalDate: LocalDate,
+        zoneId: ZoneId,
+        activatedAt: Instant,
+    ): RepositoryResult<HealthSyncCutover> = write {
+        when (val result = ensureDailyStepsCutoverInternal(deviceId, activationLocalDate, zoneId, activatedAt)) {
+            is RepositoryResult.Success -> result
+            RepositoryResult.Conflict -> RepositoryResult.Conflict
+            RepositoryResult.UnexpectedState -> RepositoryResult.UnexpectedState
+            RepositoryResult.NotFound -> RepositoryResult.NotFound
+            RepositoryResult.StorageUnavailable -> RepositoryResult.StorageUnavailable
+        }
+    }
+
+    override suspend fun findDailyStepsCutover(
+        deviceId: DeviceId,
+    ): RepositoryResult<HealthSyncCutover?> = read {
+        val entity = database.healthSyncCutoverDao().findByDeviceId(deviceId.value.toString())
+        if (entity == null) RepositoryResult.Success(null)
+        else entity.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
+    }
+
+    private suspend fun ensureDailyStepsCutoverInternal(
+        deviceId: DeviceId,
+        activationLocalDate: LocalDate,
+        zoneId: ZoneId,
+        activatedAt: Instant,
+    ): RepositoryResult<HealthSyncCutover> {
+        val deviceIdValue = deviceId.value.toString()
+        if (database.deviceDao().findById(deviceIdValue) == null) {
+            return RepositoryResult.NotFound
+        }
+        val dao = database.healthSyncCutoverDao()
+        val existing = dao.findByDeviceId(deviceIdValue)
+        if (existing != null) {
+            return existing.toDomain()?.let { RepositoryResult.Success(it) }
+                ?: RepositoryResult.UnexpectedState
+        }
+
+        val hasLegacyDailySummary = database.dailySummaryDao().findValidWatchBacklog()
+            .any { it.deviceId == deviceIdValue }
+        val cutoverDate = runCatching {
+            if (hasLegacyDailySummary) activationLocalDate.plusDays(1L) else activationLocalDate
+        }.getOrNull() ?: return RepositoryResult.UnexpectedState
+        val entity = HealthSyncCutoverEntity(
+            id = ids.next().toString(),
+            deviceId = deviceIdValue,
+            localDateIso = cutoverDate.toString(),
+            zoneId = zoneId.id,
+            activatedAtEpochMillis = activatedAt.toEpochMilli(),
+        )
+        dao.insert(entity)
+        return entity.toDomain()?.let { RepositoryResult.Success(it) } ?: RepositoryResult.UnexpectedState
     }
 
     override suspend fun prepareProjectionChild(
@@ -3094,7 +3310,7 @@ class RoomRepositories @Inject constructor(
     }
 
     private fun observeHealthSyncSemanticCandidateIndex(): Flow<HealthSyncSemanticCandidateIndex> {
-        val nonWorkoutCandidates = combine(
+        val baseNonWorkoutCandidates = combine(
             database.dailySummaryDao().observeAll(),
             database.heartRateDao().observeAll(),
             database.userProfileDao().observeAllWeights(),
@@ -3104,12 +3320,22 @@ class RoomRepositories @Inject constructor(
                 dailySummaries = dailySummaries.mapNotNull { entity ->
                     mapAggregateSafely { entity.toDomain() }
                 }.associateBy { it.id.value },
+                watchDailyD1Samples = emptyMap(),
                 heartRateMeasurements = heartRates.mapNotNull { entity ->
                     mapAggregateSafely { entity.toDomain() }
                 }.associateBy { it.id.value },
                 weightMeasurements = weights.mapNotNull { it.toDomain() }
                     .associateBy { it.id.value },
                 userProfiles = profiles.mapNotNull { it.toDomain() }
+                    .associateBy { it.id.value },
+            )
+        }
+        val nonWorkoutCandidates = combine(
+            baseNonWorkoutCandidates,
+            database.watchDailyD1SampleDao().observeAll(),
+        ) { candidates, d1Samples ->
+            candidates.copy(
+                watchDailyD1Samples = d1Samples.mapNotNull { it.toDomain() }
                     .associateBy { it.id.value },
             )
         }
@@ -3154,6 +3380,7 @@ class RoomRepositories @Inject constructor(
         return combine(nonWorkoutCandidates, workoutCandidates) { nonWorkout, workouts ->
             HealthSyncSemanticCandidateIndex(
                 dailySummaries = nonWorkout.dailySummaries,
+                watchDailyD1Samples = nonWorkout.watchDailyD1Samples,
                 heartRateMeasurements = nonWorkout.heartRateMeasurements,
                 workoutActivities = workouts,
                 weightMeasurements = nonWorkout.weightMeasurements,
@@ -4790,6 +5017,19 @@ class RoomRepositories @Inject constructor(
             ?: timeZoneId.validZoneIdOrNull()
             ?: return DailyStepsEnqueueResult()
         val zoneId = ZoneId.of(persistedTimeZoneId)
+        val localDate = runCatching { LocalDate.parse(summary.localDateIso) }.getOrNull()
+            ?: return DailyStepsEnqueueResult()
+        val cutover = when (val cutoverEntity = database.healthSyncCutoverDao().findByDeviceId(summary.deviceId)) {
+            null -> null
+            else -> cutoverEntity.toDomain() ?: return DailyStepsEnqueueResult()
+        }
+        if (cutover != null && localDate >= cutover.localDate) {
+            // D1 granular projection remains deferred until its remote interval is
+            // provably safe. Never create or mutate DailySummary projection after cutover.
+            return DailyStepsEnqueueResult(
+                operation = entities.firstOrNull()?.toDomain(),
+            )
+        }
         val windowEnd = resolveDailyStepsWindowEnd(summary, collectedAtEpochMillis, zoneId)
             ?: return DailyStepsEnqueueResult()
         val dayStart = runCatching {
@@ -5539,6 +5779,7 @@ class RoomRepositories @Inject constructor(
 
     private suspend fun aggregateExists(operation: HealthSyncOperationEntity): Boolean = when (operation.aggregateType) {
         "DAILY_SUMMARY" -> database.dailySummaryDao().findById(operation.aggregateId) != null
+        "WATCH_DAILY_D1_SAMPLE" -> database.watchDailyD1SampleDao().findById(operation.aggregateId) != null
         "HEART_RATE_MEASUREMENT" -> database.heartRateDao().findById(operation.aggregateId) != null
         "WORKOUT_ACTIVITY" -> database.workoutActivityDao().findById(operation.aggregateId) != null
         "WEIGHT_MEASUREMENT" -> database.userProfileDao().findWeightById(operation.aggregateId) != null
@@ -5560,6 +5801,8 @@ class RoomRepositories @Inject constructor(
                     updatedAtEpochMillis = entity.updatedAtEpochMillis,
                 )
             }
+
+            is HealthSyncAggregate.WatchDailyD1Sample -> null
 
             is HealthSyncAggregate.HeartRateMeasurement -> {
                 val entity = database.heartRateDao().findById(aggregate.measurementId.value.toString()) ?: return null
@@ -5771,6 +6014,7 @@ private data class MappedHealthSyncOperation(
 
 private data class NonWorkoutHealthSyncCandidates(
     val dailySummaries: Map<UUID, DailySummary>,
+    val watchDailyD1Samples: Map<UUID, br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>,
     val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
     val weightMeasurements: Map<UUID, WeightMeasurement>,
     val userProfiles: Map<UUID, UserProfile>,
@@ -5785,6 +6029,7 @@ private data class HealthSyncWorkoutCandidateFacts(
 
 private data class HealthSyncSemanticCandidateIndex(
     val dailySummaries: Map<UUID, DailySummary>,
+    val watchDailyD1Samples: Map<UUID, br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample>,
     val heartRateMeasurements: Map<UUID, HeartRateMeasurement>,
     val workoutActivities: Map<UUID, WorkoutActivity>,
     val weightMeasurements: Map<UUID, WeightMeasurement>,
@@ -5833,6 +6078,11 @@ private fun HealthSyncOperation.isBlockedWatchWorkoutOperation(
 
 private fun HealthSyncOperationEntity.hasSupportedHealthSyncPair(): Boolean = when (aggregateType) {
     HealthSyncAggregateType.DAILY_SUMMARY.name -> recordType == HealthSyncRecordType.STEPS.name
+    HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE.name -> recordType in setOf(
+        HealthSyncRecordType.STEPS.name,
+        HealthSyncRecordType.DISTANCE.name,
+        HealthSyncRecordType.ACTIVE_CALORIES_BURNED.name,
+    )
     HealthSyncAggregateType.HEART_RATE_MEASUREMENT.name -> recordType == HealthSyncRecordType.HEART_RATE.name
     HealthSyncAggregateType.WORKOUT_ACTIVITY.name -> recordType in setOf(
         HealthSyncRecordType.EXERCISE_SESSION.name,
@@ -5861,6 +6111,13 @@ private fun isSemanticallyResolved(
             candidates.dailySummaries[aggregate.summaryId.value]?.let { summary ->
                 isDailySummaryEligibleForSteps(operation, summary)
             } == true
+
+    is HealthSyncAggregate.WatchDailyD1Sample ->
+        operation.key.recordType in setOf(
+            HealthSyncRecordType.STEPS,
+            HealthSyncRecordType.DISTANCE,
+            HealthSyncRecordType.ACTIVE_CALORIES_BURNED,
+        ) && candidates.watchDailyD1Samples[aggregate.sampleId.value] != null
 
     is HealthSyncAggregate.HeartRateMeasurement ->
         operation.key.recordType == HealthSyncRecordType.HEART_RATE &&

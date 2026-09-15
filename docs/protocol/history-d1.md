@@ -140,3 +140,24 @@ Não há validação observada de contiguidade de `packetIndex`, nem exigência 
 ## Limites
 
 Nenhuma fixture física D1 foi criada nesta task. Nenhum código Android foi implementado. `motionlog-app` foi somente lido.
+
+## Contrato vigente do Champion Companion — Spec 033
+
+As seções anteriores preservam a leitura histórica da baseline MotionLog e do
+parser D1 legado. Para o app Android atual, prevalece o contrato nativo v2:
+
+- pacote estrutural D1 tem 20 bytes; `dayOffset/hour` usa o byte 5 empacotado;
+- `caloriesRaw / 10.0` produz quilocalorias e `distanceRaw` produz metros;
+- BPM válido fica em `30..200`; BPM inválido vira `null` sem descartar passos,
+  distância, calorias, raws ou conclusão estrutural;
+- data/hora resolvida usa a data local congelada no início da coleta e
+  `dayOffset`; fatos são persistidos como linha diária granular idempotente;
+- a janela remota comprovada para D1 elegível é `[t - 5 min, t)`;
+- FEA1 continua total diário autoritativo. `FEA1 - ΣD1` é cauda/diagnóstico e
+  nunca gera bucket ou record sintético;
+- D1 e D4 decidem autoridade por métrica. D4 positivo suprime somente a mesma
+  métrica D1 sobreposta; D4 zero/ausente não suprime D1 válido;
+- watch sync apenas lê e persiste localmente. Health Connect exige gesto explícito;
+  retry reutiliza identidade e payload congelados.
+
+Validação física final sanitizada: `docs/integration/033-09-final-physical-validation.md`.

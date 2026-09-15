@@ -31,9 +31,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +49,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignS
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignTheme
 import br.com.mwconsulting.championcompanion.core.designsystem.LocalChampionRedesignTokens
+import br.com.mwconsulting.championcompanion.core.healthconnect.HealthConnectWritePermission
 
 @Composable
 fun SettingsScreen(
@@ -58,13 +59,22 @@ fun SettingsScreen(
             ViewModelProvider(activity)[SettingsViewModel::class.java]
         }
     },
+    onOpenDevice: () -> Unit = {},
     onNavigateBack: (() -> Unit)? = null,
     backLabel: String = "Voltar",
 ) {
     val state by viewModel.state.collectAsState()
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
     val lifecycleOwner = LocalLifecycleOwner.current
-    val missingPermissions = viewModel.requestedPermissions()
+    val weightPermission = HealthConnectWritePermission.WEIGHT
+    val weightGranted = state.permissionGroups
+        .firstOrNull { weightPermission in it.permissions }
+        ?.isGranted == true
+    val missingPermissions = buildSet {
+        addAll(viewModel.requestedPermissions())
+        if (!weightGranted) add(weightPermission.rawValue)
+    }
+    val allManagedPermissions = viewModel.allRequestedPermissions() + weightPermission.rawValue
     val isConnected = state.availability == SettingsAvailability.AVAILABLE && missingPermissions.isEmpty()
     val permissionLauncher = rememberLauncherForActivityResult(
         PermissionController.createRequestPermissionResultContract(),
@@ -103,6 +113,7 @@ fun SettingsScreen(
                     onNavigateBack = onNavigateBack,
                     backLabel = backLabel,
                 )
+                WatchSettingsCard(onOpenDevice = onOpenDevice)
                 HealthConnectStatusCard(
                     state = state,
                     isConnected = isConnected,
@@ -118,7 +129,7 @@ fun SettingsScreen(
                     },
                     onSyncNow = { viewModel.onIntent(SettingsIntent.SyncNow) },
                     onManageAccess = {
-                        viewModel.allRequestedPermissions().takeIf { it.isNotEmpty() }?.let {
+                        allManagedPermissions.takeIf { it.isNotEmpty() }?.let {
                             permissionLauncher.launch(it)
                         }
                     },
@@ -138,7 +149,7 @@ private fun SettingsHeader(
 ) {
     ChampionRedesignSurfaceHeader(
         title = "Configurações",
-        supportingText = "Controle disponibilidade, permissões e sincronização write-only.",
+        supportingText = "Controle relógio, permissões e sincronização write-only.",
         navigationContent = onNavigateBack?.let { navigateBack ->
             {
                 ChampionRedesignHeaderNavigationAction(
@@ -153,6 +164,41 @@ private fun SettingsHeader(
             }
         },
     )
+}
+
+@Composable
+private fun WatchSettingsCard(
+    onOpenDevice: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = LocalChampionRedesignTokens.current.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = LocalChampionRedesignTokens.current.elevation.card),
+    ) {
+        Column(
+            modifier = Modifier.padding(LocalChampionRedesignTokens.current.spacing.card),
+            verticalArrangement = Arrangement.spacedBy(LocalChampionRedesignTokens.current.spacing.item),
+        ) {
+            Text(
+                text = "Relógio",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "Associe, conecte ou gerencie o Champion C001 usado pelas atualizações da Home.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = onOpenDevice,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Gerenciar relógio")
+            }
+        }
+    }
 }
 
 @Composable

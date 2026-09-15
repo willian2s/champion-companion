@@ -26,6 +26,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditBlockReason
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionContext
 import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
@@ -427,8 +428,6 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
                         }
 
                         else -> {
-                            // Remote effect already succeeded. FAILED local preserves
-                            // retry with same identity and remains delete-idempotent.
                             healthSyncRepository.markFailed(operation.id, SafeSyncError.INTERNAL, Instant.now())
                             failures += operation.failure(
                                 SafeSyncError.INTERNAL,
@@ -728,7 +727,6 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
             } else {
                 null
             }
-            val existing = existingChildOperations[child]
             when (
                 val prepared = healthSyncRepository.prepareProjectionChild(
                     key = key,
@@ -830,6 +828,8 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
     private suspend fun loadAndMap(operation: HealthSyncOperation): HealthRecordMappingResult = when (val aggregate = operation.key.aggregate) {
         is HealthSyncAggregate.DailySummary -> healthRecordMapper.mapDailySummary(operation)
 
+        is HealthSyncAggregate.WatchDailyD1Sample -> healthRecordMapper.mapFrozenDailyD1Sample(operation)
+
         is HealthSyncAggregate.HeartRateMeasurement -> when (val measurement = heartRateRepository.findById(aggregate.measurementId)) {
             is RepositoryResult.Success -> healthRecordMapper.mapHeartRateMeasurement(operation, measurement.value)
             else -> HealthRecordMappingResult.Failure(SafeSyncError.INVALID_LOCAL_DATA, "Medição de BPM não encontrada para sync.")
@@ -865,12 +865,8 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         }
         val projectionOperations = storedOperations.filter(HealthSyncOperation::isProjectionChild)
         val operations = if (projectionOperations.isNotEmpty()) {
-            // Projeções filhas são o manifesto efetivo da atividade. Permissão
-            // ausente deve aparecer como FAILED, nunca ser removida da decisão.
             storedOperations
         } else {
-            // Operações já persistidas continuam parte do manifesto. Permissão
-            // ausente deve manter falha local, não ocultar operação criada.
             storedOperations
         }
         if (operations.isEmpty()) {
@@ -929,7 +925,10 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         if (state == SyncOperationState.SYNCED) return true
         if (key.projectionChildKey != HealthProjectionChildKey.WorkoutSteps) return false
         return when (val result = healthSyncRepository.findWorkoutStepsCredit(id)) {
-            is RepositoryResult.Success -> result.value?.state == WorkoutStepsCreditState.BLOCKED
+            is RepositoryResult.Success -> result.value?.let { credit ->
+                credit.state == WorkoutStepsCreditState.BLOCKED &&
+                    credit.blockedReason == WorkoutStepsCreditBlockReason.ALREADY_COVERED
+            } == true
             else -> false
         }
     }
@@ -1020,7 +1019,8 @@ private fun orderOperationsForRemoteEffects(
                 it.key.recordType == HealthSyncRecordType.SPEED -> 2
             else -> 3
         }
-    }.thenBy { it.updatedAt ?: it.createdAt ?: Instant.EPOCH }
+    }.thenBy { it.dailyStepsPayload?.sequence ?: 0L }
+        .thenBy { it.updatedAt ?: it.createdAt ?: Instant.EPOCH }
         .thenBy { it.id.value.toString() },
 )
 
@@ -1112,9 +1112,7 @@ private suspend fun HealthSyncOperation.legacyRemoteEffectBlock(
         return null
     }
     val status = when (val result = healthSyncRepository.inspectLegacyWorkoutDistanceProjection(activityId, activityOrigin)) {
-        is RepositoryResult.Success -> {
-            result.value
-        }
+        is RepositoryResult.Success -> result.value
         else -> HealthLegacyDistanceProjectionStatus.UNKNOWN_ID
     }
     cache[activityId] = status
@@ -1185,6 +1183,7 @@ private fun permissionFor(recordType: HealthSyncRecordType): HealthConnectWriteP
     HealthSyncRecordType.HEART_RATE -> HealthConnectWritePermission.HEART_RATE
     HealthSyncRecordType.EXERCISE_SESSION -> HealthConnectWritePermission.EXERCISE
     HealthSyncRecordType.DISTANCE -> HealthConnectWritePermission.DISTANCE
+    HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> HealthConnectWritePermission.ACTIVE_CALORIES_BURNED
     HealthSyncRecordType.SPEED -> HealthConnectWritePermission.SPEED
     HealthSyncRecordType.TOTAL_CALORIES_BURNED -> HealthConnectWritePermission.TOTAL_CALORIES_BURNED
     HealthSyncRecordType.WEIGHT -> HealthConnectWritePermission.WEIGHT

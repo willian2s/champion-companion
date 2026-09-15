@@ -565,7 +565,6 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.DismissImport -> dismissImport()
             ExercisesIntent.ConfirmExitImport -> cancelImport(WatchWorkoutImportCancellationReason.EXIT_CONFIRMED)
             ExercisesIntent.AppMovedToBackground -> {
-                cancelImport(WatchWorkoutImportCancellationReason.BACKGROUND)
                 suspendWorkoutPreparation()
             }
             ExercisesIntent.OpenDevice -> Unit
@@ -1835,7 +1834,7 @@ class ExercisesViewModel internal constructor(
         calibrationFormState.value = form.copy(isSaving = true, validationError = null)
         scope.launch {
             when (
-                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+                val result = if (activity.confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) {
                     personalMetricsRepository.applyReferenceDistanceCalibration(
                         ApplyReferenceDistanceCalibrationInput(
                             activityId = activity.id,
@@ -1952,7 +1951,7 @@ class ExercisesViewModel internal constructor(
             WatchWorkoutReprocessFailureReason.INDEX_INELIGIBLE ->
                 "Índices dos intervalos não formam uma sequência contínua elegível. Nenhuma alteração foi feita."
             WatchWorkoutReprocessFailureReason.STEP_LENGTH_PROFILE_INVALID ->
-                "Comprimento pessoal do passo ausente ou inválido. Configure-o no Perfil antes de reprocessar."
+                "Comprimento pessoal do passo ausente ou inválido. Nenhuma alteração foi feita."
             WatchWorkoutReprocessFailureReason.TEMPORAL_INCONSISTENCY ->
                 "A duração temporal não pôde ser resolvida com segurança. Nenhuma alteração foi feita."
             WatchWorkoutReprocessFailureReason.SYNC_IN_PROGRESS ->
@@ -2087,7 +2086,8 @@ class ExercisesViewModel internal constructor(
         HealthConnectWritePermission.EXERCISE -> "exercícios"
         HealthConnectWritePermission.DISTANCE -> "distância"
         HealthConnectWritePermission.SPEED -> "velocidade"
-        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias"
+        HealthConnectWritePermission.ACTIVE_CALORIES_BURNED -> "calorias ativas"
+        HealthConnectWritePermission.TOTAL_CALORIES_BURNED -> "calorias totais"
         HealthConnectWritePermission.WEIGHT -> "peso"
         HealthConnectWritePermission.HEIGHT -> "altura"
     }
@@ -2098,8 +2098,9 @@ class ExercisesViewModel internal constructor(
         HealthSyncRecordType.HEART_RATE -> "Frequência cardíaca"
         HealthSyncRecordType.EXERCISE_SESSION -> "Exercícios"
         HealthSyncRecordType.DISTANCE -> "Distância"
+        HealthSyncRecordType.ACTIVE_CALORIES_BURNED -> "Calorias ativas"
         HealthSyncRecordType.SPEED -> "Velocidade"
-        HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias"
+        HealthSyncRecordType.TOTAL_CALORIES_BURNED -> "Calorias totais"
         HealthSyncRecordType.WEIGHT -> "Peso"
         HealthSyncRecordType.HEIGHT -> "Altura"
     }

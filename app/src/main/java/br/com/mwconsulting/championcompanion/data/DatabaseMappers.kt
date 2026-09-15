@@ -12,6 +12,7 @@ import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutp
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticPayloadEntity
 import br.com.mwconsulting.championcompanion.core.database.DerivedWorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncOperationEntity
+import br.com.mwconsulting.championcompanion.core.database.HealthSyncCutoverEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncSummaryRecord
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
 import br.com.mwconsulting.championcompanion.core.database.HeartRateMeasurementEntity
@@ -33,6 +34,7 @@ import br.com.mwconsulting.championcompanion.core.database.WorkoutRouteEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutSplitEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutD4V4HeaderEntity
+import br.com.mwconsulting.championcompanion.core.database.WatchDailyD1SampleEntity
 import br.com.mwconsulting.championcompanion.core.model.AbsenceReason
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
@@ -74,6 +76,7 @@ import br.com.mwconsulting.championcompanion.core.model.HealthProjectionOrigin
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationCheckpoint
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionReconciliationState
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperation
+import br.com.mwconsulting.championcompanion.core.model.HealthSyncCutover
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationId
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationKey
 import br.com.mwconsulting.championcompanion.core.model.HealthSyncOperationAction
@@ -127,6 +130,10 @@ import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_LEGACY_DER
 import br.com.mwconsulting.championcompanion.core.model.WATCH_WORKOUT_NATIVE_DERIVATION_VERSION
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurementId
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1Sample
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1SampleId
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyD1ImportMetadata
+import br.com.mwconsulting.championcompanion.core.model.WATCH_DAILY_D1_IMPORT_TYPE
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
@@ -237,6 +244,7 @@ internal fun D1HeartRateImportMetadata.toEntity(
     lastResult = lastResult.name,
     parserVersion = parserVersion?.value,
     insertedCount = insertedCount,
+    updatedCount = 0,
     duplicateCount = duplicateCount,
     conflictCount = conflictCount,
     invalidCount = invalidCount,
@@ -276,6 +284,7 @@ internal fun WatchWorkoutImportMetadata.toEntity(
     lastResult = lastResult.name,
     parserVersion = parserVersion?.value,
     insertedCount = insertedCount,
+    updatedCount = 0,
     duplicateCount = duplicateCount,
     conflictCount = conflictCount,
     invalidCount = invalidCount,
@@ -317,6 +326,112 @@ internal fun DailySummaryEntity.toDomain(): DailySummary? {
         steps = steps, estimatedDistanceMeters = estimatedDistanceMeters, estimatedCaloriesKilocalories = estimatedCaloriesKilocalories,
         collectedAt = Instant.ofEpochMilli(collectedAtEpochMillis), updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis), validity = dataValidity,
     ).successOrNull()
+}
+
+internal fun WatchDailyD1Sample.toEntity() = WatchDailyD1SampleEntity(
+    id = id.value.toString(),
+    deviceId = deviceId.value.toString(),
+    importAttemptId = importAttemptId,
+    parserVersion = parserVersion.value,
+    currentPosition = currentPosition,
+    totalPositions = totalPositions,
+    resolvedLocalDate = resolvedLocalDate.toString(),
+    dayOffset = dayOffset,
+    hour = hour,
+    minute = minute,
+    resolvedAtEpochMillis = resolvedAt.toEpochMilli(),
+    zoneId = zoneId.id,
+    steps = steps,
+    distanceRaw = distanceRaw,
+    distanceMeters = distanceMeters,
+    caloriesRaw = caloriesRaw,
+    caloriesKilocalories = caloriesKilocalories,
+    sportValueRaw = sportValueRaw,
+    bpmRaw = bpmRaw,
+    bpm = bpm,
+    pressureHighRaw = pressureHighRaw,
+    pressureLowRaw = pressureLowRaw,
+    wearRaw = wearRaw,
+    tempOneRaw = tempOneRaw,
+    importedAtEpochMillis = importedAt.toEpochMilli(),
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
+internal fun WatchDailyD1SampleEntity.toDomain(): WatchDailyD1Sample? {
+    val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
+    val mappedParserVersion = parserVersion(parserVersion) ?: return null
+    val mappedZoneId = runCatching { ZoneId.of(zoneId) }.getOrNull() ?: return null
+    val mappedDate = runCatching { LocalDate.parse(resolvedLocalDate) }.getOrNull() ?: return null
+    return WatchDailyD1Sample.create(
+        id = uuid(id)?.let(::WatchDailyD1SampleId) ?: return null,
+        deviceId = mappedDeviceId,
+        importAttemptId = importAttemptId,
+        parserVersion = mappedParserVersion,
+        currentPosition = currentPosition,
+        totalPositions = totalPositions,
+        resolvedLocalDate = mappedDate,
+        dayOffset = dayOffset,
+        hour = hour,
+        minute = minute,
+        resolvedAt = Instant.ofEpochMilli(resolvedAtEpochMillis),
+        zoneId = mappedZoneId,
+        steps = steps,
+        distanceRaw = distanceRaw,
+        distanceMeters = distanceMeters,
+        caloriesRaw = caloriesRaw,
+        caloriesKilocalories = caloriesKilocalories,
+        sportValueRaw = sportValueRaw,
+        bpmRaw = bpmRaw,
+        bpm = bpm,
+        pressureHighRaw = pressureHighRaw,
+        pressureLowRaw = pressureLowRaw,
+        wearRaw = wearRaw,
+        tempOneRaw = tempOneRaw,
+        importedAt = Instant.ofEpochMilli(importedAtEpochMillis),
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+    ).successOrNull()
+}
+
+internal fun WatchDailyD1ImportMetadata.toEntity(
+    id: String,
+    importType: String = WATCH_DAILY_D1_IMPORT_TYPE,
+) = DeviceImportMetadataEntity(
+    id = id,
+    deviceId = deviceId.value.toString(),
+    importType = importType,
+    lastAttemptAtEpochMillis = lastAttemptAt.toEpochMilli(),
+    lastSuccessAtEpochMillis = lastSuccessAt?.toEpochMilli(),
+    lastResult = lastResult.name,
+    parserVersion = parserVersion?.value,
+    insertedCount = insertedCount,
+    updatedCount = updatedCount,
+    duplicateCount = duplicateCount,
+    conflictCount = conflictCount,
+    invalidCount = invalidCount,
+    missingIndexCount = missingIndexCount,
+    timedOut = timedOut,
+    updatedAtEpochMillis = updatedAt.toEpochMilli(),
+)
+
+internal fun DeviceImportMetadataEntity.toWatchDailyD1ImportMetadata(): WatchDailyD1ImportMetadata? {
+    if (importType != WATCH_DAILY_D1_IMPORT_TYPE) return null
+    val mappedDeviceId = uuid(deviceId)?.let(::DeviceId) ?: return null
+    val mappedStatus = enum<D1HeartRateImportStatus>(lastResult) ?: return null
+    return WatchDailyD1ImportMetadata(
+        deviceId = mappedDeviceId,
+        lastAttemptAt = Instant.ofEpochMilli(lastAttemptAtEpochMillis),
+        lastSuccessAt = lastSuccessAtEpochMillis?.let(Instant::ofEpochMilli),
+        lastResult = mappedStatus,
+        parserVersion = parserVersion?.let(::parserVersion),
+        insertedCount = insertedCount,
+        updatedCount = updatedCount,
+        duplicateCount = duplicateCount,
+        conflictCount = conflictCount,
+        invalidCount = invalidCount,
+        missingIndexCount = missingIndexCount,
+        timedOut = timedOut,
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+    )
 }
 
 internal fun br.com.mwconsulting.championcompanion.core.database.WeightMeasurementEntity.toDomain(): WeightMeasurement? {
@@ -412,6 +527,7 @@ internal fun CalendarWorkoutSummaryRecord.toCalendarSummary(): CalendarWorkoutSu
         confirmedType = mappedConfirmedType,
         startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
         duration = Duration.ofNanos(durationNanos),
+        endedAt = Instant.ofEpochMilli(endedAtEpochMillis),
         distanceMeters = mappedDistance,
         caloriesKilocalories = caloriesKilocalories.domainValue(),
         averageBpm = averageBpm.domainValue(),
@@ -551,7 +667,7 @@ internal fun DistanceCalibrationEvidenceEntity.toDomain(): DistanceCalibrationEv
 internal fun List<DistanceCalibrationEvidenceEntity>.toLearnedDistanceCalibrationProfile(
     workoutType: WorkoutType,
 ): LearnedDistanceCalibrationProfile? {
-    if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) return null
+    if (workoutType !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) return null
     val validEvidence = mapNotNull { it.toDomain() }
         .filter { it.isActive && it.workoutType == workoutType }
     if (validEvidence.isEmpty()) return null
@@ -1104,6 +1220,8 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
                 WorkoutType.UNKNOWN,
                 WorkoutType.RUNNING,
                 WorkoutType.WALKING,
+                WorkoutType.FREE_WORKOUT,
+                WorkoutType.TREADMILL,
             ) ||
             parserValidity != ParserValidity.VALID ||
             d4V4Header == null || d4V4Consistency == null
@@ -1899,6 +2017,15 @@ internal fun HealthSyncOperationEntity.toDomainStrict(): DomainResult<HealthSync
 internal fun HealthSyncOperationEntity.toAggregateOrNull(): HealthSyncAggregate? =
     toHealthSyncAggregate(aggregateType, aggregateId)
 
+internal fun HealthSyncCutoverEntity.toDomain(): HealthSyncCutover? = runCatching {
+    HealthSyncCutover(
+        deviceId = DeviceId(uuid(deviceId) ?: return null),
+        localDate = LocalDate.parse(localDateIso),
+        zoneId = ZoneId.of(zoneId),
+        activatedAt = Instant.ofEpochMilli(activatedAtEpochMillis),
+    )
+}.getOrNull()
+
 private fun HealthSyncOperationEntity.toDailyStepsSyncPayload(): DailyStepsSyncPayload? {
     if (!hasAnyDailyStepsPayloadField()) return null
     return runCatching {
@@ -1936,6 +2063,7 @@ private fun toHealthSyncAggregate(
     aggregateId: String,
 ): HealthSyncAggregate? = when (enum<HealthSyncAggregateType>(aggregateType)) {
     HealthSyncAggregateType.DAILY_SUMMARY -> uuid(aggregateId)?.let(::DailySummaryId)?.let(HealthSyncAggregate::DailySummary)
+    HealthSyncAggregateType.WATCH_DAILY_D1_SAMPLE -> uuid(aggregateId)?.let(::WatchDailyD1SampleId)?.let(HealthSyncAggregate::WatchDailyD1Sample)
     HealthSyncAggregateType.HEART_RATE_MEASUREMENT -> uuid(aggregateId)?.let(::HeartRateMeasurementId)?.let(HealthSyncAggregate::HeartRateMeasurement)
     HealthSyncAggregateType.WORKOUT_ACTIVITY -> uuid(aggregateId)?.let(::WorkoutActivityId)?.let(HealthSyncAggregate::WorkoutActivity)
     HealthSyncAggregateType.WEIGHT_MEASUREMENT -> uuid(aggregateId)?.let(::WeightMeasurementId)?.let(HealthSyncAggregate::WeightMeasurement)

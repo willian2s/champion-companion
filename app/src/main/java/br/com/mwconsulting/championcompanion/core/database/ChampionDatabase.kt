@@ -52,6 +52,7 @@ data class DeviceImportMetadataEntity(
     val lastResult: String,
     val parserVersion: String?,
     val insertedCount: Int,
+    @ColumnInfo(defaultValue = "0") val updatedCount: Int = 0,
     val duplicateCount: Int,
     val conflictCount: Int,
     val invalidCount: Int,
@@ -180,6 +181,66 @@ data class DailySummaryEntity(
     val updatedAtEpochMillis: Long,
     val validity: String,
     val collectedZoneId: String? = null,
+)
+
+/** Cutover por relógio; uma única data civil imutável por dispositivo. */
+@Entity(
+    tableName = "health_sync_daily_cutovers",
+    foreignKeys = [ForeignKey(
+        entity = DeviceEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["deviceId"],
+        onDelete = ForeignKey.RESTRICT,
+    )],
+    indices = [Index(value = ["deviceId"], unique = true)],
+)
+data class HealthSyncCutoverEntity(
+    @PrimaryKey val id: String,
+    val deviceId: String,
+    val localDateIso: String,
+    val zoneId: String,
+    val activatedAtEpochMillis: Long,
+)
+
+@Entity(
+    tableName = "watch_daily_d1_samples",
+    foreignKeys = [ForeignKey(
+        entity = DeviceEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["deviceId"],
+        onDelete = ForeignKey.RESTRICT,
+    )],
+    indices = [
+        Index(value = ["deviceId", "resolvedLocalDate", "currentPosition"], unique = true),
+    ],
+)
+data class WatchDailyD1SampleEntity(
+    @PrimaryKey val id: String,
+    val deviceId: String,
+    val importAttemptId: String,
+    val parserVersion: String,
+    val currentPosition: Int,
+    val totalPositions: Int,
+    val resolvedLocalDate: String,
+    val dayOffset: Int,
+    val hour: Int,
+    val minute: Int,
+    val resolvedAtEpochMillis: Long,
+    val zoneId: String,
+    val steps: Long,
+    val distanceRaw: Long,
+    val distanceMeters: Double,
+    val caloriesRaw: Long,
+    val caloriesKilocalories: Double,
+    val sportValueRaw: Long,
+    val bpmRaw: Int,
+    val bpm: Int?,
+    val pressureHighRaw: Int,
+    val pressureLowRaw: Int,
+    val wearRaw: Int,
+    val tempOneRaw: Int,
+    val importedAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
 )
 
 @Entity(
@@ -868,6 +929,8 @@ class ChampionDatabaseConverters {
         StepLengthCalibrationEntity::class,
         DistanceCalibrationEvidenceEntity::class,
         DailySummaryEntity::class,
+        HealthSyncCutoverEntity::class,
+        WatchDailyD1SampleEntity::class,
         HeartRateMeasurementEntity::class,
         WorkoutActivityEntity::class,
         WorkoutStepsCreditEntity::class,
@@ -888,7 +951,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 17,
+    version = 19,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -907,6 +970,8 @@ abstract class ChampionDatabase : RoomDatabase() {
     abstract fun stepLengthCalibrationDao(): StepLengthCalibrationDao
     abstract fun distanceCalibrationEvidenceDao(): DistanceCalibrationEvidenceDao
     abstract fun dailySummaryDao(): DailySummaryDao
+    abstract fun healthSyncCutoverDao(): HealthSyncCutoverDao
+    abstract fun watchDailyD1SampleDao(): WatchDailyD1SampleDao
     abstract fun heartRateDao(): HeartRateDao
     abstract fun workoutActivityDao(): WorkoutActivityDao
     abstract fun workoutStepsCreditDao(): WorkoutStepsCreditDao

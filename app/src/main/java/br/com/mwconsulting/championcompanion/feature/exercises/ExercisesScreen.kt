@@ -37,21 +37,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -126,7 +120,6 @@ import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
-import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgress
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -192,8 +185,6 @@ fun ExercisesScreen(
     var selectedExerciseDateIso by rememberSaveable { mutableStateOf<String?>(null) }
     var isActionMenuExpanded by remember { mutableStateOf(false) }
     var actionDialog by remember { mutableStateOf<ExercisesActionDialog?>(null) }
-    val importSnackbarHostState = remember { SnackbarHostState() }
-    var previousImportState by remember { mutableStateOf<WatchWorkoutImportSurfaceState>(state.importState) }
     val selectedMonth = remember(selectedMonthIso, currentMonth) {
         parseExerciseMonthOrDefault(selectedMonthIso, currentMonth).coerceAtMost(currentMonth)
     }
@@ -217,17 +208,6 @@ fun ExercisesScreen(
             state.selectedFilter != WorkoutActivityFilter.ALL
         ) {
             viewModel.onIntent(ExercisesIntent.SelectFilter(WorkoutActivityFilter.ALL))
-        }
-    }
-
-    LaunchedEffect(state.importState) {
-        val previousState = previousImportState
-        previousImportState = state.importState
-        if (previousState == state.importState) return@LaunchedEffect
-
-        state.importState.toTerminalFeedback()?.let { message ->
-            importSnackbarHostState.currentSnackbarData?.dismiss()
-            importSnackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
         }
     }
 
@@ -277,10 +257,6 @@ fun ExercisesScreen(
                         backLabel = backLabel,
                         isActionMenuExpanded = isActionMenuExpanded,
                         onActionMenuExpandedChange = { isActionMenuExpanded = it },
-                        onOpenImport = {
-                            isActionMenuExpanded = false
-                            viewModel.onIntent(ExercisesIntent.StartImport)
-                        },
                         onOpenHealthConnect = {
                             isActionMenuExpanded = false
                             actionDialog = ExercisesActionDialog.HEALTH_CONNECT
@@ -292,9 +268,6 @@ fun ExercisesScreen(
                             }
                         },
                     )
-                    if (state.importState.isImportInFlight()) {
-                        ExercisesImportProgressIndicator(state = state)
-                    }
                     ExerciseHistoryPeriodSelector(
                         selectedPeriod = selectedHistoryPeriod,
                         onSelectPeriod = { period ->
@@ -371,19 +344,6 @@ fun ExercisesScreen(
                 }
             }
 
-            SnackbarHost(
-                hostState = importSnackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(ChampionSpacing.large),
-            ) { snackbarData ->
-                Snackbar(
-                    snackbarData = snackbarData,
-                    modifier = Modifier.semantics {
-                        liveRegion = LiveRegionMode.Polite
-                    },
-                )
-            }
         }
     }
 
@@ -405,7 +365,6 @@ private fun ExercisesHeader(
     backLabel: String,
     isActionMenuExpanded: Boolean,
     onActionMenuExpandedChange: (Boolean) -> Unit,
-    onOpenImport: () -> Unit,
     onOpenHealthConnect: () -> Unit,
     onOpenDebugPoc: (() -> Unit)?,
 ) {
@@ -437,11 +396,6 @@ private fun ExercisesHeader(
                     onDismissRequest = { onActionMenuExpandedChange(false) },
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Importar treinos") },
-                        enabled = state.hasAssociatedDevice && !state.importState.isImportInFlight(),
-                        onClick = onOpenImport,
-                    )
-                    DropdownMenuItem(
                         text = { Text("Status Health Connect") },
                         onClick = onOpenHealthConnect,
                     )
@@ -462,33 +416,6 @@ private fun ExercisesHeader(
     )
 }
 
-@Composable
-private fun ExercisesImportProgressIndicator(state: ExercisesUiState) {
-    val session = state.importState.sessionOrNull()
-    val progressMessage = session?.progress?.toFriendlyMessage(state.importState)
-        ?: "Importação de treinos em andamento"
-    val progress = session?.progress?.overallProgressFraction
-    val modifier = Modifier
-        .fillMaxWidth()
-        .semantics {
-            contentDescription = progressMessage
-            liveRegion = LiveRegionMode.Polite
-        }
-    if (progress == null) {
-        LinearProgressIndicator(
-            modifier = modifier,
-            color = exercisePrimaryAccent(),
-            trackColor = exercisePrimaryAccent().copy(alpha = 0.18f),
-        )
-    } else {
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = modifier,
-            color = exercisePrimaryAccent(),
-            trackColor = exercisePrimaryAccent().copy(alpha = 0.18f),
-        )
-    }
-}
 
 @Composable
 private fun HealthConnectStatusDialog(
@@ -2191,6 +2118,15 @@ private fun WorkoutActivity.referenceDetailMetricItems(): List<DetailMetricItem>
     measuredSteps?.let { steps ->
         add(DetailMetricItem("Etapas", numberLabel(steps)))
     }
+    (metrics.caloriesKilocalories as? DomainValue.Present)
+        ?.value
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { calories ->
+            add(DetailMetricItem(
+                "Calorias",
+                String.format(Locale.forLanguageTag("pt-BR"), "%.0f kcal", calories),
+            ))
+        }
     referenceAveragePaceSeconds()?.let { paceSeconds ->
         add(DetailMetricItem("Ritmo médio", paceSeconds.toReferencePaceLabel()))
     }
@@ -3299,7 +3235,7 @@ private fun WatchWorkoutPendingDerivationSection(activity: WorkoutActivity) {
             Text(
                 text = when (activity.canonicalReadStatus) {
                     WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
-                        "Este treino do relógio não pede calibração de esteira. Configure o comprimento do passo no Perfil e reprocese a atividade por ação explícita."
+                        "Este treino do relógio não pede calibração de esteira. Reprocesse a atividade por ação explícita quando houver referência válida."
                     WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
                         "A série canônica está inelegível. Corrija a origem por reprocessamento explícito; nenhuma distância histórica será usada como substituta."
                     else -> activity.canonicalStatusMessage()
@@ -3390,7 +3326,7 @@ private fun CalibrationFormSection(
 
 private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
     activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
-        confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+        confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL) &&
         workflowState in setOf(
             ActivityWorkflowState.PENDING_CALIBRATION,
             ActivityWorkflowState.READY_TO_SYNC,
@@ -3458,12 +3394,18 @@ private fun ReferenceDistanceCalibrationSection(
                 singleLine = true,
                 enabled = !formState.isSaving,
             )
-            MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível", exerciseSecondaryAccent())
-            MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel(), exerciseTertiaryAccent())
-            MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel(), exercisePrimaryAccent())
-            MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel(), exerciseSecondaryAccent())
+            if (activity.confirmedType != WorkoutType.TREADMILL) {
+                MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível", exerciseSecondaryAccent())
+                MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel(), exerciseTertiaryAccent())
+                MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel(), exercisePrimaryAccent())
+                MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel(), exerciseSecondaryAccent())
+            }
             Text(
-                "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada.",
+                if (activity.confirmedType == WorkoutType.TREADMILL) {
+                    "Aceite atualiza somente atividade e evidência de distância localmente. Nenhuma sincronização automática será iniciada."
+                } else {
+                    "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -3676,9 +3618,9 @@ private fun WorkoutActivity.originLabel(): String = when (activityOrigin) {
 private fun WorkoutActivity.canonicalStatusMessage(): String = when (canonicalReadStatus) {
     WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Métricas canônicas não se aplicam a esta origem."
     WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
-        "Sem comprimento do passo confirmado. Configure o valor no Perfil e reprocese a atividade por ação explícita."
+        "Sem comprimento do passo confirmado. Reprocesse a atividade por ação explícita quando houver referência válida."
     WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
-        "A derivação canônica ainda não foi materializada. Configure o comprimento do passo no Perfil e reprocese a atividade por ação explícita."
+        "A derivação canônica ainda não foi materializada. Reprocesse a atividade por ação explícita."
     WorkoutCanonicalReadStatus.SERIES_INELIGIBLE -> {
         val reasons = derivationSnapshot?.temporalResolution?.reasons.orEmpty()
         if (reasons.isEmpty()) {
@@ -3995,77 +3937,6 @@ private fun WorkoutDistanceMetrics.finalDistanceMetersOrNull(): Double? = when {
     originalMeters is DomainValue.Present -> originalMeters.value
     estimatedMeters is DomainValue.Present -> estimatedMeters.value
     else -> null
-}
-
-private fun WatchWorkoutImportSurfaceState.sessionOrNull(): WatchWorkoutImportSessionState? = when (this) {
-    WatchWorkoutImportSurfaceState.Idle -> null
-    is WatchWorkoutImportSurfaceState.Preparing -> session
-    is WatchWorkoutImportSurfaceState.Connecting -> session
-    is WatchWorkoutImportSurfaceState.ReadingIndex -> session
-    is WatchWorkoutImportSurfaceState.ReadingBlocks -> session
-    is WatchWorkoutImportSurfaceState.Parsing -> session
-    is WatchWorkoutImportSurfaceState.Persisting -> session
-    is WatchWorkoutImportSurfaceState.Completed -> session
-    is WatchWorkoutImportSurfaceState.Partial -> session
-    is WatchWorkoutImportSurfaceState.Empty -> session
-    is WatchWorkoutImportSurfaceState.Failed -> session
-    is WatchWorkoutImportSurfaceState.Cancelled -> session
-}
-
-private fun WatchWorkoutImportSurfaceState.isImportInFlight(): Boolean = when (this) {
-    WatchWorkoutImportSurfaceState.Idle,
-    is WatchWorkoutImportSurfaceState.Completed,
-    is WatchWorkoutImportSurfaceState.Partial,
-    is WatchWorkoutImportSurfaceState.Empty,
-    is WatchWorkoutImportSurfaceState.Failed,
-    is WatchWorkoutImportSurfaceState.Cancelled,
-    -> false
-
-    is WatchWorkoutImportSurfaceState.Preparing,
-    is WatchWorkoutImportSurfaceState.Connecting,
-    is WatchWorkoutImportSurfaceState.ReadingIndex,
-    is WatchWorkoutImportSurfaceState.ReadingBlocks,
-    is WatchWorkoutImportSurfaceState.Parsing,
-    is WatchWorkoutImportSurfaceState.Persisting,
-    -> true
-}
-
-private fun WatchWorkoutImportSurfaceState.toTerminalFeedback(): String? = when (this) {
-    is WatchWorkoutImportSurfaceState.Completed,
-    is WatchWorkoutImportSurfaceState.Partial,
-    is WatchWorkoutImportSurfaceState.Empty,
-    -> "Importação concluída."
-
-    is WatchWorkoutImportSurfaceState.Failed,
-    is WatchWorkoutImportSurfaceState.Cancelled,
-    -> "Importação não concluída."
-
-    WatchWorkoutImportSurfaceState.Idle,
-    is WatchWorkoutImportSurfaceState.Preparing,
-    is WatchWorkoutImportSurfaceState.Connecting,
-    is WatchWorkoutImportSurfaceState.ReadingIndex,
-    is WatchWorkoutImportSurfaceState.ReadingBlocks,
-    is WatchWorkoutImportSurfaceState.Parsing,
-    is WatchWorkoutImportSurfaceState.Persisting,
-    -> null
-}
-
-private fun WatchWorkoutImportProgress.toFriendlyMessage(state: WatchWorkoutImportSurfaceState): String = when (state) {
-    is WatchWorkoutImportSurfaceState.Preparing -> "Preparando importação dos treinos do relógio"
-    is WatchWorkoutImportSurfaceState.Connecting -> "Conectando ao relógio associado"
-    is WatchWorkoutImportSurfaceState.ReadingIndex -> "Lendo índice D3 dos treinos no relógio"
-    is WatchWorkoutImportSurfaceState.ReadingBlocks -> {
-        val current = currentBlockNumber ?: 0
-        val total = discoveredBlockCount.takeIf { it > 0 } ?: 0
-        if (total > 0 && current > 0) {
-            "Baixando treino $current de $total no relógio"
-        } else {
-            "Baixando treinos do relógio"
-        }
-    }
-    is WatchWorkoutImportSurfaceState.Parsing -> "Interpretando treino recebido do relógio"
-    is WatchWorkoutImportSurfaceState.Persisting -> "Salvando treino importado no celular"
-    else -> "Importação em andamento"
 }
 
 private fun WorkoutType.toLabel(): String = when (this) {

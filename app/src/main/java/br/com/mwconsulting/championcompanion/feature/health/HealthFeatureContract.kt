@@ -10,6 +10,7 @@ import br.com.mwconsulting.championcompanion.core.model.HeartRateHistoryPeriod
 import br.com.mwconsulting.championcompanion.core.model.HeartRateHistorySnapshot
 import br.com.mwconsulting.championcompanion.core.model.HeartRateMeasurement
 import br.com.mwconsulting.championcompanion.core.model.MonotonicTimestamp
+import br.com.mwconsulting.championcompanion.core.model.WatchDailyReadCompleteness
 import br.com.mwconsulting.championcompanion.core.model.WeightMeasurement
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -82,6 +83,12 @@ data class HealthDailySummarySnapshot(
     val updatedAt: Instant,
     val source: DataOrigin,
     val sourceLabel: String,
+    /** Valor composto: D1 medido quando elegível, legacy estimado como fallback. */
+    val distanceMeters: Double? = estimatedDistanceMeters,
+    val caloriesKilocalories: Double? = null,
+    val distanceIsMeasured: Boolean = false,
+    val caloriesAreMeasured: Boolean = false,
+    val completeness: WatchDailyReadCompleteness? = null,
 )
 
 sealed interface HealthIntent {

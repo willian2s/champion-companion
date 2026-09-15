@@ -308,6 +308,7 @@ enum class ForegroundBleOperationOwner {
     WATCH_WORKOUT_IMPORT,
     APP_WORKOUT_SESSION,
     DEVICE_CONNECTION,
+    WATCH_SYNC,
 }
 
 data class ForegroundBleOperationRequest(
@@ -394,6 +395,9 @@ interface WorkoutActivityRepository {
     /** Atividades não descartadas cujo startedAt pertence ao intervalo semiaberto. */
     fun observeActivitiesBetween(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
         flowOf(emptyList())
+    /** Atividades não descartadas que intersectam intervalo semiaberto. */
+    fun observeActivitiesIntersecting(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
+        observeActivitiesBetween(range)
     fun observeActivity(activityId: WorkoutActivityId): Flow<WorkoutActivity?> = flowOf(null)
     suspend fun findById(activityId: WorkoutActivityId): RepositoryResult<WorkoutActivity> = RepositoryResult.UnexpectedState
     fun observeWorkflowSummary(): Flow<WorkoutWorkflowSummary> = flowOf(WorkoutWorkflowSummary())
@@ -787,6 +791,16 @@ data class HealthSyncProcessableQueue(
 
 interface HealthSyncRepository {
     suspend fun ensureOperation(key: HealthSyncOperationKey): RepositoryResult<HealthSyncOperation>
+    suspend fun ensureDailyStepsCutover(
+        deviceId: DeviceId,
+        activationLocalDate: LocalDate,
+        zoneId: ZoneId,
+        activatedAt: Instant = Instant.now(),
+    ): RepositoryResult<HealthSyncCutover> = RepositoryResult.UnexpectedState
+
+    suspend fun findDailyStepsCutover(
+        deviceId: DeviceId,
+    ): RepositoryResult<HealthSyncCutover?> = RepositoryResult.Success(null)
     /** Persiste um filho congelado sem executar qualquer efeito remoto. */
     suspend fun prepareProjectionChild(
         key: HealthSyncOperationKey,

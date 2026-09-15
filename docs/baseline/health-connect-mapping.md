@@ -32,6 +32,32 @@ No estado atual do Champion Companion apos a integracao nativa real:
 
 Esta task de fechamento atualiza o documento para refletir estado final entregue da Fase 12.
 
+### Atualização factual após 033-08
+
+Na execução da Spec 033, FEA1 permanece total diário autoritativo de passos, D1
+passa a fornecer fatos granulares locais e D4 permanece fonte do detalhe de
+workout. Read models compostos alimentam Home, Saúde e Calendário sem somar D1 e
+D4 nem reinterpretar históricos legacy. D1 `DISTANCE` e
+`ACTIVE_CALORIES_BURNED` usam operações granulares próprias; D4 mantém
+`TOTAL_CALORIES_BURNED` por compatibilidade histórica.
+
+### Validação física parcial após 033-09 — 2026-09-15
+
+Validação física final confirmou Room v19 com D1 completo e diferença FEA1 × D1
+classificada como `RECENT_TAIL`, sem `StepsRecord` residual. D1 granular de
+passos, distância e energia ativa permaneceu separado de `WorkoutSteps`; a
+projeção remota foi acionada somente por `Sincronizar agora`/sync explícito. O
+provider continuou write-only e não houve readback pelo aplicativo.
+
+O banco físico mostrou `184` amostras D1 no dia validado, `ΣD1.steps = 2466` e
+`FEA1 = 2488`; `WorkoutSteps` permaneceu bloqueado quando D1 cobriu a linha
+diária. Saúde, Exercícios e Perfil não expuseram CTAs removidos. Ver evidência
+sanitizada em `docs/integration/033-09-final-physical-validation.md`.
+
+Gates negativos (`FEA1 < ΣD1`, lacuna estrutural e frescor inexplicado),
+`dayOffset > 0` e upgrade direto físico v17 → v19 não foram reproduzidos; a
+Spec permanece em execução até haver evidência ou decisão explícita.
+
 Na Fase 014, atividades `WATCH_D3_D4` usam somente distância canônica derivada
 de passos válidos e comprimento individual do passo (`stepLengthMeters`). O valor
 original do relógio é diagnóstico e não pode ser fallback. A entrega adicionou
