@@ -622,9 +622,9 @@ class ChampionWatchSyncCoordinator @Inject constructor(
 
     private fun ForegroundBleOperationOwner.toWatchSyncBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Outra sincronização do relógio já está em andamento."
-        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos está em andamento na tela Exercícios."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Outra operação do relógio está em andamento."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Outra sincronização do relógio está em andamento."
+        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Outra sincronização do relógio está em andamento."
         ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "Uma sessão de treino está em andamento."
         ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Uma conexão do dispositivo está em andamento."
         ForegroundBleOperationOwner.WATCH_SYNC -> "Outra sincronização do relógio já está em andamento."

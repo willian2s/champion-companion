@@ -17,7 +17,7 @@ object PhoneWorkoutPolicy {
     val availability: PhoneWorkoutAvailability = PhoneWorkoutAvailability.DISCONTINUED
 
     const val DISCONTINUED_MESSAGE =
-        "Treinos iniciados pelo celular foram descontinuados. Importe treinos gravados no relógio pela tela Exercícios."
+        "Treinos iniciados pelo celular foram descontinuados. Atualize dados do relógio pelo pull-to-refresh da Home."
     const val NON_RESUMABLE_MESSAGE =
         "Esta sessão foi preservada, mas treinos iniciados pelo celular não podem mais ser retomados."
     const val FINISHING_NOT_DISCARDABLE_MESSAGE =

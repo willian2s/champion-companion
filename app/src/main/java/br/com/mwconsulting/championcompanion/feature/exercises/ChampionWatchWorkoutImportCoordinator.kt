@@ -901,7 +901,7 @@ class ChampionWatchWorkoutImportCoordinator(
     ): WatchWorkoutImportError = when (this) {
         ChampionBleError.BluetoothDisabled -> WatchWorkoutImportError(
             category = WatchWorkoutImportErrorCategory.BLUETOOTH_DISABLED,
-            message = "Ative o Bluetooth para buscar treinos do relogio.",
+            message = "Ative o Bluetooth para sincronizar o relógio.",
             isRetryable = true,
         )
 
@@ -911,7 +911,7 @@ class ChampionWatchWorkoutImportCoordinator(
         ChampionBleError.LocationPermissionRequired,
         -> WatchWorkoutImportError(
             category = WatchWorkoutImportErrorCategory.PERMISSIONS_REQUIRED,
-            message = "Permissoes de Bluetooth sao necessarias para buscar treinos do relogio.",
+            message = "Permissões de Bluetooth são necessárias para sincronizar o relógio.",
             isRetryable = true,
         )
 
@@ -943,7 +943,7 @@ class ChampionWatchWorkoutImportCoordinator(
         ChampionBleError.CleanupInProgress,
         -> WatchWorkoutImportError(
             category = WatchWorkoutImportErrorCategory.CANCELLED,
-            message = "Importacao cancelada antes da conclusao.",
+            message = "Sincronização do relógio cancelada antes da conclusão.",
             isRetryable = true,
         )
 
@@ -982,9 +982,9 @@ class ChampionWatchWorkoutImportCoordinator(
     private fun ForegroundBleOperationOwner.toExercisesForegroundBleBlockMessage(): String = when (this) {
         ForegroundBleOperationOwner.DAILY_STEPS_REFRESH -> "Uma sincronização do relógio está em andamento na tela Início."
         ForegroundBleOperationOwner.WATCH_SYNC -> "Uma sincronização do relógio está em andamento na tela Início."
-        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Uma medição manual está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Uma importação de histórico do relógio está em andamento na tela Saúde."
-        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Uma importação de treinos do relógio já está em andamento na tela Exercícios."
+        ForegroundBleOperationOwner.MANUAL_HEART_RATE -> "Outra operação do relógio está em andamento."
+        ForegroundBleOperationOwner.WATCH_D1_HISTORY -> "Outra sincronização do relógio está em andamento."
+        ForegroundBleOperationOwner.WATCH_WORKOUT_IMPORT -> "Outra sincronização do relógio está em andamento."
         ForegroundBleOperationOwner.APP_WORKOUT_SESSION -> "A participação opcional do relógio está em andamento na sessão de treino."
         ForegroundBleOperationOwner.DEVICE_CONNECTION -> "Uma conexão do dispositivo está em andamento na tela Dispositivo."
     }

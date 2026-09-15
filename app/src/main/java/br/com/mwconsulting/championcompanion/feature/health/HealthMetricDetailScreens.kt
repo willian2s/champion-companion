@@ -1,12 +1,9 @@
 package br.com.mwconsulting.championcompanion.feature.health
 
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,40 +24,28 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -69,12 +54,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionSpacing
-import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderAction
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignHeaderNavigationAction
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSummaryCard
 import br.com.mwconsulting.championcompanion.core.designsystem.ChampionRedesignSurfaceHeader
@@ -110,88 +91,10 @@ fun HeartRateDetailScreen(
     backLabel: String = "Voltar para Saúde",
     healthViewModel: HealthViewModel = activityHealthViewModel(),
 ) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val view = LocalView.current
     val state by healthViewModel.state.collectAsState()
-    var showExitConfirmation by rememberSaveable { mutableStateOf(false) }
-    var isActionMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(healthViewModel) {
         healthViewModel.onIntent(HealthIntent.Load)
-    }
-
-    DisposableEffect(lifecycleOwner, healthViewModel) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START,
-                Lifecycle.Event.ON_RESUME,
-                -> healthViewModel.onIntent(HealthIntent.Load)
-
-                Lifecycle.Event.ON_STOP -> healthViewModel.onIntent(HealthIntent.AppMovedToBackground)
-                else -> Unit
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val isMeasurementInFlight = state.surfaceState.isMeasurementInFlight()
-    val isD1ImportInFlight = state.d1ImportState.isImportInFlight()
-    val isBlockingExit = isMeasurementInFlight || isD1ImportInFlight
-    val triggerD1Refresh = {
-        if (!isMeasurementInFlight && !isD1ImportInFlight) {
-            healthViewModel.onIntent(HealthIntent.StartD1Import)
-        }
-    }
-
-    BackHandler(enabled = isBlockingExit) {
-        showExitConfirmation = true
-    }
-
-    DisposableEffect(view, isMeasurementInFlight) {
-        val previousKeepScreenOn = view.keepScreenOn
-        view.keepScreenOn = isMeasurementInFlight
-        onDispose { view.keepScreenOn = previousKeepScreenOn }
-    }
-
-    if (showExitConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showExitConfirmation = false },
-            title = { Text(if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?") },
-            text = {
-                Text(
-                    if (isD1ImportInFlight) {
-                        "A importação D1 em andamento será cancelada antes da conclusão."
-                    } else {
-                        "A medição em andamento será cancelada e nenhum resultado parcial será salvo."
-                    },
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showExitConfirmation = false
-                        if (isD1ImportInFlight) {
-                            healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
-                        } else {
-                            healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
-                        }
-                        onNavigateBack()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                ) {
-                    Text(backLabel)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitConfirmation = false }) {
-                    Text(if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo")
-                }
-            },
-        )
     }
 
     ChampionRedesignTheme {
@@ -200,73 +103,38 @@ fun HeartRateDetailScreen(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            PullToRefreshBox(
-                isRefreshing = isD1ImportInFlight,
-                onRefresh = triggerD1Refresh,
-                modifier = Modifier.fillMaxSize(),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact)
+                    .heightIn(min = 1.dp),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .semantics {
-                            customActions = listOf(
-                                CustomAccessibilityAction("Atualizar histórico do relógio") {
-                                    triggerD1Refresh()
-                                    true
-                                },
-                            )
-                        },
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = tokens.spacing.screen, vertical = tokens.spacing.compact)
-                            .heightIn(min = 1.dp),
-                        verticalArrangement = Arrangement.spacedBy(tokens.spacing.item),
+                HeartRateDetailHeader(
+                    onNavigateBack = onNavigateBack,
+                    backLabel = backLabel,
+                )
+                HeartRateHistoryChartSection(
+                    state = state,
+                    onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
+                )
+                if (state.history.period == HeartRateHistoryPeriod.TODAY) {
+                    HealthMetricHistorySection(
+                        title = "Leituras por faixa",
+                        emptyMessage = "Nenhuma leitura disponível neste período.",
                     ) {
-                        HeartRateDetailHeader(
-                            onNavigateBack = onNavigateBack,
-                            backLabel = backLabel,
-                            isActionMenuExpanded = isActionMenuExpanded,
-                            onActionMenuExpandedChange = { isActionMenuExpanded = it },
-                            onRefresh = {
-                                isActionMenuExpanded = false
-                                triggerD1Refresh()
-                            },
+                        HeartRateReadingsByZone(points = state.history.chart.points)
+                    }
+                } else {
+                    HealthMetricHistorySection(
+                        title = "Histórico completo",
+                        emptyMessage = "Nenhum valor disponível neste período; lacunas permanecem sem dados.",
+                    ) {
+                        HeartRateHistoryList(
+                            entries = state.history.entries,
+                            period = state.history.period,
                         )
-                        if (isD1ImportInFlight) {
-                            LinearProgressIndicator(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics {
-                                        contentDescription = "Atualizando histórico do relógio"
-                                        liveRegion = LiveRegionMode.Polite
-                                    },
-                            )
-                        }
-                        HeartRateHistoryChartSection(
-                            state = state,
-                            onSelectPeriod = { healthViewModel.onIntent(HealthIntent.SelectHistoryPeriod(it)) },
-                        )
-                        if (state.history.period == HeartRateHistoryPeriod.TODAY) {
-                            HealthMetricHistorySection(
-                                title = "Leituras por faixa",
-                                emptyMessage = "Nenhuma leitura disponível neste período.",
-                            ) {
-                                HeartRateReadingsByZone(points = state.history.chart.points)
-                            }
-                        } else {
-                            HealthMetricHistorySection(
-                                title = "Histórico completo",
-                                emptyMessage = "Nenhum valor disponível neste período; lacunas permanecem sem dados.",
-                            ) {
-                                HeartRateHistoryList(
-                                    entries = state.history.entries,
-                                    period = state.history.period,
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -834,37 +702,12 @@ private fun MetricDetailHeader(
 private fun HeartRateDetailHeader(
     onNavigateBack: () -> Unit,
     backLabel: String,
-    isActionMenuExpanded: Boolean,
-    onActionMenuExpandedChange: (Boolean) -> Unit,
-    onRefresh: () -> Unit,
 ) {
     MetricDetailHeader(
         title = "Frequência cardíaca",
         description = "Acompanhe seu último valor, leituras do relógio e tendência local.",
         onNavigateBack = onNavigateBack,
         backLabel = backLabel,
-        actionsContent = {
-            Box {
-                ChampionRedesignHeaderAction(
-                    contentDescription = "Mais opções",
-                    onClick = { onActionMenuExpandedChange(true) },
-                ) {
-                    Icon(imageVector = Icons.Filled.MoreVert, contentDescription = null)
-                }
-                DropdownMenu(
-                    expanded = isActionMenuExpanded,
-                    onDismissRequest = { onActionMenuExpandedChange(false) },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Atualizar histórico") },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
-                        },
-                        onClick = onRefresh,
-                    )
-                }
-            }
-        },
     )
 }
 
@@ -1181,37 +1024,6 @@ internal fun activityHealthViewModel(): HealthViewModel {
     return remember(activity) {
         ViewModelProvider(activity)[HealthViewModel::class.java]
     }
-}
-
-private fun HealthSurfaceState.isMeasurementInFlight(): Boolean = when (this) {
-    is HealthSurfaceState.Preparing,
-    is HealthSurfaceState.Connecting,
-    is HealthSurfaceState.Starting,
-    is HealthSurfaceState.Measuring,
-    is HealthSurfaceState.Stopping,
-    -> true
-
-    HealthSurfaceState.Idle,
-    is HealthSurfaceState.Completed,
-    is HealthSurfaceState.Cancelled,
-    is HealthSurfaceState.Failed,
-    -> false
-}
-
-private fun D1HeartRateImportSurfaceState.isImportInFlight(): Boolean = when (this) {
-    is D1HeartRateImportSurfaceState.Preparing,
-    is D1HeartRateImportSurfaceState.Connecting,
-    is D1HeartRateImportSurfaceState.Reading,
-    is D1HeartRateImportSurfaceState.Persisting,
-    -> true
-
-    D1HeartRateImportSurfaceState.Idle,
-    is D1HeartRateImportSurfaceState.Completed,
-    is D1HeartRateImportSurfaceState.CompletedWithGaps,
-    is D1HeartRateImportSurfaceState.Partial,
-    is D1HeartRateImportSurfaceState.Failed,
-    is D1HeartRateImportSurfaceState.Cancelled,
-    -> false
 }
 
 private fun formatMeasurementMoment(instant: Instant): String {

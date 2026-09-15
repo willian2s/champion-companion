@@ -1,6 +1,6 @@
 # 033-06 — Integrar Health Connect granular e cutover
 
-- **Status:** completed — correção pós-validação implementada; revalidação física pendente
+- **Status:** completed — correção pós-validação implementada e revalidação física concluída
 - **Depende de:** 033-04 e 033-05
 - **Evidência obrigatória:**
   - `docs/integration/033-03-d1-v2-physical-validation.md`
@@ -260,9 +260,9 @@ git diff --check
 
 Não criar nem executar testes automatizados sem autorização explícita.
 
-## Revalidação física necessária
+## Revalidação física concluída
 
-Antes de liberar 033-07:
+A revalidação de 2026-09-14 ocorreu antes da liberação de 033-07:
 
 ```text
 instalação limpa
@@ -272,15 +272,15 @@ instalação limpa
 -> dump
 ```
 
-Confirmar:
+Resultado observado:
 
-1. FEA1 volta a preparar STEPS incremental enquanto D1 granular estiver deferred;
-2. `WorkoutSteps` não duplica o total diário;
-3. a RUNNING `READY_TO_SYNC` recebe filhos elegíveis e pode chegar a `SYNCED`;
-4. workouts `PENDING_REVIEW` continuam sem primeira projeção;
-5. BPM/altura permanecem funcionais;
-6. distância/calorias diárias continuam sem publicação insegura;
-7. backlog antigo avança por múltiplos lotes em um único gesto sem loop infinito.
+1. FEA1 preparou STEPS incremental enquanto D1 granular estava deferred;
+2. `WorkoutSteps` não duplicou o total diário;
+3. a RUNNING `READY_TO_SYNC` recebeu filhos elegíveis e chegou a `SYNCED`;
+4. workouts `PENDING_REVIEW` permaneceram sem primeira projeção;
+5. BPM/altura permaneceram funcionais;
+6. distância/calorias diárias permaneceram sem publicação insegura;
+7. backlog antigo avançou por múltiplos lotes em um único gesto finito.
 
 ## Riscos residuais
 
@@ -288,5 +288,5 @@ Confirmar:
 - a data persistida de cutover ainda não representa ativação efetiva de STEPS;
 - o limite de 20 passes é deliberadamente conservador e finito; backlog maior pode
   exigir novo gesto, mas não fica oculto por um único lote de 100;
-- migration/cutover corrigido e sync global de `READY_TO_SYNC` precisam do novo
-  checkpoint físico descrito acima antes da 033-07.
+- cobertura adicional de firmware e falhas intermediárias permanece reservada à
+  validação física 033-09.

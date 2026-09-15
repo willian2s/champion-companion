@@ -205,14 +205,16 @@ git diff --check
   `docs/integration/033-03-d1-v2-physical-validation.md`; validação física
   específica da composição pertence à 033-09.
 
-033-05, 033-06, 033-07, 033-08 e 033-09 permanecem pendentes; a validação física
-do Champion C001, migration, idempotência, partial success, cutover e ausência de
-auto-sync Health Connect continuam fora desta subtarefa.
+Na conclusão desta task, 033-05, 033-06 e 033-07 estão concluídas; 033-08 e
+033-09 permanecem pendentes. A validação física do Champion C001, migration,
+idempotência, partial success, cutover e ausência de auto-sync Health Connect
+continuam fora desta subtarefa.
 
 ## Riscos residuais
 
 - Testes automatizados não foram criados nem executados, conforme `AGENTS.md`.
 - Validação física específica da composição, incluindo FC cross-midnight, ainda
   pertence à 033-09.
-- Integração efetiva dos consumidores, watch sync unificado, Health Connect e
-  remoção de entrypoints permanecem nas subtarefas 033-05 a 033-08.
+- Integração efetiva dos consumidores, read models legacy, partial success e
+  fechamento físico permanecem nas subtarefas 033-08 e 033-09; entrypoints de
+  produto foram removidos na 033-07.

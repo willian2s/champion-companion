@@ -173,9 +173,9 @@ de workout já suportados pelo contrato existente quando forem elegíveis.
   publicação de passos;
 - distância/calorias diárias continuam fail-closed.
 
-## Validação física necessária após a correção
+## Revalidação física concluída após a correção
 
-Em instalação limpa:
+Em instalação limpa, a sequência abaixo foi executada em 2026-09-14:
 
 ```text
 associar relógio
@@ -184,15 +184,14 @@ associar relógio
 -> dump
 ```
 
-Confirmar:
+Resultado observado:
 
-1. `DailySummary/FEA1` volta a preparar `STEPS` enquanto D1 granular estiver
-   deferred;
-2. `WorkoutSteps` não duplica o total diário e respeita créditos da Spec 027;
-3. a atividade `READY_TO_SYNC` ganha projeções filhas elegíveis e pode chegar a
+1. `DailySummary/FEA1` preparou `STEPS` enquanto D1 granular estava deferred;
+2. `WorkoutSteps` não duplicou o total diário e respeitou créditos da Spec 027;
+3. a atividade `READY_TO_SYNC` ganhou projeções filhas elegíveis e chegou a
    `SYNCED`;
-4. as duas atividades `PENDING_REVIEW` permanecem sem primeira projeção remota;
-5. BPM/altura continuam funcionando;
-6. distância/calorias diárias continuam sem publicação insegura;
-7. um banco com backlog antigo consegue avançar em vários lotes com um único
-   gesto de Settings sem loop infinito.
+4. as duas atividades `PENDING_REVIEW` permaneceram sem primeira projeção remota;
+5. BPM/altura continuaram funcionando;
+6. distância/calorias diárias permaneceram sem publicação insegura;
+7. o banco com backlog antigo avançou em vários lotes com um único gesto de
+   Settings, sem loop infinito.

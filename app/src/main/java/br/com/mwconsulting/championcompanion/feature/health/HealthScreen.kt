@@ -56,7 +56,6 @@ fun HealthScreen(
     onOpenSteps: () -> Unit,
     onOpenDistance: () -> Unit,
     onOpenExercises: () -> Unit = {},
-    @Suppress("UNUSED_PARAMETER") onOpenDevice: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     healthViewModel: HealthViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity

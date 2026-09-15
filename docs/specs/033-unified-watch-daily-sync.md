@@ -402,19 +402,19 @@ WORKOUT
         ✓             ✓
         +-----+-----+
               v
-        033-07 Produto/UI                           ~
+033-07 Produto/UI                           ✓
               |
         033-08 Read models/compatibilidade
               |
         033-09 Validação física/fechamento
 
 follow-up após evidência granular:
-033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ~
+033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ✓
 ```
 
-A implementação da 033-10 exige validação física antes de ser considerada
-concluída. O alinhamento do helper legado `RoomRepositories.hasSupportedHealthSyncPair()`
-para agregados D1 pertence à 033-08 e não altera o writer granular.
+A implementação e validação física da 033-10 foram concluídas. O alinhamento do
+helper legado `RoomRepositories.hasSupportedHealthSyncPair()` para agregados D1
+pertence à 033-08 e não altera o writer granular.
 
 ## Validação obrigatória
 

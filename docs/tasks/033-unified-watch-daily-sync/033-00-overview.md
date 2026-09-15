@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`, `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
 - **Status:** `in_progress`
-- **Progresso:** `7/10`
+- **Progresso:** `8/10`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -32,19 +32,20 @@ reescrever histórico.
         ✓             ✓
        +------+------+
               v
-033-07 Produto/UI e remoção de entrypoints BLE      ~
+033-07 Produto/UI e remoção de entrypoints BLE      ✓
               |
 033-08 Read models, legacy e compatibilidade
               |
 033-09 Validação física e fechamento
 
 follow-up promovido por evidência física:
-033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ~
+033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ✓
 ```
 
 `033-06` foi revalidada fisicamente em 2026-09-14 com STEPS granular D1 real,
-workout simultâneo e zero pendências acionáveis após sync. A `033-07` segue em
-execução. A `033-10` possui implementação, validação técnica e validação física
+workout simultâneo e zero pendências acionáveis após sync. A `033-07` foi
+concluída com validação visual no `SM-S901E`. A `033-10` possui implementação,
+validação técnica e validação física
 da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1 positivo sem overlap D4
 concluídas; o caso D4 zero/ausente permanece somente como contrato técnico, sem
 exigência de reprodução física artificial.
@@ -57,7 +58,7 @@ exigência de reprodução física artificial.
 - [x] `033-04-compor-dados-diarios-fea1-d1-d4.md`
 - [x] `033-05-unificar-watch-sync-na-home.md`
 - [x] `033-06-integrar-health-connect-granular-e-cutover.md` — revalidação física granular concluída
-- [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — em andamento
+- [x] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — concluída; entrypoints BLE e calibração por passo removidos da UI, contratos internos preservados
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
 - [x] `033-10-publicar-distancia-calorias-d1-granulares.md` — concluída; D4 zero/ausente reclassificado como guard técnico
@@ -188,8 +189,8 @@ A implementação usa schema congelado v5 para essas duas famílias, identidade 
 
 Gate técnico concluído em 2026-09-14: `./gradlew lint assembleDebug assembleRelease`
 terminou com `BUILD SUCCESSFUL` e `git diff --check` não reportou erros, inclusive
-após a correção de política nativa. A validação física permanece pendente conforme
-`033-10-publicar-distancia-calorias-d1-granulares.md`.
+após a correção de política nativa. A validação física de 033-10 foi concluída e
+está registrada em `033-10-publicar-distancia-calorias-d1-granulares.md`.
 
 ## Correção física pós-033-05: cauda recente FEA1 × D1
 
@@ -231,9 +232,9 @@ Validações físicas encontraram e fecharam:
 A revalidação de 2026-09-14 confirmou o comportamento ponta a ponta em instalação
 com histórico real, incluindo zero pendências acionáveis após o sync.
 
-## Execução atual da 033-07
+## Execução concluída da 033-07
 
-Já implementado:
+Entregue:
 
 - ação de relógio no cabeçalho da Home substituída por botão Sync do Health Connect;
 - ação usa exatamente `SettingsIntent.SyncNow`, sem segundo pipeline;
@@ -241,17 +242,14 @@ Já implementado:
 - `Configurações -> Gerenciar relógio` abre o `DeviceScreen` existente;
 - Saúde não mostra mais atalho visual de relógio;
 - ADR-032 congela o ownership de navegação/sync.
-
-Ainda pendente na 033-07:
-
-- remover `Importar treinos` e progresso/retry próprios de Exercícios;
-- remover comprimento de passo, sugestão por altura e históricos/perfis de calibração por passada do Perfil;
-- revisar contratos/state machines legados sem apagar dados;
-- executar build/lint/diff e capturar screenshots das mudanças visuais.
+- `Importar treinos`, progresso/snackbar/cancel/retry próprios de Exercícios removidos;
+- comprimento de passo, sugestão por altura e históricos/perfis de calibração por passada removidos do Perfil;
+- guards de navegação exclusivos dos entrypoints removidos, com contratos/coordenadores internos preservados;
+- build/lint/diff e validação física visual concluídos no `SM-S901E`.
 
 ## Pendências intencionais
 
-- **Validação física 033-10:** confirmar `DISTANCE` e `ACTIVE_CALORIES_BURNED` D1 pré/pós-sync e idempotência;
+- **Validação física 033-10:** concluída; D4 zero/ausente permanece guard técnico;
 - **D4 calories:** avaliar em trabalho separado eventual migração de `TOTAL_CALORIES_BURNED` para energia ativa; não alterar histórico silenciosamente;
 - **fronteiras D1/D4:** minutos externos dentro de bucket parcialmente sobreposto ficam deliberadamente fail-closed para a métrica afetada;
 - **033-08:** alinhar `RoomRepositories.hasSupportedHealthSyncPair()` e read models legados para reconhecer agregados D1 granulares sem falso estado de integridade;
@@ -293,3 +291,5 @@ Os dumps físicos 06..10 confirmaram também `TREADMILL` `01a0a46a-68f8-70a9-8f8
 - Aceite global 033-10: concluído.
 - D4 zero/ausente não suprime D1 válido permanece guard técnico; cenário físico
   artificial não bloqueia aceite.
+- 033-07 validada visualmente no `SM-S901E`; screenshots temporárias ficam em
+  `/tmp/033-07-*.png` para eventual anexação ao PR.

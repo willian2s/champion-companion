@@ -1,6 +1,6 @@
 # 033-07 — Remover entrypoints BLE e calibração por passo da UI
 
-- **Status:** in_progress
+- **Status:** completed
 - **Depende de:** 033-05, 033-06 fisicamente validada
 
 ## Objetivo
@@ -43,7 +43,7 @@ Preservar histórico manual/D1 antigo como leitura.
 
 - [x] detalhe de frequência cardíaca já estava somente leitura após o redesign 031;
 - [x] atalho visual do relógio removido do cabeçalho Saúde;
-- [ ] limpar contratos/state machines de navegação que só protegem medição manual/D1 legado quando não houver mais consumidor de UI.
+- [x] contratos/guards de navegação exclusivos de medição manual/D1 foram removidos; state machines internas permanecem para compatibilidade e watch sync.
 
 ## Exercícios
 
@@ -57,9 +57,9 @@ e sync explícito.
 
 ### Estado da execução
 
-- [ ] remover `Importar treinos` do menu;
-- [ ] remover progresso/snackbar/cancel/retry da importação própria;
-- [ ] manter status Health Connect, revisão e sync explícito do workout.
+- [x] remover `Importar treinos` do menu;
+- [x] remover progresso/snackbar/cancel/retry da importação própria;
+- [x] manter status Health Connect, revisão e sync explícito do workout.
 
 ## Perfil
 
@@ -74,9 +74,9 @@ continua no exercício.
 
 ### Estado da execução
 
-- [ ] remover card de comprimento de passo;
-- [ ] remover diálogos de perfis aprendidos e histórico/correção de calibração por passo;
-- [ ] preservar altura, meta de passos e dados históricos internos.
+- [x] remover card de comprimento de passo;
+- [x] remover diálogos de perfis aprendidos e histórico/correção de calibração por passo;
+- [x] preservar altura, meta de passos e dados históricos internos.
 
 ## Home e Configurações
 
@@ -96,18 +96,64 @@ continua no exercício.
 - não transformar watch refresh em auto-sync remoto;
 - screenshot no PR por ser mudança visual.
 
-## Validação pendente
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/navigation/ChampionNavigation.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/calendar/CalendarDayScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthMetricDetailScreens.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/HealthScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/PhoneWorkoutAvailability.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/health/ChampionD1HeartRateSyncCoordinator.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ChampionWatchWorkoutImportCoordinator.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/device/DeviceManagementViewModel.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileFeatureContract.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileViewModel.kt`
+- `app/src/main/res/values/strings.xml`
+- `docs/tasks/033-unified-watch-daily-sync/033-06-integrar-health-connect-granular-e-cutover.md` e `033-10-publicar-distancia-calorias-d1-granulares.md` (normalização documental de status já evidenciado)
+- este documento e `033-00-overview.md`
+
+## Decisões e desvios
+
+- A UI de Saúde deixou de iniciar medição manual, importação D1 e atualização BLE; histórico continua somente leitura.
+- `ManualHeartRateCoordinator`, `D1HeartRateSyncCoordinator`, `WatchWorkoutImportCoordinator` e state machines internas foram preservados para compatibilidade e para os componentes do `WatchSyncCoordinator`.
+- Exercícios mantém revisão, calibração contextual de distância, reprocessamento, status Health Connect e sync explícito; somente importação BLE própria e seus feedbacks foram removidos.
+- Perfil mantém altura e meta diária de passos; repositories, snapshots, schema, histórico e fallback legacy permanecem intactos.
+- Mensagens de Exercícios/Calendário que apontavam para configuração de step length no Perfil foram substituídas por instruções de reprocessamento sem CTA removido.
+- Status obsoletos de 033-06/033-10 foram alinhados às evidências físicas já registradas; nenhuma implementação dessas subtarefas foi alterada.
+- Mensagens internas de conflito BLE foram neutralizadas para não citar telas removidas, sem alterar categorias, retry ou contratos.
+- Mensagem do guard histórico de treino phone foi alinhada ao único entrypoint vigente de leitura do relógio: pull-to-refresh da Home.
+- Não foram criados nem executados testes automatizados, conforme `AGENTS.md`.
+
+## Validação executada
 
 ```bash
 ./gradlew lint assembleDebug assembleRelease
 git diff --check
+./gradlew installDebug
 ```
 
-Também validar manualmente:
+Validação física manual no `SM-S901E`:
 
-- pull-to-refresh continua atualizando somente relógio/local;
-- botão Sync da Home executa o mesmo sync global de Configurações;
-- snackbar/progresso da Home refletem o gesto remoto;
-- `Configurações -> Gerenciar relógio` abre a tela de dispositivo;
-- Saúde não mostra atalho de relógio;
-- screenshot da Home e Configurações para revisão visual.
+- Home exibe `Sincronizar com Health Connect`, sem voltar a expor gerenciamento BLE no cabeçalho;
+- Saúde exibe apenas leitura/análise, sem atalho de relógio, medição manual, importação D1, progresso, cancelamento ou retry;
+- menu de Exercícios exibe `Status Health Connect` e `PoC técnica`, sem `Importar treinos`;
+- Perfil exibe somente altura e meta diária de passos;
+- `Configurações -> Gerenciar relógio` abriu `DeviceScreen` existente;
+- screenshots capturadas em `/tmp/033-07-health.png`, `/tmp/033-07-health-heart-rate.png`, `/tmp/033-07-exercises-menu.png`, `/tmp/033-07-profile.png`, `/tmp/033-07-settings.png` e `/tmp/033-07-device.png`.
+
+## Resultados e evidências
+
+- `./gradlew app:compileDebugKotlin`: sucesso.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: instalado no `SM-S901E`.
+- `git diff --check`: sem erros de whitespace.
+- dumps UI via `adb shell uiautomator dump` confirmaram remoção das affordances descritas e preservação de `Status Health Connect`, revisão e sync explícito.
+
+## Riscos residuais
+
+- Contratos/state machines BLE legados continuam chamáveis internamente; não possuem entrypoint normal nas superfícies removidas.
+- Pull-to-refresh da Home não foi alterado nesta subtarefa; comportamento local-first permanece coberto pelas evidências 033-05/033-06.
+- Screenshots estão fora do repositório, aguardando eventual anexação ao PR conforme guard rail visual.

@@ -565,7 +565,6 @@ class ExercisesViewModel internal constructor(
             ExercisesIntent.DismissImport -> dismissImport()
             ExercisesIntent.ConfirmExitImport -> cancelImport(WatchWorkoutImportCancellationReason.EXIT_CONFIRMED)
             ExercisesIntent.AppMovedToBackground -> {
-                cancelImport(WatchWorkoutImportCancellationReason.BACKGROUND)
                 suspendWorkoutPreparation()
             }
             ExercisesIntent.OpenDevice -> Unit
@@ -1952,7 +1951,7 @@ class ExercisesViewModel internal constructor(
             WatchWorkoutReprocessFailureReason.INDEX_INELIGIBLE ->
                 "Índices dos intervalos não formam uma sequência contínua elegível. Nenhuma alteração foi feita."
             WatchWorkoutReprocessFailureReason.STEP_LENGTH_PROFILE_INVALID ->
-                "Comprimento pessoal do passo ausente ou inválido. Configure-o no Perfil antes de reprocessar."
+                "Comprimento pessoal do passo ausente ou inválido. Nenhuma alteração foi feita."
             WatchWorkoutReprocessFailureReason.TEMPORAL_INCONSISTENCY ->
                 "A duração temporal não pôde ser resolvida com segurança. Nenhuma alteração foi feita."
             WatchWorkoutReprocessFailureReason.SYNC_IN_PROGRESS ->

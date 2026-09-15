@@ -2,7 +2,7 @@
 
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADR:** `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
-- **Status:** `in_progress` — implementação e validação técnica concluídas; validação física pendente
+- **Status:** `completed` — implementação, validação técnica e validação física concluídas
 - **Dependências:** 033-03, 033-04, 033-05, 033-06; ADR-031
 
 ## Objetivo
@@ -204,7 +204,7 @@ observados: D1 positivo sem D4 positivo sobreposto é publicado; D1 positivo
 com qualquer D4 positivo sobreposto é suprimido por métrica, inclusive overlap
 parcial.
 
-## Validação física — próximo treino
+## Validação física registrada
 
 ### 1. Pré-sync remoto
 
@@ -264,7 +264,7 @@ Esperado:
 
 ## Aceite
 
-A task pode mudar para `completed` quando:
+A task foi marcada `completed` após:
 
 - [x] `lint`, `assembleDebug`, `assembleRelease` e `git diff --check` passarem;
 - [x] dump pré-sync confirmar preparação e supressão por métrica;

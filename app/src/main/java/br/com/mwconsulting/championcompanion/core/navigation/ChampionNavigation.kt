@@ -51,20 +51,14 @@ import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesIntent
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesUiState
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesViewModel
-import br.com.mwconsulting.championcompanion.feature.exercises.WatchWorkoutImportSurfaceState
 import br.com.mwconsulting.championcompanion.feature.exercises.ActiveWorkoutShell
 import br.com.mwconsulting.championcompanion.feature.exercises.PhoneWorkoutDisabledShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutPreparationShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutRecoveryShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutTypeSelectionShell
-import br.com.mwconsulting.championcompanion.feature.health.HealthIntent
 import br.com.mwconsulting.championcompanion.feature.health.DistanceDetailScreen
-import br.com.mwconsulting.championcompanion.feature.health.D1HeartRateImportSurfaceState
 import br.com.mwconsulting.championcompanion.feature.health.HealthScreen
-import br.com.mwconsulting.championcompanion.feature.health.HealthUiState
 import br.com.mwconsulting.championcompanion.feature.health.HeartRateDetailScreen
-import br.com.mwconsulting.championcompanion.feature.health.HealthSurfaceState
-import br.com.mwconsulting.championcompanion.feature.health.HealthViewModel
 import br.com.mwconsulting.championcompanion.feature.health.StepsDetailScreen
 import br.com.mwconsulting.championcompanion.feature.health.WeightDetailScreen
 import br.com.mwconsulting.championcompanion.feature.home.HomeScreen
@@ -91,10 +85,7 @@ private val primaryItems = listOf(
     NavigationItem(AppDestination.Health, "Saúde", Icons.Filled.Favorite),
 )
 
-private enum class ExitConfirmationTarget {
-    Health,
-    Exercises,
-}
+private enum class ExitConfirmationTarget { Exercises }
 
 @Composable
 fun ChampionNavigation(
@@ -102,9 +93,6 @@ fun ChampionNavigation(
     onOpenDebugPoc: (() -> Unit)? = null,
 ) {
     val activity = checkNotNull(LocalActivity.current) as ComponentActivity
-    val healthViewModel = remember(activity) {
-        ViewModelProvider(activity)[HealthViewModel::class.java]
-    }
     val exercisesViewModel = remember(activity) {
         ViewModelProvider(activity)[ExercisesViewModel::class.java]
     }
@@ -123,7 +111,6 @@ fun ChampionNavigation(
     var pendingBackNavigation by remember { mutableStateOf(false) }
     var pendingExitConfirmationTarget by remember { mutableStateOf<ExitConfirmationTarget?>(null) }
     var animationDirection by remember { mutableStateOf(NavigationAnimationDirection.Forward) }
-    val healthState by healthViewModel.state.collectAsState()
     val exercisesState by exercisesViewModel.state.collectAsState()
     val contextualBackLabel = backStack.dropLast(1).lastOrNull().contextualBackLabel()
 
@@ -196,11 +183,6 @@ fun ChampionNavigation(
     fun requestNavigation(destination: AppDestination) {
         if (destination == currentDestination) return
         when {
-            currentDestination.isHealthMeasurementSurface() && healthState.hasBlockingHealthOperation() -> {
-                pendingExitConfirmationTarget = ExitConfirmationTarget.Health
-                requestExitConfirmation(destination = destination)
-            }
-
             currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation() -> {
                 pendingExitConfirmationTarget = ExitConfirmationTarget.Exercises
                 requestExitConfirmation(destination = destination)
@@ -212,11 +194,6 @@ fun ChampionNavigation(
 
     fun requestBackNavigation() {
         when {
-            currentDestination.isHealthMeasurementSurface() && healthState.hasBlockingHealthOperation() -> {
-                pendingExitConfirmationTarget = ExitConfirmationTarget.Health
-                requestExitConfirmation(isBackNavigation = true)
-            }
-
             currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation() -> {
                 pendingExitConfirmationTarget = ExitConfirmationTarget.Exercises
                 requestExitConfirmation(isBackNavigation = true)
@@ -227,8 +204,6 @@ fun ChampionNavigation(
     }
 
     if (pendingDestination != null || pendingBackNavigation) {
-        val isD1ImportInFlight = healthState.d1ImportState.isD1ImportInFlight()
-        val isExerciseImportInFlight = exercisesState.importState.isImportInFlight()
         val confirmationTarget = pendingExitConfirmationTarget
         AlertDialog(
             onDismissRequest = {
@@ -239,8 +214,7 @@ fun ChampionNavigation(
             title = {
                 Text(
                     when (confirmationTarget) {
-                        ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Cancelar importação?" else "Cancelar medição?"
-                        ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Cancelar importação?" else "Descartar alterações?"
+                        ExitConfirmationTarget.Exercises -> "Descartar alterações?"
                         null -> "Confirmar saída?"
                     },
                 )
@@ -248,17 +222,7 @@ fun ChampionNavigation(
             text = {
                 Text(
                     when (confirmationTarget) {
-                        ExitConfirmationTarget.Health -> if (isD1ImportInFlight) {
-                            "Sair da tela Saúde agora cancelará a importação D1 em andamento."
-                        } else {
-                            "Sair da tela Saúde agora cancelará a medição em andamento sem salvar resultado parcial."
-                        }
-
-                        ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
-                            "Sair da tela Exercícios agora cancelará a importação de treinos em andamento, preservando os blocos já salvos."
-                        } else {
-                            "Sair agora descartará alterações não salvas do detalhe do treino atual."
-                        }
+                        ExitConfirmationTarget.Exercises -> "Sair agora descartará alterações não salvas do detalhe do treino atual."
 
                         null -> "A operação atual será interrompida."
                     },
@@ -274,19 +238,7 @@ fun ChampionNavigation(
                         pendingBackNavigation = false
                         pendingExitConfirmationTarget = null
                         when (target) {
-                            ExitConfirmationTarget.Health -> {
-                                if (isD1ImportInFlight) {
-                                    healthViewModel.onIntent(HealthIntent.ConfirmExitD1Import)
-                                } else {
-                                    healthViewModel.onIntent(HealthIntent.ConfirmExitMeasurement)
-                                }
-                            }
-
-                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) {
-                                exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitImport)
-                            } else {
-                                exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitDetail)
-                            }
+                            ExitConfirmationTarget.Exercises -> exercisesViewModel.onIntent(ExercisesIntent.ConfirmExitDetail)
                             null -> Unit
                         }
                         if (shouldNavigateBack) {
@@ -302,8 +254,7 @@ fun ChampionNavigation(
                 ) {
                     Text(
                         when (confirmationTarget) {
-                            ExitConfirmationTarget.Health -> "Sair da Saúde"
-                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Sair de Exercícios" else "Descartar alterações"
+                            ExitConfirmationTarget.Exercises -> "Descartar alterações"
                             null -> "Sair"
                         },
                     )
@@ -317,8 +268,7 @@ fun ChampionNavigation(
                 }) {
                     Text(
                         when (confirmationTarget) {
-                            ExitConfirmationTarget.Health -> if (isD1ImportInFlight) "Continuar importando" else "Continuar medindo"
-                            ExitConfirmationTarget.Exercises -> if (isExerciseImportInFlight) "Continuar importando" else "Continuar editando"
+                            ExitConfirmationTarget.Exercises -> "Continuar editando"
                             null -> "Continuar"
                         },
                     )
@@ -331,8 +281,7 @@ fun ChampionNavigation(
         pendingDestination == null &&
             !pendingBackNavigation &&
             (backStack.size > 1 ||
-                (currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation()) ||
-                (currentDestination.isHealthMeasurementSurface() && healthState.hasBlockingHealthOperation()))
+                (currentDestination.isExercisesDestination() && exercisesState.hasBlockingExerciseOperation()))
 
     BackHandler(enabled = shouldInterceptBack) {
         requestBackNavigation()
@@ -391,60 +340,8 @@ fun ChampionNavigation(
     }
 }
 
-private fun HealthSurfaceState.isMeasurementInFlight(): Boolean = when (this) {
-    is HealthSurfaceState.Preparing,
-    is HealthSurfaceState.Connecting,
-    is HealthSurfaceState.Starting,
-    is HealthSurfaceState.Measuring,
-    is HealthSurfaceState.Stopping,
-    -> true
-
-    HealthSurfaceState.Idle,
-    is HealthSurfaceState.Completed,
-    is HealthSurfaceState.Cancelled,
-    is HealthSurfaceState.Failed,
-        -> false
-}
-
-private fun D1HeartRateImportSurfaceState.isD1ImportInFlight(): Boolean = when (this) {
-    is D1HeartRateImportSurfaceState.Preparing,
-    is D1HeartRateImportSurfaceState.Connecting,
-    is D1HeartRateImportSurfaceState.Reading,
-    is D1HeartRateImportSurfaceState.Persisting,
-    -> true
-
-    D1HeartRateImportSurfaceState.Idle,
-    is D1HeartRateImportSurfaceState.Completed,
-    is D1HeartRateImportSurfaceState.CompletedWithGaps,
-    is D1HeartRateImportSurfaceState.Partial,
-    is D1HeartRateImportSurfaceState.Failed,
-    is D1HeartRateImportSurfaceState.Cancelled,
-    -> false
-}
-
-private fun HealthUiState.hasBlockingHealthOperation(): Boolean =
-    surfaceState.isMeasurementInFlight() || d1ImportState.isD1ImportInFlight()
-
 private fun ExercisesUiState.hasBlockingExerciseOperation(): Boolean =
-    importState.isImportInFlight() || hasUnsavedDetailChanges
-
-private fun WatchWorkoutImportSurfaceState.isImportInFlight(): Boolean = when (this) {
-    WatchWorkoutImportSurfaceState.Idle,
-    is WatchWorkoutImportSurfaceState.Completed,
-    is WatchWorkoutImportSurfaceState.Partial,
-    is WatchWorkoutImportSurfaceState.Empty,
-    is WatchWorkoutImportSurfaceState.Failed,
-    is WatchWorkoutImportSurfaceState.Cancelled,
-    -> false
-
-    is WatchWorkoutImportSurfaceState.Preparing,
-    is WatchWorkoutImportSurfaceState.Connecting,
-    is WatchWorkoutImportSurfaceState.ReadingIndex,
-    is WatchWorkoutImportSurfaceState.ReadingBlocks,
-    is WatchWorkoutImportSurfaceState.Parsing,
-    is WatchWorkoutImportSurfaceState.Persisting,
-    -> true
-}
+    hasUnsavedDetailChanges
 
 @Composable
 private fun ChampionNavDisplay(
@@ -503,7 +400,6 @@ private fun ChampionNavDisplay(
                 onOpenSteps = { onNavigateTo(AppDestination.HealthSteps) },
                 onOpenDistance = { onNavigateTo(AppDestination.HealthDistance) },
                 onOpenExercises = { onNavigateTo(AppDestination.Exercises) },
-                onOpenDevice = { onNavigateTo(AppDestination.Device) },
                 onOpenProfile = { onNavigateTo(AppDestination.Profile) },
             )
             AppDestination.HealthHeartRate -> HeartRateDetailScreen(
@@ -594,9 +490,6 @@ private fun ChampionNavDisplay(
             )
             AppDestination.Profile -> ProfileScreen(
                 viewModel = profileViewModel,
-                onOpenActivity = { activityId ->
-                    onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
-                },
                 onOpenSettings = { onNavigateTo(AppDestination.Settings) },
                 onNavigateBack = onBackRequested,
                 backLabel = backLabel,

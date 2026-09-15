@@ -748,9 +748,9 @@ private fun CalendarWorkoutSummary.canonicalStatusMessage(): String = if (isCycl
     when (canonicalReadStatus) {
         WorkoutCanonicalReadStatus.NOT_APPLICABLE -> "Distância segue contrato legado da atividade phone."
         WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH ->
-            "Sem comprimento do passo. Configure Perfil e reprocese a atividade por ação explícita."
+            "Sem comprimento do passo confirmado. Reprocesse a atividade por ação explícita quando houver referência válida."
         WorkoutCanonicalReadStatus.NOT_MATERIALIZED ->
-            "Derivação canônica não materializada. Configure comprimento do passo e reprocese por ação explícita."
+            "Derivação canônica não materializada. Reprocesse por ação explícita quando houver referência válida."
         WorkoutCanonicalReadStatus.SERIES_INELIGIBLE ->
             "Série canônica inelegível. Distância original, calibrada e agregada não são usadas como substitutas."
         WorkoutCanonicalReadStatus.PLAUSIBILITY_BLOCKED ->
