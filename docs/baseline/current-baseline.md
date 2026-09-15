@@ -162,6 +162,33 @@ dados e evidências permanecem preservados; limpeza exige task explícita.
   somente quando elegível. Perfil e Exercícios preservam contratos legacy,
   snapshots e workflow de workout sem reintroduzir entrypoints BLE removidos.
 
+### Validação física parcial da Spec 033 — 2026-09-15
+
+- A validação técnica e física positiva da Spec 033 ocorreu no Champion C001 real
+  (`SM-S901E`). `lint`, builds debug/release, instalação debug e `git diff
+  --check` passaram; a Spec permanece em execução por gates físicos pendentes.
+- Dois refreshes da Home preservaram o fluxo local-first FEA1 + D1 + D3/D4. O
+  segundo mostrou partial success sem apagar fatos já persistidos.
+- O banco físico Room v19 confirmou, em 2026-09-15, D1 completo em `184/184`
+  posições, `ΣD1.steps = 2466`, distância `1863,0 m`, calorias `121,8 kcal` e
+  `FEA1 = 2488`. A diferença foi apresentada como `RECENT_TAIL`; nenhum residual
+  sintético foi criado.
+- D1 granular `STEPS`, `DISTANCE` e `ACTIVE_CALORIES_BURNED` permaneceu separado
+  de `WorkoutSteps`; Health Connect só foi acionado por gesto explícito. Saúde,
+  Exercícios e Perfil não reexpuseram entrypoints BLE, importação ou calibração
+  por passo.
+- A fila Health Connect passou a ordenar `operationSequence` antes de recência
+  nas três camadas de seleção/composição, preservando cadeias incrementais.
+- Evidência: `docs/integration/033-09-final-physical-validation.md`.
+
+Riscos e bloqueios residuais: `dayOffset > 0` não foi exercitado; upgrade direto
+físico v17 → v19 não foi reproduzido nesta rodada (há evidência física v18 → v19 e
+banco v19 com dados legacy); `FEA1 < ΣD1`, lacuna estrutural e frescor inexplicado
+não foram reproduzidos; partial success artificial não foi injetado; D4
+zero/ausente permanece guard técnico. Reidratação visual nativa de
+`FREE_WORKOUT`/`TREADMILL` foi corrigida e validada após o primeiro build mostrar
+distância indisponível.
+
 O Champion Companion é um aplicativo pessoal, sem objetivo de distribuição pública, beta formal, matriz multi-device ou gate de lançamento comercial. Validação física, testes e builds continuam sendo usados quando uma task específica exigir evidência.
 
 Escopo factual atual já inclui:

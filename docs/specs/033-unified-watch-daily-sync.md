@@ -406,7 +406,7 @@ WORKOUT
               |
          033-08 Read models/compatibilidade              ✓
               |
-        033-09 Validação física/fechamento
+         033-09 Validação física/fechamento
 
 follow-up após evidência granular:
 033-10 D1 DISTANCE + ACTIVE_CALORIES_BURNED         ✓
@@ -414,8 +414,9 @@ follow-up após evidência granular:
 
 A implementação e validação física da 033-10 foram concluídas. A 033-08 alinhou
 read models e `RoomRepositories.hasSupportedHealthSyncPair()` para agregados D1,
-sem alterar writer granular, payloads congelados ou workflow histórico. A validação
-física final da composição e o fechamento da spec permanecem na 033-09.
+sem alterar writer granular, payloads congelados ou workflow histórico. A 033-09
+tem validação física positiva, mas permanece bloqueada por gates negativos sem
+reprodução física e upgrade direto v17 → v19 sem evidência final.
 
 ## Validação obrigatória
 
@@ -434,3 +435,30 @@ auto-sync HC, STEPS granular, `WorkoutSteps` coberto, `DISTANCE` D1 granular,
 `ACTIVE_CALORIES_BURNED` D1 granular, buckets de fronteira fail-closed e D4 zero
 sem suprimir D1 válido. O dump pré-sync deve provar a preparação local antes do
 efeito remoto; o dump pós-sync deve provar estados/ausência de duplicação local.
+
+## Validação física parcial — 2026-09-15
+
+`docs/integration/033-09-final-physical-validation.md` registra a validação final
+no Champion C001 real. A instalação debug, os builds debug/release e o lint
+passaram. Dois refreshes da Home mantiveram o fluxo local-first; o segundo
+observou partial success sem perder componentes já persistidos. O banco Room
+confirmou v19, `184/184` posições D1 completas, `FEA1 = 2488`,
+`ΣD1.steps = 2466` e classificação de cauda recente sem residual sintético.
+
+As evidências acumuladas de `033-03`, `033-05`, `033-06`, `033-09` e `033-10`
+confirmam idempotência, overlap por métrica, cutover granular, D1 nativo de
+distância/calorias, ausência de auto-sync Health Connect, sync explícito e
+preservação de histórico. Saúde, Exercícios e Perfil foram inspecionados no
+dispositivo sem reintrodução dos entrypoints removidos.
+
+Riscos e bloqueios explícitos: `dayOffset > 0` não esteve disponível; upgrade
+direto físico v17 → v19 não foi reproduzido nesta rodada, embora Room v19 tenha
+preservado dados legacy; `FEA1 < ΣD1`, lacuna estrutural e frescor inexplicado não
+foram reproduzidos; partial success foi observado por falha real de componente,
+não por injeção artificial; D4 zero/ausente continua guard técnico.
+Regressão de reidratação visual para `FREE_WORKOUT`/`TREADMILL` foi corrigida em
+`DatabaseMappers` e `ExercisesScreen`; build, instalação e inspeção física
+confirmaram restauração de distância, provenance, intervalos e calorias.
+Os cenários físicos negativos não disponíveis, partial success artificial e
+upgrade direto v17 → v19 foram aceitos por waiver explícito e permanecem como
+riscos residuais documentados na subtarefa 033-09.

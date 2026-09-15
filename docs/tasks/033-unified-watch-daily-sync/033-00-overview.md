@@ -2,8 +2,8 @@
 
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`, `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
-- **Status:** `in_progress`
-- **Progresso:** `9/10`
+- **Status:** `completed`
+- **Progresso:** `10/10`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -34,7 +34,7 @@ reescrever histórico.
               v
 033-07 Produto/UI e remoção de entrypoints BLE      ✓
               |
-033-08 Read models, legacy e compatibilidade
+033-08 Read models, legacy e compatibilidade       ✓
               |
 033-09 Validação física e fechamento
 
@@ -50,6 +50,10 @@ da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1 positivo sem overlap D
 concluídas; o caso D4 zero/ausente permanece somente como contrato técnico, sem
 exigência de reprodução física artificial.
 
+Regressão visual corrigida: mapper agora reidrata snapshots nativos de
+`FREE_WORKOUT`/`TREADMILL`; Exercícios voltou a mostrar distância, provenance,
+intervalos e calorias, e `TREADMILL` voltou a aceitar referência externa.
+
 ## Checklist
 
 - [x] `033-01-auditar-e-congelar-d1-v2-e-cutover.md`
@@ -60,7 +64,7 @@ exigência de reprodução física artificial.
 - [x] `033-06-integrar-health-connect-granular-e-cutover.md` — revalidação física granular concluída
 - [x] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — concluída; entrypoints BLE e calibração por passo removidos da UI, contratos internos preservados
 - [x] `033-08-integrar-read-models-legacy-e-compatibilidade.md` — read models integrados; compatibilidade D1 granular alinhada
-- [ ] `033-09-validar-fisicamente-e-fechar.md`
+- [x] `033-09-validar-fisicamente-e-fechar.md` — validação positiva concluída; gates não reproduzíveis aceitos por waiver e registrados como riscos residuais
 - [x] `033-10-publicar-distancia-calorias-d1-granulares.md` — concluída; D4 zero/ausente reclassificado como guard técnico
 
 ## Decisões congeladas
@@ -254,13 +258,15 @@ Entregue:
 - **fronteiras D1/D4:** minutos externos dentro de bucket parcialmente sobreposto ficam deliberadamente fail-closed para a métrica afetada;
 - **033-08:** concluída; `RoomRepositories.hasSupportedHealthSyncPair()` e read models legados reconhecem agregados D1 granulares sem falso estado de integridade;
 - observar fisicamente o bucket em torno da meia-noite e revalidar firmware futuro;
-- partial success forçado continua reservado para 033-09.
+- validar fisicamente `FEA1 < ΣD1`, lacuna estrutural, frescor inexplicado e
+  upgrade direto v17 → v19 antes do fechamento.
 
 ## Evidências físicas sanitizadas
 
 - `docs/integration/033-03-d1-v2-physical-validation.md`;
 - `docs/integration/033-05-unified-watch-sync-physical-validation.md`;
 - `docs/integration/033-06-health-connect-clean-install-validation.md`;
+- `docs/integration/033-09-final-physical-validation.md`;
 - ADR-031 registra a promoção da semântica de bucket para STEPS granular;
 - ADR-032 registra ownership de sync remoto e gerenciamento do relógio;
 - ADR-033 registra distância/calorias D1 e ownership por métrica.
@@ -283,7 +289,12 @@ Entregue:
 
 A validação física de 033-10 encontrou e confirmou a revisão de `FREE_WORKOUT` `d4-v4` válido com 173 passos, 140 m de distância nativa e aproximadamente 9.169 kcal. Após confirmar o tipo, `WATCH_NATIVE` foi preservado, a distância canônica permaneceu positiva e o fluxo não foi para `PENDING_CALIBRATION`. A revisão falhava porque removia `WATCH_NATIVE` ao confirmar o tipo. A política foi evoluída: `FREE_WORKOUT` e `TREADMILL` aceitam distância D4 nativa; `TREADMILL` permanece `PENDING_CALIBRATION` até receber distância final externa e usa essa referência para fator contextual próprio. Step length continua restrito a `RUNNING`/`WALKING`. O overlap continua por métrica: D4 `DISTANCE > 0` suprime somente `D1 DISTANCE` sobreposta.
 
-Os dumps físicos 06..10 confirmaram também `TREADMILL` `01a0a46a-68f8-70a9-8f86-54f38001137d`: 196 m nativos, referência 250 m, fator exclusivo `1.2755102040816326`, série temporal calibrada somando aproximadamente 250 m, `READY_TO_SYNC`, quatro records de distância sincronizados, `FAILED=0` e segundo sync idêntico nas 31 tabelas. Evidência detalhada fica em `docs/integration/033-10-native-distance-policy-physical-validation.md`.
+Os dumps físicos 06..10 confirmaram também uma atividade `TREADMILL`: 196 m
+nativos, referência 250 m, fator exclusivo `1.2755102040816326`, série
+temporal calibrada somando aproximadamente 250 m, `READY_TO_SYNC`, quatro
+records de distância sincronizados, `FAILED=0` e segundo sync idêntico nas 31
+tabelas. Evidência detalhada fica em
+`docs/integration/033-10-native-distance-policy-physical-validation.md`.
 
 ## Observações
 
@@ -294,5 +305,11 @@ Os dumps físicos 06..10 confirmaram também `TREADMILL` `01a0a46a-68f8-70a9-8f8
 - 033-07 validada visualmente no `SM-S901E`; screenshots temporárias ficam em
   `/tmp/033-07-*.png` para eventual anexação ao PR.
 - 033-08 concluída com validação técnica (`lint`, `assembleDebug`,
-  `assembleRelease` e `git diff --check`). Validação física específica da
-  composição e fechamento permanecem na 033-09.
+  `assembleRelease` e `git diff --check`).
+- 033-09 foi validada no Champion C001/SM-S901E: Room v19, `RECENT_TAIL`,
+  partial success preservado, superfícies de produto e sync explícito foram
+  exercitados; gaps não reproduzíveis foram aceitos por waiver.
+- 033-09 foi fechada por waiver explícito dos cenários físicos negativos e do
+  upgrade direto v17 → v19, que permanecem documentados como riscos residuais.
+- A fila Health Connect foi corrigida para respeitar `operationSequence` antes de
+  recência nas cadeias incrementais; validação técnica passou após a correção.

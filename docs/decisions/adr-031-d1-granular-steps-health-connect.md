@@ -112,6 +112,16 @@ Uma data nunca mistura as duas famílias.
 - distância/calorias diárias permanecem pendências separadas e não devem ser
   liberadas por analogia com passos.
 
+## Revalidação parcial — 2026-09-15
+
+O Champion C001 confirmou Room v19 com D1 completo em `184/184` posições,
+`FEA1 = 2488`, `ΣD1.steps = 2466` e estado de cauda recente. Não foi criada
+operação sintética para a diferença. A fila permaneceu granular, e
+`WorkoutSteps` não foi publicado como segunda fonte diária. `dayOffset > 0`,
+casos negativos de cobertura e upgrade direto v17 → v19 não foram exercitados
+nesta rodada; permanecem riscos explícitos. Ver
+`docs/integration/033-09-final-physical-validation.md`.
+
 ## Guard rails
 
 - Health Connect permanece write-only;

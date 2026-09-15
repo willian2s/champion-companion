@@ -2118,6 +2118,15 @@ private fun WorkoutActivity.referenceDetailMetricItems(): List<DetailMetricItem>
     measuredSteps?.let { steps ->
         add(DetailMetricItem("Etapas", numberLabel(steps)))
     }
+    (metrics.caloriesKilocalories as? DomainValue.Present)
+        ?.value
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { calories ->
+            add(DetailMetricItem(
+                "Calorias",
+                String.format(Locale.forLanguageTag("pt-BR"), "%.0f kcal", calories),
+            ))
+        }
     referenceAveragePaceSeconds()?.let { paceSeconds ->
         add(DetailMetricItem("Ritmo médio", paceSeconds.toReferencePaceLabel()))
     }
@@ -3317,7 +3326,7 @@ private fun CalibrationFormSection(
 
 private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
     activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
-        confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+        confirmedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL) &&
         workflowState in setOf(
             ActivityWorkflowState.PENDING_CALIBRATION,
             ActivityWorkflowState.READY_TO_SYNC,
@@ -3385,12 +3394,18 @@ private fun ReferenceDistanceCalibrationSection(
                 singleLine = true,
                 enabled = !formState.isSaving,
             )
-            MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível", exerciseSecondaryAccent())
-            MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel(), exerciseTertiaryAccent())
-            MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel(), exercisePrimaryAccent())
-            MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel(), exerciseSecondaryAccent())
+            if (activity.confirmedType != WorkoutType.TREADMILL) {
+                MetricCard("Passos usados", formState.eligibleSteps?.let(::numberLabel) ?: "Indisponível", exerciseSecondaryAccent())
+                MetricCard("Comprimento observado do passo", formState.observedStepLengthMeters.toStepLengthLabel(), exerciseTertiaryAccent())
+                MetricCard("Perfil atual", formState.currentProfileStepLengthMeters.toStepLengthLabel(), exercisePrimaryAccent())
+                MetricCard("Perfil após calibração", formState.futureProfileStepLengthMeters.toStepLengthLabel(), exerciseSecondaryAccent())
+            }
             Text(
-                "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada.",
+                if (activity.confirmedType == WorkoutType.TREADMILL) {
+                    "Aceite atualiza somente atividade e evidência de distância localmente. Nenhuma sincronização automática será iniciada."
+                } else {
+                    "Aceite atualiza atividade e perfil futuro localmente. Nenhuma sincronização automática será iniciada."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

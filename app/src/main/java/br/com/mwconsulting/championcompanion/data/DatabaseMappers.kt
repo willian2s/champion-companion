@@ -1220,6 +1220,8 @@ internal fun WorkoutDerivationSnapshotEntity.toDomain(
                 WorkoutType.UNKNOWN,
                 WorkoutType.RUNNING,
                 WorkoutType.WALKING,
+                WorkoutType.FREE_WORKOUT,
+                WorkoutType.TREADMILL,
             ) ||
             parserValidity != ParserValidity.VALID ||
             d4V4Header == null || d4V4Consistency == null

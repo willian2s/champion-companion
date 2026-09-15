@@ -26,6 +26,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
+import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditBlockReason
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCreditState
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsProjectionContext
 import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
@@ -924,7 +925,10 @@ class DefaultHealthConnectSyncCoordinator @Inject constructor(
         if (state == SyncOperationState.SYNCED) return true
         if (key.projectionChildKey != HealthProjectionChildKey.WorkoutSteps) return false
         return when (val result = healthSyncRepository.findWorkoutStepsCredit(id)) {
-            is RepositoryResult.Success -> result.value?.state == WorkoutStepsCreditState.BLOCKED
+            is RepositoryResult.Success -> result.value?.let { credit ->
+                credit.state == WorkoutStepsCreditState.BLOCKED &&
+                    credit.blockedReason == WorkoutStepsCreditBlockReason.ALREADY_COVERED
+            } == true
             else -> false
         }
     }
@@ -1015,7 +1019,8 @@ private fun orderOperationsForRemoteEffects(
                 it.key.recordType == HealthSyncRecordType.SPEED -> 2
             else -> 3
         }
-    }.thenBy { it.updatedAt ?: it.createdAt ?: Instant.EPOCH }
+    }.thenBy { it.dailyStepsPayload?.sequence ?: 0L }
+        .thenBy { it.updatedAt ?: it.createdAt ?: Instant.EPOCH }
         .thenBy { it.id.value.toString() },
 )
 

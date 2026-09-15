@@ -21,7 +21,7 @@ enquanto `STEPS` foi mantido.
 
 ## TREADMILL
 
-Atividade: `01a0a46a-68f8-70a9-8f86-54f38001137d`.
+Atividade TREADMILL validada em banco real, com identidade omitida por privacidade.
 
 Dados D4 originais:
 
@@ -137,3 +137,13 @@ guard técnico: D4 zero/ausente não suprime D1 válido. Sua reprodução físic
 é exigida, pois D1 e D4 vêm da mesma fonte e atividade, com agregações de
 aproximadamente cinco e um minutos; exigir D1 positivo com cobertura D4 e todos
 os intervalos D4 zero/ausentes é contraditório ou excepcional.
+
+## Nota de regressão de leitura visual — 2026-09-15
+
+Após a validação original, o read path passou a rejeitar snapshots nativos quando
+o tipo confirmado era `FREE_WORKOUT` ou `TREADMILL`. Isso fazia a UI mostrar
+distância `indisponível`, apesar dos fatos persistidos permanecerem íntegros.
+`DatabaseMappers` foi corrigido para aceitar ambos os tipos; `ExercisesScreen`
+voltou a exibir distância canônica, provenance, parciais e calorias. A calibração
+por referência de `TREADMILL` também foi reabilitada, sem reutilizar comprimento
+de passo.

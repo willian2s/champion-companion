@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Data:** 2026-09-11
-- **Última revisão:** 2026-09-13
+- **Última revisão:** 2026-09-15
 - **Relacionado:** ADR-010, ADR-012, ADR-029; Specs 016, 027, 032 e 033
 
 ## Contexto
@@ -167,6 +167,24 @@ Evidência: `docs/integration/033-06-health-connect-clean-install-validation.md`
 - UI e ViewModels carregam state machines legadas que precisarão ser retiradas
   sem apagar dados históricos;
 - partial success aumenta a necessidade de metadata por componente.
+
+## Evidência de validação parcial — 2026-09-15
+
+Validação final no Champion C001 real confirmou o fluxo local-first, partial
+success com preservação dos componentes persistidos, Room v19, cauda recente
+`FEA1 = 2488` versus `ΣD1 = 2466` com D1 estruturalmente completo e ausência de
+residual sintético. A evidência sanitizada está em
+`docs/integration/033-09-final-physical-validation.md`.
+
+Permanecem riscos de cobertura para `dayOffset > 0`, `FEA1 < ΣD1`, lacuna
+estrutural, frescor inexplicado, upgrade físico direto v17 → v19 e injeção
+controlada de partial success. Esses limites não alteram a decisão vigente nem
+autorizam backfill ou efeitos Health Connect automáticos.
+
+A revisão final também corrigiu a seleção/composição da fila para ordenar
+`operationSequence` antes de recência nas cadeias incrementais de passos. O
+comportamento foi reproduzido tecnicamente com a ordem invertida `2,1` e a ordem
+causal `1,2` após a correção.
 
 ## Alternativas rejeitadas
 

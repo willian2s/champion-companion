@@ -80,6 +80,14 @@ Configurações -> Gerenciar relógio
 - **Falhas silenciosas:** a Home exibe progresso durante o gesto e feedback
   terminal por snackbar usando a mensagem do fluxo global existente.
 
+## Evidência de fechamento — 2026-09-15
+
+No dispositivo real, Home exibiu coleta separada de `Sincronizar com Health
+Connect`; Configurações exibiu `Gerenciar relógio` e `Sincronizar agora`; Saúde
+não exibiu CTA de relógio/BLE. Dois refreshes confirmaram preservação local em
+partial success. O sync explícito foi acionado separadamente, sem leitura do
+provider. Ver `docs/integration/033-09-final-physical-validation.md`.
+
 ## Alternativas rejeitadas
 
 ### Manter sync Health Connect somente em Configurações

@@ -179,6 +179,18 @@ sem reabrir nem alterar os efeitos remotos definidos aqui.
 - caso tardio D1 já sincronizado -> D4 prefere bloquear nova projeção a duplicar,
   exigindo decisão futura se for necessário reconciliar o record remoto.
 
+## Evidência de fechamento — 2026-09-15
+
+O dump físico Room v19 manteve D1 nativo separado de D4, com operações granulares
+de `DISTANCE` e `ACTIVE_CALORIES_BURNED` sincronizadas e sem operação sintética
+para a cauda FEA1. A superfície Home exibiu distância medida pelo relógio; o
+provider não foi lido pelo aplicativo. O guard D4 zero/ausente continua técnico,
+sem cenário artificial. Ver `docs/integration/033-09-final-physical-validation.md`
+e `033-10-native-distance-policy-physical-validation.md`.
+
+A validação visual posterior confirmou que snapshots nativos `FREE_WORKOUT` e
+`TREADMILL` são reidratados e exibidos com distância, provenance e calorias.
+
 ## Guard rails
 
 - Health Connect continua write-only;

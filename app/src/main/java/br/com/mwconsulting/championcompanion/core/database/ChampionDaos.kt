@@ -1027,7 +1027,8 @@ interface HealthSyncOperationDao {
     /**
      * Exclui fila legada de treino do relógio antes de aplicar LIMIT. O gate
      * precisa permanecer nesta camada para não deixar operações bloqueadas
-     * ocultarem operações elegíveis posteriores; phone continua elegível.
+     * ocultarem operações elegíveis posteriores; phone continua elegível. A
+     * sequência causal de passos vem antes da recência, que é só desempate.
      */
     @Query(
              "SELECT operation.* FROM health_sync_operations operation " +
@@ -1038,8 +1039,10 @@ interface HealthSyncOperationDao {
                 "WHERE activity.id = operation.aggregateId " +
                 "AND activity.origin = 'WATCH_D3_D4'" +
                 "))) " +
-            "ORDER BY COALESCE(operation.updatedAtEpochMillis, operation.createdAtEpochMillis, operation.lastAttemptAtEpochMillis, 0), operation.id " +
-            "LIMIT :limit",
+             "ORDER BY operation.operationSequence, " +
+                 "COALESCE(operation.updatedAtEpochMillis, operation.createdAtEpochMillis, operation.lastAttemptAtEpochMillis, 0), " +
+                 "operation.id " +
+             "LIMIT :limit",
     )
     suspend fun findProcessable(limit: Int): List<HealthSyncOperationEntity>
 
