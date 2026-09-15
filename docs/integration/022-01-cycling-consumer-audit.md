@@ -117,9 +117,9 @@ treadmill e free workout não podem consumir valor digitado para bicicleta.
   de passos usando a série.
 - `data/RoomRepositories.kt:2334-2501`: materializa snapshot, série, intervalos
   e splits; em `2425-2431`, splits são materializados quando a série é elegível.
-- `data/RoomRepositories.kt:2504-2522`:
-  `promoteCanonicalTreadmillIfNeeded` promove somente treadmill watch elegível de
-  `PENDING_CALIBRATION` para `READY_TO_SYNC`.
+- A derivação não promove mais automaticamente treadmill watch elegível de
+  `PENDING_CALIBRATION` para `READY_TO_SYNC`; essa transição pertence ao fluxo
+  explícito de calibração por distância de referência.
 - `data/DatabaseMappers.kt:952-965` reconstrói distâncias/pace/velocidade
   importados, enquanto `975-985` preserva fatos raw e passos D4.
 

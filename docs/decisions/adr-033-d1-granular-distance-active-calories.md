@@ -190,6 +190,11 @@ e `033-10-native-distance-policy-physical-validation.md`.
 
 A validação visual posterior confirmou que snapshots nativos `FREE_WORKOUT` e
 `TREADMILL` são reidratados e exibidos com distância, provenance e calorias.
+O fluxo de revisão de `TREADMILL` aceita distância de referência e usa perfil
+contextual separado de `RUNNING`/`WALKING`, sem calibração por comprimento de
+passo.
+A transição contextual de `TREADMILL` ocorre uma única vez, após persistência da
+evidência e do snapshot calibrado; derivação não promove estado antecipadamente.
 
 ## Guard rails
 

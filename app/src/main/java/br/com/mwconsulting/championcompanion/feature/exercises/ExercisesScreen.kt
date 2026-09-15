@@ -3087,14 +3087,14 @@ private fun ReviewFormSection(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
-            if (activity.isWatchWorkout && formState.selectedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+            if (activity.isWatchWorkout && formState.selectedType in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) {
                 OutlinedTextField(
                     value = calibrationFormState.reportedDistanceInput,
                     onValueChange = onCalibrationDistanceChange,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Distância de referência") },
                     supportingText = {
-                        Text("Opcional agora; após salvar revisão, será usada para calibrar corrida/caminhada. Informe fonte externa; o app não coleta GPS.")
+                        Text("Opcional agora; após salvar revisão, será usada para calibrar corrida, caminhada ou esteira. Informe fonte externa; o app não coleta GPS.")
                     },
                     suffix = { Text("km") },
                     singleLine = true,
@@ -3334,6 +3334,11 @@ private fun WorkoutActivity.isReferenceDistanceCalibrationEligible(): Boolean =
         ) &&
         parserValidity == ParserValidity.VALID &&
         derivationSnapshot?.canonicalSeriesEligible == true &&
+        (confirmedType != WorkoutType.TREADMILL ||
+            derivationSnapshot?.derivationMethod in setOf(
+                WorkoutDerivationMethod.WATCH_NATIVE,
+                WorkoutDerivationMethod.WATCH_NATIVE_CONTEXT_CALIBRATED,
+            )) &&
         intervals.any { (it.decodedSteps ?: it.nativeSteps)?.let { steps -> steps > 0L } == true }
 
 private fun WorkoutActivity.hasReviewCalibrationForm(

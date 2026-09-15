@@ -147,3 +147,35 @@ distância `indisponível`, apesar dos fatos persistidos permanecerem íntegros.
 voltou a exibir distância canônica, provenance, parciais e calorias. A calibração
 por referência de `TREADMILL` também foi reabilitada, sem reutilizar comprimento
 de passo.
+
+### Correção do fluxo de revisão — 2026-09-15
+
+O fluxo de revisão ainda excluía `TREADMILL` em três pontos: elegibilidade de
+mutação no repositório, exibição do campo de distância de referência e limpeza
+do formulário ao trocar o tipo. A correção alinhou os três pontos ao contrato:
+
+- `TREADMILL` pode informar distância de referência durante a revisão;
+- calibração usa perfil próprio de `TREADMILL`, separado de `RUNNING` e
+  `WALKING`;
+- nenhum comprimento de passo é usado para esteira;
+- snapshots históricos permanecem imutáveis.
+
+### Validação pós-correção — 2026-09-15
+
+Calibração de uma nova atividade `TREADMILL` foi concluída com sucesso no
+dispositivo. As operações decorrentes também foram sincronizadas com sucesso,
+confirmando o fluxo completo revisão → distância de referência → calibração →
+sincronização explícita.
+
+### Correção de transição de estado — 2026-09-15
+
+Após reabilitar a opção no formulário, a aplicação da referência retornava
+`UnexpectedState`. A derivação promovia `TREADMILL` de `PENDING_CALIBRATION` para
+`READY_TO_SYNC` antes de retornar; o fluxo de aplicação tentava repetir o mesmo
+CAS usando o estado antigo e abortava a transação.
+
+A promoção automática foi removida. Agora `TREADMILL` permanece em
+`PENDING_CALIBRATION` até `applyReferenceDistanceCalibration` concluir a escrita
+da evidência e do snapshot contextual; somente então ocorre a transição única
+para `READY_TO_SYNC`. Atividades TREADMILL sem distância nativa elegível não
+entram no fluxo de calibração por comprimento de passo.

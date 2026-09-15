@@ -187,7 +187,11 @@ banco v19 com dados legacy); `FEA1 < ΣD1`, lacuna estrutural e frescor inexplic
 não foram reproduzidos; partial success artificial não foi injetado; D4
 zero/ausente permanece guard técnico. Reidratação visual nativa de
 `FREE_WORKOUT`/`TREADMILL` foi corrigida e validada após o primeiro build mostrar
-distância indisponível.
+distância indisponível. O fluxo de revisão também aceita distância de referência
+para `TREADMILL` e mantém perfil contextual separado. A transição de calibração
+foi corrigida para não promover estado antes da persistência da referência.
+Validação posterior confirmou calibração e sincronização de `TREADMILL` com
+sucesso no dispositivo.
 
 O Champion Companion é um aplicativo pessoal, sem objetivo de distribuição pública, beta formal, matriz multi-device ou gate de lançamento comercial. Validação física, testes e builds continuam sendo usados quando uma task específica exigir evidência.
 

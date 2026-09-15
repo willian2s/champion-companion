@@ -72,7 +72,9 @@ Evidência final: `docs/integration/033-09-final-physical-validation.md`.
 - `app/src/main/java/br/com/mwconsulting/championcompanion/data/GranularHealthSyncRepository.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/healthconnect/HealthConnectSyncCoordinator.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
 - `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`
 - `docs/specs/033-unified-watch-daily-sync.md`
 - `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`
 - `docs/decisions/adr-031-d1-granular-steps-health-connect.md`
@@ -106,6 +108,13 @@ Evidência final: `docs/integration/033-09-final-physical-validation.md`.
   dois tipos; a UI voltou a exibir distância, provenance, intervalos e calorias.
   `TREADMILL` também voltou a expor calibração por referência, sem cards de
   comprimento de passo.
+- Correção posterior alinhou o fluxo de revisão: `TREADMILL` permanece elegível
+  no repositório, exibe distância de referência no formulário e preserva o valor
+  ao trocar o tipo. O perfil de esteira continua separado.
+- Nova falha reproduzida na aplicação retornava `UnexpectedState`: a derivação
+  promovia `PENDING_CALIBRATION` antes do método de aplicação repetir a transição.
+  A promoção automática foi removida; a aplicação agora faz uma única transição
+  para `READY_TO_SYNC` após persistir evidência e snapshot calibrado.
 - D4 zero/ausente permanece guard técnico, sem cenário físico artificial.
 
 ## Comandos executados
@@ -123,6 +132,7 @@ adb shell input tap 956 230                    # Perfil -> Configurações
 adb shell input tap 540 1820                   # Sincronizar agora
 adb shell input tap 815 2200                   # Saúde
 adb shell input tap 800 530                    # Exercícios
+adb shell uiautomator dump /sdcard/window.xml
 ```
 
 Também foi extraído dump local sanitizado do Room v19 para agregação, sem
@@ -151,6 +161,16 @@ user_version`, contagens, somas, estados e continuidade de posições).
 - Após reinstalação, Exercícios exibiu `Esteira 0,25 km` e `Treino livre 0,14 km`;
   detalhe de Esteira exibiu distância `0,25 km`, fonte nativa calibrada, `274`
   etapas, `13 kcal`, parciais e FC média.
+- O fluxo corrigido de revisão mantém `TREADMILL` no conjunto de calibração:
+  o campo `Distância de referência` é exibido ao selecionar Esteira e o input não
+  é limpo durante a troca de tipo. A aplicação usa o perfil contextual próprio
+  de `TREADMILL`; não houve nova amostra `PENDING_REVIEW` disponível para toque
+   físico após esta correção.
+- Usuário confirmou calibração concluída com sucesso e operações sincronizadas
+  com sucesso no dispositivo, fechando o fluxo ponta a ponta pós-correção.
+- `lint`, `assembleDebug`, `assembleRelease` e instalação debug passaram após a
+  correção da transição. A validação física do caso novo não foi repetida porque
+  o banco do dispositivo não tinha nova atividade `PENDING_CALIBRATION` elegível.
 - A ordenação causal foi corrigida nos três pontos de seleção/composição da fila;
   `lint assembleDebug assembleRelease` e `installDebug` passaram após a mudança.
 - Evidências anteriores fecharam migration v18 → v19, dayOffset/hora observado,

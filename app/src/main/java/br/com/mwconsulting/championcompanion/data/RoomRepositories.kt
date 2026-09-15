@@ -1641,6 +1641,9 @@ class RoomRepositories @Inject constructor(
                 importRecord = importRecord,
                 rawIntervals = rawIntervals,
             )
+            if (type == WorkoutType.TREADMILL && nativeWatchDistance == null) {
+                return@writeTransaction RepositoryResult.UnexpectedState
+            }
             if (nativeWatchDistance != null) {
                 val existingEntity = database.distanceCalibrationEvidenceDao().findByActivityId(activity.id)
                 val existing = existingEntity?.toDomain()
@@ -4044,7 +4047,6 @@ class RoomRepositories @Inject constructor(
         )
         if (activeRecord != null && !replaceActive) {
             val persistedSnapshot = existingSnapshot ?: return RepositoryResult.UnexpectedState
-            promoteCanonicalTreadmillIfNeeded(activity, persistedSnapshot)
             return RepositoryResult.Success(persistedSnapshot)
         }
 
@@ -4104,7 +4106,6 @@ class RoomRepositories @Inject constructor(
             if (profile == null) {
                 // Perfil ausente nunca transforma distância diagnóstica em fallback.
                 if (existingSnapshot != null) {
-                    promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
                     return RepositoryResult.Success(existingSnapshot)
                 }
                 return RepositoryResult.Success(null)
@@ -4153,7 +4154,6 @@ class RoomRepositories @Inject constructor(
             !missingSplitProjection &&
             true
         ) {
-            promoteCanonicalTreadmillIfNeeded(activity, existingSnapshot)
             return RepositoryResult.Success(existingSnapshot)
         }
 
@@ -4214,28 +4214,7 @@ class RoomRepositories @Inject constructor(
         )
         // A transição ocorre somente após todos os writes do preflight. Se o CAS
         // de workflow falhar, a exceção atravessa a transação e desfaz o lote.
-        promoteCanonicalTreadmillIfNeeded(activity, validatedSnapshot)
         return RepositoryResult.Success(validatedSnapshot)
-    }
-
-    private suspend fun promoteCanonicalTreadmillIfNeeded(
-        activity: WorkoutActivityEntity,
-        snapshot: WorkoutDerivationSnapshot,
-    ) {
-        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
-            activity.confirmedType != WorkoutType.TREADMILL.name ||
-            activity.workflowState != ActivityWorkflowState.PENDING_CALIBRATION.name ||
-            !snapshot.isEligibleForCanonicalWorkflow
-        ) return
-
-        val transitioned = database.workoutActivityDao().transitionState(
-            id = activity.id,
-            expectedStates = listOf(ActivityWorkflowState.PENDING_CALIBRATION.name),
-            nextState = ActivityWorkflowState.READY_TO_SYNC.name,
-        )
-        if (transitioned != 1) {
-            throw WatchWorkoutDerivationPreflightException()
-        }
     }
 
     private suspend fun findActiveDerivation(
@@ -4343,7 +4322,7 @@ class RoomRepositories @Inject constructor(
     private suspend fun canMutateReferenceDistanceCalibration(activity: WorkoutActivityEntity): Boolean {
         val type = activity.confirmedType?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
         return activity.origin == WorkoutActivityOrigin.WATCH_D3_D4.name &&
-            type in setOf(WorkoutType.RUNNING, WorkoutType.WALKING) &&
+            type in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL) &&
             activity.workflowState in setOf(
                 ActivityWorkflowState.PENDING_CALIBRATION.name,
                 ActivityWorkflowState.READY_TO_SYNC.name,

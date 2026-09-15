@@ -53,6 +53,13 @@ exigência de reprodução física artificial.
 Regressão visual corrigida: mapper agora reidrata snapshots nativos de
 `FREE_WORKOUT`/`TREADMILL`; Exercícios voltou a mostrar distância, provenance,
 intervalos e calorias, e `TREADMILL` voltou a aceitar referência externa.
+Correção adicional alinhou revisão e calibração: `TREADMILL` agora exibe e
+preserva distância de referência, usando perfil separado de corrida/caminhada.
+Correção de estado também concluída: derivação não promove mais `TREADMILL`
+antes da aplicação da referência; transição para `READY_TO_SYNC` ocorre uma vez,
+após persistência do snapshot calibrado.
+Validação pós-correção confirmada no dispositivo: calibração e operações de
+`TREADMILL` sincronizadas com sucesso.
 
 ## Checklist
 

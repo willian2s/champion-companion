@@ -2186,7 +2186,7 @@ class ExercisesViewModel internal constructor(
     }
 
     private fun updateReviewType(type: WorkoutType) {
-        if (type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING)) {
+        if (type !in setOf(WorkoutType.RUNNING, WorkoutType.WALKING, WorkoutType.TREADMILL)) {
             calibrationFormState.value = calibrationFormState.value.copy(
                 reportedDistanceInput = "",
                 previewDistanceMeters = null,

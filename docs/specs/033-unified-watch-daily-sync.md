@@ -1,7 +1,7 @@
 # 033 — Sincronização unificada do relógio e dados diários granulares
 
 - **Ticker:** `033`
-- **Status:** `in_progress`
+- **Status:** `completed`
 - **Tipo:** correção arquitetural de sincronização, protocolo D1, dados diários e projeção Health Connect
 - **Branch:** `feat/033-unified-watch-daily-sync`
 - **ADRs:** [ADR-030](../decisions/adr-030-unified-watch-sync-and-granular-daily-data.md), [ADR-031](../decisions/adr-031-d1-granular-steps-health-connect.md), [ADR-032](../decisions/adr-032-sync-entrypoints-and-watch-management.md), [ADR-033](../decisions/adr-033-d1-granular-distance-active-calories.md)
@@ -462,3 +462,8 @@ confirmaram restauração de distância, provenance, intervalos e calorias.
 Os cenários físicos negativos não disponíveis, partial success artificial e
 upgrade direto v17 → v19 foram aceitos por waiver explícito e permanecem como
 riscos residuais documentados na subtarefa 033-09.
+Correção posterior alinhou a revisão de `TREADMILL` à calibração por referência:
+o campo é exibido durante a troca de tipo, o repositório permanece elegível e o
+perfil contextual de esteira continua separado de `RUNNING`/`WALKING`.
+A aplicação também removeu promoção antecipada de estado: `TREADMILL` só passa
+de `PENDING_CALIBRATION` para `READY_TO_SYNC` após persistir evidência e snapshot.
