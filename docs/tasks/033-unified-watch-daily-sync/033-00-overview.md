@@ -3,7 +3,7 @@
 - **Spec:** `docs/specs/033-unified-watch-daily-sync.md`
 - **ADRs:** `docs/decisions/adr-030-unified-watch-sync-and-granular-daily-data.md`, `docs/decisions/adr-031-d1-granular-steps-health-connect.md`, `docs/decisions/adr-032-sync-entrypoints-and-watch-management.md`, `docs/decisions/adr-033-d1-granular-distance-active-calories.md`
 - **Status:** `in_progress`
-- **Progresso:** `6/10`
+- **Progresso:** `7/10`
 - **Branch de integração:** `feat/033-unified-watch-daily-sync`
 
 ## Objetivo
@@ -46,8 +46,8 @@ follow-up promovido por evidência física:
 workout simultâneo e zero pendências acionáveis após sync. A `033-07` segue em
 execução. A `033-10` possui implementação, validação técnica e validação física
 da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1 positivo sem overlap D4
-concluídas; permanece `in_progress` somente pelo caso D4 zero/ausente ainda não
-observado.
+concluídas; o caso D4 zero/ausente permanece somente como contrato técnico, sem
+exigência de reprodução física artificial.
 
 ## Checklist
 
@@ -60,7 +60,7 @@ observado.
 - [ ] `033-07-remover-entrypoints-ble-e-calibracao-passo-da-ui.md` — em andamento
 - [ ] `033-08-integrar-read-models-legacy-e-compatibilidade.md`
 - [ ] `033-09-validar-fisicamente-e-fechar.md`
-- [ ] `033-10-publicar-distancia-calorias-d1-granulares.md` — política física concluída; aceite D1 residual pendente
+- [x] `033-10-publicar-distancia-calorias-d1-granulares.md` — concluída; D4 zero/ausente reclassificado como guard técnico
 
 ## Decisões congeladas
 
@@ -290,4 +290,6 @@ Os dumps físicos 06..10 confirmaram também `TREADMILL` `01a0a46a-68f8-70a9-8f8
 ## Observações
 
 - Política física `FREE_WORKOUT`/`TREADMILL`: concluída.
-- Aceite global 033-10 ainda aguarda caso D4 zero/ausente que mantenha D1 elegível.
+- Aceite global 033-10: concluído.
+- D4 zero/ausente não suprime D1 válido permanece guard técnico; cenário físico
+  artificial não bloqueia aceite.

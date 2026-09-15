@@ -131,7 +131,9 @@ prorrateamento de bucket e sem residual `FEA1 - ΣD1`.
 
 ## Limites da evidência
 
-Validação física da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1
-positivo sem overlap D4 concluída. Ainda não há, nesta evidência, caso D4
-zero/ausente cuja mesma métrica permaneça elegível para D1. Esse critério
-permanece pendente na aceitação global da 033-10.
+Validação física da nova política `FREE_WORKOUT`/`TREADMILL` e dos dois cenários
+normais de D1/D4 concluída. O caso D4 zero/ausente permanece obrigatório como
+guard técnico: D4 zero/ausente não suprime D1 válido. Sua reprodução física não
+é exigida, pois D1 e D4 vêm da mesma fonte e atividade, com agregações de
+aproximadamente cinco e um minutos; exigir D1 positivo com cobertura D4 e todos
+os intervalos D4 zero/ausentes é contraditório ou excepcional.

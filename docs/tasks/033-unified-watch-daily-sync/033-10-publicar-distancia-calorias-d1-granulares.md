@@ -124,13 +124,14 @@ em D4 v4 inelegível de `FREE_WORKOUT`/`TREADMILL`, em 2026-09-14:
 - `git diff --check`: sem saída/erros;
 - warnings Kotlin de overrides deprecated permaneceram não bloqueantes.
 
-Validação física da nova política `FREE_WORKOUT`/`TREADMILL` e do caso D1
-positivo sem overlap D4 foi concluída em 2026-09-14. Aceite global D1 permanece
-parcialmente pendente somente por falta de caso D4 zero/ausente.
+Validação física da nova política `FREE_WORKOUT`/`TREADMILL` e dos dois cenários
+normais de D1/D4 foi concluída em 2026-09-14. Aceite global concluído; o caso
+D4 zero/ausente foi reclassificado como contrato técnico, sem exigência de
+reprodução física artificial.
 
 ## Registro da evolução de política — 2026-09-14
 
-- **Status:** `in_progress`; política física concluída, aceite global D1 parcial.
+- **Status:** `completed`; política física e aceite global concluídos.
 - **Arquivos alterados:** `WatchWorkoutDerivedMetrics.kt`, `WatchWorkoutActivity.kt`,
   `DistanceCalibrationEvidence.kt`, `DatabaseMappers.kt`, `RoomRepositories.kt`,
   `ExercisesScreen.kt`, `ExercisesViewModel.kt`, ADR-029, Spec 032, este arquivo e
@@ -161,8 +162,10 @@ parcialmente pendente somente por falta de caso D4 zero/ausente.
   em `RoomRepositories.kt:1458` ao bloquear o caminho legacy de calibração; o
   import record passou a ser validado antes da chamada nativa e a execução final
   passou integralmente.
-- **Riscos residuais:** falta caso D4 zero/ausente elegível para D1 e evidência
-  adicional desse cenário. Fluxos FREE_WORKOUT/TREADMILL,
+- **Riscos residuais:** nenhum bloqueador de aceite. O guard técnico que mantém
+  D1 elegível quando D4 da mesma métrica é zero/ausente permanece protegido no
+  código; parser/firmware pode produzir esse cenário excepcional, mas sua
+  reprodução física não é requisito. Fluxos FREE_WORKOUT/TREADMILL,
   idempotência e overlap por métrica estão cobertos em
   `docs/integration/033-10-native-distance-policy-physical-validation.md`.
 
@@ -183,8 +186,23 @@ com distância canônica positiva e sem encaminhamento para `PENDING_CALIBRATION
 Essa evidência fecha o cenário FREE_WORKOUT. O dump TREADMILL, os detalhes de
 calibração, publicação, overlap e idempotência estão registrados em
 `docs/integration/033-10-native-distance-policy-physical-validation.md`.
-Aceite global da 033-10 mantém pendente somente caso D4 zero/ausente elegível
-para D1.
+Aceite global da 033-10 está concluído; D4 zero/ausente permanece como guard
+técnico, e a reprodução física desse caso contraditório ou excepcional não é
+exigida para aceite.
+
+### Reclassificação do critério D4 zero/ausente — 2026-09-14
+
+D1 e D4 vêm da mesma atividade e fonte do relógio. D1 agrega aproximadamente
+cinco minutos, enquanto D4 fornece intervalos de aproximadamente um minuto.
+Exigir simultaneamente D1 positivo, cobertura D4 do mesmo bucket e todos os
+intervalos D4 da mesma métrica zero/ausentes é cenário contraditório ou
+excepcional, dependente de inconsistência de parser, firmware ou fonte.
+
+O comportamento continua obrigatório como contrato técnico: D4 zero/ausente
+não suprime D1 válido. O aceite físico fica baseado nos dois cenários normais já
+observados: D1 positivo sem D4 positivo sobreposto é publicado; D1 positivo
+com qualquer D4 positivo sobreposto é suprimido por métrica, inclusive overlap
+parcial.
 
 ## Validação física — próximo treino
 
@@ -252,7 +270,8 @@ A task pode mudar para `completed` quando:
 - [x] dump pré-sync confirmar preparação e supressão por métrica;
 - [x] dump pós-sync confirmar `DISTANCE` e `ACTIVE_CALORIES_BURNED` D1 sincronizados;
 - [x] não houver duplicação D1/D4 observável na ordem normal;
-- [ ] D4 zero não suprimir D1 válido;
+- [x] D4 zero não suprimir D1 válido — contrato técnico protegido; reprodução
+  física artificial não exigida;
 - [x] STEPS/WorkoutSteps permanecerem sem regressão;
 - [x] segunda sincronização for idempotente;
 - [x] evidência sanitizada for registrada em `docs/integration/`.
