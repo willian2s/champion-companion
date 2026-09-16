@@ -13,6 +13,7 @@ import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportError
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportMetadata
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportProgress
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutImportResult
+import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysisResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import java.time.Instant
@@ -111,6 +112,7 @@ sealed interface ExerciseDetailState {
     data class Ready(
         val activityId: WorkoutActivityId,
         val latestCalibration: TreadmillCalibrationSnapshot? = null,
+        val heartRateAnalysis: WorkoutHeartRateAnalysisResult,
     ) : ExerciseDetailState
     data object NotFound : ExerciseDetailState
     data class Failed(val error: ExerciseOperationError) : ExerciseDetailState

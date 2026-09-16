@@ -47,6 +47,10 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityRepository
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCountdownPolicy
+import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysisPolicy
+import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysisResult
+import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysisUnavailableReason
+import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessFailureReason
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutReprocessResult
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutPlausibilityAcceptanceFailureReason
@@ -91,6 +95,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -319,20 +324,45 @@ class ExercisesViewModel internal constructor(
         }
         scope.launch {
             selectedActivityId.flatMapLatest { activityId ->
-                if (activityId == null) flowOf(null) else workoutActivityRepository.observeActivity(activityId)
-            }.distinctUntilChanged().collect { activity ->
+                if (activityId == null) {
+                    flowOf<Pair<WorkoutActivityId?, WorkoutActivity?>>(null to null)
+                } else {
+                    workoutActivityRepository.observeActivity(activityId).map { activity ->
+                        activityId to activity
+                    }
+                }
+            }.distinctUntilChanged().collect { (observedActivityId, activity) ->
+                if (observedActivityId != selectedActivityId.value) return@collect
                 deletionEligibilityJob?.cancel()
                 activityDeletionAllowed.value = false
                 deletionAllowedActivityId.value = null
-                selectedActivity.value = activity
-                detailState.value = when {
-                    selectedActivityId.value == null -> ExerciseDetailState.Loading
-                    activity == null -> ExerciseDetailState.NotFound
-                    else -> ExerciseDetailState.Ready(activity.id, latestCalibration.value)
+                val requestedActivityId = observedActivityId
+                when {
+                    requestedActivityId == null -> {
+                        selectedActivity.value = null
+                        detailState.value = ExerciseDetailState.Loading
+                    }
+                    activity == null -> {
+                        selectedActivity.value = null
+                        detailState.value = ExerciseDetailState.NotFound
+                    }
+                    activity.id != requestedActivityId -> {
+                        selectedActivity.value = null
+                        detailState.value = ExerciseDetailState.Loading
+                    }
+                    else -> {
+                        selectedActivity.value = activity
+                        detailState.value = ExerciseDetailState.Ready(
+                            activityId = activity.id,
+                            latestCalibration = latestCalibration.value,
+                            heartRateAnalysis = composeHeartRateAnalysis(activity, personalMetricsSnapshot.value),
+                        )
+                    }
                 }
-                syncFormsWithSelectedActivity(activity)
-                if (activity != null) {
-                    val activityId = activity.id
+                val currentActivity = activity?.takeIf { it.id == requestedActivityId }
+                syncFormsWithSelectedActivity(currentActivity)
+                if (currentActivity != null) {
+                    val activityId = currentActivity.id
                     deletionEligibilityJob = scope.launch {
                         val result = workoutActivityRepository.isActivityDeletionAllowed(activityId)
                         if (selectedActivity.value?.id == activityId) {
@@ -348,6 +378,7 @@ class ExercisesViewModel internal constructor(
             personalMetricsRepository.observeSnapshot().collect {
                 personalMetricsSnapshot.value = it
                 refreshCalibrationPreview()
+                refreshSelectedHeartRateAnalysis()
             }
         }
         scope.launch {
@@ -379,12 +410,27 @@ class ExercisesViewModel internal constructor(
         }
         scope.launch {
             selectedActivityId.flatMapLatest { activityId ->
-                if (activityId == null) flowOf(null) else treadmillCalibrationRepository.observeLatestCalibration(activityId)
-            }.collect { calibration ->
+                if (activityId == null) {
+                    flowOf<Pair<WorkoutActivityId?, TreadmillCalibrationSnapshot?>>(null to null)
+                } else {
+                    treadmillCalibrationRepository.observeLatestCalibration(activityId).map { calibration ->
+                        activityId to calibration
+                    }
+                }
+            }.collect { (observedActivityId, calibration) ->
+                if (observedActivityId != selectedActivityId.value) return@collect
                 latestCalibration.value = calibration
-                val activityId = selectedActivityId.value
-                if (activityId != null && selectedActivity.value != null) {
-                    detailState.value = ExerciseDetailState.Ready(activityId, calibration)
+                val activityId = observedActivityId
+                val activity = selectedActivity.value
+                if (activityId != null && activity != null && activity.id == activityId) {
+                    detailState.value = ExerciseDetailState.Ready(
+                        activityId = activityId,
+                        latestCalibration = calibration,
+                        heartRateAnalysis = composeHeartRateAnalysis(
+                            activity = activity,
+                            snapshot = personalMetricsSnapshot.value,
+                        ),
+                    )
                 }
             }
         }
@@ -538,6 +584,9 @@ class ExercisesViewModel internal constructor(
             is ExercisesIntent.SelectFilter -> selectedFilter.value = intent.filter
             is ExercisesIntent.OpenActivity -> {
                 isDeletingSelectedActivity.value = false
+                selectedActivity.value = null
+                latestCalibration.value = null
+                detailState.value = ExerciseDetailState.Loading
                 selectedActivityId.value = intent.activityId
             }
             ExercisesIntent.CloseActivity -> closeSelectedActivity()
@@ -2337,6 +2386,45 @@ class ExercisesViewModel internal constructor(
             baseProfile = personalMetricsSnapshot.value.stepLengthProfile,
             learnedProfiles = learnedProfiles.value,
         )?.stepLengthMeters
+    }
+
+    private fun composeHeartRateAnalysis(
+        activity: WorkoutActivity,
+        snapshot: PersonalMetricsSnapshot,
+    ): WorkoutHeartRateAnalysisResult {
+        if (activity.activityOrigin != WorkoutActivityOrigin.WATCH_D3_D4) {
+            return WorkoutHeartRateAnalysisResult.Unavailable(
+                WorkoutHeartRateAnalysisUnavailableReason.OUT_OF_SCOPE,
+            )
+        }
+
+        val sessionWindow = runCatching {
+            WorkoutIntervalWindow.create(
+                start = activity.metrics.startedAt,
+                end = activity.metrics.startedAt.plus(activity.metrics.duration),
+            ).valueOrNull()
+        }.getOrNull() ?: return WorkoutHeartRateAnalysisResult.Unavailable(
+            WorkoutHeartRateAnalysisUnavailableReason.INVALID_SAMPLES,
+        )
+
+        return WorkoutHeartRateAnalysisPolicy.analyze(
+            sessionWindow = sessionWindow,
+            heartRateSamples = activity.heartRateSamples,
+            configuredMaximumBpm = snapshot.maxHeartRateBpm,
+        )
+    }
+
+    private fun refreshSelectedHeartRateAnalysis() {
+        val activity = selectedActivity.value ?: return
+        val activityId = selectedActivityId.value ?: return
+        val currentDetailState = detailState.value as? ExerciseDetailState.Ready ?: return
+        if (activity.id != activityId || currentDetailState.activityId != activityId) return
+        detailState.value = currentDetailState.copy(
+            heartRateAnalysis = composeHeartRateAnalysis(
+                activity = activity,
+                snapshot = personalMetricsSnapshot.value,
+            ),
+        )
     }
 
     private fun refreshCalibrationPreview() {

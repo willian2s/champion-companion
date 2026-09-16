@@ -2,7 +2,7 @@
 
 - **Ticker:** `034`
 - **Número:** `04`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -97,13 +97,34 @@ colocar cálculo de domínio dentro de `ExercisesScreen`.
 
 ## Registro da execução
 
-- **Status:** `pending` — dependente de domínio e persistência implementados.
-- **Arquivos alterados:** nenhum arquivo de produto nesta fase de planejamento.
-- **Decisões e desvios:** read model será efêmero e reativo; não será adicionado
-  como fato em `WorkoutActivity` nem persistido.
-- **Comandos executados:** inspeção de flows de `ExercisesViewModel`, contrato
-  de detalhe, repository e `ExercisesScreen`.
-- **Resultados e evidências:** ViewModel já observa atividade selecionada e
-  `PersonalMetricsSnapshot`; ponto de inserção de estado foi identificado.
-- **Riscos residuais:** composição concorrente pode exibir estado anterior ao
-  trocar atividade; invalidar análise por `activityId` durante integração.
+- **Status:** `completed` — read model efêmero integrado após `034-02` e `034-03`.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutHeartRateAnalysis.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt`.
+- **Decisões e desvios:** `ExerciseDetailState.Ready` agora expõe
+  `WorkoutHeartRateAnalysisResult`. O ViewModel compõe a análise somente para
+  atividades `WATCH_D3_D4`, usando janela `startedAt + duration`, samples da
+  atividade e `maxHeartRateBpm` do snapshot atual. Atividades fora do escopo
+  retornam `UNAVAILABLE/OUT_OF_SCOPE`; nenhuma análise foi persistida e nenhum
+  workflow, snapshot, derivação ou operação Health Connect foi acionado. A troca
+  de atividade invalida imediatamente seleção, calibração e detalhe; guardas por
+  `activityId` impedem estado antigo. Nenhum desvio de requisito.
+- **Comandos executados:** inspeção de spec, ADR-034, baseline, overview,
+  subtarefas, contratos, repository, ViewModel e detalhe; `./gradlew
+  app:compileDebugKotlin` (primeira execução identificou nullable incorreto,
+  corrigido); `./gradlew app:compileDebugKotlin`; `./gradlew lint assembleDebug
+  assembleRelease`; `git diff --check`. Nenhum teste automatizado foi criado ou
+  executado.
+- **Resultados e evidências:** compilação Kotlin, lint e builds debug/release
+  passaram. Mudança de snapshot recompõe somente `heartRateAnalysis`; estados
+  `AVAILABLE`, `CONFIGURATION_REQUIRED`, `NO_HEART_RATE_SAMPLES` e
+  `UNAVAILABLE` permanecem tipados pela policy. Cobertura parcial continua
+  disponível, ausência de samples não vira zero e o diff não toca parser, BLE,
+  workflow, snapshots de derivação ou Health Connect. Revisão independente final
+  não encontrou bloqueadores, altos, médios ou baixos.
+- **Riscos residuais:** validação física, cálculo independente e confirmação de
+  ausência de alterações em `health_sync_operations` permanecem em `034-06`.
+  Renderização visual e acessibilidade permanecem em `034-05`. O repository
+  observa a atividade composta; eventual atualização isolada da tabela de
+  samples continua fora desta subtarefa e segue risco já documentado.

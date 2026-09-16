@@ -43,6 +43,7 @@ enum class WorkoutHeartRateAnalysisStatus {
 enum class WorkoutHeartRateAnalysisUnavailableReason {
     INVALID_CONFIGURATION,
     INVALID_SAMPLES,
+    OUT_OF_SCOPE,
 }
 
 sealed interface WorkoutHeartRateAnalysisResult {
