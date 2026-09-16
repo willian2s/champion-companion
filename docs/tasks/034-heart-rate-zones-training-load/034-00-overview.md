@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [034-heart-rate-zones-training-load.md](../../specs/034-heart-rate-zones-training-load.md)
-- **Progresso:** 4/6 subtarefas concluídas
+- **Progresso:** 5/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ Health Connect.
 - [x] [034-02-implementar-dominio-zonas-e-carga.md](034-02-implementar-dominio-zonas-e-carga.md)
 - [x] [034-03-persistir-fc-maxima-pessoal.md](034-03-persistir-fc-maxima-pessoal.md)
 - [x] [034-04-integrar-read-model-no-detalhe.md](034-04-integrar-read-model-no-detalhe.md)
-- [ ] [034-05-renderizar-zonas-e-carga.md](034-05-renderizar-zonas-e-carga.md)
+- [x] [034-05-renderizar-zonas-e-carga.md](034-05-renderizar-zonas-e-carga.md)
 - [ ] [034-06-validar-fisicamente-e-fechar.md](034-06-validar-fisicamente-e-fechar.md)
 
 ## Observações
@@ -47,3 +47,8 @@ Health Connect.
   restrito a workouts do relógio e sem efeitos em workflow, snapshots ou Health
   Connect. Compilação, lint e builds debug/release passaram; renderização visual
   permanece em `034-05` e validação física em `034-06`.
+- `034-05` concluída em 2026-09-16: seção visual de zonas, carga cardiovascular,
+  cobertura e estados seguros integrada entre Frequência cardíaca e Cadência,
+  com ordem explícita Z5..Z1 + Abaixo de Z1 e semantics acessíveis. Compilação,
+  lint, builds debug/release e revisão independente passaram; validação física,
+  screenshot e fechamento permanecem em `034-06`.

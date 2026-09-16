@@ -2,7 +2,7 @@
 
 - **Ticker:** `034`
 - **Número:** `05`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -100,13 +100,27 @@ cobertura e mensagens corretas para ausência ou configuração necessária.
 
 ## Registro da execução
 
-- **Status:** `pending` — dependente do read model integrado.
-- **Arquivos alterados:** nenhum arquivo de produto nesta fase de planejamento.
-- **Decisões e desvios:** nome visual fixado como “Carga cardiovascular”; abaixo
-  de Z1 permanece visível como bucket de cobertura, sem peso.
-- **Comandos executados:** inspeção da ordem atual de FC/Cadência, componentes
-  de detalhe, gráfico e convenções de acessibilidade.
-- **Resultados e evidências:** ponto de inserção entre FC e Cadência confirmado;
-  gráfico atual e Canvas próprio devem ser preservados.
-- **Riscos residuais:** Canvas atual tem semântica agregada; validar descrição
-  acessível da nova seção sem ampliar escopo do gráfico.
+- **Status:** `completed` — seção visual integrada após `034-04`.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`.
+- **Decisões e desvios:** `WorkoutActivityDetailContent` recebe o read model
+  pronto e renderiza a seção somente para atividades `WATCH_D3_D4`. Buckets são
+  ordenados explicitamente de Z5 a Z1, com “Abaixo de Z1” incluído. Duração e
+  percentuais usam valores do domínio; carga recebe arredondamento apenas visual
+  em pontos. Cobertura parcial mantém destaque textual/cromático. Sem
+  configuração, samples ou análise válida, a UI informa estado seguro sem zero;
+  nenhuma ação nova de navegação foi criada, e a instrução aponta para Perfil.
+- **Comandos executados:** leitura de baseline, Spec 034, ADR-018, ADR-034,
+  overview, subtarefas e `AGENTS.md`; inspeção de contratos, detalhe, gráfico,
+  Cadência e semantics; `./gradlew app:compileDebugKotlin`; `./gradlew lint
+  assembleDebug assembleRelease`; `git diff --check`.
+- **Resultados e evidências:** compilação Kotlin, lint e builds debug/release
+  passaram. A seção foi inserida entre gráfico/área de FC e Cadência, preservando
+  o Canvas e métricas existentes. Rows e seção têm descrições agregadas
+  acessíveis para zonas, duração, percentual, carga e cobertura. Aviso de sample
+  acima da máxima preserva BPM observado e identifica Z5. Revisão independente
+  aprovou a diff sem blocker/high.
+- **Riscos residuais:** validação física, screenshot sanitizada, cálculo
+  independente, migration/persistência e confirmação de ausência de operações
+  Health Connect permanecem em `034-06`. Coberturas parciais próximas de 100%
+  usam uma casa decimal para não ocultar parcialidade.
