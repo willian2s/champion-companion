@@ -76,6 +76,8 @@ fun ProfileScreen(
                     state = state,
                     onHeightChange = { viewModel.onIntent(ProfileIntent.HeightChanged(it)) },
                     onSaveHeight = { viewModel.onIntent(ProfileIntent.SaveHeight) },
+                    onMaxHeartRateChange = { viewModel.onIntent(ProfileIntent.MaxHeartRateChanged(it)) },
+                    onSaveMaxHeartRate = { viewModel.onIntent(ProfileIntent.SaveMaxHeartRate) },
                     onDailyStepsGoalChange = { viewModel.onIntent(ProfileIntent.DailyStepsGoalChanged(it)) },
                     onSaveDailyStepsGoal = { viewModel.onIntent(ProfileIntent.SaveDailyStepsGoal) },
                 )
@@ -128,10 +130,13 @@ private fun PersonalMetricsEditorCard(
     state: ProfileUiState,
     onHeightChange: (String) -> Unit,
     onSaveHeight: () -> Unit,
+    onMaxHeartRateChange: (String) -> Unit,
+    onSaveMaxHeartRate: () -> Unit,
     onDailyStepsGoalChange: (String) -> Unit,
     onSaveDailyStepsGoal: () -> Unit,
 ) {
     val heightIsInvalid = state.message == ProfileMessage.INVALID_HEIGHT
+    val maxHeartRateIsInvalid = state.message == ProfileMessage.INVALID_MAX_HEART_RATE
     val goalIsInvalid = state.message == ProfileMessage.INVALID_DAILY_STEPS_GOAL
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -168,6 +173,27 @@ private fun PersonalMetricsEditorCard(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.profile_save_height))
+            }
+            OutlinedTextField(
+                value = state.maxHeartRateBpmInput,
+                onValueChange = onMaxHeartRateChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.profile_max_heart_rate_label)) },
+                supportingText = {
+                    Text(stringResource(R.string.profile_max_heart_rate_supporting_text))
+                },
+                suffix = { Text(stringResource(R.string.profile_max_heart_rate_unit)) },
+                singleLine = true,
+                isError = maxHeartRateIsInvalid,
+                enabled = !state.isLoading && !state.isSaving,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            Button(
+                onClick = onSaveMaxHeartRate,
+                enabled = !state.isLoading && !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.profile_save_max_heart_rate))
             }
             OutlinedTextField(
                 value = state.dailyStepsGoalInput,
@@ -230,22 +256,28 @@ private fun ProfileMessageCard(
 
 private fun ProfileMessage.toMessageResource(): Int = when (this) {
     ProfileMessage.HEIGHT_SAVED -> R.string.profile_message_height_saved
+    ProfileMessage.MAX_HEART_RATE_SAVED -> R.string.profile_message_max_heart_rate_saved
     ProfileMessage.DAILY_STEPS_GOAL_SAVED -> R.string.profile_message_daily_steps_goal_saved
     ProfileMessage.HEIGHT_SAVE_FAILED -> R.string.profile_message_height_save_failed
+    ProfileMessage.MAX_HEART_RATE_SAVE_FAILED -> R.string.profile_message_max_heart_rate_save_failed
     ProfileMessage.DAILY_STEPS_GOAL_SAVE_FAILED -> R.string.profile_message_daily_steps_goal_save_failed
     ProfileMessage.INVALID_HEIGHT -> R.string.profile_message_invalid_height
+    ProfileMessage.INVALID_MAX_HEART_RATE -> R.string.profile_message_invalid_max_heart_rate
     ProfileMessage.INVALID_DAILY_STEPS_GOAL -> R.string.profile_message_invalid_daily_steps_goal
     ProfileMessage.PROFILE_UNAVAILABLE -> R.string.profile_message_profile_unavailable
 }
 
 private fun ProfileMessage.isError(): Boolean = when (this) {
     ProfileMessage.HEIGHT_SAVED,
+    ProfileMessage.MAX_HEART_RATE_SAVED,
     ProfileMessage.DAILY_STEPS_GOAL_SAVED,
     -> false
 
     ProfileMessage.HEIGHT_SAVE_FAILED,
+    ProfileMessage.MAX_HEART_RATE_SAVE_FAILED,
     ProfileMessage.DAILY_STEPS_GOAL_SAVE_FAILED,
     ProfileMessage.INVALID_HEIGHT,
+    ProfileMessage.INVALID_MAX_HEART_RATE,
     ProfileMessage.INVALID_DAILY_STEPS_GOAL,
     ProfileMessage.PROFILE_UNAVAILABLE,
     -> true

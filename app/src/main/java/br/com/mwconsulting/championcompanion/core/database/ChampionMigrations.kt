@@ -793,6 +793,13 @@ val MIGRATION_18_19: Migration = object : Migration(18, 19) {
     }
 }
 
+/** Migration aditiva: adiciona FC máxima pessoal sem backfill ou efeitos remotos. */
+val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execute("ALTER TABLE user_profiles ADD COLUMN maxHeartRateBpm INTEGER")
+    }
+}
+
 private fun rebuildWatchWorkoutImports(connection: SQLiteConnection) {
     connection.execute("ALTER TABLE watch_workout_imports RENAME TO watch_workout_imports_v5")
     connection.execute(

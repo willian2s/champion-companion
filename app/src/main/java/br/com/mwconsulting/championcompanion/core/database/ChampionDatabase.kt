@@ -86,6 +86,7 @@ data class UserProfileEntity(
     val stepLengthSource: String? = null,
     val stepLengthUpdatedAtEpochMillis: Long? = null,
     val updatedAtEpochMillis: Long,
+    val maxHeartRateBpm: Int? = null,
 )
 
 @Entity(
@@ -951,7 +952,7 @@ class ChampionDatabaseConverters {
         DiagnosticPayloadEntity::class,
         DiagnosticDerivedOutputEntity::class,
     ],
-    version = 19,
+    version = 20,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),

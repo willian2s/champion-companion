@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [034-heart-rate-zones-training-load.md](../../specs/034-heart-rate-zones-training-load.md)
-- **Progresso:** 2/6 subtarefas concluídas
+- **Progresso:** 3/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,14 +15,14 @@ Health Connect.
 
 - [x] [034-01-auditar-timeline-fc-e-congelar-contrato.md](034-01-auditar-timeline-fc-e-congelar-contrato.md)
 - [x] [034-02-implementar-dominio-zonas-e-carga.md](034-02-implementar-dominio-zonas-e-carga.md)
-- [ ] [034-03-persistir-fc-maxima-pessoal.md](034-03-persistir-fc-maxima-pessoal.md)
+- [x] [034-03-persistir-fc-maxima-pessoal.md](034-03-persistir-fc-maxima-pessoal.md)
 - [ ] [034-04-integrar-read-model-no-detalhe.md](034-04-integrar-read-model-no-detalhe.md)
 - [ ] [034-05-renderizar-zonas-e-carga.md](034-05-renderizar-zonas-e-carga.md)
 - [ ] [034-06-validar-fisicamente-e-fechar.md](034-06-validar-fisicamente-e-fechar.md)
 
 ## Observações
 
-- Room atual: v19; evolução planejada: v19 -> v20, aditiva e nullable.
+- Room atual: v20 após migration aditiva e nullable v19 -> v20.
 - Sample-and-hold de ADR-018 é única política temporal autorizada.
 - Zonas e carga são read model não persistido e dependem da FC máxima atual.
 - Health Connect não recebe métrica nova e não deve ganhar operações.
@@ -37,3 +37,8 @@ Health Connect.
   implementado; helper sample-and-hold compartilhado com splits; lint e builds
   debug/release passaram. Validação física e cálculo independente permanecem em
   `034-06`.
+- `034-03` concluída em 2026-09-16: FC máxima pessoal persistida como coluna
+  nullable no Room v20, com migration aditiva v19 -> v20, round-trip de perfil,
+  preservação em altura/passada e editor local no Perfil. Lint e builds
+  debug/release passaram; validação física permanece em `034-06`. `034-04`,
+  `034-05` e `034-06` não foram iniciadas.

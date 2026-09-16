@@ -92,6 +92,7 @@ data class UserProfile private constructor(
     val heightCentimeters: Double?,
     val updatedAt: Instant,
     val stepLengthProfile: StepLengthProfile? = null,
+    val maxHeartRateBpm: Int? = null,
 ) {
     val stepLengthMeters: Double?
         get() = stepLengthProfile?.stepLengthMeters
@@ -102,9 +103,12 @@ data class UserProfile private constructor(
             updatedAt: Instant,
             heightCentimeters: Double? = null,
             stepLengthProfile: StepLengthProfile? = null,
+            maxHeartRateBpm: Int? = null,
         ): DomainResult<UserProfile> =
-            if (heightCentimeters == null || (heightCentimeters.isFinite() && heightCentimeters > 0.0)) {
-                DomainResult.Success(UserProfile(id, heightCentimeters, updatedAt, stepLengthProfile))
+            if ((heightCentimeters == null || (heightCentimeters.isFinite() && heightCentimeters > 0.0)) &&
+                (maxHeartRateBpm == null || maxHeartRateBpm in 30..220)
+            ) {
+                DomainResult.Success(UserProfile(id, heightCentimeters, updatedAt, stepLengthProfile, maxHeartRateBpm))
             } else {
                 DomainResult.Failure(DomainValidationError.INVALID_RANGE)
             }

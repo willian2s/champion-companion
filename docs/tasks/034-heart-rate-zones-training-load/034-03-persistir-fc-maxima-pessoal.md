@@ -2,7 +2,7 @@
 
 - **Ticker:** `034`
 - **Número:** `03`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -103,13 +103,45 @@ schema exportado atualizado.
 
 ## Registro da execução
 
-- **Status:** `pending` — aguardando implementação após congelamento de contrato.
-- **Arquivos alterados:** nenhum arquivo de produto nesta fase de planejamento.
-- **Decisões e desvios:** limpeza de FC máxima é obrigatória; valor vazio/ação
-  explícita deve persistir `NULL` sem sync remoto.
-- **Comandos executados:** inspeção de entidades, migration v19, mappers,
-  repository e Profile; build não executado por escopo documental.
-- **Resultados e evidências:** Room v19, schema 19, `UserProfile` e todos os
-  reconstrutores de perfil foram confirmados.
-- **Riscos residuais:** update de altura/passada pode perder campo novo se algum
-  reconstrutor não for atualizado; validar round-trip após reinício.
+- **Status:** `completed` — persistência e editor local implementados após o
+  congelamento de contrato.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/DeviceProfileDailySummary.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDatabase.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionMigrations.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/DatabaseModule.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileFeatureContract.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileViewModel.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/feature/profile/ProfileScreen.kt`;
+  `app/src/main/res/values/strings.xml`;
+  `app/schemas/br.com.mwconsulting.championcompanion.core.database.ChampionDatabase/20.json`.
+- **Decisões e desvios:** `maxHeartRateBpm` permanece `Int?`, validado no
+  domínio e no parser entre `30..220`, inclusive. A migration apenas adiciona
+  coluna `INTEGER` nullable, sem backfill. O update local reconstrói o perfil
+  preservando altura, comprimento de passo, origem e timestamps próprios; os
+  caminhos de altura e passada também copiam a FC máxima. Campo vazio persiste
+  `NULL`. O novo fluxo não chama Health Connect nem usa o gatilho remoto da
+  altura. Nenhum desvio de requisito.
+- **Comandos executados:** inspeção de `AGENTS.md`, baseline, Spec 034, ADR-034,
+  overview, contratos e testes existentes; `./gradlew app:compileDebugKotlin`;
+  `./gradlew lint assembleDebug assembleRelease`; `git diff --check`; inspeção
+  programática do schema 20 e da diferença entre schemas 19 e 20. Nenhum teste
+  automatizado foi criado ou executado. A primeira execução do gate conjunto
+  excedeu o limite de 120 s do executor; a repetição com limite de 300 s passou.
+- **Resultados e evidências:** compilação Kotlin, lint e builds debug/release
+  passaram. Schema 20 declara `user_profiles.maxHeartRateBpm` como `INTEGER`
+  nullable e o delta em relação ao schema 19 contém somente essa coluna.
+  `MIGRATION_19_20` está registrada depois de `MIGRATION_18_19`; todos os
+  reconstrutores de `UserProfile` foram conferidos. A alteração de FC máxima
+  persiste somente em `user_profiles`; o diff não altera parser, BLE, workflow,
+  snapshots analíticos, zonas/carga, read model de Exercícios ou Health Connect.
+- **Riscos residuais:** migração sobre banco físico existente, round-trip após
+  reinício, limpeza efetiva, ausência de novas operações em
+  `health_sync_operations` e recálculo visual ainda dependem de validação física
+  em `034-06`. `034-04` está liberada após `034-02` e `034-03`, mas não foi
+  iniciada por escopo desta execução; `034-05` depende de `034-04`, e
+  `034-06` depende da validação das subtarefas anteriores. Nenhuma delas foi
+  iniciada nesta execução.
