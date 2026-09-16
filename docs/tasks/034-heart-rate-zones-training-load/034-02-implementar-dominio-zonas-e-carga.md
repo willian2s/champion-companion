@@ -2,7 +2,7 @@
 
 - **Ticker:** `034`
 - **Número:** `02`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -96,14 +96,27 @@ os invariantes temporais e matemáticos da Spec 034.
 
 ## Registro da execução
 
-- **Status:** `pending` — dependência de auditoria concluída; implementação não
-  iniciada.
-- **Arquivos alterados:** nenhum arquivo de produto nesta fase de planejamento.
-- **Decisões e desvios:** policy ficará em `core.model`; sample-and-hold será
-  compartilhado com `weightedBpm`, mas somente com janelas contidas na sessão.
-- **Comandos executados:** inspeção de `WorkoutHeartRateSample`,
-  `weightedBpm` e ADR-018; gates de build não executados por escopo documental.
-- **Resultados e evidências:** buckets, pesos, cobertura e fórmula Edwards
-  congelados na Spec/ADR.
-- **Riscos residuais:** mudanças no helper podem afetar splits; comparar
-  resultados existentes antes/depois na implementação.
+- **Status:** `completed` — policy pura implementada após `034-01`.
+- **Arquivos alterados:**
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutHeartRateAnalysis.kt`;
+  `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WatchWorkoutDerivedMetrics.kt`.
+- **Decisões e desvios:** `WorkoutHeartRateAnalysisPolicy` ficou em `core.model`,
+  com resultado tipado para `AVAILABLE`, `CONFIGURATION_REQUIRED`,
+  `NO_HEART_RATE_SAMPLES` e `UNAVAILABLE`. O helper sample-and-hold foi
+  compartilhado com `weightedBpm`; a policy filtra amostras para `[S,E)` antes
+  de gerar janelas, enquanto splits preservam suporte a amostras anteriores à
+  sessão conforme comportamento existente. Nenhum desvio de requisito.
+- **Comandos executados:** inspeção de Spec 034, ADR-034, ADR-018, overview,
+  `034-01`, `AGENTS.md` e contratos de domínio; `./gradlew app:compileDebugKotlin`;
+  `./gradlew lint assembleDebug assembleRelease`; `./gradlew clean` após falta
+  de espaço temporária do filesystem de dados; `git diff --check`.
+- **Resultados e evidências:** compilação, lint e builds debug/release passaram.
+  Buckets usam razão `BPM / FC máxima`, cobertura usa sample-and-hold sem timeout,
+  `BELOW_ZONE_1` fecha cobertura com peso zero, percentuais usam cobertura como
+  denominador e carga permanece `Double`. Revisão independente não encontrou
+  bloqueadores nem defeitos funcionais. Nenhum teste automatizado novo foi criado.
+- **Riscos residuais:** validação numérica independente e validação física
+  permanecem previstas para `034-06`; mudança do helper deve continuar sendo
+  comparada contra splits em revisões futuras. Arquivo novo ainda precisa ser
+  incluído no controle de versão pelo fluxo de entrega; não houve commit nesta
+  task.

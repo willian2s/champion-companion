@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [034-heart-rate-zones-training-load.md](../../specs/034-heart-rate-zones-training-load.md)
-- **Progresso:** 1/6 subtarefas concluídas
+- **Progresso:** 2/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ Health Connect.
 ## Checklist
 
 - [x] [034-01-auditar-timeline-fc-e-congelar-contrato.md](034-01-auditar-timeline-fc-e-congelar-contrato.md)
-- [ ] [034-02-implementar-dominio-zonas-e-carga.md](034-02-implementar-dominio-zonas-e-carga.md)
+- [x] [034-02-implementar-dominio-zonas-e-carga.md](034-02-implementar-dominio-zonas-e-carga.md)
 - [ ] [034-03-persistir-fc-maxima-pessoal.md](034-03-persistir-fc-maxima-pessoal.md)
 - [ ] [034-04-integrar-read-model-no-detalhe.md](034-04-integrar-read-model-no-detalhe.md)
 - [ ] [034-05-renderizar-zonas-e-carga.md](034-05-renderizar-zonas-e-carga.md)
@@ -33,3 +33,7 @@ Health Connect.
   persistência, Perfil, detalhe de Exercícios, Room v19 e fronteiras remotas
   foram auditados. `034-02` e `034-03` podem avançar em paralelo; nenhuma outra
   subtarefa foi iniciada.
+- `034-02` concluída em 2026-09-16: domínio puro de zonas, cobertura e carga
+  implementado; helper sample-and-hold compartilhado com splits; lint e builds
+  debug/release passaram. Validação física e cálculo independente permanecem em
+  `034-06`.
