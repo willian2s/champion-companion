@@ -115,15 +115,61 @@ Validação documental da subtarefa:
 
 Não criar testes automatizados nesta subtarefa.
 
+## Arquivos alterados
+
+- `docs/specs/035-training-load-history-trends.md` — contrato, escopo e
+  invariantes congelados;
+- `docs/decisions/adr-035-training-load-history-trends.md` — decisão de
+  agregação em memória e leitura bounded;
+- `docs/tasks/035-training-load-history-trends/035-00-overview.md` — checklist,
+  progresso e observações;
+- este arquivo — resultado, evidências e riscos da auditoria.
+
+Nenhum arquivo de produto, schema, migration, teste ou UI foi alterado.
+
+## Decisões e desvios
+
+- Decisão: manter Room v20 e não criar migration, índice ou persistência
+  analítica nesta subtarefa.
+- Decisão: usar leitura bounded de atividades completas, com samples, em fluxo
+  agregado do repository; `CalendarWorkoutSummary` permanece somente resumo de
+  calendário.
+- Desvio: nenhum.
+- Build, lint e testes automatizados não foram executados porque o escopo desta
+  subtarefa é documental e os critérios de validação de produto pertencem às
+  subtarefas posteriores.
+
+## Evidências da execução
+
+- Branch estava limpa no início da auditoria:
+  `feat/035-training-load-history-trends`.
+- `HEAD`, `main` e `origin/main` confirmados no merge da Spec 034.
+- `git diff --check` passou.
+- Inspeção independente confirmou os contratos nos caminhos documentados,
+  inclusive Room v20, schema v20, migration 19 -> 20, policy 034, perfil,
+  repository, DAO, samples e Exercícios.
+- `git diff main...HEAD` contém somente artefatos documentais da Spec 035; não
+  há alteração de produto.
+
+## Riscos residuais
+
+- Custo da query por `startedAt` ainda precisa ser medido quando a leitura
+  bounded for implementada; não há índice temporal composto confirmado.
+- Hidratação completa e leitura batched continuam decisões de implementação da
+  subtarefa 035-03.
+- Cenário físico sem samples permanece não exercitado na evidência da Spec 034.
+- Baseline histórico ainda menciona Room v19; código, schema e evidência física
+  v20 permanecem fontes autoritativas.
+
 ## Definição de pronto
 
-- [x] Branch/base e status auditados.
-- [x] Room v20 confirmado.
-- [x] Policy 034 e FC máxima confirmadas.
-- [x] Histórico Semana/Mês confirmado.
-- [x] Data path bounded e alternativas avaliadas.
-- [x] População, ranges, cobertura, estados e comparação congelados.
-- [x] Spec 035 e ADR-035 registram decisões e riscos.
+- Branch/base e status auditados.
+- Room v20 confirmado.
+- Policy 034 e FC máxima confirmadas.
+- Histórico Semana/Mês confirmado.
+- Data path bounded e alternativas avaliadas.
+- População, ranges, cobertura, estados e comparação congelados.
+- Spec 035 e ADR-035 registram decisões e riscos.
 
 ## Riscos e cuidados
 

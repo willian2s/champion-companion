@@ -32,5 +32,8 @@ de Exercícios.
   atividades completas e samples, sem N+1 reativo.
 - `035-01` foi auditada e concluída nesta rodada documental. O restante está
   pendente e não há implementação de produto neste commit.
+- Auditoria revalidada sem alteração de produto; Room v20, policy 034 e
+  contrato bounded permanecem confirmados. Riscos de custo temporal e cenário
+  sem samples seguem pendentes para subtarefas posteriores.
 - Mudança de FC máxima recompõe somente o read model visual; Health Connect,
   snapshots, workflow e atividades permanecem fora do escopo.
