@@ -4,6 +4,7 @@ import br.com.mwconsulting.championcompanion.core.common.UiStateStore
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_DAILY_STEPS_GOAL
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadHistoryResult
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
@@ -45,7 +46,14 @@ data class ExercisesUiState(
     val hasAssociatedDevice: Boolean = false,
     val associatedDeviceName: String? = null,
     val workoutPreparation: WorkoutPreparationUiState = WorkoutPreparationUiState(),
+    val cardiovascularLoadHistory: CardiovascularLoadHistoryUiState = CardiovascularLoadHistoryUiState.Loading,
 )
+
+sealed interface CardiovascularLoadHistoryUiState {
+    data object Loading : CardiovascularLoadHistoryUiState
+    data class Ready(val result: CardiovascularLoadHistoryResult) : CardiovascularLoadHistoryUiState
+    data object Unavailable : CardiovascularLoadHistoryUiState
+}
 
 enum class WorkoutPreparationPhase {
     INACTIVE,

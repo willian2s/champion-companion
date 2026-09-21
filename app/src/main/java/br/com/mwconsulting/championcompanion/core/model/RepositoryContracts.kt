@@ -400,6 +400,9 @@ interface WorkoutActivityRepository {
     suspend fun persistImported(activity: WorkoutActivity, importRecord: WatchWorkoutImport): RepositoryResult<Unit>
     fun observePendingReview(): Flow<List<WorkoutActivity>> = observeActivities(WorkoutActivityFilter.PENDING_REVIEW)
     fun observeActivities(filter: WorkoutActivityFilter): Flow<List<WorkoutActivity>> = flowOf(emptyList())
+    /** Atividades completas do relógio não descartadas no intervalo semiaberto. */
+    fun observeWatchActivitiesBetween(range: CalendarInstantRange): Flow<List<WorkoutActivity>> =
+        flowOf(emptyList())
     /** Atividades não descartadas cujo startedAt pertence ao intervalo semiaberto. */
     fun observeActivitiesBetween(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
         flowOf(emptyList())
