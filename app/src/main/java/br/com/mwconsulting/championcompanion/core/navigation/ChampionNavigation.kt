@@ -51,6 +51,7 @@ import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesIntent
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesUiState
 import br.com.mwconsulting.championcompanion.feature.exercises.ExercisesViewModel
+import br.com.mwconsulting.championcompanion.feature.exercises.CardiovascularLoadHistoryScreen
 import br.com.mwconsulting.championcompanion.feature.exercises.ActiveWorkoutShell
 import br.com.mwconsulting.championcompanion.feature.exercises.PhoneWorkoutDisabledShell
 import br.com.mwconsulting.championcompanion.feature.exercises.WorkoutPreparationShell
@@ -438,7 +439,15 @@ private fun ChampionNavDisplay(
                 onOpenActivity = { activityId ->
                     onNavigateTo(AppDestination.ExerciseDetail(activityId.value.toString()))
                 },
+                onOpenCardiovascularLoadHistory = {
+                    onNavigateTo(AppDestination.CardiovascularLoadHistory)
+                },
                 onOpenDebugPoc = onOpenDebugPoc,
+            )
+            AppDestination.CardiovascularLoadHistory -> CardiovascularLoadHistoryScreen(
+                state = exercisesState.cardiovascularLoadHistory,
+                onNavigateBack = onBackRequested,
+                backLabel = backLabel,
             )
             is AppDestination.ExerciseDetail -> ExercisesScreen(
                 viewModel = exercisesViewModel,
@@ -574,6 +583,7 @@ private fun AppDestination?.isHealthMeasurementSurface(): Boolean = this == AppD
 
 private fun AppDestination?.isExercisesDestination(): Boolean = when (this) {
     AppDestination.Exercises,
+    AppDestination.CardiovascularLoadHistory,
     AppDestination.Calendar,
     is AppDestination.CalendarDay,
     is AppDestination.ExerciseDetail,
@@ -672,6 +682,7 @@ private fun AppDestination.toSaveToken(): String = when (this) {
     AppDestination.Calendar -> "calendar"
     is AppDestination.CalendarDay -> "calendar-day:$localDateIso"
     AppDestination.Exercises -> "exercises"
+    AppDestination.CardiovascularLoadHistory -> "cardiovascular-load-history"
     is AppDestination.ExerciseDetail -> "exercise-detail:$activityId"
     AppDestination.WorkoutTypeSelection -> "workout-type-selection"
     is AppDestination.WorkoutPreparation -> "workout-preparation:$workoutType"
@@ -694,6 +705,7 @@ private fun fromSaveToken(token: String): AppDestination? = runCatching {
         token == "calendar" -> AppDestination.Calendar
         token.startsWith("calendar-day:") -> AppDestination.CalendarDay(token.removePrefix("calendar-day:"))
         token == "exercises" -> AppDestination.Exercises
+        token == "cardiovascular-load-history" -> AppDestination.CardiovascularLoadHistory
         token.startsWith("exercise-detail:") -> AppDestination.ExerciseDetail(token.removePrefix("exercise-detail:"))
         token == "workout-type-selection" -> AppDestination.WorkoutTypeSelection
         token.startsWith("workout-preparation:") -> AppDestination.WorkoutPreparation(

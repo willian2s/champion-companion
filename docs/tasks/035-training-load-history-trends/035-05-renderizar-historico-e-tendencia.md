@@ -2,7 +2,7 @@
 
 - **Ticker:** `035`
 - **Número:** `05`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -85,3 +85,40 @@ tipos, com acessibilidade e estados de ausência seguros.
 - Não esconder `partial` quando houver workouts não analisados.
 - Não usar percentual com baseline zero.
 - Não expor dados pessoais desnecessários em labels, semantics ou screenshots.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt` — seção de carga cardiovascular, estados, cards, comparações, gráfico diário, tipos e semantics.
+- Este arquivo — status, decisões, comandos, evidências e riscos residuais.
+- `docs/tasks/035-training-load-history-trends/035-00-overview.md` — checklist, progresso e observação da subtarefa.
+
+## Decisões e desvios
+
+- Decisão: inserir seção antes do histórico existente, sem alterar seleção Semana/Mês, navegação, filtros ou lista.
+- Decisão: consumir somente `CardiovascularLoadHistoryUiState` e contratos prontos; nenhum cálculo de carga, janela ou comparação foi movido para Compose.
+- Decisão: manter ausência tipada como mensagem de configuração, vazio, falta de análise ou falha, sem substituir por carga zero.
+- Decisão: usar `bucket.partial` e contadores para diferenciar dia sem treino de treino sem análise ou cobertura parcial.
+- Decisão: exibir `UNKNOWN (tipo indefinido)` explicitamente na contribuição por tipo.
+- Desvio: inspeção visual física e screenshot não executadas; pertencem à 035-06 conforme escopo.
+
+## Comandos executados
+
+- `./gradlew app:compileDebugKotlin`
+- `./gradlew lint assembleDebug assembleRelease`
+- `git diff --check`
+- inspeção de diff para termos proibidos de classificação clínica ou recomendação.
+
+## Resultados e evidências
+
+- `./gradlew app:compileDebugKotlin`: `BUILD SUCCESSFUL` após implementação e após correções da revisão.
+- `./gradlew lint assembleDebug assembleRelease`: primeira execução excedeu 120 s sem erro reportado; segunda execução terminou com `BUILD SUCCESSFUL`.
+- `git diff --check`: passou.
+- Inspeção confirma seção na tela histórica existente, read model separado da lista, preservação de Semana/Mês/filtros/navegação, cards current7/current28, comparação neutra, cobertura, contadores, 28 buckets, tipos e estados seguros.
+- Revisão independente inicial encontrou quatro ajustes de acessibilidade/estado; correções aplicadas. Revalidação independente aprovou sem blocker, major ou minor.
+- Não foram criados nem executados testes automatizados novos, conforme escopo da Spec 035 e `AGENTS.md`.
+
+## Riscos residuais
+
+- Estados reais com workouts disponíveis, ausência de FC máxima, sem samples e falha ainda dependem de inspeção física da 035-06; nenhum fixture foi criado.
+- Screenshot sanitizada e inspeção visual permanecem pendentes da 035-06.
+- Gráfico usa renderer compartilhado; diferenciação entre dia sem treino e dados parciais é reforçada por descriptions e texto de estado, não por nova codificação visual do renderer.

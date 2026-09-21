@@ -117,6 +117,12 @@ import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCha
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadComparison
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadDailyBucket
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadHistory
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadHistoryStatus
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadPeriodSummary
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadTypeSummary
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
 import br.com.mwconsulting.championcompanion.core.model.HeartRateZone
@@ -165,6 +171,7 @@ fun ExercisesScreen(
     onNavigateBack: (() -> Unit)? = null,
     backLabel: String = "Voltar para Exercícios",
     onOpenActivity: (WorkoutActivityId) -> Unit = {},
+    onOpenCardiovascularLoadHistory: () -> Unit = {},
     viewModel: ExercisesViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -285,6 +292,7 @@ fun ExercisesScreen(
                             }
                         },
                     )
+                    CardiovascularLoadHistoryEntry(onClick = onOpenCardiovascularLoadHistory)
                     ExerciseHistorySection(
                         period = selectedHistoryPeriod,
                         activities = state.activityList,
@@ -673,6 +681,394 @@ private fun ExerciseHistoryPeriodSelector(
         }
     }
 }
+
+@Composable
+private fun CardiovascularLoadHistoryEntry(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Ver histórico de carga cardiovascular"
+            },
+        onClick = onClick,
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Carga cardiovascular",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Ver histórico de carga cardiovascular",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "Histórico calculado a partir dos treinos e dos dados de frequência cardíaca disponíveis.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun CardiovascularLoadHistorySection(
+    state: CardiovascularLoadHistoryUiState,
+    showIntro: Boolean = true,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
+    ) {
+        if (showIntro) {
+            Text(
+                text = "Carga cardiovascular",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Histórico calculado a partir dos treinos e dos dados de frequência cardíaca disponíveis.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        when (state) {
+            CardiovascularLoadHistoryUiState.Loading -> LoadingState(
+                label = "Carregando histórico de carga cardiovascular",
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            CardiovascularLoadHistoryUiState.Unavailable -> ErrorState(
+                title = "Carga cardiovascular indisponível",
+                message = "Não foi possível carregar o histórico de carga cardiovascular.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            is CardiovascularLoadHistoryUiState.Ready -> CardiovascularLoadHistoryContent(state.result.history)
+        }
+    }
+}
+
+@Composable
+private fun CardiovascularLoadHistoryContent(history: CardiovascularLoadHistory?) {
+    if (history == null) {
+        ErrorState(
+            title = "Carga cardiovascular indisponível",
+            message = "Não foi possível carregar o histórico de carga cardiovascular.",
+            modifier = Modifier.fillMaxWidth(),
+        )
+        return
+    }
+
+    when (history.current28.status) {
+        CardiovascularLoadHistoryStatus.CONFIGURATION_REQUIRED -> EmptyState(
+            title = "Configure sua FC máxima",
+            message = "Configure sua FC máxima no Perfil para calcular o histórico de carga cardiovascular.",
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        CardiovascularLoadHistoryStatus.NO_WORKOUTS -> EmptyState(
+            title = "Nenhum treino neste período",
+            message = "Treinos elegíveis aparecerão aqui quando estiverem disponíveis.",
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        CardiovascularLoadHistoryStatus.NO_ANALYZABLE_WORKOUTS -> EmptyState(
+            title = "Carga não calculada",
+            message = "Não há dados de frequência cardíaca suficientes para calcular a carga deste período.",
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        CardiovascularLoadHistoryStatus.UNAVAILABLE -> ErrorState(
+            title = "Carga cardiovascular indisponível",
+            message = "Não foi possível carregar o histórico de carga cardiovascular.",
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        CardiovascularLoadHistoryStatus.AVAILABLE -> {
+            CardiovascularLoadPeriodCard(
+                periodLabel = "Últimos 7 dias",
+                summary = history.current7,
+                comparison = history.current7Comparison,
+                comparisonBaselineLabel = "7 dias anteriores",
+            )
+            CardiovascularLoadPeriodCard(
+                periodLabel = "Últimos 28 dias",
+                summary = history.current28,
+                comparison = history.current28Comparison,
+                comparisonBaselineLabel = "28 dias anteriores",
+            )
+            CardiovascularLoadDailySection(history.dailyBuckets)
+            CardiovascularLoadTypeSection(history.typeSummaries)
+        }
+    }
+}
+
+@Composable
+private fun CardiovascularLoadPeriodCard(
+    periodLabel: String,
+    summary: CardiovascularLoadPeriodSummary,
+    comparison: CardiovascularLoadComparison,
+    comparisonBaselineLabel: String,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = buildString {
+                    append(periodLabel)
+                    append(". ")
+                    if (summary.status == CardiovascularLoadHistoryStatus.AVAILABLE) {
+                        append("${summary.totalLoad.toLoadLabel()}, ")
+                        append("${summary.analyzedWorkoutCount} de ${summary.totalWorkoutCount} treinos analisados. ")
+                        append("Cobertura de frequência cardíaca: ${summary.coverageRatio.toCoverageLabel()}.")
+                        append(" ${comparison.toComparisonLabel(comparisonBaselineLabel)}.")
+                        if (summary.partial) append(" Dados parciais.")
+                    } else {
+                        append(summary.status.toCardMessage())
+                    }
+                }
+            },
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = periodLabel,
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (summary.status == CardiovascularLoadHistoryStatus.AVAILABLE) {
+                Text(
+                    text = summary.totalLoad.toLoadLabel(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = comparison.toComparisonLabel(comparisonBaselineLabel),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = summary.status.toCardMessage(),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (summary.status == CardiovascularLoadHistoryStatus.AVAILABLE) {
+                HeartRateAnalysisMetricRow(
+                    label = "Treinos analisados",
+                    value = "${summary.analyzedWorkoutCount} de ${summary.totalWorkoutCount}",
+                )
+                HeartRateAnalysisMetricRow(
+                    label = "Cobertura de FC",
+                    value = summary.coverageRatio.toCoverageLabel(),
+                )
+                HeartRateAnalysisMetricRow(
+                    label = "Duração coberta",
+                    value = summary.coveredHeartRateDuration.toDurationLabel(),
+                )
+                if (summary.partial) {
+                    Text(
+                        text = "Dados parciais: há treinos sem análise completa.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardiovascularLoadDailySection(buckets: List<CardiovascularLoadDailyBucket>) {
+    Text(
+        text = "Distribuição diária dos últimos 28 dias",
+        modifier = Modifier.semantics { heading() },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
+    CardiovascularLoadDailyChart(buckets)
+    val incompleteBuckets = buckets.filter { it.partial || it.workoutCount > it.analyzedWorkoutCount }
+    if (incompleteBuckets.isEmpty()) {
+        Text(
+            text = "Dias sem treino aparecem como carga 0 pontos.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        Text(
+            text = "${incompleteBuckets.size} ${if (incompleteBuckets.size == 1) "dia teve" else "dias tiveram"} dados parciais; treino sem análise não é tratado como dia sem treino.",
+            modifier = Modifier.semantics(mergeDescendants = true) {
+                contentDescription = buildString {
+                    append("Dias com dados parciais: ")
+                    append(incompleteBuckets.joinToString { bucket ->
+                        val reason = if (bucket.workoutCount > bucket.analyzedWorkoutCount) {
+                            "treino sem análise"
+                        } else {
+                            "cobertura parcial"
+                        }
+                        "${bucket.localDate.formatExerciseDate()}, $reason"
+                    })
+                    append(".")
+                }
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun CardiovascularLoadDailyChart(buckets: List<CardiovascularLoadDailyBucket>) {
+    if (buckets.isEmpty()) return
+
+    val numberFormatter = ChampionChartFormatters.decimal(maximumFractionDigits = 1)
+    val maximum = maxOf(buckets.maxOf { it.totalLoad }, 1.0)
+    val chartData = ChampionCartesianChartData(
+        series = listOf(
+            ChampionChartSeries(
+                key = "cardiovascular-load",
+                label = "Carga cardiovascular",
+                points = buckets.mapIndexed { index, bucket ->
+                    val dayLabel = bucket.localDate.formatExerciseDate()
+                    val dayDescription = when {
+                        bucket.workoutCount == 0 -> "$dayLabel: sem treino, carga 0 pontos"
+                        bucket.analyzedWorkoutCount == 0 -> "$dayLabel: ${bucket.workoutCount} " +
+                            "${if (bucket.workoutCount == 1) "treino" else "treinos"} sem análise, carga não calculada"
+                        else -> "$dayLabel: ${bucket.totalLoad.toLoadLabel()}, " +
+                            "${bucket.analyzedWorkoutCount} de ${bucket.workoutCount} treinos analisados" +
+                            if (bucket.partial) ", dados parciais" else ""
+                    }
+                    ChampionChartPoint(
+                        x = index.toDouble(),
+                        y = bucket.totalLoad,
+                        xLabel = dayLabel,
+                        contentDescription = dayDescription,
+                    )
+                },
+            ),
+        ),
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                buckets.getOrNull(value.roundToInt())?.localDate?.formatExerciseDate() ?: "--"
+            },
+            title = "Dia",
+            minimum = -0.5,
+            maximum = buckets.size - 0.5,
+            gridLinesVisible = false,
+            labelValues = buckets.indices.map(Int::toDouble),
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Carga",
+            formatter = numberFormatter,
+            unit = ChampionChartUnit("pontos"),
+            minimum = 0.0,
+            maximum = maximum,
+            visible = false,
+            gridLinesVisible = false,
+        ),
+        interaction = ChampionChartInteractionPolicy(scrollEnabled = false),
+        accessibilitySummary = "Gráfico de barras da carga cardiovascular por dia nos últimos 28 dias.",
+    )
+    ChampionBarChart(
+        data = chartData,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        columnWidth = 10.dp,
+        columnCollectionSpacing = 1.dp,
+        groupedColumnSpacing = 1.dp,
+    )
+}
+
+@Composable
+private fun CardiovascularLoadTypeSection(typeSummaries: List<CardiovascularLoadTypeSummary>) {
+    Text(
+        text = "Contribuição por tipo",
+        modifier = Modifier.semantics { heading() },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+        typeSummaries.forEach { summary ->
+            val loadLabel = if (summary.analyzedWorkoutCount > 0) {
+                summary.totalLoad.toLoadLabel()
+            } else {
+                "carga não calculada"
+            }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "${summary.workoutType.toHistoryLabel()}: $loadLabel, " +
+                            "${summary.analyzedWorkoutCount} de ${summary.workoutCount} treinos analisados" +
+                            if (summary.partial) ". Dados parciais." else "."
+                    },
+                shape = ChampionShapeMedium,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            ) {
+                Column(modifier = Modifier.padding(ChampionSpacing.medium)) {
+                    Text(
+                        text = summary.workoutType.toHistoryLabel(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = loadLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = "${summary.analyzedWorkoutCount} de ${summary.workoutCount} treinos analisados" +
+                            if (summary.partial) " • Dados parciais" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun CardiovascularLoadHistoryStatus.toCardMessage(): String = when (this) {
+    CardiovascularLoadHistoryStatus.CONFIGURATION_REQUIRED ->
+        "Configure sua FC máxima no Perfil para calcular a carga."
+    CardiovascularLoadHistoryStatus.NO_WORKOUTS -> "Nenhum treino neste período."
+    CardiovascularLoadHistoryStatus.NO_ANALYZABLE_WORKOUTS ->
+        "Não há dados de frequência cardíaca suficientes para calcular a carga deste período."
+    CardiovascularLoadHistoryStatus.UNAVAILABLE -> "Carga cardiovascular indisponível."
+    CardiovascularLoadHistoryStatus.AVAILABLE -> "Carga disponível."
+}
+
+private fun CardiovascularLoadComparison.toComparisonLabel(baselineLabel: String): String = when (status) {
+    br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadComparisonStatus.NO_PREVIOUS_BASELINE ->
+        "Sem base anterior"
+    br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadComparisonStatus.UNAVAILABLE ->
+        "Comparação indisponível"
+    br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadComparisonStatus.AVAILABLE -> {
+        val percentage = percentDelta ?: return "Comparação indisponível"
+        when {
+            percentage > 0.0 -> "${percentage.toAbsolutePercentageLabel()} maior que os $baselineLabel"
+            percentage < 0.0 -> "${(-percentage).toAbsolutePercentageLabel()} menor que os $baselineLabel"
+            else -> "Sem variação em relação aos $baselineLabel"
+        }
+    }
+}
+
+private fun Double.toAbsolutePercentageLabel(): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.0f%%", this)
 
 @Composable
 private fun ExerciseHistorySection(
@@ -4207,6 +4603,11 @@ private fun WorkoutType.toLabel(): String = when (this) {
     WorkoutType.TREADMILL -> "Esteira"
     WorkoutType.CYCLING -> "Bicicleta"
     WorkoutType.UNKNOWN -> "Tipo indefinido"
+}
+
+private fun WorkoutType.toHistoryLabel(): String = when (this) {
+    WorkoutType.UNKNOWN -> "UNKNOWN (tipo indefinido)"
+    else -> toLabel()
 }
 
 private fun Instant.formatDateTime(): String =

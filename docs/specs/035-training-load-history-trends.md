@@ -1,7 +1,7 @@
 # 035 — Histórico de carga cardiovascular e tendência
 
 - **Ticker:** `035`
-- **Status:** `planned`
+- **Status:** `completed`
 - **Tipo:** agregação local de read model e tendência cardiovascular
 - **Base auditada:** `main` em `d0ad6a8`, com Spec 034 mergeada e Room v20
 - **Branch de trabalho:** `feat/035-training-load-history-trends`
@@ -45,6 +45,21 @@ schema `20.json`, migration e evidência física da Spec 034 confirmam v20; esta
 discrepância fica registrada como risco documental e não será corrigida como
 parte da implementação da 035.
 
+## Atualização de apresentação — 2026-09-21
+
+`035-05` e `035-06` entregaram e validaram inicialmente a carga cardiovascular
+como seção inline na página de Exercícios. Após revisão de apresentação, o
+usuário escolheu a opção 1: a seção inline será substituída por um CTA acessível
+em Exercícios, que abrirá uma página própria de histórico de carga
+cardiovascular.
+
+O destino será contextual à subtree de Exercícios e seguirá o back stack manual
+e os padrões de destinos existentes. Não será uma nova aba principal, não haverá
+entrada em Home ou Saúde e não haverá mudança em `CardiovascularLoadHistory`,
+`CardiovascularLoadHistoryPolicy`, `WorkoutHeartRateAnalysisPolicy`, repository,
+Room ou qualquer contrato de dados. A subtarefa `035-07` executa somente essa
+revisão de apresentação e navegação.
+
 ## Objetivo
 
 Evoluir a carga cardiovascular local da Spec 034 para uma visão histórica,
@@ -70,8 +85,8 @@ workflow, derivação ou Health Connect.
   intervalo máximo usado pela 035;
 - composição reativa no `ExercisesViewModel` com workouts bounded, snapshot
   pessoal, `asOf` e `ZoneId`;
-- seção de histórico na superfície existente de Exercícios, preservando a
-  seleção atual `Semana`/`Mês`;
+- CTA em Exercícios e página própria contextual para o histórico, preservando
+  a seleção atual `Semana`/`Mês` da lista;
 - validação física sobre workouts e banco já existentes na Spec 034.
 
 ### Excluído
@@ -87,8 +102,9 @@ workflow, derivação ou Health Connect.
   `WorkoutDerivationSnapshot`, parser D1/D3/D4, BLE, D1, D4 ou workflow;
 - qualquer permission, record, payload, operação, retry, reconciliação, leitura
   ou escrita nova em Health Connect;
-- nova aba principal, tela global, seção na Home ou mudança substantiva no
-  detalhe individual da Spec 034;
+- nova aba principal, tela global, seção na Home ou Saúde, ou mudança
+  substantiva no detalhe individual da Spec 034; a página própria contextual
+  acessível por CTA em Exercícios é tratada na atualização de apresentação;
 - timer, polling contínuo, leitura completa indefinida ou acesso do ViewModel
   direto ao DAO;
 - classificação de carga como boa/ruim, ideal, excessiva, fadiga,
@@ -292,10 +308,12 @@ mudança de schema em decisão/task própria.
 
 ### R9 — Integração de Exercícios
 
-Integrar a seção **Carga cardiovascular** na superfície histórica existente de
-Exercícios. A seleção `Semana`/`Mês`, navegação, filtros e lista continuam
-existindo. O histórico cardiovascular usa sua própria população e suas janelas
-de 7/28 dias; não deve herdar o filtro de workflow da lista.
+Exercícios deve expor um CTA acessível para abrir o histórico **Carga
+cardiovascular** em página própria contextual. A seção detalhada não deve
+permanecer inline no fluxo principal. A seleção `Semana`/`Mês`, navegação,
+filtros e lista continuam existindo, sem depender do destino do histórico
+cardiovascular. O histórico usa sua própria população e suas janelas de 7/28
+dias; não deve herdar o filtro de workflow da lista.
 
 A seção deve poder mostrar:
 
@@ -406,8 +424,9 @@ Compose, relógio global, escrita ou efeitos colaterais.
    e fluxo agregado; não usar N+1 reativo.
 4. Compor no `ExercisesViewModel` o fluxo bounded, o snapshot pessoal, `asOf` e
    `ZoneId`; qualquer alteração de FC máxima recompõe tudo.
-5. Renderizar a seção na lista histórica de Exercícios, preservando a seleção
-   `Semana`/`Mês` e sem mover a lógica para Compose.
+5. Expor CTA em Exercícios e renderizar o conteúdo em página própria
+   contextual, preservando a seleção `Semana`/`Mês` da lista e sem mover a
+   lógica para Compose.
 6. Validar com banco e workouts existentes, cálculo independente e comparação
    de invariantes antes/depois, sem fabricar fixtures.
 
@@ -431,6 +450,9 @@ Compose, relógio global, escrita ou efeitos colaterais.
   write-only, sem carga cardiovascular.
 - **Criar nova aba, Home ou tela global:** não corresponde à superfície
   histórica existente de Exercícios.
+- **Manter a seção inline após a revisão de apresentação:** rejeitado em favor
+  da opção 1, com CTA em Exercícios e página própria contextual; o conteúdo e
+  os contratos analíticos permanecem os mesmos.
 
 ## Arquivos, módulos e contratos afetados
 
@@ -445,7 +467,13 @@ Compose, relógio global, escrita ou efeitos colaterais.
 - `data/DatabaseMappers.kt`: somente se novo record/read model exigir conversão;
 - `feature/exercises/ExercisesFeatureContract.kt`: estado do histórico;
 - `feature/exercises/ExercisesViewModel.kt`: combinação de fontes e policy;
-- `feature/exercises/ExercisesScreen.kt`: seção, gráfico, estados e acessibilidade.
+- `feature/exercises/ExercisesScreen.kt`: CTA, remoção da seção inline e
+  acessibilidade;
+- `feature/exercises/CardiovascularLoadHistoryScreen.kt`: página própria com a
+  seção, gráfico, estados e acessibilidade;
+- `core/navigation/AppDestination.kt` e
+  `core/navigation/ChampionNavigation.kt`: destino contextual, roteamento e
+  retorno.
 
 ### Explicitamente não afetados
 
@@ -453,8 +481,7 @@ Compose, relógio global, escrita ou efeitos colaterais.
 - `ChampionMigrations.kt` e schemas exportados;
 - entidades de `WorkoutActivity`, samples, snapshots e operações Health Connect;
 - parsers D1/D3/D4, BLE, `WorkoutDerivationSnapshot` e workflow;
-- navegação, Home, Saúde, Perfil e detalhe individual da 034, salvo contratos
-  necessários para recomposição visual.
+- Home, Saúde, Perfil e detalhe individual da 034.
 
 ## Riscos e mitigação
 
@@ -469,6 +496,7 @@ Compose, relógio global, escrita ou efeitos colaterais.
 | Buckets diários não fecharem o período | Atribuir exclusivamente por `startedAt`, usar `ZoneId` explícito e validar soma independente. |
 | Comparação com baseline zero gerar infinito | Estado `NO_PREVIOUS_BASELINE`, sem divisão. |
 | Filtro de Exercícios contaminar população analítica | Query própria no repository; filtro de UI permanece separado. |
+| Destino contextual alterar barra, subtree ou retorno de Exercícios | Reutilizar back stack manual, `isExercisesDestination`, label contextual e saver existentes; não promover destino a área primária. |
 | Alteração visual produzir efeitos remotos | Reutilizar `observeSnapshot` e comprovar assinatura de `health_sync_operations` antes/depois. |
 | Baseline documental ainda apontar v19 | Registrar discrepância e usar código/schema/evidência v20 como autoridade factual; não misturar correção documental ampla. |
 | Dados de saúde aparecerem na documentação/logs | Usar somente contratos, contagens e invariantes; não registrar BPM, samples, FC máxima ou carga em logs diagnósticos. |
@@ -526,11 +554,14 @@ Não fabricar treino ou sample para preencher checklist.
 4. `035-04` — integrar read model no `ExercisesViewModel`.
 5. `035-05` — renderizar histórico, tendência, buckets e estados.
 6. `035-06` — validar fisicamente, revisar efeitos colaterais e fechar.
+7. `035-07` — substituir seção inline por CTA e página própria contextual.
 
 `035-01` foi executada durante o planejamento documental. As subtarefas de
 domínio e acesso podem avançar somente após esse contrato. `035-04` depende das
 duas anteriores; `035-05` depende do read model; `035-06` fecha somente após
-prova independente e documentação dos cenários N/A.
+prova independente e documentação dos cenários N/A; `035-07` depende da
+renderização e da validação física anteriores e altera somente apresentação e
+navegação.
 
 ## Premissas explícitas
 
@@ -549,6 +580,8 @@ prova independente e documentação dos cenários N/A.
   não implementada silenciosamente.
 - A seleção `Semana`/`Mês` continuará controlando navegação da lista existente,
   não a população das métricas de carga.
+- O histórico cardiovascular será aberto por CTA na página Exercícios e terá
+  destino próprio contextual, sem entrada em Home, Saúde ou navegação principal.
 - `asOf` e `ZoneId` são entradas estáveis do read model; nenhuma chamada global
   a `Instant.now()` entra na policy.
 - O produto continua pessoal e local-first; a spec não reabre direção de treino

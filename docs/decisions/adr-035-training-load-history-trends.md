@@ -1,6 +1,6 @@
 # ADR-035 — Histórico de carga cardiovascular e tendência
 
-- **Status:** aceita para planejamento
+- **Status:** aceita e validada na Spec 035
 - **Data:** 2026-09-21
 - **Relacionada:** [Spec 035](../specs/035-training-load-history-trends.md)
 - **Base:** Spec 034 concluída, Room v20
@@ -41,7 +41,22 @@ Room permanece v20. A ausência de índice temporal composto em `workout_activit
 
 ### 7. Superfície de UI
 
-Renderizar a seção na tela histórica de Exercícios, sem nova aba, tela global ou Home. Semana/Mês continua controlando a navegação existente; a seção usa suas janelas de 7/28 dias e sua população analítica.
+A implementação inicial renderizou a seção na tela histórica de Exercícios,
+conforme o planejamento original. Após revisão de apresentação, a opção 1 foi
+escolhida: substituir a seção inline por um CTA acessível em Exercícios e abrir
+o conteúdo em uma página própria de histórico de carga cardiovascular.
+
+O destino será contextual à subtree de Exercícios, usando o back stack manual,
+serialização, animação e retorno contextual já existentes. Não será nova aba,
+área primária, tela global independente ou entrada em Home/Saúde. Semana/Mês e
+filtros continuam controlando somente a lista existente; a página própria
+consome o mesmo read model cardiovascular e as mesmas janelas/população.
+
+Essa revisão é exclusivamente de apresentação e navegação. Não altera
+`CardiovascularLoadHistory`, `CardiovascularLoadHistoryPolicy`,
+`WorkoutHeartRateAnalysisPolicy`, repository, Room, fatos de workout,
+snapshots, workflow ou Health Connect. A execução fica registrada na
+`035-07`.
 
 ## Alternativas rejeitadas
 
@@ -51,6 +66,8 @@ Renderizar a seção na tela histórica de Exercícios, sem nova aba, tela globa
 - Nova tabela, snapshot ou carga persistida: contradiz recalculabilidade com FC máxima atual e cria migration.
 - Índice temporal ou migration v21 imediata: adiada até evidência de plano/performance.
 - Nova aba ou tela global: a superfície histórica de Exercícios já existe.
+- Manter a seção inline após a revisão: rejeitado em favor de página própria
+  contextual acessível por CTA em Exercícios.
 
 ## Consequências
 
@@ -68,6 +85,8 @@ Renderizar a seção na tela histórica de Exercícios, sem nova aba, tela globa
 - carga histórica muda quando FC máxima muda;
 - hidratação completa pode carregar dados auxiliares;
 - falta de índice temporal pode exigir investigação;
+- página própria exige destino, callback e revisão de back stack sem alterar a
+  subtree funcional de Exercícios;
 - sample-and-hold mantém riscos aceitos da ADR-034;
 - baseline documental histórico ainda menciona Room v19;
 - prova numérica depende de validação física, sem testes automatizados novos.

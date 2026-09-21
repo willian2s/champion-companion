@@ -2,7 +2,7 @@
 
 - **Ticker:** `035`
 - **Número:** `06`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -117,3 +117,71 @@ naturalmente, sem fabricar dados.
 - Preservar N/A de activity sem samples, caso banco existente não ofereça esse
   cenário.
 - Sanitizar dumps e screenshot; não registrar samples ou identificadores.
+
+## Arquivos alterados
+
+- `docs/integration/035-06-physical-validation.md` — evidência física
+  sanitizada, cálculos independentes, recomposição e efeitos colaterais.
+- `docs/integration/035-06-training-load-history.png` — screenshot sanitizada da
+  seção histórica.
+- Este arquivo — status, decisões, comandos, resultados e riscos residuais.
+- `docs/tasks/035-training-load-history-trends/035-00-overview.md` — checklist,
+  progresso e observações finais.
+- `docs/specs/035-training-load-history-trends.md` — status final da Spec.
+- `docs/decisions/adr-035-training-load-history-trends.md` — status da decisão
+  após validação.
+
+## Decisões e desvios
+
+- Decisão: validar somente banco e workouts existentes, sem criar treino,
+  sample, fixture ou alteração artificial de fatos.
+- Decisão: usar cálculo independente externo para policy 034, quatro janelas,
+  cobertura, buckets diários, tipos e baseline zero.
+- Decisão: alterar temporariamente FC máxima por Perfil, restaurar o valor
+  original e comparar atividade, workflow, snapshots e operações Health Connect
+  por contagem e assinatura.
+- Desvio: nenhum.
+- N/A: não havia naturalmente workout sem samples, falha de leitura,
+  configuração ausente ou período principal sem workouts; limitações ficaram
+  explícitas na evidência.
+
+## Comandos executados
+
+- `git diff --check`
+- `./gradlew lint assembleDebug assembleRelease`
+- `./gradlew installDebug`
+- `adb devices -l`
+- `adb exec-out run-as ... cat databases/champion-companion.db`
+- `adb shell uiautomator dump /sdcard/window.xml`
+- `adb exec-out screencap -p`
+- consultas SQLite em cópias temporárias de `db`, `-wal` e `-shm`
+- cálculo independente em Python SQLite
+- force-stop/reopen do app e comparação de assinaturas
+
+## Resultados e evidências
+
+- `git diff --check`: passou.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- `./gradlew installDebug`: instalado em 1 dispositivo.
+- Room físico e schema exportado confirmaram v20; nenhuma tabela analítica,
+  migration ou índice novo foi criado.
+- Banco preservado com 8 atividades, 165 samples, 11 snapshots e 780 operações
+  Health Connect; workflow agregado permaneceu `2 PENDING_REVIEW` e `6 SYNCED`.
+- Cargas individuais e os quatro períodos fecharam com cálculo independente;
+  buckets e tipos fecharam `current28`; baseline zero mostrou `Sem base anterior`.
+- FC máxima recompôs `345,5 -> 355,0 -> 345,5` em current7 e
+  `505,6 -> 528,4 -> 505,6` em current28.
+- Assinaturas de `workout_activities`, `workout_derivation_snapshots` e
+  `health_sync_operations` permaneceram iguais antes/depois e após reopen.
+- Screenshot sanitizada: `docs/integration/035-06-training-load-history.png`.
+- Não foram criados nem executados testes automatizados novos, conforme escopo
+  da Spec 035 e `AGENTS.md`.
+
+## Riscos residuais
+
+- Cenários físicos sem samples, configuração ausente, falha de leitura e
+  `NO_WORKOUTS` no período principal ficaram N/A por ausência natural; não houve
+  fabricação de dados.
+- Custo da query bounded em escala permanece risco documentado de `035-03`.
+- Screenshot cobre estado disponível/parcial; estados N/A não foram fabricados
+  apenas para obter imagens.
