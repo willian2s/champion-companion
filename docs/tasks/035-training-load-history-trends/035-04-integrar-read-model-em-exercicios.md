@@ -2,7 +2,7 @@
 
 - **Ticker:** `035`
 - **Número:** `04`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -87,3 +87,40 @@ bounded, do `PersonalMetricsSnapshot.maxHeartRateBpm`, de `asOf` e de
 - Não usar a seleção de mês como substituto de current28.
 - Evitar recomputação duplicada para cada componente visual.
 - Não logar conteúdo sensível do resultado.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesFeatureContract.kt` — estado tipado do read model cardiovascular.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesViewModel.kt` — composição bounded, snapshot pessoal, contexto temporal estável e policy em dispatcher de cálculo.
+- `docs/tasks/035-training-load-history-trends/035-04-integrar-read-model-em-exercicios.md` — status, decisões, evidências e riscos.
+- `docs/tasks/035-training-load-history-trends/035-00-overview.md` — checklist e progresso da Spec 035.
+
+## Decisões e desvios
+
+- Decisão: capturar `asOf` e `ZoneId.systemDefault()` uma vez por instância do ViewModel e derivar o range bounded de 56 dias a partir desse contexto.
+- Decisão: combinar `observeWatchActivitiesBetween` com `observeSnapshot()` em fluxo separado da lista e invocar `CardiovascularLoadHistoryPolicy` em `Dispatchers.Default`.
+- Decisão: expor `Loading`, `Ready(result)` e `Unavailable` no estado de Exercícios; estados analíticos da policy permanecem dentro de `CardiovascularLoadHistoryResult`.
+- Decisão: capturar falha da fonte/composição como `Unavailable`, sem detalhes técnicos, carga sintética ou escrita.
+- Desvio: nenhum.
+
+## Comandos executados
+
+- `./gradlew app:compileDebugKotlin`
+- `./gradlew lint assembleDebug assembleRelease`
+- `git diff --check`
+
+## Resultados e evidências
+
+- Primeira compilação após a implementação falhou por inferência do tipo de retorno no `map` do Flow; o tipo foi explicitado e a correção foi validada.
+- `./gradlew app:compileDebugKotlin`: `BUILD SUCCESSFUL`.
+- `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL` na segunda execução; a primeira execução excedeu o timeout de 120 s durante tarefas finais, sem erro de compilação ou lint reportado.
+- `git diff --check`: passou.
+- Revisão independente: aprovada, sem blocker, major ou minor.
+- Inspeção confirma fluxo histórico sem `selectedFilter`/`activityList`, sem acesso DAO, sem leitura/escrita Health Connect e sem persistência analítica.
+- Não foram criados nem executados testes automatizados novos, conforme escopo da Spec 035 e `AGENTS.md`.
+
+## Riscos residuais
+
+- Recomposição numérica com banco/workouts reais, mudança e restauração de FC máxima, efeitos persistentes/remotos e screenshot permanecem validação física da 035-06.
+- Renderização final do resultado, buckets, comparações e estados pertence à 035-05.
+- Origem usa `ZoneId.systemDefault()` capturada no ViewModel; mudança de timezone do sistema durante a vida da instância só será refletida após reabertura/recriação do ViewModel.

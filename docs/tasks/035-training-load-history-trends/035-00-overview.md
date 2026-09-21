@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [035-training-load-history-trends.md](../../specs/035-training-load-history-trends.md)
-- **Progresso:** 3/6 subtarefas concluídas
+- **Progresso:** 4/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -16,7 +16,7 @@ de Exercícios.
 - [x] [035-01-auditar-historico-e-congelar-contrato.md](035-01-auditar-historico-e-congelar-contrato.md)
 - [x] [035-02-implementar-agregacao-de-carga.md](035-02-implementar-agregacao-de-carga.md)
 - [x] [035-03-integrar-leitura-limitada-de-workouts.md](035-03-integrar-leitura-limitada-de-workouts.md)
-- [ ] [035-04-integrar-read-model-em-exercicios.md](035-04-integrar-read-model-em-exercicios.md)
+- [x] [035-04-integrar-read-model-em-exercicios.md](035-04-integrar-read-model-em-exercicios.md)
 - [ ] [035-05-renderizar-historico-e-tendencia.md](035-05-renderizar-historico-e-tendencia.md)
 - [ ] [035-06-validar-fisicamente-e-fechar.md](035-06-validar-fisicamente-e-fechar.md)
 
@@ -41,3 +41,6 @@ de Exercícios.
   sem samples seguem pendentes para subtarefas posteriores.
 - Mudança de FC máxima recompõe somente o read model visual; Health Connect,
   snapshots, workflow e atividades permanecem fora do escopo.
+- `035-04` foi concluída com estado tipado de loading/dados/indisponibilidade,
+  composição bounded independente da lista e recomputação por snapshot pessoal;
+  renderização e validação física permanecem nas subtarefas seguintes.

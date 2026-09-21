@@ -26,8 +26,11 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionId
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionMutation
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionRepository
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
+import br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange
 import br.com.mwconsulting.championcompanion.core.model.CalibrateImportedActivityInput
 import br.com.mwconsulting.championcompanion.core.model.ApplyReferenceDistanceCalibrationInput
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadHistoryPolicy
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadHistoryResult
 import br.com.mwconsulting.championcompanion.core.model.Device
 import br.com.mwconsulting.championcompanion.core.model.DeviceRepository
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
@@ -72,6 +75,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -88,6 +92,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -97,6 +102,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 private const val COUNTDOWN_TICK_MILLIS = 1_000L
@@ -224,6 +230,15 @@ class ExercisesViewModel internal constructor(
     private val detailState = MutableStateFlow<ExerciseDetailState>(ExerciseDetailState.Loading)
     private val reviewFormState = MutableStateFlow(ExerciseReviewFormState())
     private val calibrationFormState = MutableStateFlow(ExerciseCalibrationFormState())
+    private val cardiovascularLoadHistoryState =
+        MutableStateFlow<CardiovascularLoadHistoryUiState>(CardiovascularLoadHistoryUiState.Loading)
+    private val cardiovascularHistoryAsOf = Instant.now()
+    private val cardiovascularHistoryZoneId = ZoneId.systemDefault()
+    private val cardiovascularHistoryRange = CalendarInstantRange(
+        fromInclusive = cardiovascularHistoryAsOf.minus(Duration.ofDays(56)),
+        untilExclusive = cardiovascularHistoryAsOf,
+        zoneId = cardiovascularHistoryZoneId,
+    )
     private val operationError = MutableStateFlow<ExerciseOperationError?>(null)
     private val isReprocessing = MutableStateFlow(false)
     private val isAcceptingPlausibility = MutableStateFlow(false)
@@ -382,6 +397,29 @@ class ExercisesViewModel internal constructor(
             }
         }
         scope.launch {
+            combine(
+                workoutActivityRepository.observeWatchActivitiesBetween(cardiovascularHistoryRange),
+                personalMetricsRepository.observeSnapshot(),
+            ) { workouts, snapshot ->
+                withContext(Dispatchers.Default) {
+                    CardiovascularLoadHistoryPolicy.analyze(
+                        workouts = workouts,
+                        maxHeartRateBpm = snapshot.maxHeartRateBpm,
+                        asOf = cardiovascularHistoryAsOf,
+                        zoneId = cardiovascularHistoryZoneId,
+                    )
+                }
+            }
+                .map<
+                    CardiovascularLoadHistoryResult,
+                    CardiovascularLoadHistoryUiState,
+                > { result ->
+                    CardiovascularLoadHistoryUiState.Ready(result)
+                }
+                .catch { emit(CardiovascularLoadHistoryUiState.Unavailable) }
+                .collect { cardiovascularLoadHistoryState.value = it }
+        }
+        scope.launch {
             personalMetricsRepository.observeLearnedStepLengthProfiles().collect {
                 learnedProfiles.value = it
                 refreshCalibrationPreview()
@@ -484,6 +522,7 @@ class ExercisesViewModel internal constructor(
                 dailyStepsGoal,
                 associatedDevice,
                 workoutPreparation,
+                cardiovascularLoadHistoryState,
             ) { values ->
                 val currentImportState = values[0] as WatchWorkoutImportSurfaceState
                 val metadata = values[1] as WatchWorkoutImportMetadata?
@@ -504,6 +543,7 @@ class ExercisesViewModel internal constructor(
                 val goal = values[16] as Int
                 val device = values[17] as Device?
                 val preparation = values[18] as WorkoutPreparationUiState
+                val cardiovascularLoadHistory = values[19] as CardiovascularLoadHistoryUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -536,6 +576,7 @@ class ExercisesViewModel internal constructor(
                     hasAssociatedDevice = device != null,
                     associatedDeviceName = device?.name,
                     workoutPreparation = preparation,
+                    cardiovascularLoadHistory = cardiovascularLoadHistory,
                 )
             }.collect { mutableState.value = it }
         }
