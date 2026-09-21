@@ -2,7 +2,7 @@
 
 - **Status geral:** pending
 - **Spec:** [035-training-load-history-trends.md](../../specs/035-training-load-history-trends.md)
-- **Progresso:** 1/6 subtarefas concluídas
+- **Progresso:** 2/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ de Exercícios.
 ## Checklist
 
 - [x] [035-01-auditar-historico-e-congelar-contrato.md](035-01-auditar-historico-e-congelar-contrato.md)
-- [ ] [035-02-implementar-agregacao-de-carga.md](035-02-implementar-agregacao-de-carga.md)
+- [x] [035-02-implementar-agregacao-de-carga.md](035-02-implementar-agregacao-de-carga.md)
 - [ ] [035-03-integrar-leitura-limitada-de-workouts.md](035-03-integrar-leitura-limitada-de-workouts.md)
 - [ ] [035-04-integrar-read-model-em-exercicios.md](035-04-integrar-read-model-em-exercicios.md)
 - [ ] [035-05-renderizar-historico-e-tendencia.md](035-05-renderizar-historico-e-tendencia.md)
@@ -30,8 +30,9 @@ de Exercícios.
   operacional não exclui estados elegíveis.
 - Range máximo: `[asOf - 56 dias, asOf)`, com contrato bounded no repository,
   atividades completas e samples, sem N+1 reativo.
-- `035-01` foi auditada e concluída nesta rodada documental. O restante está
-  pendente e não há implementação de produto neste commit.
+- `035-01` foi auditada e concluída na rodada documental anterior.
+- `035-02` foi concluída com agregação pura em memória; leitura bounded,
+  composição reativa, UI e validação física permanecem pendentes.
 - Auditoria revalidada sem alteração de produto; Room v20, policy 034 e
   contrato bounded permanecem confirmados. Riscos de custo temporal e cenário
   sem samples seguem pendentes para subtarefas posteriores.

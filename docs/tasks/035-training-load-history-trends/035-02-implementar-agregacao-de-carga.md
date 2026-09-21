@@ -2,7 +2,8 @@
 
 - **Ticker:** `035`
 - **Número:** `02`
-- **Status:** `pending`
+- **Status inicial:** `pending`
+- **Status atual:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -89,3 +90,35 @@ diários, grupos por tipo e estados seguros.
 - Não dividir workout por duração ou cruzamento; usar somente `startedAt`.
 - Tratar datas locais e DST com `ZoneId` recebido, sem timezone persistido.
 - Preservar precisão `Double`/`Duration` até a apresentação.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/WorkoutHeartRateLoadHistory.kt` — contratos, janelas, agregação, comparações, buckets e grupos por tipo.
+- `docs/tasks/035-training-load-history-trends/035-02-implementar-agregacao-de-carga.md` — status, decisões e evidências desta execução.
+- `docs/tasks/035-training-load-history-trends/035-00-overview.md` — checklist e progresso da Spec 035.
+
+## Decisões e desvios
+
+- Decisão: manter toda a agregação em `core.model`, com `asOf` e `ZoneId` explícitos e sem relógio global, persistência ou efeitos colaterais.
+- Decisão: reutilizar diretamente `WorkoutHeartRateAnalysisPolicy` uma vez por workout elegível; resultados `Unavailable` e carga disponível nula permanecem estados seguros.
+- Decisão: expor status por resumo, resultado histórico opcional, comparações com `NO_PREVIOUS_BASELINE`, buckets civis preenchidos e grupos somente dos tipos presentes.
+- Desvio: nenhum.
+
+## Comandos executados
+
+- `git diff --check`
+- `./gradlew app:compileDebugKotlin`
+- `./gradlew lint assembleDebug assembleRelease`
+
+## Resultados e evidências
+
+- `git diff --check`: passou.
+- `app:compileDebugKotlin`: `BUILD SUCCESSFUL`.
+- `lint`, `assembleDebug` e `assembleRelease`: `BUILD SUCCESSFUL`.
+- Revisão independente: aprovada, sem blocker, major ou minor.
+- Não foram criados nem executados testes automatizados, conforme escopo da Spec 035 e `AGENTS.md`.
+
+## Riscos residuais
+
+- Fechamentos numéricos com banco/workouts reais, recomposição por FC máxima, ausência de persistência e screenshot permanecem validação das subtarefas posteriores.
+- Não há testes automatizados novos para cobrir combinações sintéticas de ranges, DST, baseline zero e workouts sem samples; a validação documental e de build não substitui a prova física posterior.
