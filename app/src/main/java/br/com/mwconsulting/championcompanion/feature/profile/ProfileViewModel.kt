@@ -8,6 +8,7 @@ import br.com.mwconsulting.championcompanion.core.model.DailySummaryPolicy
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
 import br.com.mwconsulting.championcompanion.core.model.UpdateHeightInput
+import br.com.mwconsulting.championcompanion.core.model.UpdateMaxHeartRateInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.math.BigDecimal
 import java.time.Instant
@@ -32,6 +33,7 @@ class ProfileViewModel @Inject constructor(
 ) : ViewModel(), ProfileFeatureContract {
     private val mutableState = MutableStateFlow(ProfileUiState())
     private var hasLocalHeightInput = false
+    private var hasLocalMaxHeartRateInput = false
     private var hasLocalDailyStepsGoalInput = false
 
     override val state: StateFlow<ProfileUiState> = mutableState.asStateFlow()
@@ -53,6 +55,12 @@ class ProfileViewModel @Inject constructor(
                                 current.heightInput
                             } else {
                                 snapshot.heightCentimeters?.let(::formatHeightCentimeters).orEmpty()
+                            },
+                            maxHeartRateBpm = snapshot.maxHeartRateBpm,
+                            maxHeartRateBpmInput = if (hasLocalMaxHeartRateInput) {
+                                current.maxHeartRateBpmInput
+                            } else {
+                                snapshot.maxHeartRateBpm?.toString().orEmpty()
                             },
                         )
                     }
@@ -91,6 +99,14 @@ class ProfileViewModel @Inject constructor(
             }
 
             ProfileIntent.SaveHeight -> saveHeight()
+            is ProfileIntent.MaxHeartRateChanged -> {
+                hasLocalMaxHeartRateInput = true
+                mutableState.update { current ->
+                    current.copy(maxHeartRateBpmInput = intent.value, message = null)
+                }
+            }
+
+            ProfileIntent.SaveMaxHeartRate -> saveMaxHeartRate()
             is ProfileIntent.DailyStepsGoalChanged -> {
                 hasLocalDailyStepsGoalInput = true
                 mutableState.update { current ->
@@ -100,6 +116,52 @@ class ProfileViewModel @Inject constructor(
 
             ProfileIntent.SaveDailyStepsGoal -> saveDailyStepsGoal()
             ProfileIntent.DismissMessage -> mutableState.update { it.copy(message = null) }
+        }
+    }
+
+    private fun saveMaxHeartRate() {
+        if (mutableState.value.isSaving) return
+        val rawInput = mutableState.value.maxHeartRateBpmInput.trim()
+        val maxHeartRateBpm = parseOptionalMaxHeartRateBpm(rawInput)
+        if (rawInput.isNotEmpty() && maxHeartRateBpm == null) {
+            mutableState.update { current ->
+                current.copy(message = ProfileMessage.INVALID_MAX_HEART_RATE)
+            }
+            return
+        }
+        viewModelScope.launch {
+            mutableState.update { current -> current.copy(isSaving = true, message = null) }
+            val result = try {
+                personalMetricsRepository.updateMaxHeartRate(
+                    UpdateMaxHeartRateInput(
+                        maxHeartRateBpm = maxHeartRateBpm,
+                        updatedAt = Instant.now(),
+                    ),
+                )
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                RepositoryResult.StorageUnavailable
+            }
+            when (result) {
+                is RepositoryResult.Success -> {
+                    hasLocalMaxHeartRateInput = false
+                    mutableState.update { current ->
+                        current.copy(
+                            isSaving = false,
+                            maxHeartRateBpm = result.value.maxHeartRateBpm,
+                            maxHeartRateBpmInput = result.value.maxHeartRateBpm?.toString().orEmpty(),
+                            message = ProfileMessage.MAX_HEART_RATE_SAVED,
+                        )
+                    }
+                }
+
+                RepositoryResult.NotFound -> showSaveFailure(ProfileMessage.PROFILE_UNAVAILABLE)
+                RepositoryResult.Conflict,
+                RepositoryResult.UnexpectedState,
+                RepositoryResult.StorageUnavailable,
+                -> showSaveFailure(ProfileMessage.MAX_HEART_RATE_SAVE_FAILED)
+            }
         }
     }
 
@@ -226,6 +288,12 @@ internal fun parseOptionalHeightCentimeters(
     input: String,
     locale: Locale = Locale.getDefault(),
 ): Double? = input.trim().takeIf(String::isNotEmpty)?.let { parseDecimal(it, locale) }
+
+internal fun parseOptionalMaxHeartRateBpm(input: String): Int? = input.trim()
+    .takeIf(String::isNotEmpty)
+    ?.takeIf { it.matches(Regex("[+]?[0-9]+")) }
+    ?.toIntOrNull()
+    ?.takeIf { it in 30..220 }
 
 internal fun parseDailyStepsGoal(input: String): Int? = input.trim()
     .takeIf { it.matches(Regex("[+]?[0-9]+")) }

@@ -138,6 +138,8 @@ interface PersonalMetricsRepository {
         RepositoryResult.UnexpectedState
     suspend fun updateStepLength(input: UpdateStepLengthInput): RepositoryResult<UserProfile> =
         RepositoryResult.UnexpectedState
+    suspend fun updateMaxHeartRate(input: UpdateMaxHeartRateInput): RepositoryResult<UserProfile> =
+        RepositoryResult.UnexpectedState
     suspend fun findProfileById(profileId: UserProfileId): RepositoryResult<UserProfile> = RepositoryResult.UnexpectedState
     suspend fun findWeightById(measurementId: WeightMeasurementId): RepositoryResult<WeightMeasurement> = RepositoryResult.UnexpectedState
 
@@ -236,6 +238,11 @@ data class UpdateHeightInput(
     val updatedAt: Instant,
 )
 
+data class UpdateMaxHeartRateInput(
+    val maxHeartRateBpm: Int?,
+    val updatedAt: Instant,
+)
+
 data class SaveManualWeightMeasurementInput(
     val valueKilograms: Double,
     val measuredAt: Instant = Instant.now(),
@@ -250,6 +257,7 @@ data class PersonalMetricsSnapshot(
     val manualStrideLengthMeters: Double? = null,
     /** Perfil novo; [manualStrideLengthMeters] permanece somente como ponte legada. */
     val stepLengthProfile: StepLengthProfile? = null,
+    val maxHeartRateBpm: Int? = null,
 )
 
 interface DailyStepsSyncCoordinator {

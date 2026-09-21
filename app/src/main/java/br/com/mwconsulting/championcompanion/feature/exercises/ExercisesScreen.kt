@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
@@ -73,6 +74,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -117,6 +119,8 @@ import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.DomainValue
+import br.com.mwconsulting.championcompanion.core.model.HeartRateZone
+import br.com.mwconsulting.championcompanion.core.model.HeartRateZoneSummary
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.StepLengthSource
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
@@ -127,6 +131,8 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityOrigin
 import br.com.mwconsulting.championcompanion.core.model.WorkoutCanonicalReadStatus
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDistanceMetrics
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
+import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysis
+import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysisResult
 import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample
 import br.com.mwconsulting.championcompanion.core.model.WorkoutInterval
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityIndicator
@@ -1679,6 +1685,7 @@ private fun ExerciseDetailShell(
                 } else {
                     WorkoutActivityDetailContent(
                         activity = activity,
+                        heartRateAnalysis = detailState.heartRateAnalysis,
                         latestCalibration = detailState.latestCalibration,
                         referenceDistanceCalibrationAllowed = state.referenceDistanceCalibrationAllowed,
                         operationError = state.operationError,
@@ -1844,6 +1851,7 @@ private fun ExerciseDetailShell(
 @Composable
 private fun WorkoutActivityDetailContent(
     activity: WorkoutActivity,
+    heartRateAnalysis: WorkoutHeartRateAnalysisResult,
     latestCalibration: TreadmillCalibrationSnapshot?,
     referenceDistanceCalibrationAllowed: Boolean,
     operationError: ExerciseOperationError?,
@@ -1889,6 +1897,10 @@ private fun WorkoutActivityDetailContent(
         if (activity.referenceHeartRateChartPoints().isNotEmpty()) {
             DetailSectionHeading("Frequência cardíaca")
             ActivityHeartRateComparisonChartSection(activity)
+        }
+        if (activity.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4) {
+            DetailSectionHeading("Zonas de frequência cardíaca")
+            ActivityHeartRateAnalysisSection(heartRateAnalysis)
         }
         if (activity.canonicalWorkoutChartIntervals() != null) {
             ActivityCadenceChartSection(activity)
@@ -2241,6 +2253,250 @@ private fun ActivityHeartRateComparisonChartSection(activity: WorkoutActivity) {
         }.toTypedArray(),
     )
 }
+
+@Composable
+private fun ActivityHeartRateAnalysisSection(result: WorkoutHeartRateAnalysisResult) {
+    when (result) {
+        is WorkoutHeartRateAnalysisResult.Available -> {
+            result.analysis.renderAvailableHeartRateAnalysis()
+        }
+
+        is WorkoutHeartRateAnalysisResult.ConfigurationRequired -> {
+            result.analysis.renderHeartRateConfigurationRequired()
+        }
+
+        WorkoutHeartRateAnalysisResult.NoHeartRateSamples -> {
+            val message = "Zonas e carga cardiovascular indisponíveis porque não há amostras de frequência cardíaca utilizáveis neste treino."
+            Text(
+                text = message,
+                modifier = Modifier.semantics { contentDescription = message },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        is WorkoutHeartRateAnalysisResult.Unavailable -> {
+            ErrorState(
+                title = "Zonas e carga indisponíveis",
+                message = "Não foi possível calcular zonas e carga cardiovascular para este treino.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkoutHeartRateAnalysis.renderAvailableHeartRateAnalysis() {
+    val orderedZones = listOf(
+        HeartRateZone.Z5,
+        HeartRateZone.Z4,
+        HeartRateZone.Z3,
+        HeartRateZone.Z2,
+        HeartRateZone.Z1,
+        HeartRateZone.BELOW_ZONE_1,
+    )
+    val summariesByZone = zones.orEmpty().associateBy(HeartRateZoneSummary::zone)
+    val partialCoverage = coverageRatio < 1.0
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = buildString {
+                    append("Zonas de frequência cardíaca. ")
+                    orderedZones.mapNotNull(summariesByZone::get).forEach { summary ->
+                        append(
+                            "${summary.zone.toDisplayLabel()}: ${summary.duration.toDurationLabel()}, " +
+                                "${summary.percentage.toPercentageLabel()}. ",
+                        )
+                    }
+                    append("Carga cardiovascular: ${cardiovascularLoad.toLoadLabel()}. ")
+                    append("Cobertura de FC: ${coverageRatio.toCoverageLabel()}.")
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        orderedZones.mapNotNull(summariesByZone::get).forEach { summary ->
+            HeartRateZoneRow(summary)
+        }
+        HeartRateAnalysisMetricRow(
+            label = "Carga cardiovascular",
+            value = cardiovascularLoad.toLoadLabel(),
+        )
+        HeartRateAnalysisMetricRow(
+            label = "Cobertura de FC",
+            value = coverageRatio.toCoverageLabel(),
+            valueColor = if (partialCoverage) {
+                MaterialTheme.colorScheme.tertiary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+        if (partialCoverage) {
+            Text(
+                text = "Cobertura parcial: a carga considera somente tempo coberto por amostras válidas.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+        Text(
+            text = "Métrica local do Champion Companion baseada em Edwards TRIMP / zonas somadas de frequência cardíaca; não reproduz escalas do Google, Fitbit ou Health Connect.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (observedAboveConfiguredMaximum) {
+            val message = "Há amostra acima da FC máxima configurada. A FC observada máxima permanece ${observedMaximumBpm} BPM e foi mantida em Z5."
+            Text(
+                text = message,
+                modifier = Modifier.semantics { contentDescription = message },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkoutHeartRateAnalysis.renderHeartRateConfigurationRequired() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Zonas de frequência cardíaca. Configuração necessária: informe FC máxima pessoal no Perfil para calcular zonas e carga cardiovascular. Cobertura de FC: ${coverageRatio.toCoverageLabel()}."
+            },
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = "Configure sua FC máxima pessoal em Perfil para calcular zonas e carga cardiovascular.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        HeartRateAnalysisMetricRow(
+            label = "Cobertura de FC",
+            value = coverageRatio.toCoverageLabel(),
+            valueColor = if (coverageRatio < 1.0) {
+                MaterialTheme.colorScheme.tertiary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+        HeartRateAnalysisMetricRow(
+            label = "Frequência cardíaca máxima observada",
+            value = "$observedMaximumBpm BPM",
+        )
+    }
+}
+
+@Composable
+private fun HeartRateZoneRow(summary: HeartRateZoneSummary) {
+    val zoneColor = when (summary.zone) {
+        HeartRateZone.Z5 -> MaterialTheme.colorScheme.error
+        HeartRateZone.Z4 -> MaterialTheme.colorScheme.tertiary
+        HeartRateZone.Z3 -> MaterialTheme.colorScheme.primary
+        HeartRateZone.Z2 -> MaterialTheme.colorScheme.secondary
+        HeartRateZone.Z1 -> MaterialTheme.colorScheme.onSurfaceVariant
+        HeartRateZone.BELOW_ZONE_1 -> MaterialTheme.colorScheme.outline
+    }
+    val zoneDescription = "${summary.zone.toDisplayLabel()}: ${summary.duration.toDurationLabel()}, " +
+        "${summary.percentage.toPercentageLabel()} da cobertura."
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = zoneDescription
+            },
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.extraSmall),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = summary.zone.toDisplayLabel(),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "${summary.duration.toDurationLabel()} • ${summary.percentage.toPercentageLabel()}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(summary.percentage.toFloat().coerceIn(0f, 1f))
+                    .height(8.dp)
+                    .background(zoneColor),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeartRateAnalysisMetricRow(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$label: $value"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = ChampionSpacing.medium),
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun HeartRateZone.toDisplayLabel(): String = when (this) {
+    HeartRateZone.BELOW_ZONE_1 -> "Abaixo de Z1"
+    HeartRateZone.Z1 -> "Z1"
+    HeartRateZone.Z2 -> "Z2"
+    HeartRateZone.Z3 -> "Z3"
+    HeartRateZone.Z4 -> "Z4"
+    HeartRateZone.Z5 -> "Z5"
+}
+
+private fun Double.toPercentageLabel(): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.0f%%", this * 100.0)
+
+private fun Double.toCoverageLabel(): String =
+    if (this >= 1.0) {
+        "100%"
+    } else {
+        String.format(Locale.forLanguageTag("pt-BR"), "%.1f%%", this * 100.0)
+    }
+
+private fun Double?.toLoadLabel(): String =
+    this?.let { String.format(Locale.forLanguageTag("pt-BR"), "%.1f pontos", it) } ?: "indisponível"
 
 private fun WorkoutActivity.referenceHeartRateChartPoints(): List<ChampionChartPoint> {
     val samples = heartRateSamples.sortedBy { it.sampledAt }

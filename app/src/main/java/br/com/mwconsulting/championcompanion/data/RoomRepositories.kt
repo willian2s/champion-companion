@@ -119,6 +119,7 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibration
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
 import br.com.mwconsulting.championcompanion.core.model.TemporalSeriesValidationReason
 import br.com.mwconsulting.championcompanion.core.model.UpdateHeightInput
+import br.com.mwconsulting.championcompanion.core.model.UpdateMaxHeartRateInput
 import br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthInput
 import br.com.mwconsulting.championcompanion.core.model.UpdateStepLengthCalibrationEvidenceInput
 import br.com.mwconsulting.championcompanion.core.model.UpdateDistanceCalibrationEvidenceInput
@@ -269,6 +270,7 @@ class RoomRepositories @Inject constructor(
                         latestWeightOrigin = weight?.origin?.let { enumValueOfOrNull<DataOrigin>(it) },
                         manualStrideLengthMeters = null,
                         stepLengthProfile = profileDomain.stepLengthProfile,
+                        maxHeartRateBpm = profileDomain.maxHeartRateBpm,
                     )
                 }
                 .collect { emit(it) }
@@ -1982,6 +1984,7 @@ class RoomRepositories @Inject constructor(
                 heightCentimeters = currentProfile?.heightCentimeters,
                 updatedAt = profileUpdatedAt,
                 stepLengthProfile = stepLengthProfile,
+                maxHeartRateBpm = currentProfile?.maxHeartRateBpm,
             ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
             val updatedEntity = updatedProfile.toEntity()
             if (currentProfile == null) {
@@ -2027,6 +2030,7 @@ class RoomRepositories @Inject constructor(
                 // Altura é independente do passo base. Preserva perfil, origem,
                 // valor e instante existentes sem reconstrução.
                 stepLengthProfile = currentProfile?.stepLengthProfile,
+                maxHeartRateBpm = currentProfile?.maxHeartRateBpm,
             ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
             val updatedEntity = updatedProfile.toEntity()
             if (currentProfile == null) {
@@ -2049,6 +2053,37 @@ class RoomRepositories @Inject constructor(
         throw cancellation
     } catch (_: HeightUpdateAborted) {
         RepositoryResult.UnexpectedState
+    } catch (_: Exception) {
+        RepositoryResult.StorageUnavailable
+    }
+
+    override suspend fun updateMaxHeartRate(input: UpdateMaxHeartRateInput): RepositoryResult<UserProfile> = try {
+        write {
+            val profileEntity = database.userProfileDao().findCurrent()
+            val currentProfile = profileEntity?.toDomain()
+                ?: if (profileEntity == null) null else return@write RepositoryResult.UnexpectedState
+            val updatedProfile = UserProfile.create(
+                id = currentProfile?.id ?: UserProfileId(ids.next()),
+                heightCentimeters = currentProfile?.heightCentimeters,
+                updatedAt = monotonicProfileUpdatedAt(
+                    requested = input.updatedAt,
+                    existing = currentProfile?.updatedAt,
+                ),
+                stepLengthProfile = currentProfile?.stepLengthProfile,
+                maxHeartRateBpm = input.maxHeartRateBpm,
+            ).valueOrNull() ?: return@write RepositoryResult.UnexpectedState
+            val updatedEntity = updatedProfile.toEntity()
+            if (currentProfile == null) {
+                database.userProfileDao().insert(updatedEntity)
+            } else if (database.userProfileDao().update(updatedEntity) != 1) {
+                return@write RepositoryResult.Conflict
+            }
+            val persistedProfile = database.userProfileDao().findById(updatedEntity.id)?.toDomain()
+                ?: return@write RepositoryResult.UnexpectedState
+            RepositoryResult.Success(persistedProfile)
+        }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
     } catch (_: Exception) {
         RepositoryResult.StorageUnavailable
     }

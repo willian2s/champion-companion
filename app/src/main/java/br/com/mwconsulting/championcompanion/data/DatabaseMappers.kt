@@ -546,6 +546,7 @@ internal fun UserProfile.toEntity() = br.com.mwconsulting.championcompanion.core
     stepLengthSource = stepLengthProfile?.source?.name,
     stepLengthUpdatedAtEpochMillis = stepLengthProfile?.updatedAt?.toEpochMilli(),
     updatedAtEpochMillis = updatedAt.toEpochMilli(),
+    maxHeartRateBpm = maxHeartRateBpm,
 )
 
 internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEntity.toDomain(): UserProfile? {
@@ -563,6 +564,7 @@ internal fun br.com.mwconsulting.championcompanion.core.database.UserProfileEnti
         updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
         heightCentimeters = heightCentimeters,
         stepLengthProfile = stepLengthProfile,
+        maxHeartRateBpm = maxHeartRateBpm,
     ).successOrNull()
 }
 

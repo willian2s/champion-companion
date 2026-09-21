@@ -1782,18 +1782,14 @@ object WorkoutSplitCalculator {
         sessionWindow: WorkoutIntervalWindow,
     ): Pair<Double?, Duration> {
         if (samples.isEmpty()) return null to Duration.ZERO
-        val ordered = samples.sortedBy(WorkoutHeartRateSample::sampledAt)
         var weightedBpm = 0.0
         var covered = Duration.ZERO
-        ordered.forEachIndexed { index, sample ->
-            val sampleStart = maxInstant(sample.sampledAt, sessionWindow.start)
-            val nextSampleAt = ordered.getOrNull(index + 1)?.sampledAt ?: sessionWindow.end
-            val sampleEnd = minInstant(nextSampleAt, sessionWindow.end)
-            val overlapStart = maxInstant(sampleStart, splitWindow.start)
-            val overlapEnd = minInstant(sampleEnd, splitWindow.end)
+        sampleAndHoldWindows(samples, sessionWindow).forEach { sampleWindow ->
+            val overlapStart = maxInstant(sampleWindow.window.start, splitWindow.start)
+            val overlapEnd = minInstant(sampleWindow.window.end, splitWindow.end)
             if (overlapEnd.isAfter(overlapStart)) {
                 val overlap = Duration.between(overlapStart, overlapEnd)
-                weightedBpm += sample.bpm.toDouble() * overlap.secondsAsDouble()
+                weightedBpm += sampleWindow.sample.bpm.toDouble() * overlap.secondsAsDouble()
                 covered = covered.plus(overlap)
             }
         }
@@ -1819,7 +1815,7 @@ private fun Long?.isValidRawCalories(): Boolean = this == null || this in 0L..0x
 private fun Duration.safeMultipliedBy(multiplier: Long): Duration? =
     runCatching { multipliedBy(multiplier) }.getOrNull()
 
-private fun Duration.secondsAsDouble(): Double = seconds.toDouble() + nano.toDouble() / 1_000_000_000.0
+internal fun Duration.secondsAsDouble(): Double = seconds.toDouble() + nano.toDouble() / 1_000_000_000.0
 
 private fun cumulativeCadence(steps: Long, duration: Duration): Double =
     if (steps == 0L || !duration.isPositive()) 0.0 else steps.toDouble() / (duration.secondsAsDouble() / 60.0)
@@ -1842,6 +1838,6 @@ private fun scaleDuration(duration: Duration, fraction: Double): Duration {
     return Duration.ofNanos(nanos.toLong().coerceAtLeast(0L))
 }
 
-private fun maxInstant(first: Instant, second: Instant): Instant = if (first.isAfter(second)) first else second
+internal fun maxInstant(first: Instant, second: Instant): Instant = if (first.isAfter(second)) first else second
 
-private fun minInstant(first: Instant, second: Instant): Instant = if (first.isBefore(second)) first else second
+internal fun minInstant(first: Instant, second: Instant): Instant = if (first.isBefore(second)) first else second
