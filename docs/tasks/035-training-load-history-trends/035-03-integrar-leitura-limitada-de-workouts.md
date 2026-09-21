@@ -2,7 +2,8 @@
 
 - **Ticker:** `035`
 - **Número:** `03`
-- **Status:** `pending`
+- **Status inicial:** `pending`
+- **Status atual:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -76,7 +77,7 @@ policy 034, sem N+1 reativo e sem alterar schema.
 - Verificar samples completos para a policy 034.
 - Verificar ausência de N+1 reativo por activity.
 - Inspecionar schema e confirmar Room v20 sem migration nova.
-- Executar futuramente `./gradlew lint assembleDebug assembleRelease`.
+- Executar `./gradlew lint assembleDebug assembleRelease` após implementação.
 - Não criar testes automatizados novos.
 
 ## Definição de pronto
@@ -96,3 +97,49 @@ policy 034, sem N+1 reativo e sem alterar schema.
 - Evitar emissão intermediária por activity e recomposição em cascata.
 - Não usar `endedAt` para definir pertencimento analítico.
 - Não registrar samples, BPM ou payloads em logs.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt` — contrato aditivo de leitura completa bounded.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt` — queries reativas temporais para população e filhos.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt` — hidratação agregada, reconstrução completa e falha fechada.
+- Este arquivo — status, decisões, validação e riscos.
+- `docs/tasks/035-training-load-history-trends/035-00-overview.md` — checklist e progresso.
+
+## Decisões e desvios
+
+- Decisão: adicionar `observeWatchActivitiesBetween(CalendarInstantRange)` sem alterar contratos globais ou summaries de calendário.
+- Decisão: aplicar filtros de origem, descarte, `startedAt` semiaberto e ordenação `startedAtEpochMillis ASC, id ASC` no DAO.
+- Decisão: usar flows bounded somente como gatilhos de invalidação e reidratar todos os fatos em uma única `withReadTransaction` por emissão; não há Flow nem consulta por activity.
+- Decisão: rejeitar `CalendarInstantRange` superior a 56 dias no repository, preservando o limite máximo mesmo com chamador incorreto.
+- Decisão: reusar mappers e derivação ativa existentes, incluindo intervalos derivados, splits, header e samples.
+- Decisão: registros inválidos lançam falha segura de mapeamento; não são omitidos como lista vazia nem convertidos em carga.
+- Desvio: nenhum. Nenhum índice, migration, schema, entidade, parser, BLE ou Health Connect foi alterado.
+
+## Comandos executados
+
+- `git diff --check`
+- `./gradlew app:compileDebugKotlin`
+- `./gradlew app:lintDebug`
+- `./gradlew assembleDebug assembleRelease`
+- `./gradlew lint assembleDebug assembleRelease`
+- `EXPLAIN QUERY PLAN` em SQLite in-memory para a query bounded principal.
+
+## Resultados e evidências
+
+- `git diff --check`: passou.
+- `app:compileDebugKotlin`: `BUILD SUCCESSFUL`.
+- `app:lintDebug`: `BUILD SUCCESSFUL`.
+- `assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- Após tornar a reidratação transacional, `./gradlew lint assembleDebug assembleRelease`: `BUILD SUCCESSFUL`.
+- A primeira execução combinada falhou em `:app:lintAnalyzeDebugAndroidTest` por exceção interna do Lint ao analisar `ExampleInstrumentedTest.kt`; não apontou erro nos arquivos da task. A repetição de `./gradlew lint assembleDebug assembleRelease` passou com `BUILD SUCCESSFUL`.
+- Plano bounded reproduzido sem índice temporal composto: `SCAN activity` e `USE TEMP B-TREE FOR ORDER BY`. Não há dataset físico representativo para medir escala; risco registrado sem criar índice especulativo.
+- Inspeção dos arquivos alterados confirma ausência de schema/migration e Room v20 preservado.
+- Revisão independente identificou risco de `mapNotNull` mascarar falha; correção aplicada para propagar `BoundedWatchWorkoutMappingException` em mapeamento inválido.
+- Não foram criados nem executados testes automatizados novos, conforme escopo da Spec 035 e `AGENTS.md`.
+
+## Riscos residuais
+
+- A query principal não possui índice temporal composto e o plano usa scan e ordenação temporária; desempenho em escala real permanece não medido.
+- O repository rejeita ranges superiores a 56 dias; a composição da 035 ainda deve fornecer `[asOf - 56 dias, asOf)` para manter semântica temporal correta.
+- Não houve validação física com workouts nas bordas, estados operacionais, samples ou registros inválidos; isso permanece para as subtarefas posteriores.

@@ -7,6 +7,7 @@ import br.com.mwconsulting.championcompanion.core.bluetooth.ChampionD4WorkoutPar
 import br.com.mwconsulting.championcompanion.core.common.IoDispatcher
 import br.com.mwconsulting.championcompanion.core.database.AppWorkoutSessionDao
 import br.com.mwconsulting.championcompanion.core.database.ChampionDatabase
+import br.com.mwconsulting.championcompanion.core.database.DerivedWorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.DeviceEntity
 import br.com.mwconsulting.championcompanion.core.database.DiagnosticDerivedOutputEntity
 import br.com.mwconsulting.championcompanion.core.database.DailySummaryEntity
@@ -22,9 +23,11 @@ import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutImportEnt
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutD4V4HeaderEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationRecord
+import br.com.mwconsulting.championcompanion.core.database.WorkoutDerivationSnapshotEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutHeartRateSampleEntity
 import br.com.mwconsulting.championcompanion.core.database.WorkoutIntervalEntity
 import br.com.mwconsulting.championcompanion.core.database.HealthSyncWorkoutCandidateRecord
+import br.com.mwconsulting.championcompanion.core.database.WorkoutSplitEntity
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionCheckpoint
@@ -231,6 +234,18 @@ private class WorkoutStepsPreparationAborted :
 
 private class WorkoutStepsCreditCommitAborted :
     IllegalStateException("Workout steps credit could not be committed")
+
+private data class BoundedWatchWorkoutFacts(
+    val activities: List<WorkoutActivityEntity>,
+    val imports: List<WatchWorkoutImportEntity>,
+    val intervals: List<WorkoutIntervalEntity>,
+    val samples: List<WorkoutHeartRateSampleEntity>,
+    val headers: List<WatchWorkoutD4V4HeaderEntity>,
+)
+
+private class BoundedWatchWorkoutMappingException : IllegalStateException(
+    "Bounded watch workout mapping failed",
+)
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -996,6 +1011,71 @@ class RoomRepositories @Inject constructor(
     ) { activities, _ -> activities }.transformLatest { activities ->
         emit(activities.mapNotNull { activity -> loadWorkoutActivity(activity) })
     }.flowOn(ioDispatcher)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeWatchActivitiesBetween(range: CalendarInstantRange): Flow<List<WorkoutActivity>> {
+        require(Duration.between(range.fromInclusive, range.untilExclusive) <= Duration.ofDays(56)) {
+            "Watch workout history range cannot exceed 56 days"
+        }
+        val fromEpochMillis = range.fromInclusive.toEpochMilli()
+        val untilEpochMillis = range.untilExclusive.toEpochMilli()
+        val invalidation = combine(
+            database.workoutActivityDao()
+                .observeWatchActivitiesBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.watchWorkoutImportDao()
+                .observeWatchImportsBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.workoutDetailDao()
+                .observeWatchIntervalsBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.workoutDetailDao()
+                .observeWatchHeartRateSamplesBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.watchWorkoutD4V4HeaderDao()
+                .observeWatchHeadersBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+        ) { _, _, _, _, _ -> Unit }
+        val derivationInvalidation = combine(
+            database.workoutDerivationDao()
+                .observeActiveWatchSnapshotsBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.workoutDerivationDao()
+                .observeActiveWatchDerivedIntervalsBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.workoutDerivationDao()
+                .observeActiveWatchSplitsBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+        ) { _, _, _ -> Unit }
+        return combine(invalidation, derivationInvalidation) { _, _ -> Unit }
+            .transformLatest {
+                emit(
+                    database.withReadTransaction {
+                        loadBoundedWatchActivities(
+                            facts = BoundedWatchWorkoutFacts(
+                                activities = database.workoutActivityDao()
+                                    .findWatchActivitiesBetween(fromEpochMillis, untilEpochMillis),
+                                imports = database.watchWorkoutImportDao()
+                                    .findWatchImportsBetween(fromEpochMillis, untilEpochMillis),
+                                intervals = database.workoutDetailDao()
+                                    .findWatchIntervalsBetween(fromEpochMillis, untilEpochMillis),
+                                samples = database.workoutDetailDao()
+                                    .findWatchHeartRateSamplesBetween(fromEpochMillis, untilEpochMillis),
+                                headers = database.watchWorkoutD4V4HeaderDao()
+                                    .findWatchHeadersBetween(fromEpochMillis, untilEpochMillis),
+                            ),
+                            activeSnapshots = database.workoutDerivationDao()
+                                .findActiveWatchSnapshotsBetween(fromEpochMillis, untilEpochMillis),
+                            derivedIntervals = database.workoutDerivationDao()
+                                .findActiveWatchDerivedIntervalsBetween(fromEpochMillis, untilEpochMillis),
+                            splits = database.workoutDerivationDao()
+                                .findActiveWatchSplitsBetween(fromEpochMillis, untilEpochMillis),
+                        )
+                    },
+                )
+            }
+            .flowOn(ioDispatcher)
+    }
 
     override fun observeActivitiesBetween(range: CalendarInstantRange) =
         database.workoutActivityDao()
@@ -3665,6 +3745,71 @@ class RoomRepositories @Inject constructor(
         )
     }
 
+    private suspend fun loadBoundedWatchActivities(
+        facts: BoundedWatchWorkoutFacts,
+        activeSnapshots: List<WorkoutDerivationSnapshotEntity>,
+        derivedIntervals: List<DerivedWorkoutIntervalEntity>,
+        splits: List<WorkoutSplitEntity>,
+    ): List<WorkoutActivity> {
+        if (facts.activities.isEmpty()) return emptyList()
+
+        val importsByActivityId = facts.imports.associateBy { it.activityId }
+        val intervalsByActivityId = facts.intervals.groupBy { it.activityId }
+        val samplesByActivityId = facts.samples.groupBy { it.activityId }
+        val headersByActivityId = facts.headers.associateBy { it.activityId }
+        val derivedIntervalsBySnapshotId = derivedIntervals.groupBy { it.snapshotId }
+        val splitsBySnapshotId = splits.groupBy { it.snapshotId }
+        val activeRecordsByActivityId = activeSnapshots
+            .filter { it.activeActivityId != null }
+            .associate { snapshot ->
+                snapshot.activeActivityId!! to WorkoutDerivationRecord(
+                    snapshot = snapshot,
+                    intervals = derivedIntervalsBySnapshotId[snapshot.id].orEmpty(),
+                    splits = splitsBySnapshotId[snapshot.id].orEmpty(),
+                )
+            }
+        val derivationsByActivityId = facts.activities.associate { activity ->
+            activity.id to mapActiveDerivation(
+                activity = activity,
+                importRecord = importsByActivityId[activity.id],
+                intervals = intervalsByActivityId[activity.id].orEmpty(),
+                samples = samplesByActivityId[activity.id].orEmpty(),
+                d4V4Header = headersByActivityId[activity.id],
+                activeRecord = activeRecordsByActivityId[activity.id],
+            )
+        }
+        val hasActivitiesWithoutDerivation = derivationsByActivityId.values.any { it == null }
+        val hasStepLengthProfile = if (hasActivitiesWithoutDerivation) {
+            database.userProfileDao().findCurrent()?.toDomain()?.stepLengthProfile != null
+        } else {
+            false
+        }
+
+        return facts.activities.map { activity ->
+            val activeRecord = activeRecordsByActivityId[activity.id]
+            val derivationSnapshot = derivationsByActivityId[activity.id]
+            if (activeRecord != null && derivationSnapshot == null) {
+                throw BoundedWatchWorkoutMappingException()
+            }
+            activity.toDomain(
+                importRecord = importsByActivityId[activity.id],
+                intervals = intervalsByActivityId[activity.id].orEmpty(),
+                samples = samplesByActivityId[activity.id].orEmpty(),
+                derivationSnapshot = derivationSnapshot,
+                canonicalReadStatusOverride = if (
+                    activity.origin == WorkoutActivityOrigin.WATCH_D3_D4.name &&
+                    derivationSnapshot == null &&
+                    !hasStepLengthProfile
+                ) {
+                    WorkoutCanonicalReadStatus.MISSING_STEP_LENGTH
+                } else {
+                    null
+                },
+                d4V4Header = headersByActivityId[activity.id],
+            ) ?: throw BoundedWatchWorkoutMappingException()
+        }
+    }
+
     /** Atualiza somente política no snapshot ativo; filhos e fatos permanecem intactos. */
     private suspend fun updateActiveDerivationSnapshot(
         activityId: String,
@@ -4269,16 +4414,62 @@ class RoomRepositories @Inject constructor(
         ) ?: return null
         val mappedSamples = samples.map { it.toDomain() }
         if (mappedSamples.any { it == null }) return null
-        val confirmedType = activity.confirmedType
-            ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
         val persistedHeader = d4V4Header ?: database.watchWorkoutD4V4HeaderDao()
             .findByActivityId(activity.id)
-        return database.workoutDerivationDao().findActiveForActivity(activity.id)?.toDomain(
+        return mapActiveDerivationRecord(
+            activity = activity,
+            importRecord = importRecord,
+            derivationIntervals = derivationIntervals,
+            mappedSamples = mappedSamples.filterNotNull(),
+            persistedHeader = persistedHeader,
+            activeRecord = database.workoutDerivationDao().findActiveForActivity(activity.id),
+        )
+    }
+
+    private fun mapActiveDerivation(
+        activity: WorkoutActivityEntity,
+        importRecord: WatchWorkoutImportEntity?,
+        intervals: List<WorkoutIntervalEntity>,
+        samples: List<WorkoutHeartRateSampleEntity>,
+        d4V4Header: WatchWorkoutD4V4HeaderEntity?,
+        activeRecord: WorkoutDerivationRecord?,
+    ): WorkoutDerivationSnapshot? {
+        if (activity.origin != WorkoutActivityOrigin.WATCH_D3_D4.name ||
+            importRecord == null ||
+            intervals.hasPersistedUnvalidatedSourceOrder()
+        ) return null
+        val derivationIntervals = prepareWatchWorkoutIntervalsForDerivation(
+            parserVersion = importRecord.parserVersion,
+            rawIntervals = intervals,
+        ) ?: return null
+        val mappedSamples = samples.map { it.toDomain() }
+        if (mappedSamples.any { it == null }) return null
+        return mapActiveDerivationRecord(
+            activity = activity,
+            importRecord = importRecord,
+            derivationIntervals = derivationIntervals,
+            mappedSamples = mappedSamples.filterNotNull(),
+            persistedHeader = d4V4Header,
+            activeRecord = activeRecord,
+        )
+    }
+
+    private fun mapActiveDerivationRecord(
+        activity: WorkoutActivityEntity,
+        importRecord: WatchWorkoutImportEntity,
+        derivationIntervals: List<WorkoutIntervalEntity>,
+        mappedSamples: List<br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateSample>,
+        persistedHeader: WatchWorkoutD4V4HeaderEntity?,
+        activeRecord: WorkoutDerivationRecord?,
+    ): WorkoutDerivationSnapshot? {
+        val confirmedType = activity.confirmedType
+            ?.let { runCatching { WorkoutType.valueOf(it) }.getOrNull() }
+        return activeRecord?.toDomain(
             activityOrigin = WorkoutActivityOrigin.WATCH_D3_D4,
             activityStartedAt = Instant.ofEpochMilli(activity.startedAtEpochMillis),
             activityDurationNanos = activity.durationNanos,
             rawIntervals = derivationIntervals,
-            heartRateSamples = mappedSamples.filterNotNull(),
+            heartRateSamples = mappedSamples,
             parserVersion = importRecord.parserVersion,
             confirmedType = confirmedType,
             parserValidity = runCatching { ParserValidity.valueOf(importRecord.parserValidity) }.getOrNull(),

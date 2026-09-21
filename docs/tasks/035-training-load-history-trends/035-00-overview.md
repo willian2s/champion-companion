@@ -1,8 +1,8 @@
 # 035 — Histórico de carga cardiovascular e tendência
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [035-training-load-history-trends.md](../../specs/035-training-load-history-trends.md)
-- **Progresso:** 2/6 subtarefas concluídas
+- **Progresso:** 3/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ de Exercícios.
 
 - [x] [035-01-auditar-historico-e-congelar-contrato.md](035-01-auditar-historico-e-congelar-contrato.md)
 - [x] [035-02-implementar-agregacao-de-carga.md](035-02-implementar-agregacao-de-carga.md)
-- [ ] [035-03-integrar-leitura-limitada-de-workouts.md](035-03-integrar-leitura-limitada-de-workouts.md)
+- [x] [035-03-integrar-leitura-limitada-de-workouts.md](035-03-integrar-leitura-limitada-de-workouts.md)
 - [ ] [035-04-integrar-read-model-em-exercicios.md](035-04-integrar-read-model-em-exercicios.md)
 - [ ] [035-05-renderizar-historico-e-tendencia.md](035-05-renderizar-historico-e-tendencia.md)
 - [ ] [035-06-validar-fisicamente-e-fechar.md](035-06-validar-fisicamente-e-fechar.md)
@@ -33,6 +33,9 @@ de Exercícios.
 - `035-01` foi auditada e concluída na rodada documental anterior.
 - `035-02` foi concluída com agregação pura em memória; leitura bounded,
   composição reativa, UI e validação física permanecem pendentes.
+- `035-03` foi concluída com leitura reativa bounded de atividades completas e
+  filhos agrupados, filtrada por `WATCH_D3_D4`, descarte e `startedAt`; mapeamento
+  inválido falha fechado sem emitir população sintética.
 - Auditoria revalidada sem alteração de produto; Room v20, policy 034 e
   contrato bounded permanecem confirmados. Riscos de custo temporal e cenário
   sem samples seguem pendentes para subtarefas posteriores.

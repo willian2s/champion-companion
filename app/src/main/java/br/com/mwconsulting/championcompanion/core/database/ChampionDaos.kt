@@ -304,6 +304,32 @@ interface WorkoutActivityDao {
     fun observeAll(): Flow<List<WorkoutActivityEntity>>
 
     @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY activity.startedAtEpochMillis ASC, activity.id ASC",
+    )
+    fun observeWatchActivitiesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutActivityEntity>>
+
+    @Query(
+        "SELECT activity.* FROM workout_activities activity " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY activity.startedAtEpochMillis ASC, activity.id ASC",
+    )
+    suspend fun findWatchActivitiesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WorkoutActivityEntity>
+
+    @Query(
         "SELECT activity.*, " +
             "importRecord.id AS importId, importRecord.activityId AS importActivityId, " +
             "importRecord.deviceId AS importDeviceId, importRecord.origin AS importOrigin, " +
@@ -620,6 +646,34 @@ interface WatchWorkoutImportDao {
     @Query("SELECT * FROM watch_workout_imports WHERE activityId = :activityId")
     suspend fun findByActivityId(activityId: String): WatchWorkoutImportEntity?
 
+    @Query(
+        "SELECT importRecord.* FROM watch_workout_imports importRecord " +
+            "INNER JOIN workout_activities activity ON activity.id = importRecord.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY importRecord.activityId, importRecord.id",
+    )
+    fun observeWatchImportsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WatchWorkoutImportEntity>>
+
+    @Query(
+        "SELECT importRecord.* FROM watch_workout_imports importRecord " +
+            "INNER JOIN workout_activities activity ON activity.id = importRecord.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY importRecord.activityId, importRecord.id",
+    )
+    suspend fun findWatchImportsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WatchWorkoutImportEntity>
+
     @Query("SELECT COUNT(*) FROM watch_workout_imports WHERE activityId = :activityId")
     suspend fun countByActivityId(activityId: String): Int
 
@@ -643,6 +697,34 @@ interface WatchWorkoutImportDao {
 interface WatchWorkoutD4V4HeaderDao {
     @Query("SELECT * FROM watch_workout_d4_v4_headers ORDER BY activityId")
     fun observeAll(): Flow<List<WatchWorkoutD4V4HeaderEntity>>
+
+    @Query(
+        "SELECT header.* FROM watch_workout_d4_v4_headers header " +
+            "INNER JOIN workout_activities activity ON activity.id = header.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY header.activityId, header.id",
+    )
+    fun observeWatchHeadersBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WatchWorkoutD4V4HeaderEntity>>
+
+    @Query(
+        "SELECT header.* FROM watch_workout_d4_v4_headers header " +
+            "INNER JOIN workout_activities activity ON activity.id = header.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY header.activityId, header.id",
+    )
+    suspend fun findWatchHeadersBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WatchWorkoutD4V4HeaderEntity>
 
     @Query("SELECT * FROM watch_workout_d4_v4_headers WHERE activityId = :activityId LIMIT 1")
     suspend fun findByActivityId(activityId: String): WatchWorkoutD4V4HeaderEntity?
@@ -673,6 +755,34 @@ interface WorkoutDetailDao {
     @Query("SELECT * FROM workout_intervals ORDER BY activityId, intervalIndex")
     fun observeAllIntervals(): Flow<List<WorkoutIntervalEntity>>
 
+    @Query(
+        "SELECT interval.* FROM workout_intervals interval " +
+            "INNER JOIN workout_activities activity ON activity.id = interval.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY interval.activityId, interval.intervalIndex",
+    )
+    fun observeWatchIntervalsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutIntervalEntity>>
+
+    @Query(
+        "SELECT interval.* FROM workout_intervals interval " +
+            "INNER JOIN workout_activities activity ON activity.id = interval.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY interval.activityId, interval.intervalIndex",
+    )
+    suspend fun findWatchIntervalsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WorkoutIntervalEntity>
+
     @Query("SELECT * FROM workout_intervals WHERE activityId = :activityId ORDER BY intervalIndex")
     suspend fun findIntervalsForActivity(activityId: String): List<WorkoutIntervalEntity>
 
@@ -687,6 +797,34 @@ interface WorkoutDetailDao {
 
     @Query("SELECT * FROM workout_heart_rate_samples WHERE activityId = :activityId ORDER BY sampledAtEpochMillis, sampledAtEpochSecond, sampledAtNano, id")
     suspend fun findHeartRateSamplesForActivity(activityId: String): List<WorkoutHeartRateSampleEntity>
+
+    @Query(
+        "SELECT sample.* FROM workout_heart_rate_samples sample " +
+            "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY sample.activityId, sample.sampledAtEpochMillis, sample.sampledAtEpochSecond, sample.sampledAtNano, sample.id",
+    )
+    fun observeWatchHeartRateSamplesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutHeartRateSampleEntity>>
+
+    @Query(
+        "SELECT sample.* FROM workout_heart_rate_samples sample " +
+            "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY sample.activityId, sample.sampledAtEpochMillis, sample.sampledAtEpochSecond, sample.sampledAtNano, sample.id",
+    )
+    suspend fun findWatchHeartRateSamplesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WorkoutHeartRateSampleEntity>
 
     @Query("SELECT * FROM workout_heart_rate_samples ORDER BY activityId, sampledAtEpochMillis, sampledAtEpochSecond, sampledAtNano, id")
     fun observeAllHeartRateSamples(): Flow<List<WorkoutHeartRateSampleEntity>>
@@ -726,6 +864,100 @@ data class WorkoutDerivationRecord(
 interface WorkoutDerivationDao {
     @Query("SELECT * FROM workout_derivation_snapshots WHERE isActive = 1 ORDER BY activityId")
     fun observeActiveSnapshots(): Flow<List<WorkoutDerivationSnapshotEntity>>
+
+    @Query(
+        "SELECT snapshot.* FROM workout_derivation_snapshots snapshot " +
+            "INNER JOIN workout_activities activity ON activity.id = snapshot.activeActivityId " +
+            "WHERE snapshot.isActive = 1 " +
+            "AND activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY snapshot.activeActivityId, snapshot.id",
+    )
+    fun observeActiveWatchSnapshotsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutDerivationSnapshotEntity>>
+
+    @Query(
+        "SELECT snapshot.* FROM workout_derivation_snapshots snapshot " +
+            "INNER JOIN workout_activities activity ON activity.id = snapshot.activeActivityId " +
+            "WHERE snapshot.isActive = 1 " +
+            "AND activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY snapshot.activeActivityId, snapshot.id",
+    )
+    suspend fun findActiveWatchSnapshotsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WorkoutDerivationSnapshotEntity>
+
+    @Query(
+        "SELECT derived.* FROM workout_derived_intervals derived " +
+            "INNER JOIN workout_derivation_snapshots snapshot ON snapshot.id = derived.snapshotId " +
+            "INNER JOIN workout_activities activity ON activity.id = snapshot.activeActivityId " +
+            "WHERE snapshot.isActive = 1 " +
+            "AND activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY derived.snapshotId, derived.intervalIndex",
+    )
+    fun observeActiveWatchDerivedIntervalsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<DerivedWorkoutIntervalEntity>>
+
+    @Query(
+        "SELECT derived.* FROM workout_derived_intervals derived " +
+            "INNER JOIN workout_derivation_snapshots snapshot ON snapshot.id = derived.snapshotId " +
+            "INNER JOIN workout_activities activity ON activity.id = snapshot.activeActivityId " +
+            "WHERE snapshot.isActive = 1 " +
+            "AND activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY derived.snapshotId, derived.intervalIndex",
+    )
+    suspend fun findActiveWatchDerivedIntervalsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<DerivedWorkoutIntervalEntity>
+
+    @Query(
+        "SELECT split.* FROM workout_splits split " +
+            "INNER JOIN workout_derivation_snapshots snapshot ON snapshot.id = split.snapshotId " +
+            "INNER JOIN workout_activities activity ON activity.id = snapshot.activeActivityId " +
+            "WHERE snapshot.isActive = 1 " +
+            "AND activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY split.snapshotId, split.splitNumber",
+    )
+    fun observeActiveWatchSplitsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutSplitEntity>>
+
+    @Query(
+        "SELECT split.* FROM workout_splits split " +
+            "INNER JOIN workout_derivation_snapshots snapshot ON snapshot.id = split.snapshotId " +
+            "INNER JOIN workout_activities activity ON activity.id = snapshot.activeActivityId " +
+            "WHERE snapshot.isActive = 1 " +
+            "AND activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY split.snapshotId, split.splitNumber",
+    )
+    suspend fun findActiveWatchSplitsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WorkoutSplitEntity>
 
     @Transaction
     @Query("SELECT * FROM workout_derivation_snapshots WHERE isActive = 1 ORDER BY activityId")
