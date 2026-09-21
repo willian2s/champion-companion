@@ -1,6 +1,6 @@
 # ADR-034 — Zonas de frequência cardíaca e carga cardiovascular
 
-- **Status:** proposta para a Spec 034
+- **Status:** aceita e validada na Spec 034
 - **Data:** planejamento da Spec 034
 - **Relacionada:** [Spec 034](../specs/034-heart-rate-zones-training-load.md)
 

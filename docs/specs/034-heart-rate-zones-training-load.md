@@ -1,7 +1,7 @@
 # 034 — Zonas de frequência cardíaca e carga cardiovascular
 
 - **Ticker:** `034`
-- **Status:** `planned`
+- **Status:** `completed`
 - **Tipo:** evolução local de read model e métricas pessoais
 - **Base:** `main` com Room v19 e estado documental da Spec 033
 - **Branch de trabalho:** `feat/034-heart-rate-zones-training-load`

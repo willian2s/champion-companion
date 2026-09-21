@@ -2,7 +2,7 @@
 
 - **Ticker:** `034`
 - **Número:** `06`
-- **Status:** `pending`
+- **Status:** `completed`
 
 ## Objetivo
 
@@ -120,16 +120,41 @@ existente e samples já persistidos.
 
 ## Registro da execução
 
-- **Status:** `pending` — nenhuma validação física executada nesta fase de
-  planejamento.
-- **Arquivos alterados:** nenhum arquivo de produto; evidência física será criada
-  somente durante implementação/validação.
-- **Decisões e desvios:** fechamento exige matriz independente para zonas,
-  cobertura e TRIMP; N/A não substitui critério obrigatório.
-- **Comandos executados:** não executar assemble/lint nesta fase documental por
-  orientação do usuário; comandos obrigatórios permanecem definidos acima para
-  o gate de implementação.
-- **Resultados e evidências:** requisitos de migration, user_version, perfil,
-  workout existente, workflow, fila remota e screenshot estão enumerados.
-- **Riscos residuais:** banco físico, dispositivo e fixture com fronteiras de
-  zona ainda dependem da execução futura; ausência de prova mantém bloqueio.
+- **Status:** `completed` — todos os critérios numéricos receberam prova física
+  independente; cenário sem samples e snapshot pré-upgrade direto ficaram
+  registrados como N/A/limitação residual.
+- **Arquivos alterados:**
+  `docs/integration/034-06-physical-validation.md`;
+  `docs/integration/034-06-heart-rate-analysis.png`;
+  este arquivo; `034-00-overview.md`; `docs/specs/034-heart-rate-zones-training-load.md`;
+  `docs/decisions/adr-034-heart-rate-zones-training-load.md`.
+- **Decisões e desvios:** uso de workout existente, sem treino novo e sem
+  alteração artificial de samples. Cálculo independente foi reexecutado após
+  corrigir divisor inicial incorreto de `coverageRatio`; resultado final usa
+  segundos de sessão como denominador. `N/A` permanece explícito e não foi
+  promovido a PASS.
+- **Comandos executados:** `git diff --check`; `./gradlew lint assembleDebug
+  assembleRelease`; `./gradlew installDebug`; `adb devices -l`; instalação e
+  execução debug no `SM-S901E`; dumps sanitizados de Room via
+  `adb exec-out run-as`; consultas Python SQLite em cópia temporária de
+  `db`, `-wal` e `-shm`; navegação física de Perfil e detalhe; captura e recorte
+  de screenshot; revisão independente dos artefatos. Nenhum teste automatizado
+  novo foi criado ou executado.
+- **Resultados e evidências:** `user_version=20`; banco preservado com 8
+  activities, 165 samples, 11 snapshots e 779 operações Health Connect; FC
+  máxima persistiu após reinício; configuração ausente mostrou estado seguro;
+  análise independente com `max=180` fechou cobertura em `1843,735 s`, razão
+  `0,984375`, soma de buckets e Edwards TRIMP `149,743`; UI mostrou `149,7`
+  pontos e `98,4%`; sample acima da máxima permaneceu em Z5; assinatura da fila
+  Health Connect permaneceu igual antes/depois; screenshot sanitizada está em
+  `docs/integration/034-06-heart-rate-analysis.png`. Configuração temporária
+  `max=200` exercitou razões exatas `0,80` e `0,90`, com TRIMP independente
+  `140,475` e UI `140,5`; revisão independente confirmou coerência numérica,
+  privacidade e correção do status final. Segundo workout também exercitou
+  `max=210` (`0,50`, `0,60`, abaixo de Z1) e `max=180` (`0,70`, `0,90`), com
+  cálculos independentes e UI compatíveis.
+- **Riscos residuais:** nenhuma activity sem samples estava disponível; esse
+  cenário ficou N/A sem fabricar fixture. Snapshot físico direto de
+  `user_version=19` não foi capturado antes da instalação, embora banco existente
+  tenha aberto em v20 sem wipe observável e preservado dados. Não há lacuna
+  numérica restante; fechamento documental liberado.

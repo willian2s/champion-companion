@@ -1,8 +1,8 @@
 # 034 — Zonas de frequência cardíaca e carga cardiovascular
 
-- **Status geral:** in_progress
+- **Status geral:** completed
 - **Spec:** [034-heart-rate-zones-training-load.md](../../specs/034-heart-rate-zones-training-load.md)
-- **Progresso:** 5/6 subtarefas concluídas
+- **Progresso:** 6/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ Health Connect.
 - [x] [034-03-persistir-fc-maxima-pessoal.md](034-03-persistir-fc-maxima-pessoal.md)
 - [x] [034-04-integrar-read-model-no-detalhe.md](034-04-integrar-read-model-no-detalhe.md)
 - [x] [034-05-renderizar-zonas-e-carga.md](034-05-renderizar-zonas-e-carga.md)
-- [ ] [034-06-validar-fisicamente-e-fechar.md](034-06-validar-fisicamente-e-fechar.md)
+- [x] [034-06-validar-fisicamente-e-fechar.md](034-06-validar-fisicamente-e-fechar.md)
 
 ## Observações
 
@@ -40,8 +40,8 @@ Health Connect.
 - `034-03` concluída em 2026-09-16: FC máxima pessoal persistida como coluna
   nullable no Room v20, com migration aditiva v19 -> v20, round-trip de perfil,
   preservação em altura/passada e editor local no Perfil. Lint e builds
-  debug/release passaram; validação física permanece em `034-06`. `034-05` e
-  `034-06` não foram iniciadas.
+  debug/release passaram; validação física permanece em `034-06`. Naquele momento,
+  `034-05` e `034-06` ainda não haviam sido iniciadas.
 - `034-04` concluída em 2026-09-16: read model efêmero integrado ao contrato de
   detalhe e recomposto por atividade selecionada ou snapshot pessoal atual,
   restrito a workouts do relógio e sem efeitos em workflow, snapshots ou Health
@@ -52,3 +52,20 @@ Health Connect.
   com ordem explícita Z5..Z1 + Abaixo de Z1 e semantics acessíveis. Compilação,
   lint, builds debug/release e revisão independente passaram; validação física,
   screenshot e fechamento permanecem em `034-06`.
+- `034-06` executada parcialmente em 2026-09-21 no `SM-S901E`: migration pós-
+  instalação abriu Room v20 sem wipe observável, FC máxima persistiu após
+  reinício, read model e estado sem configuração foram observados, cálculo
+  independente bateu cobertura, buckets e Edwards TRIMP, e a fila Health Connect
+  manteve assinatura idêntica antes/depois. Evidência e screenshot estão em
+  `docs/integration/034-06-physical-validation.md` e
+  `docs/integration/034-06-heart-rate-analysis.png`.
+- `034-06` concluída em 2026-09-21 no `SM-S901E`: migration pós-instalação abriu
+  Room v20 sem wipe observável, FC máxima persistiu após reinício, read model e
+  estado sem configuração foram observados, todas as fronteiras numéricas e
+  abaixo de Z1 receberam cálculo independente em workouts existentes, e a fila
+  Health Connect manteve assinatura idêntica antes/depois. Evidência e screenshot
+  estão em `docs/integration/034-06-physical-validation.md` e
+  `docs/integration/034-06-heart-rate-analysis.png`.
+- Activity sem samples ficou N/A por ausência de fixture física; snapshot direto
+  pré-migration v19 também não foi capturado, mas nenhuma lacuna numérica restou.
+  Esses riscos residuais estão registrados na subtarefa e não impedem fechamento.
