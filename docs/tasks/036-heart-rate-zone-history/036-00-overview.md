@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [036-heart-rate-zone-history.md](../../specs/036-heart-rate-zone-history.md)
-- **Progresso:** 2/6 subtarefas concluídas
+- **Progresso:** 3/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
 
 - [x] [036-01-auditar-zonas-historicas-e-congelar-contrato.md](036-01-auditar-zonas-historicas-e-congelar-contrato.md)
 - [x] [036-02-implementar-agregacao-historica-de-zonas.md](036-02-implementar-agregacao-historica-de-zonas.md)
-- [ ] [036-03-integrar-read-model-cardiovascular.md](036-03-integrar-read-model-cardiovascular.md)
+- [x] [036-03-integrar-read-model-cardiovascular.md](036-03-integrar-read-model-cardiovascular.md)
 - [ ] [036-04-integrar-zonas-na-pagina-cardiovascular.md](036-04-integrar-zonas-na-pagina-cardiovascular.md)
 - [ ] [036-05-renderizar-distribuicao-temporal.md](036-05-renderizar-distribuicao-temporal.md)
 - [ ] [036-06-validar-fisicamente-e-fechar.md](036-06-validar-fisicamente-e-fechar.md)
@@ -33,3 +33,6 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
 - `036-01` concluída sem alteração funcional; contrato de zonas, nulidade,
   denominadores, parcialidade, janelas e fallback grouped foi congelado para
   `036-02` em diante.
+- `036-03` concluída sem alteração funcional adicional: composição bounded,
+  snapshot, `asOf`, `ZoneId` e estado tipado já propagavam extensão de zonas;
+  renderização permanece nas subtarefas `036-04` e `036-05`.
