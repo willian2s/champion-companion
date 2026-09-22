@@ -39,6 +39,7 @@ data class CardiovascularLoadPeriodSummary(
     val coveredHeartRateDuration: Duration,
     val coverageRatio: Double,
     val partial: Boolean,
+    val zones: List<HeartRateZoneSummary>?,
 )
 
 data class CardiovascularLoadComparison(
@@ -56,6 +57,7 @@ data class CardiovascularLoadDailyBucket(
     val totalWorkoutDuration: Duration,
     val coverageRatio: Double,
     val partial: Boolean,
+    val zones: List<HeartRateZoneSummary>?,
 )
 
 data class CardiovascularLoadTypeSummary(
@@ -200,7 +202,42 @@ object CardiovascularLoadHistoryPolicy {
             coveredHeartRateDuration = coveredHeartRateDuration,
             coverageRatio = coverageRatio,
             partial = partial,
+            zones = aggregateZones(records),
         )
+    }
+
+    private fun aggregateZones(
+        records: List<AnalyzedWorkout>,
+    ): List<HeartRateZoneSummary>? {
+        val availableAnalyses = records.mapNotNull { record ->
+            (record.result as? WorkoutHeartRateAnalysisResult.Available)?.analysis
+        }
+        if (availableAnalyses.isEmpty()) return null
+
+        val durationsByZone = HeartRateZone.entries.associateWith { Duration.ZERO }.toMutableMap()
+        availableAnalyses.forEach { analysis ->
+            analysis.zones.orEmpty().forEach { zoneSummary ->
+                durationsByZone[zoneSummary.zone] = durationsByZone.getValue(zoneSummary.zone)
+                    .plus(zoneSummary.duration)
+            }
+        }
+        val totalAnalyzedZoneDuration = durationsByZone.values.fold(Duration.ZERO) { total, duration ->
+            total.plus(duration)
+        }
+        val totalAnalyzedZoneSeconds = totalAnalyzedZoneDuration.secondsAsDouble()
+
+        return HeartRateZone.entries.map { zone ->
+            val duration = durationsByZone.getValue(zone)
+            HeartRateZoneSummary(
+                zone = zone,
+                duration = duration,
+                percentage = if (totalAnalyzedZoneSeconds > 0.0) {
+                    duration.secondsAsDouble() / totalAnalyzedZoneSeconds
+                } else {
+                    0.0
+                },
+            )
+        }
     }
 
     private fun dailyBuckets(
@@ -224,6 +261,7 @@ object CardiovascularLoadHistoryPolicy {
                 totalWorkoutDuration = summary.totalWorkoutDuration,
                 coverageRatio = summary.coverageRatio,
                 partial = summary.partial,
+                zones = summary.zones,
             )
         }.toList()
     }

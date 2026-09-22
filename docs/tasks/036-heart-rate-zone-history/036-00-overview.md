@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [036-heart-rate-zone-history.md](../../specs/036-heart-rate-zone-history.md)
-- **Progresso:** 1/6 subtarefas concluídas
+- **Progresso:** 2/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
 ## Checklist
 
 - [x] [036-01-auditar-zonas-historicas-e-congelar-contrato.md](036-01-auditar-zonas-historicas-e-congelar-contrato.md)
-- [ ] [036-02-implementar-agregacao-historica-de-zonas.md](036-02-implementar-agregacao-historica-de-zonas.md)
+- [x] [036-02-implementar-agregacao-historica-de-zonas.md](036-02-implementar-agregacao-historica-de-zonas.md)
 - [ ] [036-03-integrar-read-model-cardiovascular.md](036-03-integrar-read-model-cardiovascular.md)
 - [ ] [036-04-integrar-zonas-na-pagina-cardiovascular.md](036-04-integrar-zonas-na-pagina-cardiovascular.md)
 - [ ] [036-05-renderizar-distribuicao-temporal.md](036-05-renderizar-distribuicao-temporal.md)
