@@ -44,6 +44,7 @@ import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSessionState
 import br.com.mwconsulting.championcompanion.core.model.CalibratedWorkoutMetrics
 import br.com.mwconsulting.championcompanion.core.model.CalendarWeightMeasurementSummary
 import br.com.mwconsulting.championcompanion.core.model.CalendarWorkoutSummary
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadWorkoutInput
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.DerivedWorkoutInterval
@@ -1415,6 +1416,28 @@ internal fun WorkoutHeartRateSampleEntity.toDomain(): WorkoutHeartRateSample? {
         sampledAt = sampledAt,
         bpm = bpm,
         sourceSampleIndex = sourceSampleIndex,
+    )
+}
+
+/** Reconstrói somente fatos necessários para análise cardiovascular histórica. */
+internal fun WorkoutActivityEntity.toCardiovascularLoadWorkoutInput(
+    heartRateSamples: List<WorkoutHeartRateSampleEntity>,
+): CardiovascularLoadWorkoutInput? {
+    val mappedOrigin = enum<WorkoutActivityOrigin>(origin) ?: return null
+    if (mappedOrigin != WorkoutActivityOrigin.WATCH_D3_D4 || durationNanos <= 0L) return null
+    val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState) ?: return null
+    if (mappedWorkflowState == ActivityWorkflowState.DISCARDED) return null
+    val mappedSuggestedType = enum<WorkoutType>(suggestedType) ?: return null
+    val mappedConfirmedType = confirmedType?.let { enum<WorkoutType>(it) ?: return null }
+    val mappedHeartRateSamples = heartRateSamples.map { it.toDomain() ?: return null }
+    return CardiovascularLoadWorkoutInput(
+        activityOrigin = mappedOrigin,
+        workflowState = mappedWorkflowState,
+        startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+        duration = Duration.ofNanos(durationNanos),
+        confirmedType = mappedConfirmedType,
+        suggestedType = mappedSuggestedType,
+        heartRateSamples = mappedHeartRateSamples,
     )
 }
 

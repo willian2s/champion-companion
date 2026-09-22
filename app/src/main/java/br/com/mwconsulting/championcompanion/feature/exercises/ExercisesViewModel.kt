@@ -398,7 +398,7 @@ class ExercisesViewModel internal constructor(
         }
         scope.launch {
             combine(
-                workoutActivityRepository.observeWatchActivitiesBetween(cardiovascularHistoryRange),
+                workoutActivityRepository.observeCardiovascularLoadWorkoutsBetween(cardiovascularHistoryRange),
                 personalMetricsRepository.observeSnapshot(),
             ) { workouts, snapshot ->
                 withContext(Dispatchers.Default) {

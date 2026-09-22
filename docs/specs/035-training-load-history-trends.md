@@ -285,16 +285,21 @@ Tipo não altera a fórmula nem a elegibilidade.
 
 O histórico deve consultar no máximo o intervalo
 `[asOf - 56 dias, asOf)`. O contrato recomendado é uma operação específica no
-`WorkoutActivityRepository` que retorne um `Flow<List<WorkoutActivity>>`
-completo, já bounded e filtrado por origem, descarte e `startedAt`.
+`WorkoutActivityRepository` que retorne um
+`Flow<List<CardiovascularLoadWorkoutInput>>`, já bounded e filtrado por origem,
+descarte e `startedAt`. Esse read model contém somente `activityOrigin`,
+`workflowState`, `startedAt`, `duration`, `confirmedType`/`suggestedType` e
+`heartRateSamples`.
 
 Implementação recomendada:
 
 - DAO aplica filtros temporais e de população;
-- repository hidrata atividades completas e samples em uma fonte reativa
-  agregada, preferencialmente com leituras filhas batched;
-- mappers existentes continuam responsáveis por validar e reconstruir
-  `WorkoutActivity`;
+- repository combina somente invalidações bounded de atividade e samples,
+  reidrata as duas entidades em uma transação e agrupa samples por atividade;
+- mapper específico valida e reconstrói `CardiovascularLoadWorkoutInput`,
+  falhando fechado para fatos essenciais inválidos;
+- imports, intervalos, header, snapshots, intervalos derivados, splits e perfil
+  de derivação não fazem parte dessa leitura;
 - não usar `CalendarWorkoutSummary` como fonte final de análise;
 - não criar um Flow reativo por activity nem fazer o ViewModel buscar DAO;
 - manter `observeActivities(ALL)` e a lista de atividades da tela semântica e
@@ -402,7 +407,32 @@ Compose, relógio global, escrita ou efeitos colaterais.
 - `ChampionDatabase.kt:647-665` confirma a tabela de samples e índice por
   atividade.
 - `RoomRepositories.kt:3638-3665` carrega import, intervalos, samples, header
-  e derivação para reconstruir uma atividade completa.
+  e derivação para reconstruir uma atividade completa; esse caminho permanece
+  válido para consumidores que exigem `WorkoutActivity`, mas não é fonte do
+  histórico cardiovascular após a correção `035-08`.
+
+### Regressão Release e correção 035-08
+
+O banco físico Release foi inspecionado sem escrita. Na janela bounded havia
+42 workouts `WATCH_D3_D4` não descartados, 1.308 samples e FC máxima
+configurada. A análise 034, aplicada somente aos fatos de atividade e samples,
+classificava os 42 workouts como `AVAILABLE`, incluindo duas cargas `0,0`.
+
+O caminho anterior da 035 carregava snapshots ativos, intervalos derivados e
+splits. O mapper atual reconstruía snapshots históricos com
+`WorkoutSplitCalculator`; oito snapshots legados tinham contagem de splits
+persistidos diferente da contagem esperada pelas regras atuais. Essa
+incompatibilidade fazia `mapActiveDerivation()` retornar `null`, e o guard de
+`loadBoundedWatchActivities()` lançava `BoundedWatchWorkoutMappingException`
+antes da policy cardiovascular. `ExercisesViewModel` convertia essa exceção
+global em `CardiovascularLoadHistoryUiState.Unavailable`.
+
+`035-08` substitui somente a fonte da 035 por `CardiovascularLoadWorkoutInput`:
+origem, workflow, início, duração, tipo e samples. Derivação, splits,
+distância, calibração e demais fatos analíticos não participam da leitura. A
+leitura continua bounded em 56 dias, batched e somente de leitura. A validação
+Debug anterior não cobriu esse cenário porque usou banco separado; ela não foi
+reescrita nem tratada como evidência Release.
 
 ### Exercícios
 
@@ -420,8 +450,8 @@ Compose, relógio global, escrita ou efeitos colaterais.
 2. Criar agregação pura por workout, derivando as quatro janelas do `asOf` e
    fechando resumos, comparações, buckets e tipos em uma única passagem lógica.
 3. Adicionar uma leitura bounded específica no `WorkoutActivityRepository`,
-   com filtro persistente de origem, descarte e `startedAt`, hidratação completa
-   e fluxo agregado; não usar N+1 reativo.
+   com filtro persistente de origem, descarte e `startedAt`, read model mínimo
+   de atividade e samples, e fluxo agregado; não usar N+1 reativo.
 4. Compor no `ExercisesViewModel` o fluxo bounded, o snapshot pessoal, `asOf` e
    `ZoneId`; qualquer alteração de FC máxima recompõe tudo.
 5. Expor CTA em Exercícios e renderizar o conteúdo em página própria
@@ -461,7 +491,7 @@ Compose, relógio global, escrita ou efeitos colaterais.
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/`:
   contrato da história/agregação, possivelmente ao lado de
   `WatchWorkoutHeartRateAnalysis.kt`;
-- `core/model/RepositoryContracts.kt`: contrato bounded completo do repository;
+- `core/model/RepositoryContracts.kt`: contrato bounded do read model mínimo;
 - `core/database/ChampionDaos.kt`: queries bounded e leituras batched;
 - `data/RoomRepositories.kt`: composição reativa, hidratação e mapeamento;
 - `data/DatabaseMappers.kt`: somente se novo record/read model exigir conversão;
@@ -555,13 +585,15 @@ Não fabricar treino ou sample para preencher checklist.
 5. `035-05` — renderizar histórico, tendência, buckets e estados.
 6. `035-06` — validar fisicamente, revisar efeitos colaterais e fechar.
 7. `035-07` — substituir seção inline por CTA e página própria contextual.
+8. `035-08` — corrigir leitura histórica incompatível no Release.
 
 `035-01` foi executada durante o planejamento documental. As subtarefas de
 domínio e acesso podem avançar somente após esse contrato. `035-04` depende das
 duas anteriores; `035-05` depende do read model; `035-06` fecha somente após
 prova independente e documentação dos cenários N/A; `035-07` depende da
 renderização e da validação física anteriores e altera somente apresentação e
-navegação.
+navegação; `035-08` é corretiva e depende da evidência física Release que
+revelou incompatibilidade histórica no caminho bounded anterior.
 
 ## Premissas explícitas
 

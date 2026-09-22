@@ -41,6 +41,7 @@ import br.com.mwconsulting.championcompanion.core.model.AssociateWorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.CALENDAR_HEART_RATE_SOURCES
 import br.com.mwconsulting.championcompanion.core.model.CalendarDateRange
 import br.com.mwconsulting.championcompanion.core.model.CalendarInstantRange
+import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadWorkoutInput
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
 import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.D1HeartRateImportMetadata
@@ -245,6 +246,10 @@ private data class BoundedWatchWorkoutFacts(
 
 private class BoundedWatchWorkoutMappingException : IllegalStateException(
     "Bounded watch workout mapping failed",
+)
+
+private class CardiovascularLoadWorkoutMappingException : IllegalStateException(
+    "Cardiovascular load workout mapping failed",
 )
 
 @Singleton
@@ -1071,6 +1076,43 @@ class RoomRepositories @Inject constructor(
                             splits = database.workoutDerivationDao()
                                 .findActiveWatchSplitsBetween(fromEpochMillis, untilEpochMillis),
                         )
+                    },
+                )
+            }
+            .flowOn(ioDispatcher)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeCardiovascularLoadWorkoutsBetween(
+        range: CalendarInstantRange,
+    ): Flow<List<CardiovascularLoadWorkoutInput>> {
+        require(Duration.between(range.fromInclusive, range.untilExclusive) <= Duration.ofDays(56)) {
+            "Cardiovascular load history range cannot exceed 56 days"
+        }
+        val fromEpochMillis = range.fromInclusive.toEpochMilli()
+        val untilEpochMillis = range.untilExclusive.toEpochMilli()
+        val invalidation = combine(
+            database.workoutActivityDao()
+                .observeWatchActivitiesBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+            database.workoutDetailDao()
+                .observeWatchHeartRateSamplesBetween(fromEpochMillis, untilEpochMillis)
+                .map { Unit },
+        ) { _, _ -> Unit }
+        return invalidation
+            .transformLatest {
+                emit(
+                    database.withReadTransaction {
+                        val activities = database.workoutActivityDao()
+                            .findWatchActivitiesBetween(fromEpochMillis, untilEpochMillis)
+                        val samplesByActivityId = database.workoutDetailDao()
+                            .findWatchHeartRateSamplesBetween(fromEpochMillis, untilEpochMillis)
+                            .groupBy(WorkoutHeartRateSampleEntity::activityId)
+                        activities.map { activity ->
+                            activity.toCardiovascularLoadWorkoutInput(
+                                heartRateSamples = samplesByActivityId[activity.id].orEmpty(),
+                            ) ?: throw CardiovascularLoadWorkoutMappingException()
+                        }
                     },
                 )
             }

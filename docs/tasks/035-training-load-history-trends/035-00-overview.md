@@ -2,7 +2,7 @@
 
 - **Status geral:** completed
 - **Spec:** [035-training-load-history-trends.md](../../specs/035-training-load-history-trends.md)
-- **Progresso:** 7/7 subtarefas concluídas
+- **Progresso:** 8/8 subtarefas concluídas
 
 ## Objetivo
 
@@ -21,6 +21,7 @@ própria.
 - [x] [035-05-renderizar-historico-e-tendencia.md](035-05-renderizar-historico-e-tendencia.md)
 - [x] [035-06-validar-fisicamente-e-fechar.md](035-06-validar-fisicamente-e-fechar.md)
 - [x] [035-07-mover-carga-cardiovascular-para-pagina-propria.md](035-07-mover-carga-cardiovascular-para-pagina-propria.md)
+- [x] [035-08-corrigir-leitura-historica-release.md](035-08-corrigir-leitura-historica-release.md)
 
 ## Observações
 
@@ -31,7 +32,7 @@ própria.
 - População: `WATCH_D3_D4`, não descartada, atribuída por `startedAt`; workflow
   operacional não exclui estados elegíveis.
 - Range máximo: `[asOf - 56 dias, asOf)`, com contrato bounded no repository,
-  atividades completas e samples, sem N+1 reativo.
+  read model mínimo e samples, sem N+1 reativo.
 - `035-01` foi auditada e concluída na rodada documental anterior.
 - `035-02` foi concluída com agregação pura em memória; leitura bounded,
   composição reativa, UI e validação física permanecem pendentes.
@@ -62,3 +63,14 @@ própria.
 - `035-07` foi concluída com destino contextual serializável, CTA acessível,
   página própria reutilizando o estado do `ExercisesViewModel`, retorno para
   Exercícios, smoke em dispositivo real e screenshot sanitizada.
+- `035-08` é corretivo da regressão reproduzida no banco Release. A validação
+  original da `035-06` exercitou banco Debug separado e não cobriu esta
+  compatibilidade histórica. Foi corrigida com read model mínimo de atividade e
+  samples, sem migration, sem alteração de fatos persistidos e sem relaxar
+  invariantes de derivação.
+- A instalação física incremental preservou workouts, samples, snapshots,
+  derived intervals e splits. A inicialização criou sete operações `HEART_RATE`
+  pendentes por caminho preexistente de sincronização; esse efeito não foi
+  causado por arquivos de Health Connect alterados nesta task, mas impede
+  declarar assinatura totalmente imutável de `health_sync_operations` nesta
+  rodada e permanece risco residual documentado em `035-08`.

@@ -5,6 +5,17 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** Fatos mínimos necessários para recompor carga cardiovascular histórica. */
+data class CardiovascularLoadWorkoutInput(
+    val activityOrigin: WorkoutActivityOrigin,
+    val workflowState: ActivityWorkflowState,
+    val startedAt: Instant,
+    val duration: Duration,
+    val confirmedType: WorkoutType?,
+    val suggestedType: WorkoutType?,
+    val heartRateSamples: List<WorkoutHeartRateSample>,
+)
+
 enum class CardiovascularLoadHistoryStatus {
     AVAILABLE,
     CONFIGURATION_REQUIRED,
@@ -80,7 +91,7 @@ object CardiovascularLoadHistoryPolicy {
     private val FIFTY_SIX_DAYS = Duration.ofDays(56)
 
     fun analyze(
-        workouts: List<WorkoutActivity>,
+        workouts: List<CardiovascularLoadWorkoutInput>,
         maxHeartRateBpm: Int?,
         asOf: Instant,
         zoneId: ZoneId,
@@ -90,15 +101,15 @@ object CardiovascularLoadHistoryPolicy {
         val boundedWorkouts = workouts.filter { workout ->
             workout.activityOrigin == WorkoutActivityOrigin.WATCH_D3_D4 &&
                 workout.workflowState != ActivityWorkflowState.DISCARDED &&
-                !workout.metrics.startedAt.isBefore(windows.previous28.start) &&
-                workout.metrics.startedAt.isBefore(windows.current7.end)
+                !workout.startedAt.isBefore(windows.previous28.start) &&
+                workout.startedAt.isBefore(windows.current7.end)
         }
 
         boundedWorkouts.forEach { workout ->
             val sessionWindow = runCatching {
                 WorkoutIntervalWindow.create(
-                    workout.metrics.startedAt,
-                    workout.metrics.startedAt.plus(workout.metrics.duration),
+                    workout.startedAt,
+                    workout.startedAt.plus(workout.duration),
                 ).valueOrNull()
             }.getOrNull()
                 ?: return CardiovascularLoadHistoryResult(
@@ -108,7 +119,7 @@ object CardiovascularLoadHistoryPolicy {
 
             val record = AnalyzedWorkout(
                 workout = workout,
-                type = workout.confirmedType ?: workout.suggestedType,
+                type = workout.confirmedType ?: workout.suggestedType ?: WorkoutType.UNKNOWN,
                 result = WorkoutHeartRateAnalysisPolicy.analyze(
                     sessionWindow = sessionWindow,
                     heartRateSamples = workout.heartRateSamples,
@@ -116,7 +127,7 @@ object CardiovascularLoadHistoryPolicy {
                 ),
             )
             HistoryPeriod.entries.forEach { period ->
-                if (windows[period].contains(workout.metrics.startedAt)) {
+                if (windows[period].contains(workout.startedAt)) {
                     recordsByPeriod.getValue(period).add(record)
                 }
             }
@@ -152,7 +163,7 @@ object CardiovascularLoadHistoryPolicy {
         maxHeartRateBpm: Int?,
     ): CardiovascularLoadPeriodSummary {
         val totalWorkoutDuration = records.fold(Duration.ZERO) { total, record ->
-            total.plus(record.workout.metrics.duration)
+            total.plus(record.workout.duration)
         }
         val coveredHeartRateDuration = records.fold(Duration.ZERO) { total, record ->
             total.plus(record.result.analysis?.coveredDuration ?: Duration.ZERO)
@@ -163,25 +174,22 @@ object CardiovascularLoadHistoryPolicy {
         } else {
             0.0
         }
-        val availableRecords = records.filter { it.result is WorkoutHeartRateAnalysisResult.Available }
+        val availableRecords = records.filter { record ->
+            val available = record.result as? WorkoutHeartRateAnalysisResult.Available
+            available?.analysis?.cardiovascularLoad?.isFinite() == true
+        }
         val totalLoad = availableRecords.mapNotNull { record ->
             (record.result as WorkoutHeartRateAnalysisResult.Available).analysis.cardiovascularLoad
         }.sum()
-        val hasUnavailableAnalysis = records.any { record ->
-            record.result is WorkoutHeartRateAnalysisResult.Unavailable ||
-                record.result is WorkoutHeartRateAnalysisResult.Available &&
-                record.result.analysis?.cardiovascularLoad == null
-        }
         val status = when {
             records.isEmpty() -> CardiovascularLoadHistoryStatus.NO_WORKOUTS
-            hasUnavailableAnalysis -> CardiovascularLoadHistoryStatus.UNAVAILABLE
             maxHeartRateBpm == null -> CardiovascularLoadHistoryStatus.CONFIGURATION_REQUIRED
             availableRecords.isNotEmpty() -> CardiovascularLoadHistoryStatus.AVAILABLE
             else -> CardiovascularLoadHistoryStatus.NO_ANALYZABLE_WORKOUTS
         }
         val partial = records.any { record ->
-            record.result !is WorkoutHeartRateAnalysisResult.Available ||
-                record.result.analysis?.coverageRatio?.let { it < 1.0 } == true
+            val analysis = (record.result as? WorkoutHeartRateAnalysisResult.Available)?.analysis
+            analysis == null || analysis.cardiovascularLoad == null || analysis.coverageRatio < 1.0
         }
         return CardiovascularLoadPeriodSummary(
             status = status,
@@ -202,7 +210,7 @@ object CardiovascularLoadHistoryPolicy {
     ): List<CardiovascularLoadDailyBucket> {
         val firstDate = window.start.atZone(zoneId).toLocalDate()
         val lastDate = window.end.minusNanos(1).atZone(zoneId).toLocalDate()
-        val recordsByDate = records.groupBy { it.workout.metrics.startedAt.atZone(zoneId).toLocalDate() }
+        val recordsByDate = records.groupBy { it.workout.startedAt.atZone(zoneId).toLocalDate() }
         return generateSequence(firstDate) { date ->
             date.plusDays(1).takeIf { !it.isAfter(lastDate) }
         }.map { date ->
@@ -287,7 +295,7 @@ object CardiovascularLoadHistoryPolicy {
     }
 
     private data class AnalyzedWorkout(
-        val workout: WorkoutActivity,
+        val workout: CardiovascularLoadWorkoutInput,
         val type: WorkoutType,
         val result: WorkoutHeartRateAnalysisResult,
     )

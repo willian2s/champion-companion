@@ -1,6 +1,6 @@
 # ADR-035 — Histórico de carga cardiovascular e tendência
 
-- **Status:** aceita e validada na Spec 035
+- **Status:** aceita; correção `035-08` concluída com risco físico residual
 - **Data:** 2026-09-21
 - **Relacionada:** [Spec 035](../specs/035-training-load-history-trends.md)
 - **Base:** Spec 034 concluída, Room v20
@@ -33,7 +33,7 @@ O read model usará estados tipados `AVAILABLE`, `CONFIGURATION_REQUIRED`, `NO_W
 
 ### 5. Leitura bounded
 
-Adicionar contrato específico ao `WorkoutActivityRepository` para uma única fonte reativa de atividades completas watch no máximo usado pela 035. Filtros de `origin`, `workflowState` e `startedAt` ficam no DAO/repository; retorno contém samples e fatos necessários à policy 034; hidratação deve ser agrupada/batched; ViewModel não acessa DAO; não criar `Flow` por activity. `CalendarWorkoutSummary` permanece contrato leve de calendário.
+Adicionar contrato específico ao `WorkoutActivityRepository` para uma única fonte reativa bounded de `CardiovascularLoadWorkoutInput` no máximo usado pela 035. Filtros de `origin`, `workflowState` e `startedAt` ficam no DAO/repository; retorno contém somente origem, workflow, início, duração, tipo e samples necessários à policy 034; hidratação deve ser agrupada/batched; ViewModel não acessa DAO; não criar `Flow` por activity. Imports, intervalos, header, snapshots, intervalos derivados e splits não participam dessa leitura. `CalendarWorkoutSummary` permanece contrato leve de calendário.
 
 ### 6. Sem migration nesta entrega
 
@@ -62,6 +62,10 @@ snapshots, workflow ou Health Connect. A execução fica registrada na
 
 - Duplicar cálculo da Spec 034: criaria divergência em zonas, sample-and-hold e cobertura.
 - `CalendarWorkoutSummary` + `observeActivity` por ID: não tem samples e repete N+1 reativo.
+- Reidratar `WorkoutActivity` completo para o histórico: rejeitado após a
+  regressão Release. A reconstrução atual de snapshots e splits pode rejeitar
+  fatos históricos válidos para FC; o histórico cardiovascular não usa métricas
+  de distância e não deve depender dessas regras.
 - `observeActivities(ALL)`: não é bounded, inclui descartados e carrega histórico completo.
 - Nova tabela, snapshot ou carga persistida: contradiz recalculabilidade com FC máxima atual e cria migration.
 - Índice temporal ou migration v21 imediata: adiada até evidência de plano/performance.
@@ -83,7 +87,8 @@ snapshots, workflow ou Health Connect. A execução fica registrada na
 ### Negativas e riscos aceitos
 
 - carga histórica muda quando FC máxima muda;
-- hidratação completa pode carregar dados auxiliares;
+- read model cardiovascular mantém contrato mínimo, enquanto leituras completas
+  continuam sujeitas às validações históricas de derivação;
 - falta de índice temporal pode exigir investigação;
 - página própria exige destino, callback e revisão de back stack sem alterar a
   subtree funcional de Exercícios;

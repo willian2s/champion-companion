@@ -403,6 +403,10 @@ interface WorkoutActivityRepository {
     /** Atividades completas do relógio não descartadas no intervalo semiaberto. */
     fun observeWatchActivitiesBetween(range: CalendarInstantRange): Flow<List<WorkoutActivity>> =
         flowOf(emptyList())
+    /** Fatos mínimos bounded para recomposição histórica de carga cardiovascular. */
+    fun observeCardiovascularLoadWorkoutsBetween(
+        range: CalendarInstantRange,
+    ): Flow<List<CardiovascularLoadWorkoutInput>> = flowOf(emptyList())
     /** Atividades não descartadas cujo startedAt pertence ao intervalo semiaberto. */
     fun observeActivitiesBetween(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
         flowOf(emptyList())
