@@ -49,6 +49,14 @@ plausibilidade. Não carrega `CanonicalWorkoutSeries`,
 `DerivedWorkoutInterval`, `WorkoutSplit`, header, import ou `WorkoutActivity`
 completo.
 
+Na persistência, os escalares chegam de `WorkoutDerivationSnapshotEntity`:
+`canonicalDistanceMeters`, `canonicalCoveredDurationNanos`,
+`temporalEligibility` e `temporalEligibilityReasons`. O domínio atual expõe a
+mesma informação por `canonicalDistanceMeters`,
+`canonicalSeries?.coveredDuration` e `temporalResolution`; a projection futura
+deve fazer esse mapeamento explicitamente, sem depender de uma propriedade de
+domínio inexistente nem reidratar o snapshot completo.
+
 ### Comparabilidade
 
 `WATCH_NATIVE` e `WATCH_NATIVE_CONTEXT_CALIBRATED` compartilham trend principal
@@ -122,6 +130,27 @@ decisão posterior de design system.
 
 Room permanece v20, sem migration, tabela, coluna, cache, snapshot analítico ou
 backfill. Health Connect permanece inalterado e fora do read model.
+
+## Auditoria 037-01
+
+O código atual usa `WorkoutActivity` como contrato de atividade, mantém
+`confirmedType` separado de `suggestedType` e ainda não filtra tipo confirmado
+nas consultas watch genéricas. O contrato da 037, portanto, exige query dedicada
+com `confirmedType = RUNNING`, além de origem, descarte e janela semiaberta.
+`CardiovascularLoadWorkoutInput` e seu caminho bounded permanecem mínimos e não
+serão ampliados. Exercícios e navegação ainda expõem somente o histórico de carga
+cardiovascular; tendência terá estado, destino e tela próprios dentro da subtree.
+
+`WorkoutHeartRateAnalysisPolicy` é a autoridade existente para filtro temporal,
+validação e sample-and-hold. A média da 037 reutilizará essa timeline, com
+denominador igual à duração coberta e sem FC máxima, threshold ou política
+paralela. `ChampionChartSeries` exige X crescente, então empate de instante será
+representado por ordinal determinístico.
+
+Não existe banco físico local sanitizado no checkout auditado. A composição real
+de corridas confirmadas `RUNNING`, métodos e versões fica pendente para 037-06 e
+deve ser registrada como `N/A` se não surgir naturalmente. Nenhuma alteração de
+código, Room, schema, Health Connect ou teste foi feita nesta auditoria.
 
 ## Consequências
 

@@ -1,8 +1,8 @@
 # 037 — Tendência de corrida: relação entre ritmo e frequência cardíaca
 
-- **Status geral:** pending
+- **Status geral:** in_progress
 - **Spec:** [037-running-pace-heart-rate-trend.md](../../specs/037-running-pace-heart-rate-trend.md)
-- **Progresso:** 0/6 subtarefas concluídas
+- **Progresso:** 1/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
 
 ## Checklist
 
-- [ ] [037-01-auditar-comparabilidade-e-congelar-contrato.md](037-01-auditar-comparabilidade-e-congelar-contrato.md)
+- [x] [037-01-auditar-comparabilidade-e-congelar-contrato.md](037-01-auditar-comparabilidade-e-congelar-contrato.md)
 - [ ] [037-02-implementar-metricas-de-performance-de-corrida.md](037-02-implementar-metricas-de-performance-de-corrida.md)
 - [ ] [037-03-implementar-read-model-bounded-de-corridas.md](037-03-implementar-read-model-bounded-de-corridas.md)
 - [ ] [037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md](037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md)
@@ -30,3 +30,9 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
   threshold arbitrário.
 - Query/read model é dedicado; `CardiovascularLoadWorkoutInput` não será
   ampliado. Room permanece v20 e Health Connect fica fora do escopo.
+- 037-01 concluída sem alteração funcional. Código atual ainda não filtra
+  `confirmedType == RUNNING` nas consultas watch genéricas; implementação deve
+  usar query dedicada com snapshot ativo e projection mínima.
+- Não há banco físico local sanitizado no checkout. Composição real de corridas,
+  proveniências e cenários naturais ficam para 037-06, com `N/A` quando não
+  surgirem sem fabricação de dados.

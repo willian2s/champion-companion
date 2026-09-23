@@ -128,6 +128,52 @@ auditoria.
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/chart/ChampionCharts.kt`;
 - `app/src/main/java/br/com/mwconsulting/championcompanion/core/designsystem/chart/ChampionChartTheme.kt`.
 
+### Precisões da auditoria 037-01
+
+- O símbolo de domínio vigente é `WorkoutActivity`; `WatchWorkoutActivity.kt` é o
+  arquivo que contém esse contrato. `activityOrigin` é o campo autoritativo e
+  `origin` é uma propriedade de compatibilidade. `confirmedType` permanece
+  nullable e separado de `suggestedType` (`WatchWorkoutActivity.kt:245-264`).
+- As consultas atuais `observeWatchActivitiesBetween()` e
+  `findWatchActivitiesBetween()` filtram origem, descarte e janela, mas ainda não
+  filtram `confirmedType == RUNNING` (`ChampionDaos.kt:306-330`). Portanto, a
+  população estrita da 037 exige query dedicada; não pode reutilizar essas
+  consultas sem adaptação.
+- `WorkoutDerivationSnapshotEntity` persiste os nomes escalares
+  `canonicalDistanceMeters`, `canonicalCoveredDurationNanos`,
+  `temporalEligibility` e `temporalEligibilityReasons`
+  (`ChampionDatabase.kt:547-572`). No domínio, a leitura equivalente aparece
+  como `canonicalDistanceMeters`, `canonicalSeries?.coveredDuration` e
+  `temporalResolution.eligibility/reasons` (`WatchWorkoutDerivedMetrics.kt:1194-1304`).
+  A futura projection deve distinguir nomes persistidos de nomes de domínio e
+  não reidratar o snapshot completo.
+- O código declara `WATCH_WORKOUT_NATIVE_DERIVATION_VERSION =
+  "watch-d3-d4-v4"` (`WatchWorkoutDerivedMetrics.kt:11-18`). Essa é a versão
+  nativa suportada pelo contrato; versões divergentes continuam fatos históricos
+  não comparáveis quando os escalares permitirem listagem factual.
+- `WorkoutHeartRateAnalysisPolicy` filtra samples na janela canônica, valida
+  BPM `30..220` e timestamps estritamente crescentes, usa
+  `sampleAndHoldWindows()` e calcula `coveredDuration`/`coverageRatio`
+  (`WatchWorkoutHeartRateAnalysis.kt:83-160`). A média ponderada da 037 deve
+  compartilhar essa timeline e validar os mesmos fatos, sem exigir FC máxima.
+- A fonte cardiovascular atual permanece deliberadamente mínima:
+  `CardiovascularLoadWorkoutInput` não contém snapshot ou distância;
+  `RoomRepositories` carrega atividades e samples em lote
+  (`RepositoryContracts.kt:399-415`; `RoomRepositories.kt:1085-1120`). A 037
+  cria contrato próprio e não amplia esse input.
+- O read model de tendência ainda não existe. Exercícios possui somente estado
+  de histórico cardiovascular (`ExercisesFeatureContract.kt:26-56`;
+  `ExercisesViewModel.kt:399-420`), e navegação possui somente o destino
+  contextual de carga (`AppDestination.kt:56-64`; `ChampionNavigation.kt:435-450`).
+- `ChampionChartSeries` exige eixo X estritamente crescente e
+  `ChampionChartPoint.y == null` representa ausência (`ChampionChartContracts.kt:5-36`).
+  Empates de `startedAt` exigem posição ordinal na entrada da série, sem epsilon
+  temporal ou substituição de ausência por zero.
+- Não há banco físico local sanitizado no checkout (`champion-release-db/` e
+  arquivos `*.db` ausentes). As evidências 032/034/035/036 continuam referências
+  documentais; composição física específica de corridas `RUNNING` e mistura de
+  proveniências fica `N/A` até 037-06.
+
 ## Comportamento atual encontrado
 
 ### População e tipo
@@ -353,8 +399,10 @@ não usar FC máxima e não alterar thresholds ou zonas da 034.
 
 ### 7. Cobertura de FC e parcialidade
 
-- somente timeline com todos os samples da janela válidos expõe média e
-  `coverageRatio`;
+- timeline com samples presentes na janela canônica expõe média e
+  `coverageRatio` somente quando todos esses samples são válidos; cobertura
+  temporal pode ser parcial porque o trecho anterior ao primeiro sample continua
+  descoberto;
 - cobertura parcial permanece válida e factual, sem threshold de 80%, 90% ou
   outro valor inventado;
 - cobertura completa é `coverageRatio == 1.0` após a regra do domínio;
