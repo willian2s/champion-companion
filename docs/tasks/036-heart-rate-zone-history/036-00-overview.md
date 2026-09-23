@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [036-heart-rate-zone-history.md](../../specs/036-heart-rate-zone-history.md)
-- **Progresso:** 4/6 subtarefas concluídas
+- **Progresso:** 5/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
 - [x] [036-02-implementar-agregacao-historica-de-zonas.md](036-02-implementar-agregacao-historica-de-zonas.md)
 - [x] [036-03-integrar-read-model-cardiovascular.md](036-03-integrar-read-model-cardiovascular.md)
 - [x] [036-04-integrar-zonas-na-pagina-cardiovascular.md](036-04-integrar-zonas-na-pagina-cardiovascular.md)
-- [ ] [036-05-renderizar-distribuicao-temporal.md](036-05-renderizar-distribuicao-temporal.md)
+- [x] [036-05-renderizar-distribuicao-temporal.md](036-05-renderizar-distribuicao-temporal.md)
 - [ ] [036-06-validar-fisicamente-e-fechar.md](036-06-validar-fisicamente-e-fechar.md)
 
 ## Observações
@@ -40,3 +40,7 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
   duração, percentual do tempo analisado, cobertura, contadores, parcialidade e
   estados seguros. Validação física e distribuição temporal permanecem nas
   subtarefas seguintes.
+- `036-05` concluída: gráfico de carga diária 035 foi preservado e a distribuição
+  diária ganhou seleção acessível de uma zona por vez, com duração no eixo Y,
+  zero real para dias sem treino e gaps nulos para treinos sem análise. A
+  validação visual física permanece em `036-06`.

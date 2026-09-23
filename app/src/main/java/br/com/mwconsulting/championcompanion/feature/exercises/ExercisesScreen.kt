@@ -113,6 +113,7 @@ import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionCha
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartPoint
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartSeries
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartUnit
+import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartValueFormatter
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisFormatter
 import br.com.mwconsulting.championcompanion.core.designsystem.chart.ChampionChartXAxisSpec
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
@@ -785,6 +786,9 @@ private fun CardiovascularLoadHistoryContent(history: CardiovascularLoadHistory?
     var selectedPeriod by rememberSaveable {
         mutableStateOf(CardiovascularLoadPeriod.SEVEN_DAYS)
     }
+    var selectedZone by rememberSaveable {
+        mutableStateOf(HeartRateZone.BELOW_ZONE_1)
+    }
 
     when (history.current28.status) {
         CardiovascularLoadHistoryStatus.CONFIGURATION_REQUIRED -> EmptyState(
@@ -838,7 +842,11 @@ private fun CardiovascularLoadHistoryContent(history: CardiovascularLoadHistory?
                 comparison = selectedComparison,
                 comparisonBaselineLabel = selectedBaselineLabel,
             )
-            CardiovascularLoadDailySection(history.dailyBuckets)
+            CardiovascularLoadDailySection(
+                buckets = history.dailyBuckets,
+                selectedZone = selectedZone,
+                onSelectZone = { selectedZone = it },
+            )
             CardiovascularLoadTypeSection(history.typeSummaries)
         }
     }
@@ -987,14 +995,42 @@ private fun CardiovascularLoadPeriodCard(
 }
 
 @Composable
-private fun CardiovascularLoadDailySection(buckets: List<CardiovascularLoadDailyBucket>) {
+private fun CardiovascularLoadDailySection(
+    buckets: List<CardiovascularLoadDailyBucket>,
+    selectedZone: HeartRateZone,
+    onSelectZone: (HeartRateZone) -> Unit,
+) {
     Text(
         text = "Distribuição diária dos últimos 28 dias",
         modifier = Modifier.semantics { heading() },
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
     )
+    Text(
+        text = "Carga cardiovascular por dia",
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.SemiBold,
+    )
     CardiovascularLoadDailyChart(buckets)
+    Text(
+        text = "Tempo por zona",
+        modifier = Modifier.semantics { heading() },
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+        text = "Selecione uma zona para consultar sua duração diária. O gráfico usa uma série por vez.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    CardiovascularLoadZoneSelector(
+        selectedZone = selectedZone,
+        onSelectZone = onSelectZone,
+    )
+    CardiovascularLoadDailyZoneChart(
+        buckets = buckets,
+        selectedZone = selectedZone,
+    )
     val incompleteBuckets = buckets.filter { it.partial || it.workoutCount > it.analyzedWorkoutCount }
     if (incompleteBuckets.isEmpty()) {
         Text(
@@ -1022,6 +1058,47 @@ private fun CardiovascularLoadDailySection(buckets: List<CardiovascularLoadDaily
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun CardiovascularLoadZoneSelector(
+    selectedZone: HeartRateZone,
+    onSelectZone: (HeartRateZone) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Zona selecionada para distribuição diária: ${selectedZone.toDisplayLabel()}."
+            },
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = "Zona exibida: ${selectedZone.toDisplayLabel()}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            HeartRateZone.entries.forEach { zone ->
+                val isSelected = zone == selectedZone
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelectZone(zone) },
+                    label = { Text(zone.toDisplayLabel()) },
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics {
+                            contentDescription = "Exibir distribuição diária de ${zone.toDisplayLabel()}"
+                            selected = isSelected
+                        },
+                )
+            }
+        }
     }
 }
 
@@ -1076,6 +1153,91 @@ private fun CardiovascularLoadDailyChart(buckets: List<CardiovascularLoadDailyBu
         ),
         interaction = ChampionChartInteractionPolicy(scrollEnabled = false),
         accessibilitySummary = "Gráfico de barras da carga cardiovascular por dia nos últimos 28 dias.",
+    )
+    ChampionBarChart(
+        data = chartData,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        columnWidth = 10.dp,
+        columnCollectionSpacing = 1.dp,
+        groupedColumnSpacing = 1.dp,
+    )
+}
+
+@Composable
+private fun CardiovascularLoadDailyZoneChart(
+    buckets: List<CardiovascularLoadDailyBucket>,
+    selectedZone: HeartRateZone,
+) {
+    if (buckets.isEmpty()) return
+
+    val zoneLabel = selectedZone.toDisplayLabel()
+    val numberFormatter = ChampionChartValueFormatter { value -> value.toDurationChartLabel() }
+    val maximum = maxOf(
+        buckets.maxOf { bucket ->
+            bucket.zones
+                ?.firstOrNull { summary -> summary.zone == selectedZone }
+                ?.duration
+                ?.toChartSeconds()
+                ?: 0.0
+        },
+        1.0,
+    )
+    val chartData = ChampionCartesianChartData(
+        series = listOf(
+            ChampionChartSeries(
+                key = "cardiovascular-zone-$selectedZone",
+                label = "Duração em $zoneLabel",
+                points = buckets.mapIndexed { index, bucket ->
+                    val dayLabel = bucket.localDate.formatExerciseDate()
+                    val duration = bucket.zones
+                        ?.firstOrNull { summary -> summary.zone == selectedZone }
+                        ?.duration
+                    val pointValue = when {
+                        bucket.workoutCount == 0 -> 0.0
+                        duration != null -> duration.toChartSeconds()
+                        else -> null
+                    }
+                    val stateLabel = when {
+                        bucket.workoutCount == 0 -> "sem treino, duração 00:00"
+                        bucket.zones == null -> "${bucket.workoutCount} " +
+                            "${if (bucket.workoutCount == 1) "treino" else "treinos"} sem análise, duração indisponível" +
+                            if (bucket.partial) ", dados parciais" else ""
+                        duration != null -> "duração ${duration.toDurationLabel()}" +
+                            if (bucket.partial) ", dados parciais" else ""
+                        else -> "duração indisponível" +
+                            if (bucket.partial) ", dados parciais" else ""
+                    }
+                    ChampionChartPoint(
+                        x = index.toDouble(),
+                        y = pointValue,
+                        xLabel = dayLabel,
+                        contentDescription = "$dayLabel, $zoneLabel: $stateLabel.",
+                    )
+                },
+            ),
+        ),
+        xAxis = ChampionChartXAxisSpec(
+            formatter = ChampionChartXAxisFormatter { value ->
+                buckets.getOrNull(value.roundToInt())?.localDate?.formatExerciseDate() ?: "--"
+            },
+            title = "Dia",
+            minimum = -0.5,
+            maximum = buckets.size - 0.5,
+            gridLinesVisible = false,
+            labelValues = buckets.indices.map(Int::toDouble),
+        ),
+        yAxis = ChampionChartAxisSpec(
+            title = "Duração",
+            formatter = numberFormatter,
+            minimum = 0.0,
+            maximum = maximum,
+            visible = true,
+            gridLinesVisible = false,
+        ),
+        interaction = ChampionChartInteractionPolicy(scrollEnabled = false),
+        accessibilitySummary = "Distribuição diária de duração na zona $zoneLabel nos últimos 28 dias.",
     )
     ChampionBarChart(
         data = chartData,
