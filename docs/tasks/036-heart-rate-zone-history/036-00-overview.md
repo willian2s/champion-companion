@@ -1,0 +1,54 @@
+# 036 — Histórico de zonas de frequência cardíaca e distribuição de intensidade
+
+- **Status geral:** completed
+- **Spec:** [036-heart-rate-zone-history.md](../../specs/036-heart-rate-zone-history.md)
+- **Progresso:** 6/6 subtarefas concluídas
+
+## Objetivo
+
+Agregar historicamente as zonas de frequência cardíaca da Spec 034 em janelas
+de 7 e 28 dias, exibir composição factual do tempo analisado e oferecer
+distribuição diária dos últimos 28 dias na página contextual de histórico
+cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
+
+## Checklist
+
+- [x] [036-01-auditar-zonas-historicas-e-congelar-contrato.md](036-01-auditar-zonas-historicas-e-congelar-contrato.md)
+- [x] [036-02-implementar-agregacao-historica-de-zonas.md](036-02-implementar-agregacao-historica-de-zonas.md)
+- [x] [036-03-integrar-read-model-cardiovascular.md](036-03-integrar-read-model-cardiovascular.md)
+- [x] [036-04-integrar-zonas-na-pagina-cardiovascular.md](036-04-integrar-zonas-na-pagina-cardiovascular.md)
+- [x] [036-05-renderizar-distribuicao-temporal.md](036-05-renderizar-distribuicao-temporal.md)
+- [x] [036-06-validar-fisicamente-e-fechar.md](036-06-validar-fisicamente-e-fechar.md)
+
+## Observações
+
+- Fonte única: `WorkoutHeartRateAnalysisPolicy` e
+  `CardiovascularLoadWorkoutInput` da Spec 035.
+- Fonte bounded permanece limitada a 56 dias; não criar query, N+1, migration,
+  tabela, cache ou snapshot.
+- `HistoryWindows.from(asOf)` continua única semântica temporal.
+- `ChampionBarChart` não suporta stacked bars; planejamento usa uma zona por vez
+  em série única e mantém rows acessíveis com as seis zonas.
+- Room permanece v20 e Health Connect fica fora do escopo.
+- `036-01` concluída sem alteração funcional; contrato de zonas, nulidade,
+  denominadores, parcialidade, janelas e fallback grouped foi congelado para
+  `036-02` em diante.
+- `036-03` concluída sem alteração funcional adicional: composição bounded,
+  snapshot, `asOf`, `ZoneId` e estado tipado já propagavam extensão de zonas;
+  renderização permanece nas subtarefas `036-04` e `036-05`.
+- `036-04` concluída: página contextual seleciona 7/28 dias, exibe seis zonas,
+  duração, percentual do tempo analisado, cobertura, contadores, parcialidade e
+  estados seguros. A validação física permaneceu reservada para `036-06`.
+- `036-05` concluída: gráfico de carga diária 035 foi preservado e a distribuição
+  diária ganhou seleção acessível de uma zona por vez, com duração no eixo Y,
+  zero real para dias sem treino e gaps nulos para treinos sem análise. A
+  validação visual física foi concluída em `036-06`.
+- `036-06` concluída: validação física em workouts reais confirmou Room v20,
+  fechamentos independentes de `current7`, `current28` e buckets, recomposição e
+  restauração da FC máxima, UI contextual, screenshot sanitizada e ausência de
+  operação Health Connect causada pela 036. Carga zero e workout sem análise
+  ficaram N/A por ausência natural no banco; nenhum dado foi fabricado.
+- Snapshot inicial e snapshot pós-inicialização divergiram em fatos de workout,
+  snapshots e derived intervals por ruído de inicialização não isolável. A
+  diferença não foi atribuída à 036; snapshot pós-inicialização permaneceu
+  estável durante recomposição e reabertura.
