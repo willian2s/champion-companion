@@ -1,6 +1,6 @@
 # ADR-036 — Histórico de zonas de frequência cardíaca e distribuição de intensidade
 
-- **Status:** proposta aceita para planejamento
+- **Status:** aceita e validada na Spec 036
 - **Data:** 2026-09-22
 - **Relacionada:** [Spec 036](../specs/036-heart-rate-zone-history.md)
 - **Base:** Spec 034 e Spec 035 concluídas, correção 035-08, Room v20
@@ -133,3 +133,13 @@ Esta decisão não altera `WorkoutHeartRateAnalysisPolicy`, thresholds, BPM,
 sample-and-hold, parser, BLE, D1/D3/D4, derivação, snapshots, workflow,
 Health Connect, treino phone, GPS, rota, permissões ou Room. Não cria avaliação
 de intensidade como boa/ruim, meta, risco, fadiga, recuperação ou recomendação.
+
+## Validação e fechamento
+
+Validação física concluída em 2026-09-23 com workouts reais no `SM-S901E`.
+Room permaneceu v20, a distribuição fechou por período e bucket, a seleção
+temporal usou uma série suportada, e a recomposição por FC máxima foi observada
+com restauração do valor original. O caminho cardiovascular não criou operação
+Health Connect nem persistiu analytics. Carga zero e workout sem análise ficaram
+N/A por ausência natural; nenhum dado foi fabricado. Ver
+[`036-06-physical-validation.md`](../integration/036-06-physical-validation.md).

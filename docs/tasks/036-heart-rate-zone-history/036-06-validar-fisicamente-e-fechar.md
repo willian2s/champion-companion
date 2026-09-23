@@ -3,6 +3,7 @@
 - **Ticker:** `036`
 - **Número:** `06`
 - **Status inicial:** `pending`
+- **Status:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -117,3 +118,75 @@ independente.
 - Considerar o risco documental 035 de operações `HEART_RATE` criadas na
   inicialização e não atribuí-lo automaticamente à 036.
 - Sanitizar toda evidência física.
+
+## Execução e evidências
+
+### Validação realizada
+
+- Ticker `036` confirmado em spec, ADR, overview e seis subtarefas; overview
+  mantém uma única seção `## Checklist` com seis itens.
+- `git diff --check`, lint, assemble debug/release e install debug passaram.
+- Champion C001 real foi validado no `SM-S901E`, sem limpar banco, criar treino,
+  sample ou fixture.
+- Room confirmou `user_version = 20` e schema `20.json`; nenhuma tabela
+  analítica existe.
+- Fonte bounded, policy 034, filtro `WATCH_D3_D4`, workflow não descartado,
+  leitura única e call path sem DAO no ViewModel foram confirmados por inspeção.
+- Cálculo externo confirmou current7 `3/3`, current28 `10/10`, somas de zonas,
+  percentuais em 100%, coverage ratios independentes e fechamento de cada zona
+  dos buckets em `0,000 s` de erro.
+- A UI mostrou seis zonas, `Abaixo de Z1`, cobertura, duração coberta,
+  contadores, parcialidade, seleção 7/28 e distribuição diária acessível.
+- Mudança temporária da FC máxima alterou a saída; restauração e reabertura
+  devolveram os resultados originais.
+- `health_sync_operations` permaneceu em 874 linhas com assinatura estável no
+  snapshot pós-inicialização, e o call path da 036 não chama Health Connect.
+- Screenshot sanitizada registrada em
+  `docs/integration/036-06-heart-rate-zone-history.png`.
+
+### Decisões e desvios
+
+- Nenhum requisito funcional foi alterado.
+- Carga zero e workout sem análise ficaram `N/A`: nenhum cenário existia
+  naturalmente e não foi fabricado dado para preenchê-lo.
+- Snapshot físico inicial e snapshot pós-inicialização divergiram em activities,
+  snapshots e derived intervals. A causa não foi isolável; o ruído não foi
+  atribuído à 036. Snapshot pós-inicialização permaneceu estável durante mudança
+  de FC máxima, restauração e reabertura.
+- Nenhum código funcional adicional foi necessário para fechamento.
+
+### Arquivos alterados
+
+- `docs/integration/036-06-physical-validation.md`
+- `docs/integration/036-06-heart-rate-zone-history.png`
+- `docs/specs/036-heart-rate-zone-history.md`
+- `docs/decisions/adr-036-heart-rate-zone-history.md`
+- `docs/baseline/current-baseline.md`
+- `docs/tasks/036-heart-rate-zone-history/036-00-overview.md`
+- `docs/tasks/036-heart-rate-zone-history/036-06-validar-fisicamente-e-fechar.md`
+
+### Comandos executados e resultados
+
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`.
+- `./gradlew installDebug` — instalado em 1 dispositivo.
+- `git diff --check` — passou antes e depois do fechamento documental.
+- `adb devices`, dumps sanitizados de UI e screenshots — dispositivo real
+  disponível; labels, semantics e estados observados.
+- Cálculo independente externo sobre cópia temporária do banco — fechamentos
+  numéricos e hashes sanitizados registrados na evidência física.
+- Não foram criados nem executados testes automatizados novos, conforme
+  `AGENTS.md` e escopo da subtarefa.
+
+### Resultado e riscos residuais
+
+- Todos os critérios exercitáveis têm evidência ou N/A justificado.
+- Spec, ADR, overview e esta subtarefa estão coerentes em status e progresso;
+  overview está em `6/6`.
+- Riscos residuais: ruído de inicialização com causalidade não isolada, ausência
+  física de carga zero/workout sem análise e custo da query sem índice temporal
+  composto herdado da Spec 035.
+
+### Revisão independente
+
+- Revisão independente final permanece solicitada ao agente `review` após esta
+  implementação e fechamento documental.

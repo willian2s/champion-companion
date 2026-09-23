@@ -1,7 +1,7 @@
 # 036 — Histórico de zonas de frequência cardíaca e distribuição de intensidade
 
 - **Ticker:** `036`
-- **Status:** `planned`
+- **Status:** `completed`
 - **Tipo:** evolução local de read model e apresentação histórica
 - **Base auditada:** `main` em `91bbaca` (`fix(exercises): decouple cardiovascular history`), com Spec 034 e Spec 035 concluídas, Room v20
 - **Branch de trabalho:** `feat/036-heart-rate-zone-history`
@@ -503,3 +503,21 @@ prova independente e registro dos cenários N/A.
 - O produto permanece local-first; a 036 não reabre treino phone, GPS, rota ou
   Health Connect.
 - Comparação entre zonas de períodos anteriores fica fora da primeira versão.
+
+## Fechamento físico — 2026-09-23
+
+A Spec 036 foi validada fisicamente no Champion C001 real (`SM-S901E`) usando
+somente workouts existentes. Room permaneceu v20; não houve migration, tabela,
+coluna, cache ou backfill analítico. O cálculo independente confirmou soma das
+seis zonas, percentuais sobre duração analisada, `coverageRatio` separado e
+fechamento de `current7`, `current28` e buckets civis. A página exibiu os
+resumos, seis zonas, `BELOW_ZONE_1`, parcialidade e distribuição diária por uma
+zona selecionada.
+
+A alteração temporária da FC máxima recompôs o histórico e a restauração voltou
+à saída anterior. Fatos de workouts, snapshots, derivados, splits e operações
+Health Connect permaneceram estáveis no snapshot pós-inicialização durante essa
+prova. Abertura do app revelou ruído preexistente não isolável entre snapshots
+físicos inicial e pós-inicialização; ele não foi atribuído à 036. Carga zero e
+workout sem análise ficaram N/A por ausência natural. Evidência completa:
+[`036-06-physical-validation.md`](../integration/036-06-physical-validation.md).

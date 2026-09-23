@@ -1,8 +1,8 @@
 # 036 — Histórico de zonas de frequência cardíaca e distribuição de intensidade
 
-- **Status geral:** in_progress
+- **Status geral:** completed
 - **Spec:** [036-heart-rate-zone-history.md](../../specs/036-heart-rate-zone-history.md)
-- **Progresso:** 5/6 subtarefas concluídas
+- **Progresso:** 6/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -18,7 +18,7 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
 - [x] [036-03-integrar-read-model-cardiovascular.md](036-03-integrar-read-model-cardiovascular.md)
 - [x] [036-04-integrar-zonas-na-pagina-cardiovascular.md](036-04-integrar-zonas-na-pagina-cardiovascular.md)
 - [x] [036-05-renderizar-distribuicao-temporal.md](036-05-renderizar-distribuicao-temporal.md)
-- [ ] [036-06-validar-fisicamente-e-fechar.md](036-06-validar-fisicamente-e-fechar.md)
+- [x] [036-06-validar-fisicamente-e-fechar.md](036-06-validar-fisicamente-e-fechar.md)
 
 ## Observações
 
@@ -38,9 +38,17 @@ cardiovascular da Spec 035, sem persistência ou efeitos Health Connect.
   renderização permanece nas subtarefas `036-04` e `036-05`.
 - `036-04` concluída: página contextual seleciona 7/28 dias, exibe seis zonas,
   duração, percentual do tempo analisado, cobertura, contadores, parcialidade e
-  estados seguros. Validação física e distribuição temporal permanecem nas
-  subtarefas seguintes.
+  estados seguros. A validação física permaneceu reservada para `036-06`.
 - `036-05` concluída: gráfico de carga diária 035 foi preservado e a distribuição
   diária ganhou seleção acessível de uma zona por vez, com duração no eixo Y,
   zero real para dias sem treino e gaps nulos para treinos sem análise. A
-  validação visual física permanece em `036-06`.
+  validação visual física foi concluída em `036-06`.
+- `036-06` concluída: validação física em workouts reais confirmou Room v20,
+  fechamentos independentes de `current7`, `current28` e buckets, recomposição e
+  restauração da FC máxima, UI contextual, screenshot sanitizada e ausência de
+  operação Health Connect causada pela 036. Carga zero e workout sem análise
+  ficaram N/A por ausência natural no banco; nenhum dado foi fabricado.
+- Snapshot inicial e snapshot pós-inicialização divergiram em fatos de workout,
+  snapshots e derived intervals por ruído de inicialização não isolável. A
+  diferença não foi atribuída à 036; snapshot pós-inicialização permaneceu
+  estável durante recomposição e reabertura.
