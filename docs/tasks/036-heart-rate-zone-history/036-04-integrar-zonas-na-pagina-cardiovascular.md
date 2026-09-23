@@ -2,7 +2,7 @@
 
 - **Ticker:** `036`
 - **Número:** `04`
-- **Status inicial:** `pending`
+- **Status:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -86,3 +86,63 @@ acessibilidade e a navegação atual.
 - Não usar cor para comunicar semântica de esforço.
 - Não remover ou duplicar o conteúdo de carga cardiovascular existente.
 - Sanitizar qualquer screenshot futura.
+
+## Execução e evidências
+
+### Implementação realizada
+
+- A página contextual passou a selecionar localmente `current7` ou `current28`
+  com `rememberSaveable`, sem alterar consulta, policy ou ViewModel.
+- O card selecionado preserva carga, comparação, contadores, cobertura, duração
+  coberta e parcialidade da Spec 035.
+- Resumos disponíveis exibem as seis zonas na ordem visual da Spec 034,
+  incluindo `Abaixo de Z1`, durações, percentuais do tempo analisado e barras
+  com as cores já existentes.
+- Ausência tipada de `zones` não é convertida em zeros; estados de configuração,
+  vazio, ausência de análise e indisponibilidade continuam explícitos.
+- Semantics do resumo e de cada zona informam labels, duração, percentual,
+  cobertura, contadores e parcialidade de forma independente de cor.
+- A carga diária, contribuição por tipo, navegação e distribuição temporal da
+  subtarefa `036-05` permaneceram fora da alteração funcional.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/ExercisesScreen.kt`
+- `docs/tasks/036-heart-rate-zone-history/036-04-integrar-zonas-na-pagina-cardiovascular.md`
+- `docs/tasks/036-heart-rate-zone-history/036-00-overview.md`
+
+### Decisões e desvios
+
+- Decisão: exibir um resumo por vez com seleção local de `7 dias`/`28 dias`,
+  reduzindo duplicação visual e mantendo ambos os períodos disponíveis.
+- Decisão: reutilizar ordem, labels, helper de rows e associação de cores da
+  Spec 034; o contexto acessível do percentual foi ajustado para “do tempo
+  analisado” no histórico.
+- Nenhum desvio de requisito. Não houve cálculo de zonas, percentual ou
+  cobertura em Compose; a UI somente consome o read model composto.
+- Não foram criados testes automatizados, conforme escopo e `AGENTS.md`.
+
+### Comandos executados e resultados
+
+- `./gradlew app:compileDebugKotlin` — passou (`BUILD SUCCESSFUL`).
+- `./gradlew lint assembleDebug assembleRelease` — passou (`BUILD SUCCESSFUL`).
+- `git diff --check` — passou.
+- Revisão independente do agente `review` — aprovado, sem bloqueadores.
+- Inspeção estática de seleção, estados, semantics, rows, ordem visual e
+  ausência de alteração em policy/read model/ViewModel — sem divergências.
+
+### Riscos residuais
+
+- Inspeção visual em dispositivo e screenshot sanitizada permanecem para
+  `036-06`; nenhum dado foi fabricado para cobrir estados não existentes.
+- Cenários naturais de carga zero, workout sem análise e cobertura parcial não
+  foram fabricados; permanecem sujeitos à validação física da `036-06`.
+- O resumo inicia em `7 dias`; conferência visual de rolagem e acessibilidade
+  após alternar para `28 dias` permanece pendente da validação física.
+
+## Revisão independente
+
+- Agente `review` aprovou a integração para `036-04`, sem findings bloqueadores.
+- Revisão confirmou R4/R5/R6/R8/R9, preservação da carga 035, seleção
+  `rememberSaveable`, ausência de cálculo analítico em Compose e escopo da
+  distribuição diária reservado à `036-05`.

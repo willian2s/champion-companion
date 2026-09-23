@@ -165,6 +165,20 @@ private enum class ExercisesActionDialog {
     HEALTH_CONNECT,
 }
 
+private enum class CardiovascularLoadPeriod {
+    SEVEN_DAYS,
+    TWENTY_EIGHT_DAYS,
+}
+
+private val heartRateZoneDisplayOrder = listOf(
+    HeartRateZone.Z5,
+    HeartRateZone.Z4,
+    HeartRateZone.Z3,
+    HeartRateZone.Z2,
+    HeartRateZone.Z1,
+    HeartRateZone.BELOW_ZONE_1,
+)
+
 @Composable
 fun ExercisesScreen(
     openedActivityId: WorkoutActivityId? = null,
@@ -768,6 +782,10 @@ private fun CardiovascularLoadHistoryContent(history: CardiovascularLoadHistory?
         return
     }
 
+    var selectedPeriod by rememberSaveable {
+        mutableStateOf(CardiovascularLoadPeriod.SEVEN_DAYS)
+    }
+
     when (history.current28.status) {
         CardiovascularLoadHistoryStatus.CONFIGURATION_REQUIRED -> EmptyState(
             title = "Configure sua FC máxima",
@@ -794,20 +812,71 @@ private fun CardiovascularLoadHistoryContent(history: CardiovascularLoadHistory?
         )
 
         CardiovascularLoadHistoryStatus.AVAILABLE -> {
-            CardiovascularLoadPeriodCard(
-                periodLabel = "Últimos 7 dias",
-                summary = history.current7,
-                comparison = history.current7Comparison,
-                comparisonBaselineLabel = "7 dias anteriores",
+            CardiovascularLoadPeriodSelector(
+                selectedPeriod = selectedPeriod,
+                onSelectPeriod = { selectedPeriod = it },
             )
+            val selectedSummary = when (selectedPeriod) {
+                CardiovascularLoadPeriod.SEVEN_DAYS -> history.current7
+                CardiovascularLoadPeriod.TWENTY_EIGHT_DAYS -> history.current28
+            }
+            val selectedComparison = when (selectedPeriod) {
+                CardiovascularLoadPeriod.SEVEN_DAYS -> history.current7Comparison
+                CardiovascularLoadPeriod.TWENTY_EIGHT_DAYS -> history.current28Comparison
+            }
+            val selectedPeriodLabel = when (selectedPeriod) {
+                CardiovascularLoadPeriod.SEVEN_DAYS -> "Últimos 7 dias"
+                CardiovascularLoadPeriod.TWENTY_EIGHT_DAYS -> "Últimos 28 dias"
+            }
+            val selectedBaselineLabel = when (selectedPeriod) {
+                CardiovascularLoadPeriod.SEVEN_DAYS -> "7 dias anteriores"
+                CardiovascularLoadPeriod.TWENTY_EIGHT_DAYS -> "28 dias anteriores"
+            }
             CardiovascularLoadPeriodCard(
-                periodLabel = "Últimos 28 dias",
-                summary = history.current28,
-                comparison = history.current28Comparison,
-                comparisonBaselineLabel = "28 dias anteriores",
+                periodLabel = selectedPeriodLabel,
+                summary = selectedSummary,
+                comparison = selectedComparison,
+                comparisonBaselineLabel = selectedBaselineLabel,
             )
             CardiovascularLoadDailySection(history.dailyBuckets)
             CardiovascularLoadTypeSection(history.typeSummaries)
+        }
+    }
+}
+
+@Composable
+private fun CardiovascularLoadPeriodSelector(
+    selectedPeriod: CardiovascularLoadPeriod,
+    onSelectPeriod: (CardiovascularLoadPeriod) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Período do resumo de carga cardiovascular"
+            },
+        verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+    ) {
+        Text(
+            text = "Período do resumo",
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            FilterChip(
+                selected = selectedPeriod == CardiovascularLoadPeriod.SEVEN_DAYS,
+                onClick = { onSelectPeriod(CardiovascularLoadPeriod.SEVEN_DAYS) },
+                label = { Text("7 dias") },
+            )
+            FilterChip(
+                selected = selectedPeriod == CardiovascularLoadPeriod.TWENTY_EIGHT_DAYS,
+                onClick = { onSelectPeriod(CardiovascularLoadPeriod.TWENTY_EIGHT_DAYS) },
+                label = { Text("28 dias") },
+            )
         }
     }
 }
@@ -822,7 +891,7 @@ private fun CardiovascularLoadPeriodCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
+            .semantics {
                 contentDescription = buildString {
                     append(periodLabel)
                     append(". ")
@@ -830,6 +899,7 @@ private fun CardiovascularLoadPeriodCard(
                         append("${summary.totalLoad.toLoadLabel()}, ")
                         append("${summary.analyzedWorkoutCount} de ${summary.totalWorkoutCount} treinos analisados. ")
                         append("Cobertura de frequência cardíaca: ${summary.coverageRatio.toCoverageLabel()}.")
+                        append(" Duração coberta: ${summary.coveredHeartRateDuration.toDurationLabel()}.")
                         append(" ${comparison.toComparisonLabel(comparisonBaselineLabel)}.")
                         if (summary.partial) append(" Dados parciais.")
                     } else {
@@ -882,11 +952,35 @@ private fun CardiovascularLoadPeriodCard(
                 )
                 if (summary.partial) {
                     Text(
-                        text = "Dados parciais: há treinos sem análise completa.",
+                        text = "Dados parciais: a análise ou cobertura de algum treino está incompleta.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Text(
+                    text = "Distribuição do tempo analisado",
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                summary.zones?.let { zones ->
+                    val summariesByZone = zones.associateBy(HeartRateZoneSummary::zone)
+                    Column(verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small)) {
+                        heartRateZoneDisplayOrder.mapNotNull(summariesByZone::get).forEach { zoneSummary ->
+                            HeartRateZoneRow(
+                                summary = zoneSummary,
+                                percentageContext = "do tempo analisado",
+                            )
+                        }
+                    }
+                } ?: Text(
+                    text = "Distribuição de zonas indisponível para este período.",
+                    modifier = Modifier.semantics {
+                        contentDescription = "Distribuição de zonas indisponível para este período."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -2683,14 +2777,6 @@ private fun ActivityHeartRateAnalysisSection(result: WorkoutHeartRateAnalysisRes
 
 @Composable
 private fun WorkoutHeartRateAnalysis.renderAvailableHeartRateAnalysis() {
-    val orderedZones = listOf(
-        HeartRateZone.Z5,
-        HeartRateZone.Z4,
-        HeartRateZone.Z3,
-        HeartRateZone.Z2,
-        HeartRateZone.Z1,
-        HeartRateZone.BELOW_ZONE_1,
-    )
     val summariesByZone = zones.orEmpty().associateBy(HeartRateZoneSummary::zone)
     val partialCoverage = coverageRatio < 1.0
 
@@ -2700,7 +2786,7 @@ private fun WorkoutHeartRateAnalysis.renderAvailableHeartRateAnalysis() {
             .semantics {
                 contentDescription = buildString {
                     append("Zonas de frequência cardíaca. ")
-                    orderedZones.mapNotNull(summariesByZone::get).forEach { summary ->
+                    heartRateZoneDisplayOrder.mapNotNull(summariesByZone::get).forEach { summary ->
                         append(
                             "${summary.zone.toDisplayLabel()}: ${summary.duration.toDurationLabel()}, " +
                                 "${summary.percentage.toPercentageLabel()}. ",
@@ -2712,7 +2798,7 @@ private fun WorkoutHeartRateAnalysis.renderAvailableHeartRateAnalysis() {
             },
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
     ) {
-        orderedZones.mapNotNull(summariesByZone::get).forEach { summary ->
+        heartRateZoneDisplayOrder.mapNotNull(summariesByZone::get).forEach { summary ->
             HeartRateZoneRow(summary)
         }
         HeartRateAnalysisMetricRow(
@@ -2783,7 +2869,10 @@ private fun WorkoutHeartRateAnalysis.renderHeartRateConfigurationRequired() {
 }
 
 @Composable
-private fun HeartRateZoneRow(summary: HeartRateZoneSummary) {
+private fun HeartRateZoneRow(
+    summary: HeartRateZoneSummary,
+    percentageContext: String = "da cobertura",
+) {
     val zoneColor = when (summary.zone) {
         HeartRateZone.Z5 -> MaterialTheme.colorScheme.error
         HeartRateZone.Z4 -> MaterialTheme.colorScheme.tertiary
@@ -2793,7 +2882,7 @@ private fun HeartRateZoneRow(summary: HeartRateZoneSummary) {
         HeartRateZone.BELOW_ZONE_1 -> MaterialTheme.colorScheme.outline
     }
     val zoneDescription = "${summary.zone.toDisplayLabel()}: ${summary.duration.toDurationLabel()}, " +
-        "${summary.percentage.toPercentageLabel()} da cobertura."
+        "${summary.percentage.toPercentageLabel()} $percentageContext."
     Column(
         modifier = Modifier
             .fillMaxWidth()
