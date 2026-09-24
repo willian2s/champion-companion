@@ -3,6 +3,7 @@
 - **Ticker:** `037`
 - **Número:** `03`
 - **Status inicial:** `pending`
+- **Status atual:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -97,3 +98,88 @@ documental atual.
 - falha de fonte inteira não pode ser convertida em lista vazia;
 - não logar ID, BPM, samples ou payload;
 - medir custo da query antes de propor índice separado.
+
+## Status
+
+`completed`
+
+## Resultado da implementação
+
+O read model bounded foi implementado com projection dedicada de atividade e
+snapshot ativo, filtragem SQL estrita para corrida confirmada do relógio e duas
+leituras reativas dentro de `withReadTransaction`: projection mínima e batch de
+samples ordenado por atividade e temporalidade. Nenhuma atividade, snapshot,
+intervalo ou split completo é reidratado.
+
+O mapper preserva cada linha quando enumeração ou conjunto persistido é
+desconhecido, marcando o fato como inválido para a policy sem promovê-lo a valor
+válido. Timestamp persistido de sample que não pode ser reconstruído é ignorado
+fora da janela da atividade e, dentro dela, preserva a linha e produz
+`INVALID_SAMPLES`. Falha da consulta batch de samples mantém a projection da
+corrida e emite `heartRateSourceAvailable = false`, permitindo à policy produzir
+`SOURCE_UNAVAILABLE` e `UNAVAILABLE`.
+
+## Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/database/ChampionDaos.kt`
+  — projection dedicada, `LEFT JOIN` do snapshot ativo e batch de samples.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RepositoryContracts.kt`
+  — método bounded dedicado no repository.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/DatabaseMappers.kt`
+  — mapeamento mínimo de projection e preservação de falhas por linha.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/data/RoomRepositories.kt`
+  — composição reativa e transacional sem N+1 ou hidratação completa.
+- `app/src/main/java/br/com/mwconsulting/championcompanion/core/model/RunningPerformanceHistory.kt`
+  — flags mínimas para falha fechada de metadata e timestamp de sample.
+- este arquivo e `037-00-overview.md` — status e evidências.
+
+## Comandos executados
+
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — passou; lint, debug e
+  release concluídos.
+- nenhum teste automatizado novo criado ou executado.
+
+## Resultados e evidências
+
+- Projection SQL filtra `WATCH_D3_D4`, `confirmedType = RUNNING`, não
+  descartadas e janela semiaberta bounded; `LEFT JOIN` usa somente snapshot
+  ativo por `activeActivityId`/`isActive`.
+- Samples são lidos em batch, ordenados e agrupados por atividade dentro de
+  `withReadTransaction`; não há N+1, `Flow` por corrida ou hidratação completa.
+- Falha batch preserva pace e sinaliza `heartRateSourceAvailable = false`;
+  timestamp persistido inválido preserva linha e sinaliza `INVALID_SAMPLES`.
+- Falha também na invalidação reativa de samples é convertida em falha da fonte;
+  quando não há linhas para anexar o erro não vira `NO_RUNS`.
+- Sample inválido fora da janela da atividade não participa da decisão; sample
+  inválido dentro da janela produz `INVALID_SAMPLES`.
+- Inspeção de `ChampionDatabase.kt`, migrations e schemas: nenhum arquivo
+  alterado; Room permanece v20.
+
+## Decisões e desvios
+
+- `CardiovascularLoadWorkoutInput` não foi alterado.
+- Ordenação por `startedAt` e `activityId` permanece interna à projection;
+  nenhum ID chega ao contrato visual.
+- Falha da leitura da projection de atividades/snapshot continua propagada como
+  falha de leitura para a integração posterior; esta subtarefa trata
+  explicitamente a falha batch de samples exigida pelo contrato.
+- `037-04`, `037-05` e `037-06` permanecem pendentes: integração em ViewModel/
+  navegação, renderização e validação física ainda não foram feitas.
+
+## Riscos residuais
+
+- Falha da query de atividades/snapshot propaga erro para integração posterior;
+  mapeamento de estado `UNAVAILABLE` dessa fonte pertence ao consumidor da
+  subtarefa seguinte.
+- Não há índice temporal composto em `workout_activities`; custo de query ainda
+  precisa ser medido na validação física, sem antecipar schema ou índice.
+- Composição física de corridas, proveniências e cenários naturais permanece
+  pendente para 037-06.
+
+## Revisão independente
+
+- Agente `review` aprovou a implementação após correção do transporte de falha
+  reativa de samples e da filtragem temporal de samples inválidos.
+- Riscos mantidos: validação física e custo da query pertencem à 037-06; não há
+  testes automatizados novos conforme regra do repositório.

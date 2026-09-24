@@ -330,6 +330,62 @@ interface WorkoutActivityDao {
     ): List<WorkoutActivityEntity>
 
     @Query(
+        "SELECT activity.id AS activityId, activity.origin AS origin, " +
+            "activity.confirmedType AS confirmedType, activity.workflowState AS workflowState, " +
+            "activity.startedAtEpochMillis AS startedAtEpochMillis, activity.durationNanos AS durationNanos, " +
+            "snapshot.activeActivityId AS activeActivityId, " +
+            "snapshot.canonicalDistanceMeters AS canonicalDistanceMeters, " +
+            "snapshot.canonicalCoveredDurationNanos AS canonicalCoveredDurationNanos, " +
+            "snapshot.derivationMethod AS derivationMethod, " +
+            "snapshot.derivationVersion AS derivationVersion, " +
+            "snapshot.distanceCalibrationFactor AS distanceCalibrationFactor, " +
+            "snapshot.temporalEligibility AS temporalEligibility, " +
+            "snapshot.temporalEligibilityReasons AS temporalEligibilityReasons, " +
+            "snapshot.plausibilityIndicators AS plausibilityIndicators " +
+            "FROM workout_activities activity " +
+            "LEFT JOIN workout_derivation_snapshots snapshot ON " +
+            "snapshot.activeActivityId = activity.id AND snapshot.isActive = 1 " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.confirmedType = 'RUNNING' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY activity.startedAtEpochMillis ASC, activity.id ASC",
+    )
+    fun observeRunningPerformanceWorkoutsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<RunningPerformanceWorkoutRecord>>
+
+    @Query(
+        "SELECT activity.id AS activityId, activity.origin AS origin, " +
+            "activity.confirmedType AS confirmedType, activity.workflowState AS workflowState, " +
+            "activity.startedAtEpochMillis AS startedAtEpochMillis, activity.durationNanos AS durationNanos, " +
+            "snapshot.activeActivityId AS activeActivityId, " +
+            "snapshot.canonicalDistanceMeters AS canonicalDistanceMeters, " +
+            "snapshot.canonicalCoveredDurationNanos AS canonicalCoveredDurationNanos, " +
+            "snapshot.derivationMethod AS derivationMethod, " +
+            "snapshot.derivationVersion AS derivationVersion, " +
+            "snapshot.distanceCalibrationFactor AS distanceCalibrationFactor, " +
+            "snapshot.temporalEligibility AS temporalEligibility, " +
+            "snapshot.temporalEligibilityReasons AS temporalEligibilityReasons, " +
+            "snapshot.plausibilityIndicators AS plausibilityIndicators " +
+            "FROM workout_activities activity " +
+            "LEFT JOIN workout_derivation_snapshots snapshot ON " +
+            "snapshot.activeActivityId = activity.id AND snapshot.isActive = 1 " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.confirmedType = 'RUNNING' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY activity.startedAtEpochMillis ASC, activity.id ASC",
+    )
+    suspend fun findRunningPerformanceWorkoutsBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<RunningPerformanceWorkoutRecord>
+
+    @Query(
         "SELECT activity.*, " +
             "importRecord.id AS importId, importRecord.activityId AS importActivityId, " +
             "importRecord.deviceId AS importDeviceId, importRecord.origin AS importOrigin, " +
@@ -541,6 +597,24 @@ data class CalendarWorkoutSummaryRecord(
     val canonicalStepLengthSource: String? = null,
     val canonicalTemporalEligibility: String? = null,
     val canonicalPlausibilityIndicators: String? = null,
+)
+
+data class RunningPerformanceWorkoutRecord(
+    val activityId: String,
+    val origin: String,
+    val confirmedType: String?,
+    val workflowState: String,
+    val startedAtEpochMillis: Long,
+    val durationNanos: Long,
+    val activeActivityId: String?,
+    val canonicalDistanceMeters: Double?,
+    val canonicalCoveredDurationNanos: Long?,
+    val derivationMethod: String?,
+    val derivationVersion: String?,
+    val distanceCalibrationFactor: Double?,
+    val temporalEligibility: String?,
+    val temporalEligibilityReasons: String?,
+    val plausibilityIndicators: String?,
 )
 
 data class HealthSyncWorkoutCandidateRecord(
@@ -822,6 +896,36 @@ interface WorkoutDetailDao {
             "ORDER BY sample.activityId, sample.sampledAtEpochMillis, sample.sampledAtEpochSecond, sample.sampledAtNano, sample.id",
     )
     suspend fun findWatchHeartRateSamplesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<WorkoutHeartRateSampleEntity>
+
+    @Query(
+        "SELECT sample.* FROM workout_heart_rate_samples sample " +
+            "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.confirmedType = 'RUNNING' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY sample.activityId, sample.sampledAtEpochMillis, sample.sampledAtEpochSecond, sample.sampledAtNano, sample.id",
+    )
+    fun observeRunningPerformanceHeartRateSamplesBetween(
+        fromEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): Flow<List<WorkoutHeartRateSampleEntity>>
+
+    @Query(
+        "SELECT sample.* FROM workout_heart_rate_samples sample " +
+            "INNER JOIN workout_activities activity ON activity.id = sample.activityId " +
+            "WHERE activity.origin = 'WATCH_D3_D4' " +
+            "AND activity.confirmedType = 'RUNNING' " +
+            "AND activity.workflowState != 'DISCARDED' " +
+            "AND activity.startedAtEpochMillis >= :fromEpochMillis " +
+            "AND activity.startedAtEpochMillis < :untilEpochMillis " +
+            "ORDER BY sample.activityId, sample.sampledAtEpochMillis, sample.sampledAtEpochSecond, sample.sampledAtNano, sample.id",
+    )
+    suspend fun findRunningPerformanceHeartRateSamplesBetween(
         fromEpochMillis: Long,
         untilEpochMillis: Long,
     ): List<WorkoutHeartRateSampleEntity>

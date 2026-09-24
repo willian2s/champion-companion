@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [037-running-pace-heart-rate-trend.md](../../specs/037-running-pace-heart-rate-trend.md)
-- **Progresso:** 2/6 subtarefas concluídas
+- **Progresso:** 3/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -14,7 +14,7 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
 
 - [x] [037-01-auditar-comparabilidade-e-congelar-contrato.md](037-01-auditar-comparabilidade-e-congelar-contrato.md)
 - [x] [037-02-implementar-metricas-de-performance-de-corrida.md](037-02-implementar-metricas-de-performance-de-corrida.md)
-- [ ] [037-03-implementar-read-model-bounded-de-corridas.md](037-03-implementar-read-model-bounded-de-corridas.md)
+- [x] [037-03-implementar-read-model-bounded-de-corridas.md](037-03-implementar-read-model-bounded-de-corridas.md)
 - [ ] [037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md](037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md)
 - [ ] [037-05-renderizar-historico-de-ritmo-e-fc.md](037-05-renderizar-historico-de-ritmo-e-fc.md)
 - [ ] [037-06-validar-fisicamente-e-fechar.md](037-06-validar-fisicamente-e-fechar.md)
@@ -39,3 +39,8 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
 - 037-02 concluída: domínio puro de pace, statuses, provenance e média FC
   ponderada; timeline compartilhada com 034 preservada. Read model bounded,
   integração, UI e validação física permanecem nas subtarefas seguintes.
+- 037-03 concluída: projection SQL dedicada filtra corrida confirmada do relógio
+  em janela bounded, une somente snapshot ativo e lê samples em batch dentro de
+  transação. Room v20, entidades, schema, migrations, índices e
+  `CardiovascularLoadWorkoutInput` permanecem inalterados. 037-04, 037-05 e
+  037-06 continuam pendentes.

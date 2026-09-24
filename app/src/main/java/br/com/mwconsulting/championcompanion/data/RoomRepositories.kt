@@ -110,6 +110,7 @@ import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.ParserValidity
 import br.com.mwconsulting.championcompanion.core.model.ParserVersion
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.RunningPerformanceWorkoutInput
 import br.com.mwconsulting.championcompanion.core.model.SaveD1HeartRateMeasurementsInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualHeartRateMeasurementInput
 import br.com.mwconsulting.championcompanion.core.model.SaveManualWeightMeasurementInput
@@ -200,6 +201,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -251,6 +253,18 @@ private class BoundedWatchWorkoutMappingException : IllegalStateException(
 private class CardiovascularLoadWorkoutMappingException : IllegalStateException(
     "Cardiovascular load workout mapping failed",
 )
+
+private class RunningPerformanceHeartRateSourceException : IllegalStateException(
+    "Running performance heart rate source unavailable",
+)
+
+private sealed interface RunningPerformanceInvalidation {
+    data object Changed : RunningPerformanceInvalidation
+    data object HeartRateSourceUnavailable : RunningPerformanceInvalidation
+}
+
+private fun runningPerformanceChanged(): RunningPerformanceInvalidation =
+    RunningPerformanceInvalidation.Changed
 
 @Singleton
 class RoomRepositories @Inject constructor(
@@ -1112,6 +1126,68 @@ class RoomRepositories @Inject constructor(
                             activity.toCardiovascularLoadWorkoutInput(
                                 heartRateSamples = samplesByActivityId[activity.id].orEmpty(),
                             ) ?: throw CardiovascularLoadWorkoutMappingException()
+                        }
+                    },
+                )
+            }
+            .flowOn(ioDispatcher)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeRunningPerformanceWorkoutsBetween(
+        range: CalendarInstantRange,
+    ): Flow<List<RunningPerformanceWorkoutInput>> {
+        require(Duration.between(range.fromInclusive, range.untilExclusive) <= Duration.ofDays(56)) {
+            "Running performance history range cannot exceed 56 days"
+        }
+        val fromEpochMillis = range.fromInclusive.toEpochMilli()
+        val untilEpochMillis = range.untilExclusive.toEpochMilli()
+        val invalidation = combine(
+            database.workoutActivityDao()
+                .observeRunningPerformanceWorkoutsBetween(fromEpochMillis, untilEpochMillis)
+                .map { runningPerformanceChanged() },
+            database.workoutDetailDao()
+                .observeRunningPerformanceHeartRateSamplesBetween(fromEpochMillis, untilEpochMillis)
+                .map { runningPerformanceChanged() }
+                .catch { error ->
+                    if (error is CancellationException) throw error
+                    emit(RunningPerformanceInvalidation.HeartRateSourceUnavailable)
+                },
+        ) { _, sampleInvalidation -> sampleInvalidation }
+        return invalidation
+            .transformLatest { invalidationState ->
+                emit(
+                    database.withReadTransaction {
+                        val records = database.workoutActivityDao()
+                            .findRunningPerformanceWorkoutsBetween(fromEpochMillis, untilEpochMillis)
+                        if (invalidationState == RunningPerformanceInvalidation.HeartRateSourceUnavailable &&
+                            records.isEmpty()
+                        ) {
+                            throw RunningPerformanceHeartRateSourceException()
+                        }
+                        val sampleEntities = if (
+                            invalidationState == RunningPerformanceInvalidation.HeartRateSourceUnavailable
+                        ) {
+                            null
+                        } else {
+                            try {
+                                database.workoutDetailDao()
+                                    .findRunningPerformanceHeartRateSamplesBetween(fromEpochMillis, untilEpochMillis)
+                            } catch (error: Exception) {
+                                if (error is CancellationException) throw error
+                                null
+                            }
+                        }
+                        if (sampleEntities == null && records.isEmpty()) {
+                            throw RunningPerformanceHeartRateSourceException()
+                        }
+                        val samplesByActivityId = sampleEntities.orEmpty()
+                            .groupBy(WorkoutHeartRateSampleEntity::activityId)
+                        records.mapNotNull { record ->
+                            record.toRunningPerformanceWorkoutInput(
+                                heartRateSamples = samplesByActivityId[record.activityId].orEmpty(),
+                                heartRateSourceAvailable = sampleEntities != null,
+                            )
                         }
                     },
                 )

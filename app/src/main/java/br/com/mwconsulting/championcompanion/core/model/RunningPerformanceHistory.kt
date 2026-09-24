@@ -16,7 +16,11 @@ data class RunningPerformanceWorkoutInput(
     val temporalEligibility: TemporalSeriesEligibility?,
     val temporalEligibilityReasons: Set<TemporalSeriesValidationReason> = emptySet(),
     val plausibilityIndicators: Set<WorkoutPlausibilityIndicator> = emptySet(),
+    /** Mantém fatos desconhecidos inválidos, sem promovê-los a enumerações válidas. */
+    val hasUnknownPersistedFacts: Boolean = false,
     val heartRateSamples: List<WorkoutHeartRateSample> = emptyList(),
+    /** Mapper preservou a linha quando timestamp persistido não pôde ser reconstruído. */
+    val hasInvalidHeartRateSamples: Boolean = false,
     val heartRateSourceAvailable: Boolean = true,
 )
 
@@ -122,6 +126,13 @@ object RunningPerformanceHistoryPolicy {
                 coverage = null,
             )
         }
+        if (input.hasInvalidHeartRateSamples) {
+            return HeartRateEvaluation(
+                status = RunningPerformanceHeartRateStatus.INVALID_SAMPLES,
+                averageBpm = null,
+                coverage = null,
+            )
+        }
         val sessionWindow = runCatching {
             WorkoutIntervalWindow.create(
                 input.startedAt,
@@ -158,6 +169,9 @@ object RunningPerformanceHistoryPolicy {
     }
 
     private fun evaluatePace(input: RunningPerformanceWorkoutInput): PaceEvaluation {
+        if (input.hasUnknownPersistedFacts) {
+            return invalidPace()
+        }
         if (!input.hasActiveSnapshot) {
             return PaceEvaluation(
                 status = RunningPerformancePaceStatus.NO_ACTIVE_SNAPSHOT,
