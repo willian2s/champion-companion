@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [037-running-pace-heart-rate-trend.md](../../specs/037-running-pace-heart-rate-trend.md)
-- **Progresso:** 1/6 subtarefas concluídas
+- **Progresso:** 2/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
 ## Checklist
 
 - [x] [037-01-auditar-comparabilidade-e-congelar-contrato.md](037-01-auditar-comparabilidade-e-congelar-contrato.md)
-- [ ] [037-02-implementar-metricas-de-performance-de-corrida.md](037-02-implementar-metricas-de-performance-de-corrida.md)
+- [x] [037-02-implementar-metricas-de-performance-de-corrida.md](037-02-implementar-metricas-de-performance-de-corrida.md)
 - [ ] [037-03-implementar-read-model-bounded-de-corridas.md](037-03-implementar-read-model-bounded-de-corridas.md)
 - [ ] [037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md](037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md)
 - [ ] [037-05-renderizar-historico-de-ritmo-e-fc.md](037-05-renderizar-historico-de-ritmo-e-fc.md)
@@ -36,3 +36,6 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
 - Não há banco físico local sanitizado no checkout. Composição real de corridas,
   proveniências e cenários naturais ficam para 037-06, com `N/A` quando não
   surgirem sem fabricação de dados.
+- 037-02 concluída: domínio puro de pace, statuses, provenance e média FC
+  ponderada; timeline compartilhada com 034 preservada. Read model bounded,
+  integração, UI e validação física permanecem nas subtarefas seguintes.
