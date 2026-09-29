@@ -35,6 +35,7 @@ import br.com.mwconsulting.championcompanion.core.database.WorkoutRoutePointEnti
 import br.com.mwconsulting.championcompanion.core.database.WorkoutSplitEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchWorkoutD4V4HeaderEntity
 import br.com.mwconsulting.championcompanion.core.database.WatchDailyD1SampleEntity
+import br.com.mwconsulting.championcompanion.core.database.RunningPerformanceWorkoutRecord
 import br.com.mwconsulting.championcompanion.core.model.AbsenceReason
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.AppWorkoutSession
@@ -162,6 +163,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutSplitCalculator
 import br.com.mwconsulting.championcompanion.core.model.WorkoutIntervalWindow
 import br.com.mwconsulting.championcompanion.core.model.WorkoutPlausibilityPolicy
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
+import br.com.mwconsulting.championcompanion.core.model.RunningPerformanceWorkoutInput
 import br.com.mwconsulting.championcompanion.core.model.isStructurallyValid
 import br.com.mwconsulting.championcompanion.core.model.WatchWorkoutContractAdapters
 import br.com.mwconsulting.championcompanion.core.model.WorkoutStepsCredit
@@ -1416,6 +1418,63 @@ internal fun WorkoutHeartRateSampleEntity.toDomain(): WorkoutHeartRateSample? {
         sampledAt = sampledAt,
         bpm = bpm,
         sourceSampleIndex = sourceSampleIndex,
+    )
+}
+
+/** Mapeia somente fatos escalares da projection de tendência; não hidrata atividade ou snapshot. */
+internal fun RunningPerformanceWorkoutRecord.toRunningPerformanceWorkoutInput(
+    heartRateSamples: List<WorkoutHeartRateSampleEntity>,
+    heartRateSourceAvailable: Boolean = true,
+): RunningPerformanceWorkoutInput? {
+    val mappedActivityId = uuid(activityId)?.let(::WorkoutActivityId) ?: return null
+    val hasActiveSnapshot = activeActivityId != null
+    val mappedOrigin = enum<WorkoutActivityOrigin>(origin)
+    val mappedConfirmedType = enum<WorkoutType>(confirmedType)
+    val mappedWorkflowState = enum<ActivityWorkflowState>(workflowState)
+    val mappedDerivationMethod = derivationMethod?.let { enum<WorkoutDerivationMethod>(it) }
+    val mappedTemporalEligibility = temporalEligibility?.let { enum<TemporalSeriesEligibility>(it) }
+    val mappedTemporalEligibilityReasons = decodeEnumSet<TemporalSeriesValidationReason>(temporalEligibilityReasons)
+    val mappedPlausibilityIndicators = decodeEnumSet<WorkoutPlausibilityIndicator>(plausibilityIndicators)
+    val hasUnknownActivityFacts = mappedOrigin != WorkoutActivityOrigin.WATCH_D3_D4 ||
+        mappedConfirmedType != WorkoutType.RUNNING ||
+        mappedWorkflowState == null ||
+        mappedWorkflowState == ActivityWorkflowState.DISCARDED
+    val hasUnknownSnapshotFacts = hasActiveSnapshot && (
+        activeActivityId != activityId ||
+            derivationMethod == null ||
+            mappedDerivationMethod == null ||
+            derivationVersion == null ||
+            temporalEligibility == null ||
+            mappedTemporalEligibility == null ||
+            mappedTemporalEligibilityReasons == null ||
+            mappedPlausibilityIndicators == null
+        )
+    val mappedHeartRateSamples = heartRateSamples.map { it.toDomain() }
+    val sessionStart = Instant.ofEpochMilli(startedAtEpochMillis)
+    val sessionEnd = runCatching { sessionStart.plusNanos(durationNanos) }.getOrNull()
+    val hasInvalidHeartRateSamples = heartRateSamples.zip(mappedHeartRateSamples).any { (entity, sample) ->
+        sample == null && sessionEnd?.let { end ->
+            val sampledAt = Instant.ofEpochMilli(entity.sampledAtEpochMillis)
+            !sampledAt.isBefore(sessionStart) && sampledAt.isBefore(end)
+        } == true
+    }
+    return RunningPerformanceWorkoutInput(
+        activityId = mappedActivityId,
+        startedAt = Instant.ofEpochMilli(startedAtEpochMillis),
+        activityDuration = Duration.ofNanos(durationNanos),
+        hasActiveSnapshot = hasActiveSnapshot,
+        canonicalDistanceMeters = canonicalDistanceMeters,
+        canonicalCoveredDurationNanos = canonicalCoveredDurationNanos,
+        derivationMethod = mappedDerivationMethod,
+        derivationVersion = derivationVersion,
+        distanceCalibrationFactor = distanceCalibrationFactor,
+        temporalEligibility = mappedTemporalEligibility,
+        temporalEligibilityReasons = mappedTemporalEligibilityReasons.orEmpty(),
+        plausibilityIndicators = mappedPlausibilityIndicators.orEmpty(),
+        hasUnknownPersistedFacts = hasUnknownActivityFacts || hasUnknownSnapshotFacts,
+        heartRateSamples = mappedHeartRateSamples.filterNotNull(),
+        hasInvalidHeartRateSamples = hasInvalidHeartRateSamples,
+        heartRateSourceAvailable = heartRateSourceAvailable,
     )
 }
 

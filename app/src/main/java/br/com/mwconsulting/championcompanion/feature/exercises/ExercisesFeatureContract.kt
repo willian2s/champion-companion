@@ -6,6 +6,7 @@ import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnap
 import br.com.mwconsulting.championcompanion.core.model.DEFAULT_WORKOUT_COUNTDOWN_SECONDS
 import br.com.mwconsulting.championcompanion.core.model.CardiovascularLoadHistoryResult
 import br.com.mwconsulting.championcompanion.core.model.GpsReadiness
+import br.com.mwconsulting.championcompanion.core.model.RunningPerformanceHistory
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityFilter
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivityId
 import br.com.mwconsulting.championcompanion.core.model.WorkoutType
@@ -18,6 +19,7 @@ import br.com.mwconsulting.championcompanion.core.model.WorkoutHeartRateAnalysis
 import br.com.mwconsulting.championcompanion.core.model.WorkoutActivity
 import br.com.mwconsulting.championcompanion.core.model.WorkoutDerivationMethod
 import java.time.Instant
+import java.time.ZoneId
 
 interface ExercisesFeatureContract : UiStateStore<ExercisesUiState> {
     fun onIntent(intent: ExercisesIntent)
@@ -47,12 +49,23 @@ data class ExercisesUiState(
     val associatedDeviceName: String? = null,
     val workoutPreparation: WorkoutPreparationUiState = WorkoutPreparationUiState(),
     val cardiovascularLoadHistory: CardiovascularLoadHistoryUiState = CardiovascularLoadHistoryUiState.Loading,
+    val runningPerformanceHistory: RunningPerformanceHistoryUiState = RunningPerformanceHistoryUiState.Loading,
 )
 
 sealed interface CardiovascularLoadHistoryUiState {
     data object Loading : CardiovascularLoadHistoryUiState
     data class Ready(val result: CardiovascularLoadHistoryResult) : CardiovascularLoadHistoryUiState
     data object Unavailable : CardiovascularLoadHistoryUiState
+}
+
+sealed interface RunningPerformanceHistoryUiState {
+    data object Loading : RunningPerformanceHistoryUiState
+    data class Ready(
+        val result: RunningPerformanceHistory,
+        val asOf: Instant,
+        val zoneId: ZoneId,
+    ) : RunningPerformanceHistoryUiState
+    data object Unavailable : RunningPerformanceHistoryUiState
 }
 
 enum class WorkoutPreparationPhase {

@@ -60,7 +60,7 @@ android {
                 enable = false
             }
 
-            isDebuggable = false
+            isDebuggable = true
             signingConfig = signingConfigs.findByName("release")
 
             // Ative quando a fase de otimização estiver preparada.

@@ -64,6 +64,11 @@ sealed class AppDestination {
     }
 
     @Serializable
+    data object RunningPerformanceHistory : AppDestination() {
+        override val route = "exercises/running-performance-history"
+    }
+
+    @Serializable
     data class ExerciseDetail(val activityId: String) : AppDestination() {
         override val route = "exercises/$activityId"
 

@@ -2,6 +2,9 @@ package br.com.mwconsulting.championcompanion.core.model
 
 import java.time.Duration
 
+private const val MINIMUM_HEART_RATE_BPM = 30
+private const val MAXIMUM_HEART_RATE_BPM = 220
+
 enum class HeartRateZone(
     val weight: Int,
 ) {
@@ -80,6 +83,22 @@ internal data class WorkoutHeartRateSampleWindow(
     val window: WorkoutIntervalWindow,
 )
 
+internal data class WorkoutHeartRateTimeline(
+    val samples: List<WorkoutHeartRateSample>,
+    val windows: List<WorkoutHeartRateSampleWindow>,
+    val coveredDuration: Duration,
+)
+
+internal sealed interface WorkoutHeartRateTimelineResult {
+    data class Available(
+        val timeline: WorkoutHeartRateTimeline,
+    ) : WorkoutHeartRateTimelineResult
+
+    data object NoSamples : WorkoutHeartRateTimelineResult
+
+    data object InvalidSamples : WorkoutHeartRateTimelineResult
+}
+
 /**
  * Única primitiva de sample-and-hold usada por splits e análise de zonas.
  * Samples anteriores à sessão podem iniciar cobertura em [sessionWindow.start]
@@ -102,9 +121,50 @@ internal fun sampleAndHoldWindows(
     }
 }
 
+/**
+ * Semântica temporal compartilhada por zonas, carga e métricas de performance.
+ * O filtro mantém somente samples na janela canônica antes da validação.
+ */
+internal object WorkoutHeartRateTimelinePolicy {
+    fun analyze(
+        sessionWindow: WorkoutIntervalWindow,
+        heartRateSamples: List<WorkoutHeartRateSample>,
+    ): WorkoutHeartRateTimelineResult {
+        val samplesInSession = heartRateSamples
+            .filter { sample -> sessionWindow.contains(sample.sampledAt) }
+            .sortedBy(WorkoutHeartRateSample::sampledAt)
+        if (samplesInSession.isEmpty()) return WorkoutHeartRateTimelineResult.NoSamples
+        if (!samplesInSession.all { sample -> sample.bpm in MINIMUM_HEART_RATE_BPM..MAXIMUM_HEART_RATE_BPM } ||
+            samplesInSession.zipWithNext().any { (first, second) -> !second.sampledAt.isAfter(first.sampledAt) }
+        ) {
+            return WorkoutHeartRateTimelineResult.InvalidSamples
+        }
+
+        val windows = sampleAndHoldWindows(samplesInSession, sessionWindow)
+        if (windows.isEmpty()) return WorkoutHeartRateTimelineResult.InvalidSamples
+        val coveredDuration = windows.fold(Duration.ZERO) { total, sampleWindow ->
+            total.plus(sampleWindow.window.duration)
+        }
+        return WorkoutHeartRateTimelineResult.Available(
+            WorkoutHeartRateTimeline(
+                samples = samplesInSession,
+                windows = windows,
+                coveredDuration = coveredDuration,
+            ),
+        )
+    }
+
+    fun weightedAverageBpm(timeline: WorkoutHeartRateTimeline): Double? {
+        val coveredSeconds = timeline.coveredDuration.secondsAsDouble()
+        if (!coveredSeconds.isFinite() || coveredSeconds <= 0.0) return null
+        val weightedBpm = timeline.windows.sumOf { sampleWindow ->
+            sampleWindow.sample.bpm.toDouble() * sampleWindow.window.duration.secondsAsDouble()
+        }
+        return weightedBpm / coveredSeconds
+    }
+}
+
 object WorkoutHeartRateAnalysisPolicy {
-    private const val MINIMUM_HEART_RATE_BPM = 30
-    private const val MAXIMUM_HEART_RATE_BPM = 220
     private const val ZONE_1_RATIO = 0.50
     private const val ZONE_2_RATIO = 0.60
     private const val ZONE_3_RATIO = 0.70
@@ -122,30 +182,16 @@ object WorkoutHeartRateAnalysisPolicy {
             )
         }
 
-        val samplesInSession = heartRateSamples
-            .filter { sample -> sessionWindow.contains(sample.sampledAt) }
-            .sortedBy(WorkoutHeartRateSample::sampledAt)
-        if (samplesInSession.isEmpty()) {
-            return WorkoutHeartRateAnalysisResult.NoHeartRateSamples
-        }
-        if (!samplesInSession.all { sample -> sample.bpm in MINIMUM_HEART_RATE_BPM..MAXIMUM_HEART_RATE_BPM } ||
-            samplesInSession.zipWithNext().any { (first, second) -> !second.sampledAt.isAfter(first.sampledAt) }
-        ) {
-            return WorkoutHeartRateAnalysisResult.Unavailable(
+        val timeline = when (val result = WorkoutHeartRateTimelinePolicy.analyze(sessionWindow, heartRateSamples)) {
+            WorkoutHeartRateTimelineResult.NoSamples -> return WorkoutHeartRateAnalysisResult.NoHeartRateSamples
+            WorkoutHeartRateTimelineResult.InvalidSamples -> return WorkoutHeartRateAnalysisResult.Unavailable(
                 WorkoutHeartRateAnalysisUnavailableReason.INVALID_SAMPLES,
             )
+            is WorkoutHeartRateTimelineResult.Available -> result.timeline
         }
-
-        val sampleWindows = sampleAndHoldWindows(samplesInSession, sessionWindow)
-        if (sampleWindows.isEmpty()) {
-            return WorkoutHeartRateAnalysisResult.Unavailable(
-                WorkoutHeartRateAnalysisUnavailableReason.INVALID_SAMPLES,
-            )
-        }
-
-        val coveredDuration = sampleWindows.fold(Duration.ZERO) { total, sampleWindow ->
-            total.plus(sampleWindow.window.duration)
-        }
+        val samplesInSession = timeline.samples
+        val sampleWindows = timeline.windows
+        val coveredDuration = timeline.coveredDuration
         val sessionSeconds = sessionWindow.duration.secondsAsDouble()
         val coveredSeconds = coveredDuration.secondsAsDouble()
         val coverageRatio = (coveredSeconds / sessionSeconds).coerceIn(0.0, 1.0)

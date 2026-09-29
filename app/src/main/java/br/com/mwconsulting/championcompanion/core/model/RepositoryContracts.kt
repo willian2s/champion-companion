@@ -407,6 +407,10 @@ interface WorkoutActivityRepository {
     fun observeCardiovascularLoadWorkoutsBetween(
         range: CalendarInstantRange,
     ): Flow<List<CardiovascularLoadWorkoutInput>> = flowOf(emptyList())
+    /** Fatos mínimos bounded para tendência efêmera de performance de corrida. */
+    fun observeRunningPerformanceWorkoutsBetween(
+        range: CalendarInstantRange,
+    ): Flow<List<RunningPerformanceWorkoutInput>> = flowOf(emptyList())
     /** Atividades não descartadas cujo startedAt pertence ao intervalo semiaberto. */
     fun observeActivitiesBetween(range: CalendarInstantRange): Flow<List<CalendarWorkoutSummary>> =
         flowOf(emptyList())
