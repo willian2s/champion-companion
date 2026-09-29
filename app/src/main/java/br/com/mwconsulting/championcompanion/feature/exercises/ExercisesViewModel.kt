@@ -38,6 +38,8 @@ import br.com.mwconsulting.championcompanion.core.model.PhoneWorkoutPolicy
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsRepository
 import br.com.mwconsulting.championcompanion.core.model.PersonalMetricsSnapshot
 import br.com.mwconsulting.championcompanion.core.model.RepositoryResult
+import br.com.mwconsulting.championcompanion.core.model.RunningPerformanceHistory
+import br.com.mwconsulting.championcompanion.core.model.RunningPerformanceHistoryPolicy
 import br.com.mwconsulting.championcompanion.core.model.SubmitWorkoutReviewInput
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationRepository
 import br.com.mwconsulting.championcompanion.core.model.TreadmillCalibrationSnapshot
@@ -239,6 +241,15 @@ class ExercisesViewModel internal constructor(
         untilExclusive = cardiovascularHistoryAsOf,
         zoneId = cardiovascularHistoryZoneId,
     )
+    private val runningPerformanceHistoryState =
+        MutableStateFlow<RunningPerformanceHistoryUiState>(RunningPerformanceHistoryUiState.Loading)
+    private val runningPerformanceHistoryAsOf = Instant.now()
+    private val runningPerformanceHistoryZoneId = ZoneId.systemDefault()
+    private val runningPerformanceHistoryRange = CalendarInstantRange(
+        fromInclusive = runningPerformanceHistoryAsOf.minus(Duration.ofDays(56)),
+        untilExclusive = runningPerformanceHistoryAsOf,
+        zoneId = runningPerformanceHistoryZoneId,
+    )
     private val operationError = MutableStateFlow<ExerciseOperationError?>(null)
     private val isReprocessing = MutableStateFlow(false)
     private val isAcceptingPlausibility = MutableStateFlow(false)
@@ -420,6 +431,23 @@ class ExercisesViewModel internal constructor(
                 .collect { cardiovascularLoadHistoryState.value = it }
         }
         scope.launch {
+            workoutActivityRepository.observeRunningPerformanceWorkoutsBetween(runningPerformanceHistoryRange)
+                .map { workouts ->
+                    withContext(Dispatchers.Default) {
+                        RunningPerformanceHistoryPolicy.evaluate(workouts)
+                    }
+                }
+                .map<RunningPerformanceHistory, RunningPerformanceHistoryUiState> { result ->
+                    RunningPerformanceHistoryUiState.Ready(
+                        result = result,
+                        asOf = runningPerformanceHistoryAsOf,
+                        zoneId = runningPerformanceHistoryZoneId,
+                    )
+                }
+                .catch { emit(RunningPerformanceHistoryUiState.Unavailable) }
+                .collect { runningPerformanceHistoryState.value = it }
+        }
+        scope.launch {
             personalMetricsRepository.observeLearnedStepLengthProfiles().collect {
                 learnedProfiles.value = it
                 refreshCalibrationPreview()
@@ -523,6 +551,7 @@ class ExercisesViewModel internal constructor(
                 associatedDevice,
                 workoutPreparation,
                 cardiovascularLoadHistoryState,
+                runningPerformanceHistoryState,
             ) { values ->
                 val currentImportState = values[0] as WatchWorkoutImportSurfaceState
                 val metadata = values[1] as WatchWorkoutImportMetadata?
@@ -544,6 +573,7 @@ class ExercisesViewModel internal constructor(
                 val device = values[17] as Device?
                 val preparation = values[18] as WorkoutPreparationUiState
                 val cardiovascularLoadHistory = values[19] as CardiovascularLoadHistoryUiState
+                val runningPerformanceHistory = values[20] as RunningPerformanceHistoryUiState
                 ExercisesUiState(
                     importState = currentImportState,
                     latestImportMetadata = metadata,
@@ -577,6 +607,7 @@ class ExercisesViewModel internal constructor(
                     associatedDeviceName = device?.name,
                     workoutPreparation = preparation,
                     cardiovascularLoadHistory = cardiovascularLoadHistory,
+                    runningPerformanceHistory = runningPerformanceHistory,
                 )
             }.collect { mutableState.value = it }
         }

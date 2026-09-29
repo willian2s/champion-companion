@@ -187,6 +187,7 @@ fun ExercisesScreen(
     backLabel: String = "Voltar para Exercícios",
     onOpenActivity: (WorkoutActivityId) -> Unit = {},
     onOpenCardiovascularLoadHistory: () -> Unit = {},
+    onOpenRunningPerformanceHistory: () -> Unit = {},
     viewModel: ExercisesViewModel = run {
         val activity = checkNotNull(LocalActivity.current) as ComponentActivity
         remember(activity) {
@@ -308,6 +309,7 @@ fun ExercisesScreen(
                         },
                     )
                     CardiovascularLoadHistoryEntry(onClick = onOpenCardiovascularLoadHistory)
+                    RunningPerformanceHistoryEntry(onClick = onOpenRunningPerformanceHistory)
                     ExerciseHistorySection(
                         period = selectedHistoryPeriod,
                         activities = state.activityList,
@@ -726,6 +728,42 @@ private fun CardiovascularLoadHistoryEntry(onClick: () -> Unit) {
             )
             Text(
                 text = "Histórico calculado a partir dos treinos e dos dados de frequência cardíaca disponíveis.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RunningPerformanceHistoryEntry(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Tendência de corrida. Ritmo e frequência cardíaca nos últimos 56 dias."
+            },
+        onClick = onClick,
+        shape = ChampionShapeMedium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(
+            modifier = Modifier.padding(ChampionSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(ChampionSpacing.small),
+        ) {
+            Text(
+                text = "Tendência de corrida",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Ritmo e frequência cardíaca",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "Histórico factual das corridas confirmadas nos últimos 56 dias.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

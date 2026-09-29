@@ -2,7 +2,7 @@
 
 - **Status geral:** in_progress
 - **Spec:** [037-running-pace-heart-rate-trend.md](../../specs/037-running-pace-heart-rate-trend.md)
-- **Progresso:** 3/6 subtarefas concluídas
+- **Progresso:** 4/6 subtarefas concluídas
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
 - [x] [037-01-auditar-comparabilidade-e-congelar-contrato.md](037-01-auditar-comparabilidade-e-congelar-contrato.md)
 - [x] [037-02-implementar-metricas-de-performance-de-corrida.md](037-02-implementar-metricas-de-performance-de-corrida.md)
 - [x] [037-03-implementar-read-model-bounded-de-corridas.md](037-03-implementar-read-model-bounded-de-corridas.md)
-- [ ] [037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md](037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md)
+- [x] [037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md](037-04-integrar-tendencia-de-corrida-no-viewmodel-e-navegacao.md)
 - [ ] [037-05-renderizar-historico-de-ritmo-e-fc.md](037-05-renderizar-historico-de-ritmo-e-fc.md)
 - [ ] [037-06-validar-fisicamente-e-fechar.md](037-06-validar-fisicamente-e-fechar.md)
 
@@ -44,3 +44,8 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
   transação. Room v20, entidades, schema, migrations, índices e
   `CardiovascularLoadWorkoutInput` permanecem inalterados. 037-04, 037-05 e
   037-06 continuam pendentes.
+- 037-04 concluída: Exercícios expõe estado dedicado da tendência, com janela de
+  56 dias, `asOf` e `ZoneId` congelados no ViewModel; a policy roda fora do
+  Compose e falhas de fonte viram `UNAVAILABLE`. CTA e destino serializável
+  permanecem contextuais na subtree de Exercícios, separados da carga
+  cardiovascular. 037-05 e 037-06 continuam pendentes.
