@@ -1,7 +1,7 @@
 # Spec 037 — Tendência de corrida: relação entre ritmo e frequência cardíaca
 
 - **Ticker:** `037`
-- **Status:** `planned`
+- **Status:** `completed`
 - **Branch documental:** `feat/037-running-pace-heart-rate-trend`
 - **Base auditada:** `main` em `201a7b8c80d176c2f726176fa9107a7326a62f22`
 - **Base declarada pelo pedido:** `201a7b8` — merge da Spec 036
@@ -762,6 +762,36 @@ substitui o smoke Release da tela e a comparação sanitizada de fatos.
 
 Se cenário não existir naturalmente, registrar `N/A` com motivo. Não fabricar
 dados para preencher lacunas.
+
+## Fechamento factual da 037 — 2026-09-29
+
+A validação física foi concluída sobre banco existente e instalação incremental
+do artefato Release, sem limpar armazenamento, desinstalar, reimportar ou
+rederivar. Evidência sanitizada: [037-06-physical-validation.md](../integration/037-06-physical-validation.md).
+
+- Room permaneceu em `user_version = 20`; não há tabela analítica de tendência.
+- A população bounded teve 21 corridas `WATCH_D3_D4`, `confirmedType == RUNNING`
+  e não descartadas. `suggestedType` isolado, `TREADMILL` e origem phone não
+  entraram.
+- Todas as 21 linhas tinham escalares positivos, temporalidade elegível e
+  snapshot ativo. O recálculo independente de pace usou somente duração coberta
+  e distância canônica.
+- Cinco pontos `WATCH_NATIVE_CONTEXT_CALIBRATED`/`watch-d3-d4-v4` entraram nos
+  gráficos comparáveis. Dezesseis pontos com comprimento de passo permaneceram
+  factuais na lista, fora dos gráficos por contrato; portanto, não existem dados
+  adicionais ocultos à direita do gráfico.
+- A média FC foi recalculada por sample-and-hold ponderado para 21 linhas. As 21
+  tiveram cobertura parcial; nenhuma teve ausência natural, amostra inválida ou
+  cobertura completa nesta população.
+- Ordem cronológica e pontos distintos foram preservados. Não surgiram
+  naturalmente múltiplas corridas no mesmo dia nem empate de instante.
+- Reabertura confirmou recomposição efêmera. Contagens e assinaturas sanitizadas
+  de activities, samples, snapshots, derived intervals, splits, calibrações e
+  `health_sync_operations` permaneceram iguais antes/depois e após reopen.
+
+Casos não observados naturalmente ficaram `N/A`: sem FC, FC completa, amostra
+inválida, pace inelegível, snapshot ausente, falha estrutural de fonte, empate
+temporal e múltiplas corridas no mesmo dia. Nenhum fato foi fabricado.
 
 ## Ordem das subtarefas
 

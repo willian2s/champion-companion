@@ -1,6 +1,6 @@
 # ADR-037 — Tendência de corrida: relação entre ritmo e frequência cardíaca
 
-- **Status:** proposed
+- **Status:** accepted
 - **Data:** 2026-09-23
 - **Relacionada:** [Spec 037](../specs/037-running-pace-heart-rate-trend.md)
 - **Base:** Specs 032, 034, 035 e 036 concluídas; correção 035-08; Room v20
@@ -204,3 +204,22 @@ ausência de persistência analítica. Cenários inexistentes naturalmente receb
 `N/A`; nenhum dado deve ser fabricado. O smoke deve ocorrer em Release com
 instalação incremental e sem wipe, reimportação ou rederivação, devido à
 regressão histórica corrigida pela 035-08.
+
+## Validação e aceite — 2026-09-29
+
+A decisão foi validada sobre banco físico existente e instalação incremental do
+artefato Release. Room permaneceu v20 e não houve mutação em activities, samples,
+snapshots, derived intervals, splits, calibrações ou fila Health Connect durante
+a abertura, navegação, reabertura e recomposição.
+
+A população real teve 21 corridas confirmadas. Cinco pontos com lineage nativa
+`watch-d3-d4-v4` foram comparáveis e apareceram nos dois gráficos; 16 pontos de
+fallback apareceram somente na lista, conforme a decisão de não misturar
+proveniências. A ausência de pontos adicionais à direita do gráfico não é corte
+visual: os fallbacks ficam deliberadamente fora da série comparável.
+
+Pace independente, provenance e média FC sample-and-hold fecharam. Ausência de
+FC, FC completa, amostras inválidas, snapshot ausente, empate temporal e
+múltiplas corridas no mesmo dia ficaram `N/A` por não existirem naturalmente.
+Evidência completa e screenshot sanitizada estão registradas na integração da
+037-06.

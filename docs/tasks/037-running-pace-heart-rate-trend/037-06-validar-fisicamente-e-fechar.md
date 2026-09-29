@@ -3,6 +3,7 @@
 - **Ticker:** `037`
 - **Número:** `06`
 - **Status inicial:** `pending`
+- **Status atual:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -119,3 +120,95 @@ execução documental, apenas `git diff --check` é necessário.
 - registrar `N/A` em vez de criar dados;
 - não prometer imutabilidade absoluta se causalidade de operação preexistente
   não puder ser isolada.
+
+## Arquivos alterados
+
+- `docs/integration/037-06-physical-validation.md` — evidência física
+  sanitizada, cálculos independentes, preservação, reabertura e N/A.
+- `docs/integration/037-06-running-performance.png` — screenshot sanitizada da
+  tela de tendência.
+- `docs/specs/037-running-pace-heart-rate-trend.md` — status e fechamento factual.
+- `docs/decisions/adr-037-running-pace-heart-rate-trend.md` — aceite e evidência.
+- `docs/tasks/037-running-pace-heart-rate-trend/037-00-overview.md` — checklist,
+  progresso e observações.
+- este arquivo — status, comandos, resultados e riscos.
+
+## Decisões e desvios
+
+- Decisão: aceitar validação do artefato Release instalado incrementalmente no
+  dispositivo real, sem wipe, desinstalação, reimportação ou rederivação.
+- Decisão: manter fallbacks na lista e fora dos gráficos comparáveis. A população
+  física teve 21 corridas; somente 5 pontos nativos comparáveis foram plotados.
+  Não há pontos adicionais escondidos à direita; os 16 fallbacks são excluídos
+  deliberadamente pelo contrato.
+- Decisão: usar cálculo independente read-only sobre cópia do banco físico,
+  sem registrar IDs, timestamps completos, BPM individual, payload ou dados
+  pessoais.
+- Desvio: nenhum funcional. A captura original continha uma janela flutuante do
+  dispositivo; screenshot final foi sanitizada por mascaramento antes de ser
+  adicionada à evidência.
+- N/A natural: sem FC, FC completa, amostra inválida, pace inelegível, snapshot
+  ausente, falha estrutural de fonte, múltiplas corridas no mesmo dia e empate
+  temporal não existiam no banco. Nenhum dado foi fabricado.
+
+## Comandos executados
+
+- `git diff --check`
+- `./gradlew lint assembleDebug assembleRelease`
+- `adb devices -l`
+- `adb install -r app/build/outputs/apk/release/app-release.apk`
+- `adb shell monkey -p br.com.mwconsulting.championcompanion -c android.intent.category.LAUNCHER 1`
+- `adb shell uiautomator dump ...` e leitura da árvore de acessibilidade
+- `adb exec-out screencap -p`
+- cópia read-only do banco físico via `adb exec-out run-as ... cat`
+- consultas SQLite read-only e cálculo independente em Python
+- reabertura da tela e nova cópia read-only do banco
+- sanitização da screenshot com `magick`
+
+## Resultados e evidências
+
+- `git diff --check` — passou.
+- `./gradlew lint assembleDebug assembleRelease` — `BUILD SUCCESSFUL`.
+- Instalação Release incremental — sucesso, sem limpeza, desinstalação,
+  reimportação ou rederivação.
+- Dispositivo real `SM-S901E` acessível via ADB; Exercícios abriu a entrada
+  `Tendência de corrida` e a tela recompôs após reabertura.
+- Room `user_version = 20`; população física: 48 atividades, 1.470 samples,
+  71 snapshots, 2.209 derived intervals, 211 splits, 6 calibrações e 8.275
+  operações Health Connect.
+- População bounded: 21 corridas confirmadas `RUNNING`; 5 nativas comparáveis
+  `watch-d3-d4-v4`; 16 fallbacks listáveis. Todas as 21 tinham escalares
+  positivos, snapshot ativo e temporalidade elegível.
+- Recalculo independente de pace: 21 linhas fechadas por distância canônica e
+  duração coberta. Recalculo independente de FC: 21 médias ponderadas por
+  sample-and-hold; 21 coberturas parciais, zero ausências e zero completas.
+- Árvore de acessibilidade confirmou período de 56 dias, 21 corridas,
+  provenance, dois gráficos independentes e 5 pontos em cada gráfico. Os dados
+  adicionais são fallbacks listados, não pontos omitidos à direita.
+- Antes/depois da instalação, navegação e reabertura: mesmas contagens e
+  assinaturas sanitizadas para activities, samples, snapshots, derived
+  intervals, splits, calibrações e `health_sync_operations`.
+- Nenhuma tabela de tendência/performance foi criada; analytics permaneceu
+  efêmero.
+- Screenshot sanitizada: `docs/integration/037-06-running-performance.png`.
+
+## Riscos residuais
+
+- Cenários N/A dependem de banco físico futuro para validação natural; não foram
+  fabricados apenas para preencher cobertura.
+- Corridas fallback permanecem fora dos gráficos por decisão de comparabilidade;
+  sua presença na lista precisa continuar clara para evitar interpretação de
+  que foram perdidas.
+- O risco herdado de custo da query sem índice temporal composto permanece sem
+  mudança de schema.
+- A janela flutuante do dispositivo foi mascarada na screenshot; evidência
+  textual preserva somente agregados sanitizados.
+
+## Revisão independente
+
+- Agente `review` aprovou o fechamento com correções documentais menores.
+- Revisão confirmou ticker, checklist único com 6 itens, progresso `6/6`, links,
+  Release incremental, Room v20, cálculos independentes, fallback fora dos
+  gráficos, preservação, reabertura, N/A e screenshot sanitizada.
+- Correções aplicadas após revisão: remoção de referências históricas a 037-06
+  pendente e explicitação dos estados físicos N/A não exercitados.
