@@ -9,7 +9,6 @@ import br.com.mwconsulting.championcompanion.core.database.WatchDailyD1SampleEnt
 import br.com.mwconsulting.championcompanion.core.database.WorkoutActivityEntity
 import br.com.mwconsulting.championcompanion.core.model.ActivityWorkflowState
 import br.com.mwconsulting.championcompanion.core.model.DataOrigin
-import br.com.mwconsulting.championcompanion.core.model.DataValidity
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_DAILY_D1_METRIC_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HEALTH_SYNC_FROZEN_DAILY_D1_PAYLOAD_SCHEMA_VERSION
 import br.com.mwconsulting.championcompanion.core.model.HealthProjectionChildKey
@@ -246,16 +245,17 @@ class GranularHealthSyncRepository @Inject constructor(
                         deviceId = deviceId,
                         origin = DataOrigin.WATCH_DAILY_SUMMARY.name,
                         localDateIso = localDateIso,
-                    ) ?: continue
-                    if (summary.validity != DataValidity.VALID.name) continue
+                    )
                     val eligibleDaySamples = daySamples.filter { it.bucketBelongsToResolvedDate() }
-                    val d1Steps = eligibleDaySamples.sumStepsOrNull()
-                        ?: return@withWriteTransaction RepositoryResult.UnexpectedState
-                    if (d1Steps > summary.steps) continue
+                    if (eligibleDaySamples.any { it.steps < 0L }) {
+                        return@withWriteTransaction RepositoryResult.UnexpectedState
+                    }
 
-                    val dailyStepOperations = database.healthSyncOperationDao()
-                        .findByAggregate(summary.id, HealthSyncAggregateType.DAILY_SUMMARY.name)
-                        .filter { it.recordType == HealthSyncRecordType.STEPS.name }
+                    val dailyStepOperations = summary?.let {
+                        database.healthSyncOperationDao()
+                            .findByAggregate(it.id, HealthSyncAggregateType.DAILY_SUMMARY.name)
+                            .filter { operation -> operation.recordType == HealthSyncRecordType.STEPS.name }
+                    }.orEmpty()
                     val existingGranularSteps = daySamples.mapNotNull { sample ->
                         database.healthSyncOperationDao().findByNaturalKey(
                             aggregateId = sample.id,
@@ -445,7 +445,6 @@ class GranularHealthSyncRepository @Inject constructor(
                         deviceId = deviceId,
                         localDate = localDate,
                         requiredThrough = context.window.end,
-                        summarySteps = summary?.steps,
                     )
                 ) {
                     return@withWriteTransaction RepositoryResult.UnexpectedState
@@ -491,15 +490,13 @@ class GranularHealthSyncRepository @Inject constructor(
         deviceId: String,
         localDate: LocalDate,
         requiredThrough: Instant,
-        summarySteps: Long?,
     ): Boolean {
         val daySamples = samplesSnapshot.filter {
             it.deviceId == deviceId && it.resolvedLocalDate == localDate.toString()
         }
         if (!daySamples.isStructurallyCompleteD1Day()) return false
         val eligible = daySamples.filter { it.bucketBelongsToResolvedDate() }
-        val total = eligible.sumStepsOrNull() ?: return false
-        if (summarySteps == null || total > summarySteps) return false
+        if (eligible.any { it.steps < 0L }) return false
         val latestBucketEnd = eligible.maxOfOrNull { it.resolvedAtEpochMillis }
             ?.let(Instant::ofEpochMilli) ?: return false
         if (latestBucketEnd.isBefore(requiredThrough)) return false
@@ -520,19 +517,6 @@ class GranularHealthSyncRepository @Inject constructor(
         if (expected <= 0 || size != expected) return false
         val positions = map { it.currentPosition }.sorted()
         return positions == (1..expected).toList()
-    }
-
-    private fun List<WatchDailyD1SampleEntity>.sumStepsOrNull(): Long? {
-        var total = 0L
-        for (sample in this) {
-            if (sample.steps < 0L) return null
-            total = try {
-                Math.addExact(total, sample.steps)
-            } catch (_: ArithmeticException) {
-                return null
-            }
-        }
-        return total
     }
 
     private fun WatchDailyD1SampleEntity.bucketBelongsToResolvedDate(): Boolean {

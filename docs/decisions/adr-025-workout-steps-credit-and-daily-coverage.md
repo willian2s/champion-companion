@@ -20,13 +20,17 @@ publicação ambígua.
 
 ### 1. Precedência e autoridade
 
-`DailySummary.steps` continua total cumulativo autoritativo do relógio por data
-local. `WorkoutActivity.metrics.steps` é quantidade autoritativa da atividade
-quando válida; `decodedSteps` por intervalo é fonte temporal para derivados e
-cadência.
+`DailySummary.steps` continua referência cumulativa do resumo diário por data
+local. Após o cutover granular D1, `WatchDailyD1Sample` válido é a autoridade
+da projeção granular de passos no Health Connect. `WorkoutActivity.metrics.steps`
+é quantidade autoritativa da atividade quando válida; `decodedSteps` por
+intervalo é fonte temporal para derivados e cadência.
 
-Nenhuma soma parcial de intervalos substitui o total do pacote. Divergência,
-ausência ou parser parcial não produz correção heurística nem passos inventados.
+Nenhuma soma parcial de intervalos substitui o total do pacote. Divergência entre
+`DailySummary.steps` e a soma D1 é sinal diagnóstico, mas não bloqueia a
+publicação de buckets D1 válidos. Ausência de `DailySummary` também não invalida
+uma linha D1 estruturalmente válida. Nenhum desses casos produz correção
+heurística nem passos inventados.
 
 ### 2. Cobertura local sem readback
 
@@ -133,6 +137,8 @@ sync explícito, falha parcial e ausência de leitura remota.
 
 - atividade primeiro pode preservar total remoto sem duplicar Daily;
 - Daily primeiro bloqueia promoção ambígua de passos, com possível subcontagem;
+- divergência quantitativa entre D1 e `DailySummary` não bloqueia a projeção
+  granular D1 após o cutover;
 - falha parcial permanece retryável por filho e não ativa crédito prematuro;
 - cadência pode evoluir sem acoplamento à contabilidade diária;
 - uma fila residual insegura pode exigir retry ou decisão explícita;

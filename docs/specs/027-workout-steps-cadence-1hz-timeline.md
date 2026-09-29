@@ -30,7 +30,12 @@ O D4 já entrega total de passos da atividade e passos por intervalo. O app usa 
 
 O Health Connect possui `StepsRecord` para contagem de passos em um intervalo e `StepsCadenceRecord` para série temporal de cadência. A documentação oficial orienta que cada passo seja reportado uma única vez e que `StepsRecord` não tenha sobreposição que duplique passos.
 
-Existe ainda um fluxo independente de passos diários: a Spec 016 migrou `DailySummary` para incrementos imutáveis. O `DailySummary` local continua cumulativo e o sync calcula somente a diferença ainda não enfileirada. Esse total diário é a referência autoritativa de passos do relógio para o usuário.
+Existe ainda um fluxo independente de passos diários: a Spec 016 migrou
+`DailySummary` para incrementos imutáveis. O `DailySummary` local continua
+cumulativo e o sync calcula somente a diferença ainda não enfileirada. Esse total
+diário permanece referência cumulativa para o resumo e o read model. Após o
+cutover granular D1, `WatchDailyD1Sample` válido é a autoridade da projeção
+granular de passos no Health Connect.
 
 Como a sincronização é manual, é possível sincronizar uma atividade antes do próximo `DailySummary`. Isso permite que passos do treino sejam publicados primeiro, desde que o próximo incremento diário desconte exatamente os passos da atividade já aceitos pelo Health Connect. A ordem inversa precisa falhar fechada para não duplicar contagem.
 
@@ -83,11 +88,18 @@ A timeline é derivada e reamostrada. Ela não substitui nem reescreve amostras/
 
 ## Princípios autoritativos
 
-### 1. Total diário continua autoritativo
+### 1. Total diário continua referência cumulativa
 
-`DailySummary.steps` continua sendo a referência cumulativa do relógio por dia local.
+`DailySummary.steps` continua sendo a referência cumulativa do resumo diário por
+dia local. Não limita a projeção granular após o cutover.
 
-A soma de passos publicada pelo Champion Companion para um dia nunca pode superar o total observado pelo app para esse dia por causa de uma atividade sincronizada.
+`WatchDailyD1Sample` válido é a fonte autoritativa da distribuição granular D1.
+Diferença entre `DailySummary.steps` e a soma dos buckets D1 é diagnóstica e não
+bloqueia a publicação de buckets válidos, inclusive quando a soma D1 é maior.
+Ausência de `DailySummary` não invalida D1 estruturalmente válido.
+
+A soma de passos publicada pelo Champion Companion para um dia nunca pode conter
+duplicidade remota por causa de uma atividade sincronizada.
 
 Invariante desejado após cobertura completa:
 
@@ -140,7 +152,7 @@ Reexecutar a mesma atividade não cria novo crédito.
 
 ### 5. Ordem inversa falha fechada
 
-Se o `DailySummary` já sincronizado cobriu a atividade antes da sincronização da atividade:
+Se uma linha diária já sincronizada cobriu a atividade antes da sincronização da atividade:
 
 - não publicar um novo `StepsRecord` da atividade que duplique os mesmos passos;
 - `StepsCadenceRecord` continua elegível;
@@ -153,7 +165,7 @@ O fluxo preferencial para obter passos associados à atividade é, portanto, ati
 
 A implementação deve respeitar a semântica do Health Connect de que cada passo é reportado uma única vez.
 
-Quando passos da atividade já ocuparem sua janela temporal, o residual diário não deve criar uma segunda contagem sobre a mesma cobertura como se fossem passos adicionais.
+Quando passos da atividade já ocuparem sua janela temporal, o residual diário não deve criar uma segunda contagem sobre a mesma cobertura como se fossem passos adicionais. Essa proteção usa identidade, janela temporal, operações granulares preparadas/sincronizadas e `WorkoutStepsCredit`; não usa comparação global entre `DailySummary.steps` e a soma D1.
 
 Como a granularidade intradiária do `DailySummary` não é objetivo do produto, a implementação pode priorizar correção do acumulado diário sobre precisão temporal do residual, desde que:
 
