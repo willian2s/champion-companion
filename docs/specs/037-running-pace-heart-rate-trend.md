@@ -524,6 +524,7 @@ A tela deve mostrar:
 - explicação factual `Ritmo e frequência cardíaca`;
 - período `Últimos 56 dias`;
 - lista/cards por corrida, suficiente sem depender do gráfico;
+- lista local paginada em páginas de 10 corridas quando exceder esse limite;
 - ritmo em `m:ss /km`;
 - distância em km com precisão coerente com Exercícios;
 - FC média em `bpm`;
@@ -604,7 +605,9 @@ step length, distância canônica, workflow ou sincronização.
 21. Health Connect, calibração, derivação, workflow e snapshots não sofrem
     efeitos causados pela feature.
 22. Validação futura usa banco real existente, cálculo independente, registra
-    `N/A` sem fabricar dados e captura screenshot sanitizada.
+     `N/A` sem fabricar dados e captura screenshot sanitizada.
+23. Quando houver mais de 10 corridas, a lista usa controles de página sem
+     alterar a janela bounded nem a ordem cronológica recebida.
 
 ## Abordagem escolhida
 

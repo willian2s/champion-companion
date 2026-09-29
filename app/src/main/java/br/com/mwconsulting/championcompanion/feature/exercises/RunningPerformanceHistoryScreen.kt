@@ -17,8 +17,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
@@ -55,6 +61,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val RUNNING_HISTORY_PERIOD_LABEL = "Últimos 56 dias"
+private const val RUNNING_HISTORY_PAGE_SIZE = 10
 
 @Composable
 fun RunningPerformanceHistoryScreen(
@@ -192,11 +199,6 @@ private fun RunningPerformanceHistoryContent(
             .semantics { contentDescription = historyDescription },
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.large),
     ) {
-        RunningPerformancePointList(
-            points = points,
-            zoneId = zoneId,
-            locale = locale,
-        )
         if (showComparableCharts && comparablePoints.isNotEmpty()) {
             RunningPerformanceCharts(
                 points = comparablePoints,
@@ -204,6 +206,11 @@ private fun RunningPerformanceHistoryContent(
                 locale = locale,
             )
         }
+        RunningPerformancePointList(
+            points = points,
+            zoneId = zoneId,
+            locale = locale,
+        )
     }
 }
 
@@ -216,21 +223,61 @@ private fun RunningPerformancePointList(
     val dateTimeFormatter = remember(zoneId, locale) {
         DateTimeFormatter.ofPattern("dd/MM HH:mm", locale)
     }
+    var selectedPage by rememberSaveable(points) { mutableIntStateOf(0) }
+    val pageCount = (points.size + RUNNING_HISTORY_PAGE_SIZE - 1) / RUNNING_HISTORY_PAGE_SIZE
+    val currentPage = selectedPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+    val visiblePoints = points
+        .drop(currentPage * RUNNING_HISTORY_PAGE_SIZE)
+        .take(RUNNING_HISTORY_PAGE_SIZE)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(ChampionSpacing.medium),
     ) {
         Text(
-            text = "Corridas do período",
+            text = "Corridas do período (${points.size})",
             modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLarge,
         )
-        points.forEach { point ->
+        visiblePoints.forEach { point ->
             RunningPerformancePointCard(
                 point = point,
                 dateTimeLabel = dateTimeFormatter.format(point.startedAt.atZone(zoneId)),
                 locale = locale,
             )
+        }
+        if (pageCount > 1) {
+            RunningPerformanceHistoryPagination(
+                currentPage = currentPage,
+                pageCount = pageCount,
+                onPrevious = { selectedPage = (currentPage - 1).coerceAtLeast(0) },
+                onNext = { selectedPage = (currentPage + 1).coerceAtMost(pageCount - 1) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RunningPerformanceHistoryPagination(
+    currentPage: Int,
+    pageCount: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onPrevious, enabled = currentPage > 0) {
+            Text("Anterior")
+        }
+        Text(
+            text = "Página ${currentPage + 1} de $pageCount",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onNext, enabled = currentPage < pageCount - 1) {
+            Text("Próxima")
         }
     }
 }

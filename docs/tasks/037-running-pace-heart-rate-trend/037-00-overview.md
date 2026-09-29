@@ -51,5 +51,6 @@ coverage e ausência sem inferir melhora, eficiência ou condicionamento.
   cardiovascular. 037-05 foi concluída; 037-06 permanece pendente.
 - 037-05 concluída: tela renderiza lista factual independente dos gráficos,
   provenance, coverage, estados, semantics e dois gráficos temporais separados
-  com eixos `s/km` e `bpm`; 037-06 permanece pendente para validação física,
-  TalkBack e screenshot sanitizada.
+  com eixos `s/km` e `bpm`. Gráficos aparecem antes da lista, que usa páginas
+  locais de 10 corridas quando necessário; 037-06 permanece pendente para
+  validação física, TalkBack e screenshot sanitizada.
