@@ -3,6 +3,7 @@
 - **Ticker:** `037`
 - **Número:** `05`
 - **Status inicial:** `pending`
+- **Status atual:** `completed`
 
 ## Objetivo e resultado esperado
 
@@ -99,3 +100,47 @@ Validação visual física e screenshot sanitizada pertencem à `037-06`.
 - versão nativa não suportada permanece factual na lista, mas nunca entra na
   série comparável;
 - screenshot não pode expor IDs, BPM sample a sample ou dados pessoais.
+
+## Execução e evidências
+
+### Implementação realizada
+
+- `RunningPerformanceHistoryScreen` agora apresenta título, explicação factual,
+  período de 56 dias, estados top-level seguros e lista independente dos gráficos.
+- Cada corrida exibe data/hora, ritmo em `m:ss /km`, distância, FC média,
+  cobertura percentual, provenance traduzida e estados de ausência, invalidez,
+  fallback e versão não comparável.
+- Foram adicionados dois `ChampionTimeSeriesChart` independentes: ritmo em
+  `s/km` com formatter `m:ss /km` e FC em `bpm`, usando índice ordinal e
+  `y = null` para ausência de FC. Contratos, renderer e tema compartilhados não
+  foram alterados.
+- Semantics agregadas anunciam período, quantidade, unidades, lacunas,
+  parcialidade, valores e provenance sem expor IDs ou dados de samples.
+
+### Arquivos alterados
+
+- `app/src/main/java/br/com/mwconsulting/championcompanion/feature/exercises/RunningPerformanceHistoryScreen.kt`
+- este arquivo — status e evidências da subtarefa.
+
+### Comandos executados e resultados
+
+- `git diff --check` — passou.
+- `./gradlew app:compileDebugKotlin` — passou (`BUILD SUCCESSFUL`).
+- `./gradlew lint assembleDebug assembleRelease` — passou (`BUILD SUCCESSFUL`).
+- Revisão estática confirmou eixo de ritmo com unidade `s/km`, formatter visual
+  `m:ss /km`, eixo independente de FC em `bpm` e pontos ordinais crescentes.
+
+### Riscos residuais
+
+- Validação visual em dispositivo, TalkBack e cenários naturais de fallback,
+  lacunas e fonte indisponível permanecem para `037-06`.
+
+## Revisão independente
+
+- Agente `review` aprovou após correção do formatter de eixo: o gráfico de ritmo
+  combina `m:ss` com unidade `/km` sem duplicação, mantendo título semântico
+  `s/km`.
+- Semantics de `NO_COMPARABLE_RUNS` agora informa ausência de gráficos, sem
+  anunciar lacunas inexistentes.
+- Nenhum blocker, major ou minor permaneceu; validação física, TalkBack e
+  screenshot sanitizada continuam em `037-06`.
